@@ -9,7 +9,10 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.94.0",
+    "browser-image-compression": "^2.0.2",
     "next": "16.1.6",
+    "openai": "^6.17.0",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },

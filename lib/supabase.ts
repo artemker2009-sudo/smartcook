@@ -1,9 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
 
-// "Подушка безопасности":
-// Если переменных нет (например, во время сборки), используем пустую строку,
-// чтобы createClient не выдавал ошибку "supabaseUrl is required".
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co"
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-key"
+// ВСТАВЛЯЙ СЮДА СВОИ РЕАЛЬНЫЕ ДАННЫЕ В КАВЫЧКИ
+// Прямо копируй из .env.local
+const supabaseUrl = "https://yjfqwwiqwoighjdlkodg.supabase.co" 
+const supabaseKey = "sb_publishable_E7Fj9ZiOZTyNHAQQKo7Y0A_E8-ExX6Z"
 
+// Мы убрали process.env и заглушки. Теперь Vercel не отвертится.
 export const supabase = createClient(supabaseUrl, supabaseKey)

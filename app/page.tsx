@@ -3,6 +3,7 @@
 import { useState, useEffect, ChangeEvent } from "react";
 import { supabase } from "@/lib/supabase"; 
 
+/* --- ТИПЫ ДАННЫХ --- */
 interface AnalysisData {
   ingredients: string[];
   dishes: string[];
@@ -65,23 +66,29 @@ export default function Home() {
   const [asking, setAsking] = useState(false);
 
   useEffect(() => {
-    let storedId = localStorage.getItem("cook_user_id");
-    if (!storedId) {
-      storedId = "user_" + Math.random().toString(36).substr(2, 9);
-      localStorage.setItem("cook_user_id", storedId);
+    // Безопасная инициализация ID пользователя
+    try {
+      let storedId = localStorage.getItem("cook_user_id");
+      if (!storedId) {
+        storedId = "user_" + Math.random().toString(36).substr(2, 9);
+        localStorage.setItem("cook_user_id", storedId);
+      }
+      setUserId(storedId);
+      fetchMyRecipes(storedId); 
+    } catch (e) {
+      console.error("Ошибка localStorage:", e);
     }
-    setUserId(storedId);
-    fetchMyRecipes(storedId); 
   }, []);
 
   const fetchMyRecipes = async (currentId: string) => {
+    if (!currentId) return;
     const { data, error } = await supabase
       .from('recipes')
       .select('*')
       .eq('session_id', currentId)
       .order('created_at', { ascending: false });
 
-    if (error) console.error("Ошибка:", error);
+    if (error) console.error("Ошибка Supabase:", error);
     else if (data) setFeed(data);
   };
 
@@ -97,10 +104,10 @@ export default function Home() {
       title: item.title,
       time: item.time,
       calories: item.calories,
-      steps: item.steps,
+      steps: item.steps || [], // Защита от null
       missing_ingredients: [], 
-      ingredients: item.ingredients,
-      detailed_ingredients: item.detailed_ingredients
+      ingredients: item.ingredients || [],
+      detailed_ingredients: item.detailed_ingredients || []
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -110,13 +117,13 @@ export default function Home() {
     
     const newStatus = !currentStatus;
 
-    // 1. Обновляем в ленте истории
-    const updatedFeed = feed.map(r => 
+    // 1. Обновляем в ленте истории (безопасно)
+    const updatedFeed = feed?.map(r => 
       r.id === targetId ? { ...r, is_favorite: newStatus } : r
-    );
+    ) || [];
     setFeed(updatedFeed);
 
-    // 2. Обновляем в текущем открытом рецепте (если это он)
+    // 2. Обновляем в текущем открытом рецепте
     if (recipe && recipe.id === targetId) {
       setRecipe({ ...recipe, is_favorite: newStatus });
     }
@@ -138,6 +145,8 @@ export default function Home() {
     if (!files || files.length === 0) return;
 
     const originalFile = files[0];
+    
+    // Сброс состояний
     setAnalysisResult(null);
     setRecipe(null);
     setSelectedDish(null);
@@ -146,16 +155,27 @@ export default function Home() {
     setIsProcessing(true);
 
     try {
+      // Динамический импорт, чтобы избежать ошибок сервера
       const imageCompression = (await import("browser-image-compression")).default;
-      const options = { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true, fileType: "image/jpeg" };
+      
+      const options = { 
+        maxSizeMB: 1, 
+        maxWidthOrHeight: 1920, 
+        useWebWorker: true, 
+        fileType: "image/jpeg" 
+      };
+
       const compressedFile = await imageCompression(originalFile, options);
       const finalFile = new File([compressedFile], "processed_image.jpg", { type: "image/jpeg" });
 
       setFile(finalFile);
       setPreview(URL.createObjectURL(finalFile));
     } catch (error) {
-      console.error("Ошибка обработки:", error);
-      alert("Не удалось обработать фото.");
+      console.error("Ошибка обработки фото:", error);
+      // Если сжатие не удалось, пробуем использовать оригинал (как запасной вариант)
+      setFile(originalFile);
+      setPreview(URL.createObjectURL(originalFile));
+      alert("Не удалось сжать фото, пробуем загрузить оригинал...");
     } finally {
       setIsProcessing(false);
     }
@@ -176,7 +196,7 @@ export default function Home() {
       if (json.error) throw new Error(json.error);
       setAnalysisResult(json.data);
     } catch (err: any) {
-      alert("Ошибка: " + err.message);
+      alert("Ошибка анализа: " + err.message);
     } finally {
       setAnalyzing(false);
     }
@@ -225,7 +245,7 @@ export default function Home() {
       setRecipe({ ...json.recipe, ingredients: analysisResult.ingredients });
       fetchMyRecipes(userId); 
     } catch (err: any) {
-      alert("Ошибка: " + err.message);
+      alert("Ошибка рецепта: " + err.message);
     } finally {
       setLoadingRecipe(false);
     }
@@ -257,7 +277,7 @@ export default function Home() {
       fetchMyRecipes(userId);
 
     } catch (err: any) {
-      alert("Ошибка: " + err.message);
+      alert("Ошибка поиска: " + err.message);
     } finally {
       setLoadingRecipe(false);
     }
@@ -286,7 +306,7 @@ export default function Home() {
 
   const displayedFeed = filterMode === 'all' 
     ? feed 
-    : feed.filter(r => r.is_favorite);
+    : feed?.filter(r => r.is_favorite);
 
   return (
     <div className="container">
@@ -301,7 +321,7 @@ export default function Home() {
         <div style={{
           fontSize: '2.5rem', 
           fontWeight: '900', 
-          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+          background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
           marginBottom: '10px',
@@ -327,6 +347,7 @@ export default function Home() {
         </p>
       </div>
       
+      {/* ПЕРЕКЛЮЧАТЕЛЬ */}
       <div className="mode-switch">
         <button 
           className={`mode-btn ${searchMode === 'photo' ? 'active' : ''}`}
@@ -351,7 +372,7 @@ export default function Home() {
               onChange={handleFileChange} 
             />
             {isProcessing && (
-              <p style={{color: '#f59e0b', fontWeight: 'bold', marginTop: '10px'}}>
+              <p style={{color: '#f97316', fontWeight: 'bold', marginTop: '15px'}}>
                 📸 Готовлю фото для Шефа...
               </p>
             )}
@@ -392,13 +413,13 @@ export default function Home() {
         <div style={{ marginTop: "40px", animation: "slideUp 0.5s ease-out" }}>
           <h3 style={{ textAlign: "center", marginBottom: "20px" }}>Я вижу эти продукты:</h3>
           <div className="ingredients-list">
-            {analysisResult.ingredients.map((item, idx) => (
+            {analysisResult.ingredients?.map((item, idx) => (
               <span key={idx} className="tag">{item}</span>
             ))}
           </div>
           <h3 style={{ textAlign: "center", marginBottom: "20px" }}>Что приготовим?</h3>
           <div className="dishes-grid">
-            {analysisResult.dishes.map((dish, idx) => (
+            {analysisResult.dishes?.map((dish, idx) => (
               <button
                 key={idx}
                 onClick={() => getRecipeFromPhoto(dish)}
@@ -449,6 +470,7 @@ export default function Home() {
               )}
             </div>
             
+            {/* БЕЗОПАСНАЯ ПРОВЕРКА СПИСКОВ С ?. */}
             {recipe.missing_ingredients && recipe.missing_ingredients.length > 0 && (
               <div className="missing-box">
                 <strong>🛒 Нужно докупить:</strong> {recipe.missing_ingredients.join(", ")}
@@ -469,7 +491,7 @@ export default function Home() {
             
             <h3>Как готовить:</h3>
             <ol>
-              {recipe.steps.map((step, idx) => (
+              {recipe.steps?.map((step, idx) => (
                 <li key={idx} className="step-item">{step}</li>
               ))}
             </ol>
@@ -530,7 +552,7 @@ export default function Home() {
         
         {showHistory && (
           <>
-             {displayedFeed.length === 0 ? (
+             {(!displayedFeed || displayedFeed.length === 0) ? (
               <p style={{textAlign: 'center', color: '#9ca3af', padding: '20px'}}>
                 {filterMode === 'favorites' ? "В избранном пока пусто 💔" : "История пуста"}
               </p>

@@ -499,7 +499,9 @@ export default function Home() {
 
           <div className="chat-section">
             <h3 className="chat-title">👨‍🍳 Вопросы Шеф-повару</h3>
-            <div className="chat-input-group">
+            
+            {/* Поле ввода - исправлено: теперь на всю ширину и без кнопки внутри */}
+            <div style={{ position: 'relative', width: '100%', marginBottom: '15px' }}>
               <input 
                 type="text" 
                 className="chat-input"
@@ -507,15 +509,28 @@ export default function Home() {
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleAskChef()}
+                style={{ width: '100%', paddingRight: '15px' }} 
               />
+            </div>
+
+            {/* Кнопка - вынесена вниз и отцентрована */}
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
               <button 
                 className="btn-ask" 
                 onClick={handleAskChef}
                 disabled={asking || !question.trim()}
+                style={{
+                  width: 'auto',
+                  padding: '10px 40px',
+                  borderRadius: '50px',
+                  position: 'static', // сбрасываем абсолютное позиционирование если было
+                  transform: 'none'
+                }}
               >
                 {asking ? "..." : "Спросить"}
               </button>
             </div>
+
             {answer && (
               <div className="chat-answer-box">
                 <strong>Су-шеф:</strong> {answer}
@@ -534,12 +549,16 @@ export default function Home() {
             <button 
               className={`filter-tab ${filterMode === 'all' ? 'active' : ''}`}
               onClick={() => setFilterMode('all')}
+              // Уменьшили кнопки здесь:
+              style={{ padding: '8px 16px', fontSize: '0.9rem', minHeight: 'auto' }}
             >
               Все
             </button>
             <button 
               className={`filter-tab ${filterMode === 'favorites' ? 'active' : ''}`}
               onClick={() => setFilterMode('favorites')}
+              // И здесь:
+              style={{ padding: '8px 16px', fontSize: '0.9rem', minHeight: 'auto' }}
             >
               ❤️ Избранное
             </button>

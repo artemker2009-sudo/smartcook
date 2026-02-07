@@ -1,22 +1,9 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-// 1. Добавили импорт аналитики
-import { Analytics } from "@vercel/analytics/react";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+import "./globals.css"; // <-- Самое важное: подключаем наш файл стилей
 
 export const metadata: Metadata = {
-  title: "SmartCook | Твой AI Шеф-повар",
-  description: "Умный поиск рецептов по фото и названию",
+  title: "SmartCook",
+  description: "Генератор рецептов из продуктов",
 };
 
 export default function RootLayout({
@@ -26,14 +13,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ru">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
-        
-        {/* 2. Вставили компонент аналитики в конец body */}
-        <Analytics />
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

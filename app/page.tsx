@@ -498,7 +498,7 @@ export default function Home() {
           </div>
 
           <div className="chat-section">
-            <h3 className="chat-title">👨‍🍳 Вопросы Шеф-повару</h3>
+            <h3 className="chat-title">👨‍🍳 Вопросы AI Шеф-повару</h3>
             
             {/* Поле ввода - исправлено: теперь на всю ширину и без кнопки внутри */}
             <div style={{ position: 'relative', width: '100%', marginBottom: '15px' }}>

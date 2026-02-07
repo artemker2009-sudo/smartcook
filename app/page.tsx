@@ -218,7 +218,7 @@ export default function Home() {
               <>
                 {!file ? (
                   <div className="upload-zone">
-                    <input id="hidden-file-input" type="file" accept="image/*,.heic,.HEIC" className="upload-input" onChange={handleFileChange} />
+                    <input id="hidden-file-input" type="file" accept="image/png, image/jpeg, image/jpg, .heic, .HEIC" className="upload-input" onChange={handleFileChange} />
                     <Camera size={48} color="#059669" style={{marginBottom: '15px'}} />
                     <div style={{fontWeight: '700', fontSize: '18px', color: '#374151', marginBottom: '5px'}}>Выберите фото</div>
                     <div style={{fontSize: '14px', color: '#9ca3af'}}>HEIC, JPG, PNG</div>
@@ -226,7 +226,8 @@ export default function Home() {
                 ) : (
                   <div className="upload-compact">
                     {preview && <img src={preview} className="preview-img" alt="Preview" />}
-                    <input id="hidden-file-input" type="file" accept="image/*,.heic,.HEIC" style={{display: 'none'}} onChange={handleFileChange} />
+                    {/* Исправленный input для замены */}
+                    <input id="hidden-file-input" type="file" accept="image/png, image/jpeg, image/jpg, .heic, .HEIC" style={{display: 'none'}} onChange={handleFileChange} />
                     <button className="btn-replace" onClick={triggerFileInput}>
                       <RotateCcw size={16} /> Заменить фото
                     </button>
@@ -279,7 +280,6 @@ export default function Home() {
                 ))}
               </div>
               
-              {/* --- НОВАЯ КНОПКА "НЕОБЫЧНОЕ" --- */}
               <button className="btn-magic" onClick={handleRegenerate} disabled={isRegenerating || loadingRecipe}>
                  <Sparkles size={20} />
                  {isRegenerating ? "Включаю фантазию..." : "✨ Хочу что-то необычное"}

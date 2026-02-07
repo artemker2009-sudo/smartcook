@@ -3,7 +3,7 @@
 import { useState, useEffect, ChangeEvent } from "react";
 import { supabase } from "@/lib/supabase"; 
 import DailyRecipe from "@/components/DailyRecipe";
-import { Menu, X, Flame, Send, Camera, Search, Clock, Heart, ArrowRight, RotateCcw, CheckCircle, Sparkles, Image as ImageIcon, Wallet, Zap, Leaf, Globe } from "lucide-react";
+import { Menu, X, Flame, Send, Camera, Search, Clock, Heart, ArrowRight, RotateCcw, CheckCircle, Sparkles, Image as ImageIcon, Wallet, Zap, Leaf, Globe, ChevronRight } from "lucide-react";
 
 import imageCompression from 'browser-image-compression';
 
@@ -36,6 +36,7 @@ export default function Home() {
   const [isRegenerating, setIsRegenerating] = useState(false); 
   
   const [analysisResult, setAnalysisResult] = useState<AnalysisData | null>(null);
+  const [selectedDish, setSelectedDish] = useState<string | null>(null);
   const [recipe, setRecipe] = useState<RecipeData | null>(null);
   const [feed, setFeed] = useState<DBRecipe[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
@@ -81,26 +82,18 @@ export default function Home() {
     const rawFile = files[0];
     
     setPreview(URL.createObjectURL(rawFile));
-    setAnalysisResult(null); setRecipe(null); setQuestion(""); setAnswer(null); 
+    setAnalysisResult(null); setRecipe(null); setSelectedDish(null); setQuestion(""); setAnswer(null); 
     setIsProcessing(true);
 
     try {
-      const options = {
-        maxSizeMB: 1,             
-        maxWidthOrHeight: 1920,   
-        useWebWorker: true,
-        fileType: "image/jpeg"    
-      };
-
+      const options = { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true, fileType: "image/jpeg" };
       const compressedFile = await imageCompression(rawFile, options);
       const finalFile = new File([compressedFile], "image.jpg", { type: "image/jpeg" });
-      
       setFile(finalFile);
       setPreview(URL.createObjectURL(finalFile)); 
-
     } catch (error) {
-      console.error("Ошибка конвертации:", error);
-      alert("Не удалось обработать фото. Попробуйте другое.");
+      console.error("Ошибка:", error);
+      alert("Не удалось обработать фото.");
       setFile(null); 
     } finally {
       setIsProcessing(false);
@@ -118,13 +111,8 @@ export default function Home() {
     try {
       const formData = new FormData(); 
       formData.append("image", file);
-      
       const response = await fetch("/api/analyze", { method: "POST", body: formData });
-      
-      if (!response.ok) {
-        throw new Error(`Ошибка сервера: ${response.status}`);
-      }
-
+      if (!response.ok) throw new Error(`Error: ${response.status}`);
       const json = await response.json(); 
       if (json.error) throw new Error(json.error); 
       setAnalysisResult(json.data);
@@ -144,7 +132,10 @@ export default function Home() {
   };
 
   const getRecipeFromPhoto = async (dishName: string) => {
-    if (!analysisResult || !userId) return; setLoadingRecipe(true); setRecipe(null);
+    if (!analysisResult || !userId) return; 
+    setSelectedDish(dishName); 
+    setLoadingRecipe(true); 
+    setRecipe(null);
     try {
       const response = await fetch("/api/recipe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ dish: dishName, ingredients: analysisResult.ingredients, sessionId: userId }) });
       const json = await response.json(); if (json.error) throw new Error(json.error); setRecipe({ ...json.recipe, ingredients: analysisResult.ingredients }); fetchMyRecipes(userId); 
@@ -184,7 +175,7 @@ export default function Home() {
         <Menu size={24} color="#111" />
       </button>
 
-      {/* МЕНЮ ШТОРКА */}
+      {/* МЕНЮ */}
       {isMenuOpen && (
         <>
           <div className="menu-overlay" onClick={() => setIsMenuOpen(false)} />
@@ -248,7 +239,6 @@ export default function Home() {
               </>
             ) : (
               <>
-                {/* ИСПРАВЛЕННОЕ ПОЛЕ ВВОДА */}
                 <input type="text" className="text-search-input" 
                        placeholder="Например: Паста Карбонара" value={textQuery} onChange={(e) => setTextQuery(e.target.value)} />
                 <button className="btn-primary" onClick={handleTextSearch} disabled={loadingRecipe || !textQuery.trim()}>
@@ -258,23 +248,46 @@ export default function Home() {
             )}
           </div>
 
-          {/* Результаты анализа */}
+          {/* Результаты анализа (СПИСОК БЛЮД) */}
           {analysisResult && (
             <div className="card">
               <h3 style={{textAlign: 'center', marginBottom: '20px'}}>Я вижу продукты:</h3>
               <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', marginBottom: '25px'}}>
                 {analysisResult.ingredients.map((ing, i) => <span key={i} style={{background: '#d1fae5', color: '#065f46', padding: '6px 12px', borderRadius: '100px', fontSize: '14px', fontWeight: 600}}>{ing}</span>)}
               </div>
+              
               <div style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
                 {analysisResult.dishes.map((dish, i) => (
-                  <button key={i} onClick={() => getRecipeFromPhoto(dish)} className="btn-secondary">
-                    <span>{dish}</span> {loadingRecipe && <Sparkles className="animate-spin"/>}
+                  <button 
+                    key={i} 
+                    onClick={() => getRecipeFromPhoto(dish)} 
+                    className="btn-secondary"
+                    disabled={loadingRecipe}
+                    style={{
+                      opacity: loadingRecipe && selectedDish !== dish ? 0.5 : 1,
+                      borderColor: selectedDish === dish ? '#f97316' : '#e5e7eb',
+                      background: selectedDish === dish ? '#fff7ed' : 'white'
+                    }}
+                  >
+                    <span>{dish}</span>
+                    {loadingRecipe && selectedDish === dish ? (
+                      <Sparkles className="animate-spin" color="#f97316" />
+                    ) : (
+                      <ChevronRight color="#d1d5db" />
+                    )}
                   </button>
                 ))}
               </div>
-              <button className="btn-secondary" onClick={handleRegenerate} style={{marginTop: '20px', color: '#6b7280', justifyContent: 'center'}}>
-                 🔄 Другие варианты
+              
+              {/* --- НОВАЯ КНОПКА "НЕОБЫЧНОЕ" --- */}
+              <button className="btn-magic" onClick={handleRegenerate} disabled={isRegenerating || loadingRecipe}>
+                 <Sparkles size={20} />
+                 {isRegenerating ? "Включаю фантазию..." : "✨ Хочу что-то необычное"}
               </button>
+              <div className="magic-hint">
+                Шеф включит фантазию и предложит экспериментальные блюда
+              </div>
+
             </div>
           )}
 
@@ -318,7 +331,6 @@ export default function Home() {
                 ))}
               </div>
 
-              {/* ОБНОВЛЕННЫЙ ЧАТ */}
               <div className="chat-box">
                 <div style={{fontWeight: 800, marginBottom: '20px', color: '#1e40af', fontSize: '18px', textAlign: 'center'}}>
                    Задайте вопрос AI шеф-повару!
@@ -360,86 +372,32 @@ export default function Home() {
       {/* === ДРУГИЕ СТРАНИЦЫ === */}
       {activeView === 'daily' && <div style={{marginTop: '60px'}}><DailyRecipe data={dailyRecipe} /></div>}
       
-      {/* === О ПРОЕКТЕ (ОБНОВЛЕННЫЙ) === */}
       {activeView === 'about' && (
         <div className="card" style={{marginTop: '60px', padding: '0', overflow: 'hidden', border: 'none', boxShadow: '0 20px 60px -10px rgba(0,0,0,0.15)'}}>
-          
           <div style={{background: 'linear-gradient(135deg, #059669 0%, #047857 100%)', padding: '40px 25px', color: 'white', textAlign: 'center'}}>
             <div style={{fontSize: '50px', marginBottom: '10px'}}>🚀</div>
-            <h1 style={{fontSize: '32px', fontWeight: 900, margin: '0 0 10px 0', lineHeight: 1.1}}>
-              Кухонная революция
-            </h1>
-            <p style={{fontSize: '18px', opacity: 0.9, fontWeight: 500, maxWidth: '400px', margin: '0 auto'}}>
-              Мы превращаем ваше «нечего есть» в гастрономический шедевр за 3 секунды.
-            </p>
+            <h1 style={{fontSize: '32px', fontWeight: 900, margin: '0 0 10px 0', lineHeight: 1.1}}>Кухонная революция</h1>
+            <p style={{fontSize: '18px', opacity: 0.9, fontWeight: 500, maxWidth: '400px', margin: '0 auto'}}>Мы превращаем ваше «нечего есть» в гастрономический шедевр.</p>
           </div>
-
           <div style={{padding: '30px 25px'}}>
-            
             <div style={{background: '#fff1f2', borderRadius: '20px', padding: '20px', marginBottom: '30px', border: '1px solid #fecdd3'}}>
               <h3 style={{marginTop: 0, color: '#be123c', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '20px', fontWeight: 800}}>
                 <span style={{fontSize: '24px'}}>💸</span> Вы теряете 30.000₽
               </h3>
-              <p style={{marginBottom: 0, color: '#881337', lineHeight: 1.5}}>
-                Именно столько средняя семья выбрасывает в мусорку ежегодно в виде испорченных продуктов. <strong>SmartCook останавливает это безумие.</strong>
-              </p>
+              <p style={{marginBottom: 0, color: '#881337', lineHeight: 1.5}}>Именно столько средняя семья выбрасывает в мусорку ежегодно в виде испорченных продуктов.</p>
             </div>
-
             <h3 style={{textAlign: 'center', fontSize: '22px', fontWeight: 800, marginBottom: '20px'}}>Почему это работает?</h3>
             <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '40px'}}>
-              
-              <div style={{background: '#f8fafc', padding: '20px 15px', borderRadius: '16px', textAlign: 'center', border: '1px solid #e2e8f0'}}>
-                <div style={{background: '#dbeafe', color: '#2563eb', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px auto'}}>
-                  <Wallet size={20} />
-                </div>
-                <div style={{fontWeight: 800, fontSize: '15px', marginBottom: '5px'}}>Экономия</div>
-                <div style={{fontSize: '12px', color: '#64748b'}}>До 5000₽ в месяц на продуктах</div>
-              </div>
-
-              <div style={{background: '#f8fafc', padding: '20px 15px', borderRadius: '16px', textAlign: 'center', border: '1px solid #e2e8f0'}}>
-                <div style={{background: '#fef3c7', color: '#d97706', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px auto'}}>
-                  <Zap size={20} />
-                </div>
-                <div style={{fontWeight: 800, fontSize: '15px', marginBottom: '5px'}}>Скорость</div>
-                <div style={{fontSize: '12px', color: '#64748b'}}>Рецепт создается мгновенно</div>
-              </div>
-
-              <div style={{background: '#f8fafc', padding: '20px 15px', borderRadius: '16px', textAlign: 'center', border: '1px solid #e2e8f0'}}>
-                <div style={{background: '#dcfce7', color: '#16a34a', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px auto'}}>
-                  <Leaf size={20} />
-                </div>
-                <div style={{fontWeight: 800, fontSize: '15px', marginBottom: '5px'}}>Zero Waste</div>
-                <div style={{fontSize: '12px', color: '#64748b'}}>Спасаем планету и еду</div>
-              </div>
-
-              <div style={{background: '#f8fafc', padding: '20px 15px', borderRadius: '16px', textAlign: 'center', border: '1px solid #e2e8f0'}}>
-                <div style={{background: '#f3e8ff', color: '#9333ea', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px auto'}}>
-                  <Globe size={20} />
-                </div>
-                <div style={{fontWeight: 800, fontSize: '15px', marginBottom: '5px'}}>Разнообразие</div>
-                <div style={{fontSize: '12px', color: '#64748b'}}>Новые блюда каждый день</div>
-              </div>
-
+              <div style={{background: '#f8fafc', padding: '20px 15px', borderRadius: '16px', textAlign: 'center', border: '1px solid #e2e8f0'}}><div style={{background: '#dbeafe', color: '#2563eb', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px auto'}}><Wallet size={20} /></div><div style={{fontWeight: 800, fontSize: '15px', marginBottom: '5px'}}>Экономия</div><div style={{fontSize: '12px', color: '#64748b'}}>До 5000₽ в месяц</div></div>
+              <div style={{background: '#f8fafc', padding: '20px 15px', borderRadius: '16px', textAlign: 'center', border: '1px solid #e2e8f0'}}><div style={{background: '#fef3c7', color: '#d97706', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px auto'}}><Zap size={20} /></div><div style={{fontWeight: 800, fontSize: '15px', marginBottom: '5px'}}>Скорость</div><div style={{fontSize: '12px', color: '#64748b'}}>Мгновенный рецепт</div></div>
+              <div style={{background: '#f8fafc', padding: '20px 15px', borderRadius: '16px', textAlign: 'center', border: '1px solid #e2e8f0'}}><div style={{background: '#dcfce7', color: '#16a34a', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px auto'}}><Leaf size={20} /></div><div style={{fontWeight: 800, fontSize: '15px', marginBottom: '5px'}}>Zero Waste</div><div style={{fontSize: '12px', color: '#64748b'}}>Спасаем еду</div></div>
+              <div style={{background: '#f8fafc', padding: '20px 15px', borderRadius: '16px', textAlign: 'center', border: '1px solid #e2e8f0'}}><div style={{background: '#f3e8ff', color: '#9333ea', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px auto'}}><Globe size={20} /></div><div style={{fontWeight: 800, fontSize: '15px', marginBottom: '5px'}}>Разнообразие</div><div style={{fontSize: '12px', color: '#64748b'}}>Новые блюда</div></div>
             </div>
-
             <div style={{background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', borderRadius: '24px', padding: '30px 20px', textAlign: 'center', color: 'white', boxShadow: '0 10px 25px rgba(2, 132, 199, 0.4)', position: 'relative', overflow: 'hidden'}}>
-              <div style={{position: 'absolute', top: '-20px', right: '-20px', width: '80px', height: '80px', background: 'rgba(255,255,255,0.1)', borderRadius: '50%'}}></div>
-              
               <h3 style={{margin: '0 0 10px 0', fontSize: '22px', fontWeight: 900}}>Telegram канал проекта</h3>
-              <p style={{opacity: 0.9, fontSize: '15px', marginBottom: '25px', lineHeight: 1.5}}>
-                Следите за обновлениями, предлагайте идеи и общайтесь напрямую с разработчиком.
-              </p>
-              
-              <a href="https://t.me/smartcook2026" target="_blank" style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
-                background: 'white', color: '#0284c7', textDecoration: 'none',
-                padding: '16px 20px', borderRadius: '100px', fontWeight: 800, fontSize: '16px',
-                boxShadow: '0 5px 15px rgba(0,0,0,0.1)', transition: 'transform 0.2s'
-              }}>
-                <Send size={20} /> Подписаться
-              </a>
+              <p style={{opacity: 0.9, fontSize: '15px', marginBottom: '25px', lineHeight: 1.5}}>Следите за обновлениями, предлагайте идеи и общайтесь напрямую с разработчиком.</p>
+              <a href="https://t.me/smartcook2026" target="_blank" style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', background: 'white', color: '#0284c7', textDecoration: 'none', padding: '16px 20px', borderRadius: '100px', fontWeight: 800, fontSize: '16px', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', transition: 'transform 0.2s'}}> <Send size={20} /> Подписаться</a>
             </div>
-
           </div>
         </div>
       )}

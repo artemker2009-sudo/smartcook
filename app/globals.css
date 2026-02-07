@@ -73,25 +73,14 @@ body {
   position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;
 }
 
-/* НОВОЕ: Поле ввода текста на всю ширину */
 .text-search-input {
-  width: 100%; 
-  padding: 20px; 
-  font-size: 18px; 
-  border: 2px solid #e5e7eb; 
-  border-radius: 20px; 
-  outline: none; 
-  background: #f9fafb; 
-  transition: all 0.2s;
-  text-align: left;
+  width: 100%; padding: 20px; font-size: 18px; border: 2px solid #e5e7eb;
+  border-radius: 20px; outline: none; background: #f9fafb; transition: all 0.2s; text-align: left;
 }
 .text-search-input:focus {
-  border-color: var(--primary);
-  background: white;
-  box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.1);
+  border-color: var(--primary); background: white; box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.1);
 }
 
-/* Компактный вид после загрузки */
 .upload-compact { text-align: center; animation: fadeIn 0.5s ease; }
 .preview-img {
   width: 100%; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.15);
@@ -114,19 +103,30 @@ body {
 .btn-primary:hover:not(:disabled) { transform: scale(1.02); }
 .btn-primary:disabled { opacity: 0.6; cursor: wait; }
 
-/* НОВОЕ: Увеличенный текст в кнопках выбора блюд */
 .btn-secondary {
   background: white; border: 2px solid #e5e7eb; color: var(--text-main);
-  padding: 18px 24px; /* Больше отступы */
-  border-radius: 16px; 
-  font-weight: 700; 
-  font-size: 18px; /* Увеличенный шрифт */
-  cursor: pointer;
-  width: 100%; margin-top: 12px; 
+  padding: 18px 24px; border-radius: 16px; font-weight: 700; font-size: 18px;
+  cursor: pointer; width: 100%; margin-top: 12px;
   text-align: left; display: flex; justify-content: space-between; align-items: center;
   transition: all 0.2s;
 }
 .btn-secondary:hover { border-color: var(--primary); background: #ecfdf5; }
+
+/* Кнопка "Необычное" */
+.btn-magic {
+  background: linear-gradient(135deg, #f3f4f6, #fff);
+  border: 2px dashed #8b5cf6; /* Фиолетовый акцент для магии */
+  color: #7c3aed;
+  padding: 16px; border-radius: 100px; font-weight: 800; font-size: 16px;
+  cursor: pointer; width: 100%; margin-top: 25px;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  transition: all 0.3s;
+}
+.btn-magic:hover { background: #f5f3ff; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(139, 92, 246, 0.2); }
+
+.magic-hint {
+  text-align: center; font-size: 13px; color: #9ca3af; margin-top: 10px; font-weight: 500;
+}
 
 /* --- РЕЦЕПТ --- */
 .recipe-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
@@ -179,14 +179,12 @@ body {
   background: rgba(255,255,255,0.6); border-radius: 20px; border: 2px dashed #cbd5e1;
 }
 
-/* --- НОВЫЙ ДИЗАЙН ЧАТА --- */
+/* --- ЧАТ --- */
 .chat-box {
   background: #eff6ff; border: 1px solid #bfdbfe; padding: 25px;
   border-radius: 24px; margin-top: 30px;
 }
-.chat-layout {
-  display: flex; flex-direction: column; gap: 15px; /* Кнопка под полем */
-}
+.chat-layout { display: flex; flex-direction: column; gap: 15px; }
 .chat-input {
   width: 100%; padding: 16px; border-radius: 16px; border: 2px solid #bfdbfe;
   outline: none; font-size: 16px; background: white;
@@ -194,15 +192,11 @@ body {
 .chat-input:focus { border-color: #3b82f6; }
 .chat-btn-center {
   background: #3b82f6; color: white; border: none; 
-  padding: 14px 40px; /* Широкая кнопка */
-  border-radius: 100px; cursor: pointer; font-weight: 700; font-size: 16px;
-  align-self: center; /* По центру */
-  display: flex; align-items: center; gap: 10px;
-  box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
-  transition: transform 0.2s;
+  padding: 14px 40px; border-radius: 100px; cursor: pointer; font-weight: 700; font-size: 16px;
+  align-self: center; display: flex; align-items: center; gap: 10px;
+  box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4); transition: transform 0.2s;
 }
 .chat-btn-center:hover { transform: translateY(-2px); }
-
 
 /* --- МЕНЮ --- */
 .menu-btn {
@@ -230,7 +224,7 @@ body {
 }
 .menu-link:hover { background: #f3f4f6; color: var(--primary); }
 
-/* --- DAILY RECIPE PREMIUM --- */
+/* --- DAILY RECIPE --- */
 .daily-teaser {
   background: white; border-radius: 20px; padding: 18px;
   display: flex; align-items: center; gap: 15px;
@@ -244,7 +238,6 @@ body {
   box-shadow: var(--shadow-orange); border: 1px solid rgba(249, 115, 22, 0.1);
   animation: slideUp 0.5s ease; position: relative;
 }
-
 .daily-hero-bg {
   background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
   padding: 40px 25px 30px 25px; text-align: center; position: relative;
@@ -253,7 +246,6 @@ body {
   content: ''; position: absolute; bottom: 0; left: 0; width: 100%; height: 40px;
   background: linear-gradient(to top, white, transparent);
 }
-
 .daily-badge-lg {
   background: linear-gradient(90deg, #f97316, #ea580c);
   color: white; padding: 8px 20px; border-radius: 100px;
@@ -261,7 +253,6 @@ body {
   letter-spacing: 1.5px; box-shadow: 0 4px 15px rgba(249, 115, 22, 0.4);
   display: inline-flex; align-items: center; gap: 8px; margin-bottom: 20px;
 }
-
 .daily-title-lg { font-size: 34px; font-weight: 900; line-height: 1.1; color: #1c1917; margin-bottom: 15px; }
 .daily-desc { font-size: 18px; line-height: 1.6; color: #57534e; margin-bottom: 25px; }
 .daily-meta-row { display: flex; justify-content: center; gap: 15px; margin-bottom: 10px; }
@@ -270,7 +261,6 @@ body {
   font-weight: 700; font-size: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);
   display: flex; align-items: center; gap: 8px;
 }
-
 .daily-content { padding: 0 25px 40px 25px; }
 .daily-section-title {
   font-size: 24px; font-weight: 800; margin: 40px 0 20px 0;
@@ -281,7 +271,6 @@ body {
   background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0;
   padding: 10px 18px; border-radius: 100px; font-weight: 600; font-size: 15px;
 }
-
 .daily-step { display: flex; gap: 20px; margin-bottom: 25px; }
 .daily-step-num {
   min-width: 45px; height: 45px; background: #f97316; color: white;
@@ -290,12 +279,14 @@ body {
   margin-top: -5px;
 }
 .daily-step-text { font-size: 18px; line-height: 1.6; color: #44403c; }
-
 .daily-footer {
   text-align: center; margin-top: 50px; padding: 30px;
   background: #fff7ed; border-radius: 20px; color: #c2410c;
   font-weight: 700; border: 2px dashed #ffedd5;
 }
 
+/* АНИМАЦИИ */
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.animate-spin { animation: spin 1s linear infinite; }

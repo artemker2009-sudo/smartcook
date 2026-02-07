@@ -3,9 +3,9 @@
 import { useState, useEffect, ChangeEvent } from "react";
 import { supabase } from "@/lib/supabase"; 
 import DailyRecipe from "@/components/DailyRecipe";
-import { Menu, X, Flame, Send, Camera, Search, Clock, Heart, ArrowRight, RotateCcw, CheckCircle, Sparkles, Image as ImageIcon } from "lucide-react";
+import { Menu, X, Flame, Send, Camera, Search, Clock, Heart, ArrowRight, RotateCcw, CheckCircle, Sparkles, Image as ImageIcon, Wallet, Zap, Leaf, Globe } from "lucide-react";
 
-// ВАЖНО: Если будет ошибка "Module not found", напиши в терминале: npm install browser-image-compression
+// ВАЖНО: npm install browser-image-compression
 import imageCompression from 'browser-image-compression';
 
 /* --- ТИПЫ ДАННЫХ --- */
@@ -32,8 +32,8 @@ export default function Home() {
   const [searchMode, setSearchMode] = useState<'photo' | 'text'>('photo');
   const [textQuery, setTextQuery] = useState(""); 
   
-  const [isProcessing, setIsProcessing] = useState(false); // Для сжатия фото
-  const [analyzing, setAnalyzing] = useState(false);     // Для запроса к AI
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
   const [loadingRecipe, setLoadingRecipe] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false); 
   
@@ -92,26 +92,23 @@ export default function Home() {
     setIsProcessing(true);
 
     try {
-      // Опции для сжатия и конвертации
       const options = {
-        maxSizeMB: 1,             // Сжимаем до 1 МБ
-        maxWidthOrHeight: 1920,   // Уменьшаем размер
+        maxSizeMB: 1,             
+        maxWidthOrHeight: 1920,   
         useWebWorker: true,
-        fileType: "image/jpeg"    // ПРИНУДИТЕЛЬНО КОНВЕРТИРУЕМ В JPG (Для HEIC)
+        fileType: "image/jpeg"    
       };
 
       const compressedFile = await imageCompression(rawFile, options);
-      
-      // Создаем новый файл с правильным именем и типом
       const finalFile = new File([compressedFile], "image.jpg", { type: "image/jpeg" });
       
       setFile(finalFile);
-      setPreview(URL.createObjectURL(finalFile)); // Обновляем превью на сжатое
+      setPreview(URL.createObjectURL(finalFile)); 
 
     } catch (error) {
       console.error("Ошибка конвертации:", error);
       alert("Не удалось обработать фото. Попробуйте другое.");
-      setFile(null); // Сбрасываем, если ошибка
+      setFile(null); 
     } finally {
       setIsProcessing(false);
     }
@@ -194,7 +191,7 @@ export default function Home() {
         <Menu size={24} color="#111" />
       </button>
 
-      {/* МЕНЮ ШТОРКА (ФИКСИРОВАННАЯ ШИРИНА) */}
+      {/* МЕНЮ ШТОРКА */}
       {isMenuOpen && (
         <>
           <div className="menu-overlay" onClick={() => setIsMenuOpen(false)} />
@@ -246,7 +243,6 @@ export default function Home() {
                   <div className="upload-compact">
                     {preview && <img src={preview} className="preview-img" alt="Preview" />}
                     
-                    {/* Скрытый инпут для замены */}
                     <input id="hidden-file-input" type="file" accept="image/*,.heic,.HEIC" style={{display: 'none'}} onChange={handleFileChange} />
                     
                     <button className="btn-replace" onClick={triggerFileInput}>
@@ -364,11 +360,92 @@ export default function Home() {
 
       {/* === ДРУГИЕ СТРАНИЦЫ === */}
       {activeView === 'daily' && <div style={{marginTop: '60px'}}><DailyRecipe data={dailyRecipe} /></div>}
+      
+      {/* === О ПРОЕКТЕ (МАРКЕТИНГОВЫЙ БЛОК) === */}
       {activeView === 'about' && (
-        <div className="card" style={{textAlign: 'center', marginTop: '60px'}}>
-          <h1>О проекте</h1>
-          <p>SmartCook помогает экономить продукты и деньги.</p>
-          <a href="https://t.me/smartcook2026" className="btn-primary" style={{display: 'block', textDecoration: 'none'}}>Telegram</a>
+        <div className="card" style={{marginTop: '60px', padding: '0', overflow: 'hidden', border: 'none', boxShadow: '0 20px 60px -10px rgba(0,0,0,0.15)'}}>
+          
+          {/* 1. HEADER */}
+          <div style={{background: 'linear-gradient(135deg, #059669 0%, #047857 100%)', padding: '40px 25px', color: 'white', textAlign: 'center'}}>
+            <div style={{fontSize: '50px', marginBottom: '10px'}}>🚀</div>
+            <h1 style={{fontSize: '32px', fontWeight: 900, margin: '0 0 10px 0', lineHeight: 1.1}}>
+              Кухонная революция
+            </h1>
+            <p style={{fontSize: '18px', opacity: 0.9, fontWeight: 500, maxWidth: '400px', margin: '0 auto'}}>
+              Мы превращаем ваше «нечего есть» в гастрономический шедевр за 3 секунды.
+            </p>
+          </div>
+
+          <div style={{padding: '30px 25px'}}>
+            
+            {/* 2. PAIN (MONEY) */}
+            <div style={{background: '#fff1f2', borderRadius: '20px', padding: '20px', marginBottom: '30px', border: '1px solid #fecdd3'}}>
+              <h3 style={{marginTop: 0, color: '#be123c', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '20px', fontWeight: 800}}>
+                <span style={{fontSize: '24px'}}>💸</span> Вы теряете 30,000₽
+              </h3>
+              <p style={{marginBottom: 0, color: '#881337', lineHeight: 1.5}}>
+                Именно столько средняя семья выбрасывает в мусорку ежегодно в виде испорченных продуктов. <strong>SmartCook останавливает это безумие.</strong>
+              </p>
+            </div>
+
+            {/* 3. BENEFITS GRID */}
+            <h3 style={{textAlign: 'center', fontSize: '22px', fontWeight: 800, marginBottom: '20px'}}>Почему это работает?</h3>
+            <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '40px'}}>
+              
+              <div style={{background: '#f8fafc', padding: '20px 15px', borderRadius: '16px', textAlign: 'center', border: '1px solid #e2e8f0'}}>
+                <div style={{background: '#dbeafe', color: '#2563eb', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px auto'}}>
+                  <Wallet size={20} />
+                </div>
+                <div style={{fontWeight: 800, fontSize: '15px', marginBottom: '5px'}}>Экономия</div>
+                <div style={{fontSize: '12px', color: '#64748b'}}>До 5000₽ в месяц на продуктах</div>
+              </div>
+
+              <div style={{background: '#f8fafc', padding: '20px 15px', borderRadius: '16px', textAlign: 'center', border: '1px solid #e2e8f0'}}>
+                <div style={{background: '#fef3c7', color: '#d97706', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px auto'}}>
+                  <Zap size={20} />
+                </div>
+                <div style={{fontWeight: 800, fontSize: '15px', marginBottom: '5px'}}>Скорость</div>
+                <div style={{fontSize: '12px', color: '#64748b'}}>Рецепт создается мгновенно</div>
+              </div>
+
+              <div style={{background: '#f8fafc', padding: '20px 15px', borderRadius: '16px', textAlign: 'center', border: '1px solid #e2e8f0'}}>
+                <div style={{background: '#dcfce7', color: '#16a34a', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px auto'}}>
+                  <Leaf size={20} />
+                </div>
+                <div style={{fontWeight: 800, fontSize: '15px', marginBottom: '5px'}}>Zero Waste</div>
+                <div style={{fontSize: '12px', color: '#64748b'}}>Спасаем планету и еду</div>
+              </div>
+
+              <div style={{background: '#f8fafc', padding: '20px 15px', borderRadius: '16px', textAlign: 'center', border: '1px solid #e2e8f0'}}>
+                <div style={{background: '#f3e8ff', color: '#9333ea', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px auto'}}>
+                  <Globe size={20} />
+                </div>
+                <div style={{fontWeight: 800, fontSize: '15px', marginBottom: '5px'}}>Разнообразие</div>
+                <div style={{fontSize: '12px', color: '#64748b'}}>Новые блюда каждый день</div>
+              </div>
+
+            </div>
+
+            {/* 4. TELEGRAM (REAL & HONEST) */}
+            <div style={{background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', borderRadius: '24px', padding: '30px 20px', textAlign: 'center', color: 'white', boxShadow: '0 10px 25px rgba(2, 132, 199, 0.4)', position: 'relative', overflow: 'hidden'}}>
+              <div style={{position: 'absolute', top: '-20px', right: '-20px', width: '80px', height: '80px', background: 'rgba(255,255,255,0.1)', borderRadius: '50%'}}></div>
+              
+              <h3 style={{margin: '0 0 10px 0', fontSize: '22px', fontWeight: 900}}>Telegram канал проекта</h3>
+              <p style={{opacity: 0.9, fontSize: '15px', marginBottom: '25px', lineHeight: 1.5}}>
+                Следите за обновлениями, предлагайте идеи и общайтесь напрямую с разработчиком.
+              </p>
+              
+              <a href="https://t.me/smartcook2026" target="_blank" style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+                background: 'white', color: '#0284c7', textDecoration: 'none',
+                padding: '16px 20px', borderRadius: '100px', fontWeight: 800, fontSize: '16px',
+                boxShadow: '0 5px 15px rgba(0,0,0,0.1)', transition: 'transform 0.2s'
+              }}>
+                <Send size={20} /> Подписаться
+              </a>
+            </div>
+
+          </div>
         </div>
       )}
 

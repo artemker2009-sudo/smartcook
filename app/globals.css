@@ -1,284 +1,286 @@
-/* === SMARTCOOK PREMIUM DESIGN SYSTEM === */
-
-/* 1. Подключаем профессиональный шрифт Inter */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-
-/* 2. Глобальные переменные (Палитра и отступы) */
+/* === SMARTCOOK PREMIUM STYLES (PURE CSS) === */
 :root {
-  --primary: #059669;       /* Основной изумрудный */
-  --primary-hover: #047857; /* Темнее при наведении */
-  --accent-orange: #f97316; /* Для калорий и лоадеров */
-  --accent-red: #ef4444;    /* Для лайков */
-  
-  --bg-page: #f8fafc;       /* Очень светло-серый фон страницы */
-  --bg-card: #ffffff;       /* Чистый белый для карточек */
-  
-  --text-main: #111827;     /* Почти черный текст */
-  --text-muted: #6b7280;    /* Серый текст для подписей */
-  
-  --radius-lg: 24px;        /* Радиус больших карточек */
-  --radius-md: 16px;        /* Радиус кнопок и инпутов */
-  --radius-full: 100px;     /* Круглые кнопки */
-  
-  /* Дорогая, мягкая тень */
-  --shadow-soft: 0 10px 30px -5px rgba(0, 0, 0, 0.05), 0 4px 10px -2px rgba(0, 0, 0, 0.02);
-  /* Тень при наведении */
-  --shadow-hover: 0 20px 40px -5px rgba(0, 0, 0, 0.1);
+  --primary: #059669;       /* Изумрудный (Основной) */
+  --primary-dark: #047857;
+  --accent: #f97316;        /* Оранжевый (Акцент/Рецепт дня) */
+  --bg-page: #f0fdfa;       /* Светлый мятный фон */
+  --text-main: #111827;
+  --text-light: #6b7280;
+  --white: #ffffff;
+  --radius: 24px;           /* Закругление углов */
+  --shadow: 0 10px 40px -5px rgba(0,0,0,0.1);
+  --shadow-orange: 0 20px 50px -10px rgba(249, 115, 22, 0.25);
 }
 
-/* 3. Базовые стили (Сброс) */
-* {
-  box-sizing: border-box; /* Чтобы отступы не ломали ширину */
-}
+* { box-sizing: border-box; }
 
 body {
-  margin: 0;
-  padding: 0;
-  font-family: 'Inter', sans-serif;
   background: var(--bg-page);
   color: var(--text-main);
-  min-height: 100vh;
-  -webkit-font-smoothing: antialiased; /* Четкие шрифты на Mac */
-  line-height: 1.5;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  margin: 0; padding: 0;
+  -webkit-font-smoothing: antialiased;
 }
 
 .container {
-  max-width: 540px; /* Немного уже для лучшей читаемости */
+  max-width: 500px;
   margin: 0 auto;
-  padding: 40px 20px 80px 20px; /* Отступы сверху и снизу */
+  padding: 20px;
+  min-height: 100vh;
+  position: relative;
 }
 
-/* --- ТИПОГРАФИКА И ЗАГОЛОВКИ --- */
-h1, h2, h3, h4 { margin: 0; letter-spacing: -0.02em; }
+/* --- ЗАГОЛОВОК (HERO) --- */
+.hero { text-align: center; margin: 40px 0 30px 0; }
+.brand-name {
+  font-size: 42px; font-weight: 900;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  margin-bottom: 5px; letter-spacing: -1px;
+}
+.brand-sub { font-size: 18px; color: var(--text-light); font-weight: 500; }
 
-.subtitle {
-  text-align: center;
-  color: var(--text-muted);
-  font-size: 1.1rem;
-  margin-top: 10px;
-  font-weight: 400;
+/* --- ПЕРЕКЛЮЧАТЕЛЬ РЕЖИМОВ --- */
+.switch-box {
+  background: #e5e7eb; padding: 6px; border-radius: 100px;
+  display: flex; margin-bottom: 30px; box-shadow: inset 0 2px 6px rgba(0,0,0,0.06);
+}
+.switch-btn {
+  flex: 1; padding: 14px; border: none; background: transparent;
+  border-radius: 100px; cursor: pointer; font-weight: 800; font-size: 18px;
+  color: #6b7280; transition: all 0.3s ease;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.switch-btn.active {
+  background: white; color: var(--primary);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1); transform: scale(1.02);
 }
 
-/* --- ПЕРЕКЛЮЧАТЕЛЬ РЕЖИМОВ (БОЛЬШОЙ И УДОБНЫЙ) --- */
-.mode-switch {
-  display: grid;
-  grid-template-columns: 1fr 1fr; /* Две равные колонки */
-  background: #e2e8f0; /* Серый фон контейнера */
-  padding: 6px;
-  border-radius: var(--radius-full);
-  margin-bottom: 35px;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+/* --- КАРТОЧКИ --- */
+.card {
+  background: var(--white); border-radius: var(--radius); padding: 25px;
+  box-shadow: var(--shadow); margin-bottom: 25px; border: 1px solid rgba(255,255,255,0.6);
 }
 
-.mode-btn {
-  padding: 14px;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  border-radius: var(--radius-full);
-  font-weight: 600;
-  font-size: 1.05rem;
-  color: var(--text-muted);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
+/* --- ЗАГРУЗКА ФОТО --- */
+.upload-zone {
+  border: 3px dashed #cbd5e1; border-radius: var(--radius); padding: 50px 20px;
+  text-align: center; background: #f8fafc; cursor: pointer; position: relative;
+  transition: all 0.3s;
+}
+.upload-zone:hover { border-color: var(--primary); background: #ecfdf5; }
+.upload-input {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;
 }
 
-.mode-btn:hover { color: var(--text-main); }
-
-.mode-btn.active {
-  background: var(--bg-card);
-  color: var(--primary);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+/* Компактный вид после загрузки */
+.upload-compact { text-align: center; animation: fadeIn 0.5s ease; }
+.preview-img {
+  width: 100%; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+  margin-bottom: 20px; object-fit: cover;
 }
-
-/* --- КАРТОЧКИ И БЛОКИ --- */
-.upload-card, .recipe-card {
-  background: var(--bg-card);
-  padding: 35px;
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-soft);
-  border: 1px solid #f1f5f9;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+.btn-replace {
+  background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1;
+  padding: 10px 24px; border-radius: 100px; font-weight: 700; font-size: 15px;
+  cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s;
 }
+.btn-replace:hover { background: #e2e8f0; color: #1e293b; }
 
-/* Анимация появления */
-@keyframes slideUpFade {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+.text-input-zone {
+  width: 100%; padding: 20px; font-size: 18px; border: 2px solid #e5e7eb;
+  border-radius: 16px; outline: none; background: #f9fafb; transition: all 0.2s;
 }
-.recipe-card { margin-top: 40px; animation: slideUpFade 0.5s ease-out; }
+.text-input-zone:focus { border-color: var(--primary); background: white; }
 
-/* --- ЭЛЕМЕНТЫ УПРАВЛЕНИЯ (Инпуты и Кнопки) --- */
-input[type="file"] {
-  padding: 15px;
-  background: #f8fafc;
-  border: 2px dashed #cbd5e1;
-  border-radius: var(--radius-md);
-  width: 100%;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-input[type="file"]:hover { border-color: var(--primary); background: #f0fdf4; }
-
-.search-input, .chat-input {
-  width: 100%;
-  padding: 16px 20px;
-  border: 2px solid #e2e8f0;
-  border-radius: var(--radius-md);
-  font-size: 1.05rem;
-  outline: none;
-  transition: all 0.2s;
-  background: #f8fafc;
-}
-
-.search-input:focus, .chat-input:focus {
-  border-color: var(--primary);
-  background: var(--bg-card);
-  box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.1);
-}
-
+/* --- КНОПКИ --- */
 .btn-primary {
-  width: 100%;
-  padding: 18px;
-  background: var(--primary);
-  color: white;
-  border: none;
-  border-radius: var(--radius-md);
-  font-size: 1.15rem;
-  font-weight: 700;
-  cursor: pointer;
-  margin-top: 25px;
-  transition: all 0.2s;
-  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.2);
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  color: white; border: none; width: 100%; padding: 20px;
+  border-radius: 100px; font-size: 20px; font-weight: 800; cursor: pointer;
+  margin-top: 25px; box-shadow: 0 10px 25px rgba(5, 150, 105, 0.3); transition: transform 0.2s;
+}
+.btn-primary:hover:not(:disabled) { transform: scale(1.02); }
+.btn-primary:disabled { opacity: 0.6; cursor: wait; }
+
+.btn-secondary {
+  background: white; border: 2px solid #e5e7eb; color: var(--text-main);
+  padding: 14px 24px; border-radius: 100px; font-weight: 700; cursor: pointer;
+  width: 100%; margin-top: 15px; text-align: left; display: flex; justify-content: space-between;
 }
 
-.btn-primary:hover:not(:disabled) {
-  background: var(--primary-hover);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(5, 150, 105, 0.3);
+/* --- РЕЦЕПТ --- */
+.recipe-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+.recipe-title { font-size: 30px; font-weight: 900; margin: 0; line-height: 1.1; }
+.recipe-tags { display: flex; gap: 10px; margin-bottom: 25px; }
+.tag-badge {
+  background: #f3f4f6; padding: 8px 16px; border-radius: 100px;
+  font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 6px;
 }
+.tag-badge.orange { background: #fff7ed; color: var(--accent); }
 
-.btn-primary:disabled { background: #d1d5db; color: #9ca3af; cursor: not-allowed; box-shadow: none; }
-
-/* --- ДЕТАЛИ РЕЦЕПТА --- */
-.recipe-title { font-size: 2rem; color: var(--text-main); font-weight: 800; line-height: 1.2; }
-
-.recipe-meta {
-  display: inline-flex;
-  align-items: center;
-  gap: 20px;
-  background: #f3f4f6;
-  padding: 10px 20px;
-  border-radius: var(--radius-full);
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin: 20px 0 30px 0;
+.ing-box {
+  background: #f8fafc; border-radius: 16px; padding: 20px;
+  margin-bottom: 30px; border: 1px solid #e2e8f0;
 }
-.meta-calories { color: var(--accent-orange); }
-
-.missing-box {
-  background: #fff1f2; border: 1px solid #fecdd3;
-  padding: 20px; border-radius: var(--radius-md); color: #9f1239; margin-bottom: 30px;
+.ing-row {
+  display: flex; justify-content: space-between; padding: 12px 0;
+  border-bottom: 1px dashed #cbd5e1; font-size: 16px;
 }
+.ing-val { font-weight: 700; color: var(--primary-dark); }
 
-.ingredients-box {
-  background: #f8fafc; border: 1px solid #e2e8f0;
-  padding: 25px; border-radius: var(--radius-md); margin-bottom: 35px;
+.step-row { display: flex; gap: 15px; margin-bottom: 20px; }
+.step-num {
+  background: var(--primary); color: white; min-width: 38px; height: 38px;
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-weight: 900; font-size: 18px; box-shadow: 0 4px 10px rgba(5, 150, 105, 0.3);
 }
-.ingredient-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px dotted #cbd5e1; font-size: 1.05rem;}
-.ingredient-row:last-child { border-bottom: none; }
-.ing-amount { font-weight: 700; color: var(--primary); }
+.step-text { font-size: 17px; line-height: 1.6; padding-top: 5px; }
 
-.step-item { margin-bottom: 20px; padding-left: 10px; font-size: 1.1rem; color: #334155; }
-
-/* --- КНОПКИ ДЕЙСТВИЙ (Сердце, Подумать еще) --- */
-.btn-heart {
-  background: white; border: 1px solid #e5e7eb;
-  width: 44px; height: 44px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 1.4rem; cursor: pointer; transition: all 0.2s;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+/* --- ИСТОРИЯ --- */
+.history-bar { margin-bottom: 25px; margin-top: 50px; text-align: center; }
+.history-title {
+  font-size: 28px; font-weight: 900; color: var(--text-main);
+  margin-bottom: 20px; display: block;
 }
-.btn-heart:hover { transform: scale(1.1); box-shadow: 0 5px 10px rgba(0,0,0,0.1); }
-.btn-heart.active { color: var(--accent-red); border-color: #fecaca; background: #fef2f2; }
-.btn-heart.inactive { color: #cbd5e1; }
-
-.btn-regenerate {
-  display: block; width: 100%;
-  margin-top: 30px; padding: 16px;
-  background: white; border: 2px dashed #cbd5e1; color: var(--text-muted);
-  border-radius: var(--radius-md); cursor: pointer; font-weight: 600; font-size: 1rem;
-  transition: all 0.2s;
+.history-filters {
+  background: #e5e7eb; padding: 5px; border-radius: 100px;
+  display: inline-flex; gap: 5px;
 }
-.btn-regenerate:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); background: #f0fdf4; }
+.filter-pill {
+  border: none; background: transparent; padding: 12px 30px;
+  border-radius: 100px; cursor: pointer; font-size: 16px; font-weight: 700;
+  color: var(--text-light); transition: all 0.2s;
+}
+.filter-pill.active {
+  background: white; color: var(--text-main); box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+.empty-msg {
+  text-align: center; padding: 40px; color: #9ca3af; font-size: 16px;
+  background: rgba(255,255,255,0.6); border-radius: 20px; border: 2px dashed #cbd5e1;
+}
 
 /* --- ЧАТ --- */
-.chat-section { margin-top: 50px; background: #eff6ff; padding: 35px; border-radius: var(--radius-lg); border: 1px solid #dbeafe; }
-.chat-title { color: #1e40af; font-size: 1.3rem; margin-bottom: 10px; }
-.chat-input-group { display: flex; gap: 12px; margin-top: 20px; }
-.btn-ask {
-  padding: 0 28px; background: #2563eb; color: white; border: none;
-  border-radius: var(--radius-md); font-weight: 600; font-size: 1rem; cursor: pointer;
-  transition: background 0.2s;
+.chat-box {
+  background: #eff6ff; border: 1px solid #bfdbfe; padding: 20px;
+  border-radius: 16px; margin-top: 30px;
 }
-.btn-ask:hover:not(:disabled) { background: #1d4ed8; }
-.chat-answer-box { margin-top: 25px; background: white; padding: 25px; border-radius: var(--radius-md); box-shadow: var(--shadow-soft); border-left: 4px solid #2563eb; line-height: 1.6;}
+.chat-input-row { display: flex; gap: 10px; }
+.chat-input {
+  flex: 1; padding: 14px; border-radius: 14px; border: 1px solid #bfdbfe;
+  outline: none; font-size: 16px;
+}
+.chat-btn {
+  background: #3b82f6; color: white; border: none; width: 50px;
+  border-radius: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
 
-/* --- ЛЕНТА ИСТОРИИ --- */
-.feed-section { margin-top: 80px; border-top: 1px solid #e5e7eb; padding-top: 50px; }
-.history-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 35px; }
-.history-header h3 { font-size: 1.5rem; color: var(--text-main); }
+/* --- МЕНЮ (БОКОВОЕ, АККУРАТНОЕ) --- */
+.menu-btn {
+  position: absolute; top: 20px; right: 20px;
+  background: white; border: none; padding: 10px;
+  border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+  cursor: pointer; z-index: 60;
+}
+.menu-drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; width: 280px;
+  background: white; z-index: 100; padding: 30px;
+  box-shadow: -10px 0 50px rgba(0,0,0,0.2);
+  transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-top-left-radius: 24px; border-bottom-left-radius: 24px;
+}
+.menu-drawer.open { transform: translateX(0); }
+.menu-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 90;
+  backdrop-filter: blur(5px);
+}
+.menu-link {
+  display: flex; align-items: center; gap: 12px; padding: 16px;
+  font-size: 17px; font-weight: 700; cursor: pointer;
+  border-radius: 12px; margin-bottom: 8px; color: #374151; transition: background 0.2s;
+}
+.menu-link:hover { background: #f3f4f6; color: var(--primary); }
 
-/* --- ВОТ ЗДЕСЬ ИЗМЕНЕНИЯ (Увеличенные кнопки фильтра) --- */
-.filter-tabs { 
-  display: flex; 
-  background: #e2e8f0; 
-  padding: 8px; /* Чуть больше воздуха вокруг кнопок */
-  border-radius: var(--radius-full); 
-  gap: 5px;
+/* --- 🔥 DAILY RECIPE PREMIUM (РЕЦЕПТ ДНЯ) 🔥 --- */
+.daily-teaser {
+  background: white; border-radius: 20px; padding: 18px;
+  display: flex; align-items: center; gap: 15px;
+  box-shadow: 0 8px 25px rgba(249, 115, 22, 0.15);
+  border: 1px solid #ffedd5; cursor: pointer; margin-bottom: 30px; transition: transform 0.2s;
 }
-.filter-tab {
-  padding: 12px 24px; /* Увеличили размер кликабельной области */
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  border-radius: var(--radius-full);
-  cursor: pointer;
-  font-weight: 600;
-  font-size: 1.1rem; /* Увеличили размер шрифта */
-  transition: all 0.2s;
-}
-.filter-tab.active { 
-  background: var(--bg-card); 
-  color: var(--text-main); 
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1); 
-}
-.filter-tab.active:last-child { color: var(--accent-red); } /* Красный для Избранного */
+.daily-teaser:hover { transform: translateY(-3px); }
 
-.btn-toggle {
-  background: white; border: 1px solid #e5e7eb; padding: 12px 20px; border-radius: var(--radius-full);
-  cursor: pointer; color: var(--text-muted); font-weight: 600; font-size: 0.95rem;
-  transition: all 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+/* Полная карточка рецепта дня */
+.daily-full-card {
+  background: white;
+  border-radius: 32px;
+  overflow: hidden;
+  box-shadow: var(--shadow-orange);
+  border: 1px solid rgba(249, 115, 22, 0.1);
+  animation: slideUp 0.5s ease;
+  position: relative;
 }
-.btn-toggle:hover { background: #f8fafc; color: var(--text-main); }
 
-.feed-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 25px; }
-.mini-card {
-  background: var(--bg-card); padding: 25px; border-radius: var(--radius-md);
-  box-shadow: var(--shadow-soft); border: 1px solid #f1f5f9; cursor: pointer; transition: all 0.3s ease;
+/* Оранжевая шапка градиентом */
+.daily-hero-bg {
+  background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+  padding: 40px 25px 30px 25px;
+  text-align: center;
+  position: relative;
 }
-.mini-card:hover { transform: translateY(-7px); box-shadow: var(--shadow-hover); border-color: var(--primary); }
-.mini-card h4 { font-size: 1.1rem; margin: 0 0 15px 0; line-height: 1.4; }
-.mini-info { display: flex; justify-content: space-between; color: var(--text-muted); font-size: 0.9rem; font-weight: 500; }
+.daily-hero-bg::after {
+  content: ''; position: absolute; bottom: 0; left: 0; width: 100%; height: 40px;
+  background: linear-gradient(to top, white, transparent);
+}
 
-/* Вспомогательные стили */
-.preview-image { width: 100%; height: 280px; object-fit: cover; border-radius: var(--radius-md); margin-top: 25px; box-shadow: var(--shadow-soft); }
-.ingredients-list { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 35px; }
-.tag { background: #d1fae5; color: #065f46; padding: 10px 18px; border-radius: var(--radius-full); font-weight: 600; }
-.dishes-grid { display: grid; gap: 15px; }
-.dish-btn { background: white; border: 2px solid #e2e8f0; padding: 20px; border-radius: var(--radius-md); text-align: left; font-size: 1.15rem; font-weight: 700; color: var(--text-main); cursor: pointer; box-shadow: var(--shadow-soft); transition: all 0.2s; display: flex; align-items: center; justify-content: space-between; }
-.dish-btn:hover:not(:disabled) { border-color: var(--primary); background: #f0fdf4; transform: translateY(-2px); }
-.dish-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+.daily-badge-lg {
+  background: linear-gradient(90deg, #f97316, #ea580c);
+  color: white; padding: 8px 20px; border-radius: 100px;
+  font-size: 14px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 1.5px; box-shadow: 0 4px 15px rgba(249, 115, 22, 0.4);
+  display: inline-flex; align-items: center; gap: 8px; margin-bottom: 20px;
+}
+
+.daily-title-lg {
+  font-size: 34px; font-weight: 900; line-height: 1.1;
+  color: #1c1917; margin-bottom: 15px;
+}
+.daily-desc {
+  font-size: 18px; line-height: 1.6; color: #57534e; margin-bottom: 25px;
+}
+.daily-meta-row {
+  display: flex; justify-content: center; gap: 15px; margin-bottom: 10px;
+}
+.daily-meta-pill {
+  background: white; padding: 10px 20px; border-radius: 16px;
+  font-weight: 700; font-size: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+  display: flex; align-items: center; gap: 8px;
+}
+
+.daily-content { padding: 0 25px 40px 25px; }
+.daily-section-title {
+  font-size: 24px; font-weight: 800; margin: 40px 0 20px 0;
+  display: flex; align-items: center; gap: 10px;
+}
+.daily-ing-grid { display: flex; flex-wrap: wrap; gap: 10px; }
+.daily-ing-item {
+  background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0;
+  padding: 10px 18px; border-radius: 100px; font-weight: 600; font-size: 15px;
+}
+
+.daily-step { display: flex; gap: 20px; margin-bottom: 25px; }
+.daily-step-num {
+  min-width: 45px; height: 45px; background: #f97316; color: white;
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-weight: 900; font-size: 20px; box-shadow: 0 5px 15px rgba(249, 115, 22, 0.3);
+  margin-top: -5px;
+}
+.daily-step-text { font-size: 18px; line-height: 1.6; color: #44403c; }
+
+.daily-footer {
+  text-align: center; margin-top: 50px; padding: 30px;
+  background: #fff7ed; border-radius: 20px; color: #c2410c;
+  font-weight: 700; border: 2px dashed #ffedd5;
+}
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }

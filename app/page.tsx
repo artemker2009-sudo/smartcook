@@ -5,7 +5,6 @@ import { supabase } from "@/lib/supabase";
 import DailyRecipe from "@/components/DailyRecipe";
 import { Menu, X, Flame, Send, Camera, Search, Clock, Heart, ArrowRight, RotateCcw, CheckCircle, Sparkles, Image as ImageIcon, Wallet, Zap, Leaf, Globe } from "lucide-react";
 
-// ВАЖНО: npm install browser-image-compression
 import imageCompression from 'browser-image-compression';
 
 /* --- ТИПЫ ДАННЫХ --- */
@@ -22,7 +21,6 @@ interface DBRecipe {
 interface DailyRecipeType { title: string; description: string; time: string; calories: string; ingredients: string[]; steps: string[]; date: string; }
 
 export default function Home() {
-  /* --- СОСТОЯНИЕ --- */
   const [activeView, setActiveView] = useState<'service' | 'about' | 'daily'>('service');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [dailyRecipe, setDailyRecipe] = useState<DailyRecipeType | null>(null);
@@ -48,7 +46,6 @@ export default function Home() {
   const [answer, setAnswer] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
 
-  // Очистка текста от нумерации
   const cleanText = (text: string) => text.replace(/^\d+[\.\)]\s*/, '');
 
   useEffect(() => {
@@ -77,18 +74,14 @@ export default function Home() {
     try { await fetch("/api/favorite", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: targetId, isFavorite: newStatus }) }); } catch (err) { console.error(err); }
   };
 
-  // --- ЛОГИКА ЗАГРУЗКИ С КОНВЕРТЕРОМ (HEIC -> JPG) ---
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files; 
     if (!files || files.length === 0) return;
     
     const rawFile = files[0];
     
-    // Сразу показываем превью оригинала (пока сжимаем)
     setPreview(URL.createObjectURL(rawFile));
     setAnalysisResult(null); setRecipe(null); setQuestion(""); setAnswer(null); 
-    
-    // Включаем индикатор обработки
     setIsProcessing(true);
 
     try {
@@ -242,9 +235,7 @@ export default function Home() {
                 ) : (
                   <div className="upload-compact">
                     {preview && <img src={preview} className="preview-img" alt="Preview" />}
-                    
                     <input id="hidden-file-input" type="file" accept="image/*,.heic,.HEIC" style={{display: 'none'}} onChange={handleFileChange} />
-                    
                     <button className="btn-replace" onClick={triggerFileInput}>
                       <RotateCcw size={16} /> Заменить фото
                     </button>
@@ -257,8 +248,9 @@ export default function Home() {
               </>
             ) : (
               <>
-                <input type="text" className="upload-zone" style={{width: '90%', padding: '20px', textAlign: 'left', border: '2px solid #e5e7eb', cursor: 'text', fontSize: '18px'}} 
-                       placeholder="Например: Паста" value={textQuery} onChange={(e) => setTextQuery(e.target.value)} />
+                {/* ИСПРАВЛЕННОЕ ПОЛЕ ВВОДА */}
+                <input type="text" className="text-search-input" 
+                       placeholder="Например: Паста Карбонара" value={textQuery} onChange={(e) => setTextQuery(e.target.value)} />
                 <button className="btn-primary" onClick={handleTextSearch} disabled={loadingRecipe || !textQuery.trim()}>
                   {loadingRecipe ? "🍳 Готовлю..." : "🔍 Найти"}
                 </button>
@@ -275,12 +267,14 @@ export default function Home() {
               </div>
               <div style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
                 {analysisResult.dishes.map((dish, i) => (
-                  <button key={i} onClick={() => getRecipeFromPhoto(dish)} className="btn-secondary" style={{textAlign: 'left', display: 'flex', justifyContent: 'space-between'}}>
-                    {dish} {loadingRecipe && <Sparkles className="animate-spin"/>}
+                  <button key={i} onClick={() => getRecipeFromPhoto(dish)} className="btn-secondary">
+                    <span>{dish}</span> {loadingRecipe && <Sparkles className="animate-spin"/>}
                   </button>
                 ))}
               </div>
-              <button className="btn-secondary" onClick={handleRegenerate} style={{marginTop: '20px', color: '#6b7280'}}>🔄 Другие варианты</button>
+              <button className="btn-secondary" onClick={handleRegenerate} style={{marginTop: '20px', color: '#6b7280', justifyContent: 'center'}}>
+                 🔄 Другие варианты
+              </button>
             </div>
           )}
 
@@ -324,13 +318,18 @@ export default function Home() {
                 ))}
               </div>
 
+              {/* ОБНОВЛЕННЫЙ ЧАТ */}
               <div className="chat-box">
-                <div style={{fontWeight: 700, marginBottom: '10px', color: '#1e40af'}}>Есть вопрос шефу?</div>
-                <div className="chat-input-row">
-                  <input className="chat-input" placeholder="Спросить..." value={question} onChange={(e) => setQuestion(e.target.value)} />
-                  <button className="chat-btn" onClick={handleAskChef}><Send size={20}/></button>
+                <div style={{fontWeight: 800, marginBottom: '20px', color: '#1e40af', fontSize: '18px', textAlign: 'center'}}>
+                   Задайте вопрос AI шеф-повару!
                 </div>
-                {answer && <div style={{marginTop: '15px', lineHeight: 1.5}}><strong>Ответ:</strong> {answer}</div>}
+                <div className="chat-layout">
+                  <input className="chat-input" placeholder="Например: чем заменить сливки?" value={question} onChange={(e) => setQuestion(e.target.value)} />
+                  <button className="chat-btn-center" onClick={handleAskChef}>
+                    <Send size={18}/> Спросить
+                  </button>
+                </div>
+                {answer && <div style={{marginTop: '20px', lineHeight: 1.5, background: 'white', padding: '15px', borderRadius: '16px'}}><strong>Ответ:</strong> {answer}</div>}
               </div>
             </div>
           )}
@@ -361,11 +360,10 @@ export default function Home() {
       {/* === ДРУГИЕ СТРАНИЦЫ === */}
       {activeView === 'daily' && <div style={{marginTop: '60px'}}><DailyRecipe data={dailyRecipe} /></div>}
       
-      {/* === О ПРОЕКТЕ (МАРКЕТИНГОВЫЙ БЛОК) === */}
+      {/* === О ПРОЕКТЕ (ОБНОВЛЕННЫЙ) === */}
       {activeView === 'about' && (
         <div className="card" style={{marginTop: '60px', padding: '0', overflow: 'hidden', border: 'none', boxShadow: '0 20px 60px -10px rgba(0,0,0,0.15)'}}>
           
-          {/* 1. HEADER */}
           <div style={{background: 'linear-gradient(135deg, #059669 0%, #047857 100%)', padding: '40px 25px', color: 'white', textAlign: 'center'}}>
             <div style={{fontSize: '50px', marginBottom: '10px'}}>🚀</div>
             <h1 style={{fontSize: '32px', fontWeight: 900, margin: '0 0 10px 0', lineHeight: 1.1}}>
@@ -378,17 +376,15 @@ export default function Home() {
 
           <div style={{padding: '30px 25px'}}>
             
-            {/* 2. PAIN (MONEY) */}
             <div style={{background: '#fff1f2', borderRadius: '20px', padding: '20px', marginBottom: '30px', border: '1px solid #fecdd3'}}>
               <h3 style={{marginTop: 0, color: '#be123c', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '20px', fontWeight: 800}}>
-                <span style={{fontSize: '24px'}}>💸</span> Вы теряете 30,000₽
+                <span style={{fontSize: '24px'}}>💸</span> Вы теряете 30.000₽
               </h3>
               <p style={{marginBottom: 0, color: '#881337', lineHeight: 1.5}}>
                 Именно столько средняя семья выбрасывает в мусорку ежегодно в виде испорченных продуктов. <strong>SmartCook останавливает это безумие.</strong>
               </p>
             </div>
 
-            {/* 3. BENEFITS GRID */}
             <h3 style={{textAlign: 'center', fontSize: '22px', fontWeight: 800, marginBottom: '20px'}}>Почему это работает?</h3>
             <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '40px'}}>
               
@@ -426,7 +422,6 @@ export default function Home() {
 
             </div>
 
-            {/* 4. TELEGRAM (REAL & HONEST) */}
             <div style={{background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', borderRadius: '24px', padding: '30px 20px', textAlign: 'center', color: 'white', boxShadow: '0 10px 25px rgba(2, 132, 199, 0.4)', position: 'relative', overflow: 'hidden'}}>
               <div style={{position: 'absolute', top: '-20px', right: '-20px', width: '80px', height: '80px', background: 'rgba(255,255,255,0.1)', borderRadius: '50%'}}></div>
               

@@ -1,13 +1,13 @@
 /* === SMARTCOOK PREMIUM STYLES (PURE CSS) === */
 :root {
-  --primary: #059669;       /* Изумрудный (Основной) */
+  --primary: #059669;       /* Изумрудный */
   --primary-dark: #047857;
-  --accent: #f97316;        /* Оранжевый (Акцент/Рецепт дня) */
-  --bg-page: #f0fdfa;       /* Светлый мятный фон */
+  --accent: #f97316;        /* Оранжевый */
+  --bg-page: #f0fdfa;       /* Фон */
   --text-main: #111827;
   --text-light: #6b7280;
   --white: #ffffff;
-  --radius: 24px;           /* Закругление углов */
+  --radius: 24px;
   --shadow: 0 10px 40px -5px rgba(0,0,0,0.1);
   --shadow-orange: 0 20px 50px -10px rgba(249, 115, 22, 0.25);
 }
@@ -30,7 +30,7 @@ body {
   position: relative;
 }
 
-/* --- ЗАГОЛОВОК (HERO) --- */
+/* --- HERO --- */
 .hero { text-align: center; margin: 40px 0 30px 0; }
 .brand-name {
   font-size: 42px; font-weight: 900;
@@ -40,7 +40,7 @@ body {
 }
 .brand-sub { font-size: 18px; color: var(--text-light); font-weight: 500; }
 
-/* --- ПЕРЕКЛЮЧАТЕЛЬ РЕЖИМОВ --- */
+/* --- ПЕРЕКЛЮЧАТЕЛЬ --- */
 .switch-box {
   background: #e5e7eb; padding: 6px; border-radius: 100px;
   display: flex; margin-bottom: 30px; box-shadow: inset 0 2px 6px rgba(0,0,0,0.06);
@@ -62,7 +62,7 @@ body {
   box-shadow: var(--shadow); margin-bottom: 25px; border: 1px solid rgba(255,255,255,0.6);
 }
 
-/* --- ЗАГРУЗКА ФОТО --- */
+/* --- ЗАГРУЗКА И ВВОД --- */
 .upload-zone {
   border: 3px dashed #cbd5e1; border-radius: var(--radius); padding: 50px 20px;
   text-align: center; background: #f8fafc; cursor: pointer; position: relative;
@@ -71,6 +71,24 @@ body {
 .upload-zone:hover { border-color: var(--primary); background: #ecfdf5; }
 .upload-input {
   position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;
+}
+
+/* НОВОЕ: Поле ввода текста на всю ширину */
+.text-search-input {
+  width: 100%; 
+  padding: 20px; 
+  font-size: 18px; 
+  border: 2px solid #e5e7eb; 
+  border-radius: 20px; 
+  outline: none; 
+  background: #f9fafb; 
+  transition: all 0.2s;
+  text-align: left;
+}
+.text-search-input:focus {
+  border-color: var(--primary);
+  background: white;
+  box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.1);
 }
 
 /* Компактный вид после загрузки */
@@ -86,12 +104,6 @@ body {
 }
 .btn-replace:hover { background: #e2e8f0; color: #1e293b; }
 
-.text-input-zone {
-  width: 100%; padding: 20px; font-size: 18px; border: 2px solid #e5e7eb;
-  border-radius: 16px; outline: none; background: #f9fafb; transition: all 0.2s;
-}
-.text-input-zone:focus { border-color: var(--primary); background: white; }
-
 /* --- КНОПКИ --- */
 .btn-primary {
   background: linear-gradient(135deg, var(--primary), var(--primary-dark));
@@ -102,11 +114,19 @@ body {
 .btn-primary:hover:not(:disabled) { transform: scale(1.02); }
 .btn-primary:disabled { opacity: 0.6; cursor: wait; }
 
+/* НОВОЕ: Увеличенный текст в кнопках выбора блюд */
 .btn-secondary {
   background: white; border: 2px solid #e5e7eb; color: var(--text-main);
-  padding: 14px 24px; border-radius: 100px; font-weight: 700; cursor: pointer;
-  width: 100%; margin-top: 15px; text-align: left; display: flex; justify-content: space-between;
+  padding: 18px 24px; /* Больше отступы */
+  border-radius: 16px; 
+  font-weight: 700; 
+  font-size: 18px; /* Увеличенный шрифт */
+  cursor: pointer;
+  width: 100%; margin-top: 12px; 
+  text-align: left; display: flex; justify-content: space-between; align-items: center;
+  transition: all 0.2s;
 }
+.btn-secondary:hover { border-color: var(--primary); background: #ecfdf5; }
 
 /* --- РЕЦЕПТ --- */
 .recipe-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
@@ -159,22 +179,32 @@ body {
   background: rgba(255,255,255,0.6); border-radius: 20px; border: 2px dashed #cbd5e1;
 }
 
-/* --- ЧАТ --- */
+/* --- НОВЫЙ ДИЗАЙН ЧАТА --- */
 .chat-box {
-  background: #eff6ff; border: 1px solid #bfdbfe; padding: 20px;
-  border-radius: 16px; margin-top: 30px;
+  background: #eff6ff; border: 1px solid #bfdbfe; padding: 25px;
+  border-radius: 24px; margin-top: 30px;
 }
-.chat-input-row { display: flex; gap: 10px; }
+.chat-layout {
+  display: flex; flex-direction: column; gap: 15px; /* Кнопка под полем */
+}
 .chat-input {
-  flex: 1; padding: 14px; border-radius: 14px; border: 1px solid #bfdbfe;
-  outline: none; font-size: 16px;
+  width: 100%; padding: 16px; border-radius: 16px; border: 2px solid #bfdbfe;
+  outline: none; font-size: 16px; background: white;
 }
-.chat-btn {
-  background: #3b82f6; color: white; border: none; width: 50px;
-  border-radius: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+.chat-input:focus { border-color: #3b82f6; }
+.chat-btn-center {
+  background: #3b82f6; color: white; border: none; 
+  padding: 14px 40px; /* Широкая кнопка */
+  border-radius: 100px; cursor: pointer; font-weight: 700; font-size: 16px;
+  align-self: center; /* По центру */
+  display: flex; align-items: center; gap: 10px;
+  box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+  transition: transform 0.2s;
 }
+.chat-btn-center:hover { transform: translateY(-2px); }
 
-/* --- МЕНЮ (БОКОВОЕ, АККУРАТНОЕ) --- */
+
+/* --- МЕНЮ --- */
 .menu-btn {
   position: absolute; top: 20px; right: 20px;
   background: white; border: none; padding: 10px;
@@ -200,7 +230,7 @@ body {
 }
 .menu-link:hover { background: #f3f4f6; color: var(--primary); }
 
-/* --- 🔥 DAILY RECIPE PREMIUM (РЕЦЕПТ ДНЯ) 🔥 --- */
+/* --- DAILY RECIPE PREMIUM --- */
 .daily-teaser {
   background: white; border-radius: 20px; padding: 18px;
   display: flex; align-items: center; gap: 15px;
@@ -209,23 +239,15 @@ body {
 }
 .daily-teaser:hover { transform: translateY(-3px); }
 
-/* Полная карточка рецепта дня */
 .daily-full-card {
-  background: white;
-  border-radius: 32px;
-  overflow: hidden;
-  box-shadow: var(--shadow-orange);
-  border: 1px solid rgba(249, 115, 22, 0.1);
-  animation: slideUp 0.5s ease;
-  position: relative;
+  background: white; border-radius: 32px; overflow: hidden;
+  box-shadow: var(--shadow-orange); border: 1px solid rgba(249, 115, 22, 0.1);
+  animation: slideUp 0.5s ease; position: relative;
 }
 
-/* Оранжевая шапка градиентом */
 .daily-hero-bg {
   background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
-  padding: 40px 25px 30px 25px;
-  text-align: center;
-  position: relative;
+  padding: 40px 25px 30px 25px; text-align: center; position: relative;
 }
 .daily-hero-bg::after {
   content: ''; position: absolute; bottom: 0; left: 0; width: 100%; height: 40px;
@@ -240,16 +262,9 @@ body {
   display: inline-flex; align-items: center; gap: 8px; margin-bottom: 20px;
 }
 
-.daily-title-lg {
-  font-size: 34px; font-weight: 900; line-height: 1.1;
-  color: #1c1917; margin-bottom: 15px;
-}
-.daily-desc {
-  font-size: 18px; line-height: 1.6; color: #57534e; margin-bottom: 25px;
-}
-.daily-meta-row {
-  display: flex; justify-content: center; gap: 15px; margin-bottom: 10px;
-}
+.daily-title-lg { font-size: 34px; font-weight: 900; line-height: 1.1; color: #1c1917; margin-bottom: 15px; }
+.daily-desc { font-size: 18px; line-height: 1.6; color: #57534e; margin-bottom: 25px; }
+.daily-meta-row { display: flex; justify-content: center; gap: 15px; margin-bottom: 10px; }
 .daily-meta-pill {
   background: white; padding: 10px 20px; border-radius: 16px;
   font-weight: 700; font-size: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);

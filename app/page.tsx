@@ -166,6 +166,14 @@ export default function Home() {
     window.scrollTo({ top: 0, behavior: 'smooth' }); setActiveView('service');
   };
 
+  // Функция переключения меню с очисткой чата
+  const switchView = (view: 'service' | 'about' | 'daily') => {
+    setActiveView(view);
+    setIsMenuOpen(false);
+    setQuestion(""); 
+    setAnswer(null);
+  };
+
   const displayedFeed = filterMode === 'all' ? feed : feed?.filter(r => r.is_favorite);
 
   return (
@@ -184,9 +192,9 @@ export default function Home() {
                <span style={{fontSize: '24px', fontWeight: '900', color: '#059669'}}>SmartCook</span>
                <X size={24} onClick={() => setIsMenuOpen(false)} style={{cursor: 'pointer'}} />
             </div>
-            <div className="menu-link" onClick={() => {setActiveView('service'); setIsMenuOpen(false)}}><Search size={20}/> Поиск</div>
-            <div className="menu-link" onClick={() => {setActiveView('daily'); setIsMenuOpen(false)}}><Flame size={20} color="#f97316"/> Рецепт дня</div>
-            <div className="menu-link" onClick={() => {setActiveView('about'); setIsMenuOpen(false)}}><CheckCircle size={20} color="#3b82f6"/> О проекте</div>
+            <div className="menu-link" onClick={() => switchView('service')}><Search size={20}/> Поиск</div>
+            <div className="menu-link" onClick={() => switchView('daily')}><Flame size={20} color="#f97316"/> Рецепт дня</div>
+            <div className="menu-link" onClick={() => switchView('about')}><CheckCircle size={20} color="#3b82f6"/> О проекте</div>
           </div>
         </>
       )}
@@ -199,7 +207,7 @@ export default function Home() {
             <div className="brand-sub">Ваш личный AI Шеф-повар</div>
           </div>
 
-          <div className="daily-teaser" onClick={() => setActiveView('daily')}>
+          <div className="daily-teaser" onClick={() => switchView('daily')}>
             <div style={{background: '#fff7ed', padding: '12px', borderRadius: '12px'}}><Flame color="#f97316" size={24} /></div>
             <div style={{flex: 1}}>
                <div style={{fontSize: '12px', fontWeight: 'bold', color: '#f97316', textTransform: 'uppercase', letterSpacing: '0.5px'}}>🔥 Рецепт дня</div>
@@ -226,7 +234,6 @@ export default function Home() {
                 ) : (
                   <div className="upload-compact">
                     {preview && <img src={preview} className="preview-img" alt="Preview" />}
-                    {/* Исправленный input для замены */}
                     <input id="hidden-file-input" type="file" accept="image/png, image/jpeg, image/jpg, .heic, .HEIC" style={{display: 'none'}} onChange={handleFileChange} />
                     <button className="btn-replace" onClick={triggerFileInput}>
                       <RotateCcw size={16} /> Заменить фото
@@ -369,9 +376,28 @@ export default function Home() {
         </>
       )}
 
-      {/* === ДРУГИЕ СТРАНИЦЫ === */}
-      {activeView === 'daily' && <div style={{marginTop: '60px'}}><DailyRecipe data={dailyRecipe} /></div>}
+      {/* === РЕЦЕПТ ДНЯ === */}
+      {activeView === 'daily' && (
+        <div style={{marginTop: '60px'}}>
+          <DailyRecipe data={dailyRecipe} />
+          
+          {/* ЧАТ ДЛЯ РЕЦЕПТА ДНЯ */}
+          <div className="chat-box" style={{marginBottom: '40px'}}>
+            <div style={{fontWeight: 800, marginBottom: '20px', color: '#1e40af', fontSize: '18px', textAlign: 'center'}}>
+               Задайте вопрос AI шеф-повару!
+            </div>
+            <div className="chat-layout">
+              <input className="chat-input" placeholder="Например: можно ли готовить без лука?" value={question} onChange={(e) => setQuestion(e.target.value)} />
+              <button className="chat-btn-center" onClick={handleAskChef}>
+                <Send size={18}/> Спросить
+              </button>
+            </div>
+            {answer && <div style={{marginTop: '20px', lineHeight: 1.5, background: 'white', padding: '15px', borderRadius: '16px'}}><strong>Ответ:</strong> {answer}</div>}
+          </div>
+        </div>
+      )}
       
+      {/* === О ПРОЕКТЕ === */}
       {activeView === 'about' && (
         <div className="card" style={{marginTop: '60px', padding: '0', overflow: 'hidden', border: 'none', boxShadow: '0 20px 60px -10px rgba(0,0,0,0.15)'}}>
           <div style={{background: 'linear-gradient(135deg, #059669 0%, #047857 100%)', padding: '40px 25px', color: 'white', textAlign: 'center'}}>

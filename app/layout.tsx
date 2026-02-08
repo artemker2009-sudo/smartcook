@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import "./globals.css"; // <-- Самое важное: подключаем наш файл стилей
+import { Analytics } from "@vercel/analytics/react"; // 1. Импортируем аналитику
+import "./globals.css"; 
 
 export const metadata: Metadata = {
   title: "SmartCook",
@@ -13,7 +14,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ru">
-      <body>{children}</body>
+      <body>
+        {children}
+        {/* 2. Вставляем компонент аналитики сюда, чтобы он работал на всех страницах */}
+        <Analytics />
+      </body>
     </html>
   );
 }

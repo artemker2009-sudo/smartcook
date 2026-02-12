@@ -199,11 +199,11 @@ export default function Home() {
         </>
       )}
 
-      {/* === СЕРВИС === */}
+      {/* === СЕРВИС (ГЛАВНАЯ) === */}
       {activeView === 'service' && (
         <>
           <div className="hero">
-            <div className="brand-name">SmartCook</div>
+            <h1 className="brand-name">SmartCook</h1>
             <div className="brand-sub">Ваш личный AI Шеф-повар</div>
           </div>
 
@@ -373,6 +373,22 @@ export default function Home() {
               ))}
             </div>
           )}
+
+          {/* === SEO ТЕКСТ (ДЛЯ ПОИСКОВИКОВ) === */}
+          <section style={{marginTop: '40px', padding: '20px', background: '#f9fafb', borderRadius: '16px', color: '#6b7280', fontSize: '14px', lineHeight: '1.6'}}>
+            <h2 style={{fontSize: '18px', color: '#1f2937', marginBottom: '10px', fontWeight: '700'}}>
+              SmartCook: Генератор рецептов по фото
+            </h2>
+            <p style={{marginBottom: '10px'}}>
+              Не знаете, <strong>что приготовить из того, что есть</strong> в холодильнике? SmartCook — это умный сервис, который использует 
+              искусственный интеллект для <strong>распознавания продуктов по фото</strong>.
+            </p>
+            <p>
+              Наш <strong>поиск рецептов по ингредиентам</strong> помогает экономить деньги и время. 
+              Больше не нужно гуглить — получите пошаговый рецепт за 3 секунды. Идеально для ужина, завтрака или обеда.
+            </p>
+          </section>
+
         </>
       )}
 

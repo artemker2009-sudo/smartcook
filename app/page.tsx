@@ -6,7 +6,7 @@ import DailyRecipe from "@/components/DailyRecipe";
 import { 
   Menu, X, Flame, Send, Camera, Search, Clock, Heart, 
   ArrowRight, RotateCcw, CheckCircle, Sparkles, Image as ImageIcon, 
-  Wallet, Zap, Leaf, Globe, ChevronRight, ChevronDown, ChevronUp, Shuffle, ShoppingCart, Lock, ShoppingBag 
+  Wallet, Zap, Leaf, Globe, ChevronRight, ChevronDown, ChevronUp, Shuffle, ShoppingCart, Lock, ShoppingBag, ExternalLink, Info 
 } from "lucide-react";
 
 import imageCompression from 'browser-image-compression';
@@ -15,8 +15,16 @@ import imageCompression from 'browser-image-compression';
 interface AnalysisData { ingredients: string[]; dishes: string[]; }
 interface DetailedIngredient { name: string; amount: string; }
 interface RecipeData { 
-  id?: number; is_favorite?: boolean; title: string; time: string; calories?: string; 
-  steps: string[]; missing_ingredients?: string[]; ingredients?: string[]; detailed_ingredients?: DetailedIngredient[]; 
+  id?: number; 
+  is_favorite?: boolean; 
+  title: string; 
+  description?: string; 
+  time: string; 
+  calories?: string; 
+  steps: string[]; 
+  missing_ingredients?: string[]; 
+  ingredients?: string[]; 
+  detailed_ingredients?: DetailedIngredient[]; 
 }
 interface DBRecipe { 
   id: number; title: string; time: string; calories?: string; is_favorite: boolean; 
@@ -34,7 +42,7 @@ export default function Home() {
   const [searchMode, setSearchMode] = useState<'photo' | 'text'>('photo');
   const [textQuery, setTextQuery] = useState(""); 
   
-  // НОВОЕ: Состояние режима готовки
+  // Состояние режима готовки
   const [cookingMode, setCookingMode] = useState<'strict' | 'extended'>('strict');
   
   const [isProcessing, setIsProcessing] = useState(false);
@@ -56,6 +64,19 @@ export default function Home() {
   const [asking, setAsking] = useState(false);
 
   const cleanText = (text: string) => text.replace(/^\d+[\.\)]\s*/, '');
+
+  // --- ФУНКЦИИ ФОРМАТИРОВАНИЯ ---
+  const formatTime = (t: string) => {
+    if (!t) return "";
+    if (/[а-яa-z]/i.test(t)) return t;
+    return `${t} мин.`;
+  };
+
+  const formatCalories = (c: string) => {
+    if (!c) return "";
+    if (/[а-яa-z]/i.test(c)) return c;
+    return `${c} ккал`;
+  };
 
   useEffect(() => {
     try {
@@ -119,7 +140,6 @@ export default function Home() {
     try {
       const formData = new FormData(); 
       formData.append("image", file);
-      // НОВОЕ: Передаем выбранный режим
       formData.append("mode", cookingMode);
 
       const response = await fetch("/api/analyze", { method: "POST", body: formData });
@@ -154,23 +174,47 @@ export default function Home() {
   };
 
   const handleSmartVariant = async () => {
-    if (!analysisResult) return;
     setLoadingRecipe(true);
-    try {
-      const response = await fetch("/api/regenerate", { 
-        method: "POST", 
-        headers: { "Content-Type": "application/json" }, 
-        body: JSON.stringify({ ingredients: analysisResult.ingredients }) 
-      });
-      const json = await response.json(); 
-      if (json.error) throw new Error(json.error);
-      const newDishes = json.dishes.filter((d: string) => d !== selectedDish);
-      const freshIdea = newDishes.length > 0 ? newDishes[0] : json.dishes[0];
-      setAnalysisResult({ ...analysisResult, dishes: json.dishes });
-      await getRecipeFromPhoto(freshIdea);
-    } catch (err: any) { 
-      alert("Ошибка: " + err.message); 
-      setLoadingRecipe(false);
+    
+    // 1. Сценарий ФОТО
+    if (analysisResult) {
+      try {
+        const response = await fetch("/api/regenerate", { 
+          method: "POST", 
+          headers: { "Content-Type": "application/json" }, 
+          body: JSON.stringify({ ingredients: analysisResult.ingredients }) 
+        });
+        const json = await response.json(); 
+        if (json.error) throw new Error(json.error);
+        
+        const newDishes = json.dishes.filter((d: string) => d !== selectedDish);
+        const freshIdea = newDishes.length > 0 ? newDishes[0] : json.dishes[0];
+        
+        setAnalysisResult({ ...analysisResult, dishes: json.dishes });
+        await getRecipeFromPhoto(freshIdea);
+      } catch (err: any) { 
+        alert("Ошибка: " + err.message); 
+        setLoadingRecipe(false);
+      }
+    } 
+    // 2. Сценарий ТЕКСТ
+    else if (searchMode === 'text' && textQuery) {
+      try {
+        const response = await fetch("/api/search-recipe", { 
+          method: "POST", 
+          headers: { "Content-Type": "application/json" }, 
+          body: JSON.stringify({ query: textQuery, sessionId: userId, isVariant: true }) 
+        });
+        const json = await response.json(); 
+        if (json.error) throw new Error(json.error);
+        
+        setRecipe({ ...json.recipe, missing_ingredients: json.recipe.missing_ingredients || [] }); 
+        fetchMyRecipes(userId!);
+      } catch (err: any) {
+        alert("Ошибка: " + err.message);
+      } finally {
+        setLoadingRecipe(false);
+      }
     }
   };
 
@@ -178,7 +222,7 @@ export default function Home() {
     if (!textQuery.trim() || !userId) return; setLoadingRecipe(true); setRecipe(null); setAnalysisResult(null);
     try {
       const response = await fetch("/api/search-recipe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query: textQuery, sessionId: userId }) });
-      const json = await response.json(); if (json.error) throw new Error(json.error); setRecipe({ ...json.recipe, missing_ingredients: [] }); fetchMyRecipes(userId);
+      const json = await response.json(); if (json.error) throw new Error(json.error); setRecipe({ ...json.recipe, missing_ingredients: json.recipe.missing_ingredients || [] }); fetchMyRecipes(userId);
     } catch (err: any) { alert("Ошибка: " + err.message); } finally { setLoadingRecipe(false); }
   };
 
@@ -273,14 +317,14 @@ export default function Home() {
                   </div>
                 )}
 
-                {/* НОВЫЙ БЛОК ПЕРЕКЛЮЧЕНИЯ РЕЖИМА */}
+                {/* БЛОК ПЕРЕКЛЮЧЕНИЯ РЕЖИМА */}
                 {file && (
                    <div className="mode-toggle-container">
                       <button 
                         className={`mode-btn ${cookingMode === 'strict' ? 'active' : ''}`}
                         onClick={() => setCookingMode('strict')}
                       >
-                         <Lock size={16} /> Только что есть
+                         <Lock size={16} /> Строго из этого
                       </button>
                       <button 
                         className={`mode-btn ${cookingMode === 'extended' ? 'active' : ''}`}
@@ -358,9 +402,16 @@ export default function Home() {
                     />
                   </div>
                 </div>
+
+                {/* ОПИСАНИЕ БЛЮДА */}
+                {recipe.description && (
+                  <p style={{fontSize: '15px', color: '#4b5563', lineHeight: '1.5', margin: '5px 0 15px 0'}}>
+                    {recipe.description}
+                  </p>
+                )}
               
                 {/* Кнопка "ДРУГОЙ ВАРИАНТ" */}
-                {analysisResult && (
+                {(analysisResult || (searchMode === 'text' && recipe)) && (
                   <button 
                     onClick={handleSmartVariant}
                     disabled={loadingRecipe}
@@ -380,11 +431,11 @@ export default function Home() {
               </div>
 
               <div className="recipe-tags" style={{marginTop: '15px'}}>
-                <div className="tag-badge"><Clock size={16}/> {recipe.time}</div>
-                {recipe.calories && <div className="tag-badge orange"><Flame size={16}/> {recipe.calories}</div>}
+                <div className="tag-badge"><Clock size={16}/> {formatTime(recipe.time)}</div>
+                {recipe.calories && <div className="tag-badge orange"><Flame size={16}/> {formatCalories(recipe.calories)}</div>}
               </div>
 
-              {/* БЛОК НЕДОСТАЮЩИХ ИНГРЕДИЕНТОВ */}
+              {/* БЛОК НЕДОСТАЮЩИХ ИНГРЕДИЕНТОВ С ССЫЛКАМИ НА OZON */}
               {recipe.missing_ingredients && recipe.missing_ingredients.length > 0 && (
                 <div style={{
                   background: '#fffbeb', 
@@ -395,14 +446,39 @@ export default function Home() {
                   color: '#92400e'
                 }}>
                   <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontWeight: 800}}>
-                    <ShoppingCart size={20} /> Нужно докупить:
+                    {/* АДАПТИВНЫЙ ЗАГОЛОВОК */}
+                    <ShoppingCart size={20} /> {searchMode === 'text' ? "Нужно купить:" : "Нужно докупить:"}
                   </div>
-                  <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px'}}>
+                  <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px'}}>
                     {recipe.missing_ingredients.map((item, idx) => (
-                      <span key={idx} style={{background: '#fef3c7', padding: '4px 10px', borderRadius: '6px', fontSize: '14px', fontWeight: 600}}>
-                        {item}
-                      </span>
+                      <a 
+                        key={idx} 
+                        href={`https://www.ozon.ru/search/?text=${encodeURIComponent(item)}&from_global=true`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                           background: '#fef3c7', 
+                           padding: '6px 12px', 
+                           borderRadius: '8px', 
+                           fontSize: '14px', 
+                           fontWeight: 600,
+                           textDecoration: 'none',
+                           color: '#92400e',
+                           display: 'flex',
+                           alignItems: 'center',
+                           gap: '6px',
+                           border: '1px solid #fcd34d',
+                           cursor: 'pointer',
+                           transition: 'all 0.2s'
+                        }}
+                      >
+                        {item} <ExternalLink size={12} style={{opacity: 0.6}} />
+                      </a>
                     ))}
+                  </div>
+                  {/* ТЕКСТ-ПОДСКАЗКА С "ДО ДВЕРИ" */}
+                  <div style={{fontSize: '12px', color: '#b45309', display: 'flex', alignItems: 'center', gap: '5px'}}>
+                     <Info size={14} /> Нажмите на ингредиент, чтобы заказать быструю доставку Ozon Fresh до двери
                   </div>
                 </div>
               )}

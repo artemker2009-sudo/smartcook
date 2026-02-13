@@ -290,3 +290,167 @@ body {
 @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .animate-spin { animation: spin 1s linear infinite; }
+/* Кнопка "Другой вариант" */
+.btn-variant {
+  width: 100%;
+  background-color: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  color: #374151;
+  padding: 12px;
+  border-radius: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+  margin-top: 5px;
+  cursor: pointer;
+}
+
+.btn-variant:hover {
+  background-color: #e5e7eb;
+  transform: translateY(-1px);
+}
+
+.btn-variant:active {
+  transform: translateY(0);
+}
+
+/* Кнопка "Показать все" в истории */
+.btn-expand-history {
+  width: 100%;
+  background: white;
+  border: 1px solid #e5e7eb;
+  color: #6b7280;
+  padding: 10px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: background 0.2s;
+  margin-top: 10px;
+}
+
+.btn-expand-history:hover {
+  background: #f9fafb;
+  color: #111;
+}
+/* Кнопка "Умный другой вариант" */
+.btn-smart-variant {
+  width: 100%;
+  background: white;
+  border: 1px solid #e5e7eb;
+  padding: 16px; /* Большая кликабельная область */
+  border-radius: 16px;
+  font-weight: 700;
+  font-size: 15px;
+  color: #1f2937;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Красивая обводка при наведении или фокусе */
+.btn-smart-variant::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; bottom: 0; width: 4px;
+  background: linear-gradient(to bottom, #f97316, #fb923c);
+  opacity: 0.8;
+}
+
+.btn-smart-variant:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  border-color: #f97316;
+}
+
+.btn-smart-variant:active {
+  transform: translateY(0);
+}
+
+/* Кнопка "Показать еще" в истории */
+.btn-expand-history {
+  width: 100%;
+  background: white;
+  border: 1px dashed #d1d5db; /* Пунктирная граница выглядит стильнее для "второстепенных" действий */
+  color: #6b7280;
+  padding: 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 15px;
+}
+
+.btn-expand-history:hover {
+  background: #f9fafb;
+  color: #374151;
+  border-style: solid; /* При наведении становится сплошной */
+  border-color: #9ca3af;
+}
+/* === СТИЛИ ДЛЯ ПЕРЕКЛЮЧАТЕЛЯ РЕЖИМОВ === */
+
+/* Контейнер для переключателя */
+.mode-toggle-container {
+  display: flex;
+  background-color: #f1f5f9; /* Чуть более чистый серый фон */
+  border-radius: 16px; /* Сильные скругления в стиле iOS */
+  padding: 6px; /* Больше внутреннего пространства */
+  gap: 6px; /* Расстояние между кнопками */
+  
+  /* ВАЖНО: Отступы */
+  margin-top: 25px; /* Опускаем вниз, чтобы не налезало на фото */
+  margin-bottom: 20px; /* Отступ до кнопки "Найти рецепт" */
+  
+  border: 1px solid #e2e8f0; /* Тонкая эстетичная рамка */
+  box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.02); /* Еле заметная внутренняя тень для объема */
+}
+
+/* Сама кнопка режима */
+.mode-btn {
+  flex: 1; /* Кнопки занимают всю ширину поровну */
+  border: none;
+  background: transparent;
+  padding: 12px; /* Кнопки стали чуть выше и удобнее для нажатия */
+  border-radius: 12px; /* Скругления внутри контейнера */
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b; /* Цвет неактивного текста (серый) */
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); /* Плавная, дорогая анимация */
+}
+
+/* Эффект при наведении на неактивную кнопку */
+.mode-btn:hover:not(.active) {
+   background-color: rgba(0,0,0,0.03);
+   color: #334155;
+}
+
+/* Активная кнопка режима (выбранная) */
+.mode-btn.active {
+  background: white;
+  color: #0f172a; /* Темный, контрастный текст */
+  /* Красивая мягкая тень, поднимающая кнопку */
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  font-weight: 700; /* Текст становится чуть жирнее */
+}

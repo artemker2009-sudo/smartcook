@@ -3,7 +3,11 @@
 import { useState, useEffect, ChangeEvent } from "react";
 import { supabase } from "@/lib/supabase"; 
 import DailyRecipe from "@/components/DailyRecipe";
-import { Menu, X, Flame, Send, Camera, Search, Clock, Heart, ArrowRight, RotateCcw, CheckCircle, Sparkles, Image as ImageIcon, Wallet, Zap, Leaf, Globe, ChevronRight } from "lucide-react";
+import { 
+  Menu, X, Flame, Send, Camera, Search, Clock, Heart, 
+  ArrowRight, RotateCcw, CheckCircle, Sparkles, Image as ImageIcon, 
+  Wallet, Zap, Leaf, Globe, ChevronRight, ChevronDown, ChevronUp, Shuffle, ShoppingCart, Lock, ShoppingBag 
+} from "lucide-react";
 
 import imageCompression from 'browser-image-compression';
 
@@ -30,6 +34,9 @@ export default function Home() {
   const [searchMode, setSearchMode] = useState<'photo' | 'text'>('photo');
   const [textQuery, setTextQuery] = useState(""); 
   
+  // НОВОЕ: Состояние режима готовки
+  const [cookingMode, setCookingMode] = useState<'strict' | 'extended'>('strict');
+  
   const [isProcessing, setIsProcessing] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [loadingRecipe, setLoadingRecipe] = useState(false);
@@ -41,7 +48,8 @@ export default function Home() {
   const [feed, setFeed] = useState<DBRecipe[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
   
-  const [showHistory, setShowHistory] = useState(true);
+  const [historyExpanded, setHistoryExpanded] = useState(false);
+  
   const [filterMode, setFilterMode] = useState<'all' | 'favorites'>('all');
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<string | null>(null);
@@ -111,6 +119,9 @@ export default function Home() {
     try {
       const formData = new FormData(); 
       formData.append("image", file);
+      // НОВОЕ: Передаем выбранный режим
+      formData.append("mode", cookingMode);
+
       const response = await fetch("/api/analyze", { method: "POST", body: formData });
       if (!response.ok) throw new Error(`Error: ${response.status}`);
       const json = await response.json(); 
@@ -142,6 +153,27 @@ export default function Home() {
     } catch (err: any) { alert("Ошибка: " + err.message); } finally { setLoadingRecipe(false); }
   };
 
+  const handleSmartVariant = async () => {
+    if (!analysisResult) return;
+    setLoadingRecipe(true);
+    try {
+      const response = await fetch("/api/regenerate", { 
+        method: "POST", 
+        headers: { "Content-Type": "application/json" }, 
+        body: JSON.stringify({ ingredients: analysisResult.ingredients }) 
+      });
+      const json = await response.json(); 
+      if (json.error) throw new Error(json.error);
+      const newDishes = json.dishes.filter((d: string) => d !== selectedDish);
+      const freshIdea = newDishes.length > 0 ? newDishes[0] : json.dishes[0];
+      setAnalysisResult({ ...analysisResult, dishes: json.dishes });
+      await getRecipeFromPhoto(freshIdea);
+    } catch (err: any) { 
+      alert("Ошибка: " + err.message); 
+      setLoadingRecipe(false);
+    }
+  };
+
   const handleTextSearch = async () => {
     if (!textQuery.trim() || !userId) return; setLoadingRecipe(true); setRecipe(null); setAnalysisResult(null);
     try {
@@ -166,7 +198,6 @@ export default function Home() {
     window.scrollTo({ top: 0, behavior: 'smooth' }); setActiveView('service');
   };
 
-  // Функция переключения меню с очисткой чата
   const switchView = (view: 'service' | 'about' | 'daily') => {
     setActiveView(view);
     setIsMenuOpen(false);
@@ -175,6 +206,7 @@ export default function Home() {
   };
 
   const displayedFeed = filterMode === 'all' ? feed : feed?.filter(r => r.is_favorite);
+  const visibleHistory = historyExpanded ? displayedFeed : displayedFeed?.slice(0, 4);
 
   return (
     <div className="container">
@@ -241,6 +273,24 @@ export default function Home() {
                   </div>
                 )}
 
+                {/* НОВЫЙ БЛОК ПЕРЕКЛЮЧЕНИЯ РЕЖИМА */}
+                {file && (
+                   <div className="mode-toggle-container">
+                      <button 
+                        className={`mode-btn ${cookingMode === 'strict' ? 'active' : ''}`}
+                        onClick={() => setCookingMode('strict')}
+                      >
+                         <Lock size={16} /> Только что есть
+                      </button>
+                      <button 
+                        className={`mode-btn ${cookingMode === 'extended' ? 'active' : ''}`}
+                        onClick={() => setCookingMode('extended')}
+                      >
+                         <ShoppingBag size={16} /> Могу докупить
+                      </button>
+                   </div>
+                )}
+
                 <button className="btn-primary" onClick={handleAnalyze} disabled={!file || analyzing || isProcessing}>
                   {isProcessing ? "🔄 Обработка фото..." : analyzing ? "🔍 Изучаю продукты..." : "✨ Найти рецепт"}
                 </button>
@@ -256,8 +306,8 @@ export default function Home() {
             )}
           </div>
 
-          {/* Результаты анализа (СПИСОК БЛЮД) */}
-          {analysisResult && (
+          {/* Результаты анализа */}
+          {analysisResult && !recipe && (
             <div className="card">
               <h3 style={{textAlign: 'center', marginBottom: '20px'}}>Я вижу продукты:</h3>
               <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', marginBottom: '25px'}}>
@@ -279,7 +329,7 @@ export default function Home() {
                   >
                     <span>{dish}</span>
                     {loadingRecipe && selectedDish === dish ? (
-                      <Sparkles className="animate-spin" color="#f97316" />
+                      <Sparkles className="animate-spin" size={24} color="#f97316" />
                     ) : (
                       <ChevronRight color="#d1d5db" />
                     )}
@@ -291,31 +341,71 @@ export default function Home() {
                  <Sparkles size={20} />
                  {isRegenerating ? "Включаю фантазию..." : "✨ Хочу что-то необычное"}
               </button>
-              <div className="magic-hint">
-                Шеф включит фантазию и предложит экспериментальные блюда
-              </div>
-
             </div>
           )}
 
           {/* РЕЦЕПТ */}
           {recipe && (
-            <div className="card">
-              <div className="recipe-header">
-                <h2 className="recipe-title">{recipe.title}</h2>
-                <div onClick={(e) => toggleFavorite(e, recipe.id!, recipe.is_favorite)} style={{cursor: 'pointer'}}>
-                  <Heart size={32} 
-                    className={recipe.is_favorite ? "fill-red-500 text-red-500" : "text-gray-300"} 
-                    color={recipe.is_favorite ? "#ef4444" : "#d1d5db"} 
-                    fill={recipe.is_favorite ? "#ef4444" : "none"}
-                  />
+            <div className="card" style={{position: 'relative', overflow: 'visible'}}>
+              <div className="recipe-header" style={{flexDirection: 'column', alignItems: 'flex-start', gap: '15px'}}>
+                <div style={{display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center'}}>
+                  <h2 className="recipe-title" style={{marginBottom: 0, paddingRight: '10px', fontSize: '24px'}}>{recipe.title}</h2>
+                  <div onClick={(e) => toggleFavorite(e, recipe.id!, recipe.is_favorite)} style={{cursor: 'pointer', flexShrink: 0}}>
+                    <Heart size={30} 
+                      className={recipe.is_favorite ? "fill-red-500 text-red-500" : "text-gray-300"} 
+                      color={recipe.is_favorite ? "#ef4444" : "#d1d5db"} 
+                      fill={recipe.is_favorite ? "#ef4444" : "none"}
+                    />
+                  </div>
                 </div>
+              
+                {/* Кнопка "ДРУГОЙ ВАРИАНТ" */}
+                {analysisResult && (
+                  <button 
+                    onClick={handleSmartVariant}
+                    disabled={loadingRecipe}
+                    className="btn-smart-variant"
+                  >
+                    {loadingRecipe ? (
+                      <Sparkles className="animate-spin" size={24} color="#f97316"/>
+                    ) : (
+                      <Shuffle size={20} color="#f97316"/> 
+                    )}
+                    <span style={{flex: 1, textAlign: 'left'}}>
+                      {loadingRecipe ? "Ищем идеи..." : "Подобрать другой рецепт"}
+                    </span>
+                    <ChevronRight size={18} color="#9ca3af" />
+                  </button>
+                )}
               </div>
 
-              <div className="recipe-tags">
+              <div className="recipe-tags" style={{marginTop: '15px'}}>
                 <div className="tag-badge"><Clock size={16}/> {recipe.time}</div>
                 {recipe.calories && <div className="tag-badge orange"><Flame size={16}/> {recipe.calories}</div>}
               </div>
+
+              {/* БЛОК НЕДОСТАЮЩИХ ИНГРЕДИЕНТОВ */}
+              {recipe.missing_ingredients && recipe.missing_ingredients.length > 0 && (
+                <div style={{
+                  background: '#fffbeb', 
+                  border: '1px solid #fcd34d', 
+                  borderRadius: '12px', 
+                  padding: '15px', 
+                  margin: '20px 0',
+                  color: '#92400e'
+                }}>
+                  <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontWeight: 800}}>
+                    <ShoppingCart size={20} /> Нужно докупить:
+                  </div>
+                  <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px'}}>
+                    {recipe.missing_ingredients.map((item, idx) => (
+                      <span key={idx} style={{background: '#fef3c7', padding: '4px 10px', borderRadius: '6px', fontSize: '14px', fontWeight: 600}}>
+                        {item}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {recipe.detailed_ingredients && (
                 <div className="ing-box">
@@ -361,31 +451,46 @@ export default function Home() {
             </div>
           </div>
           
+          {historyExpanded && displayedFeed && displayedFeed.length > 4 && (
+            <button 
+              className="btn-expand-history"
+              onClick={() => setHistoryExpanded(false)}
+              style={{marginTop: '0', marginBottom: '15px'}}
+            >
+              Свернуть историю <ChevronUp size={16}/>
+            </button>
+          )}
+          
           {displayedFeed?.length === 0 && filterMode === 'favorites' ? (
              <div className="empty-msg">В избранном пока пусто 💔<br/>Добавьте рецепты лайком!</div>
           ) : (
-            <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px'}}>
-              {displayedFeed?.map((item) => (
-                <div key={item.id} className="card" style={{padding: '15px', cursor: 'pointer', marginBottom: 0}} onClick={() => loadFromHistory(item)}>
-                  <div style={{fontWeight: 700, fontSize: '15px', marginBottom: '5px', lineHeight: 1.2}}>{item.title}</div>
-                  <div style={{fontSize: '12px', color: '#9ca3af'}}>{item.time}</div>
-                </div>
-              ))}
-            </div>
+            <>
+              <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '10px'}}>
+                {visibleHistory?.map((item) => (
+                  <div key={item.id} className="card" style={{padding: '15px', cursor: 'pointer', marginBottom: 0}} onClick={() => loadFromHistory(item)}>
+                    <div style={{fontWeight: 700, fontSize: '14px', marginBottom: '8px', lineHeight: 1.3, height: '38px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical'}}>{item.title}</div>
+                    <div style={{fontSize: '11px', color: '#9ca3af', display: 'flex', alignItems: 'center', gap: '4px'}}><Clock size={12}/> {item.time}</div>
+                  </div>
+                ))}
+              </div>
+
+              {!historyExpanded && displayedFeed && displayedFeed.length > 4 && (
+                <button 
+                  className="btn-expand-history"
+                  onClick={() => setHistoryExpanded(true)}
+                >
+                  Показать еще ({displayedFeed.length - 4}) <ChevronDown size={16}/>
+                </button>
+              )}
+            </>
           )}
 
-          {/* === SEO ТЕКСТ (ДЛЯ ПОИСКОВИКОВ) === */}
           <section style={{marginTop: '40px', padding: '20px', background: '#f9fafb', borderRadius: '16px', color: '#6b7280', fontSize: '14px', lineHeight: '1.6'}}>
             <h2 style={{fontSize: '18px', color: '#1f2937', marginBottom: '10px', fontWeight: '700'}}>
               SmartCook: Генератор рецептов по фото
             </h2>
-            <p style={{marginBottom: '10px'}}>
-              Не знаете, <strong>что приготовить из того, что есть</strong> в холодильнике? SmartCook — это умный сервис, который использует 
-              искусственный интеллект для <strong>распознавания продуктов по фото</strong>.
-            </p>
             <p>
-              Наш <strong>поиск рецептов по ингредиентам</strong> помогает экономить деньги и время. 
-              Больше не нужно гуглить — получите пошаговый рецепт за 3 секунды. Идеально для ужина, завтрака или обеда.
+              SmartCook использует искусственный интеллект для распознавания продуктов и создания рецептов за секунды.
             </p>
           </section>
 
@@ -397,7 +502,6 @@ export default function Home() {
         <div style={{marginTop: '60px'}}>
           <DailyRecipe data={dailyRecipe} />
           
-          {/* ЧАТ ДЛЯ РЕЦЕПТА ДНЯ */}
           <div className="chat-box" style={{marginBottom: '40px'}}>
             <div style={{fontWeight: 800, marginBottom: '20px', color: '#1e40af', fontSize: '18px', textAlign: 'center'}}>
                Задайте вопрос AI шеф-повару!

@@ -120,7 +120,7 @@ export default function Home() {
   const [answer, setAnswer] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
 
-  // --- НОВОЕ СОСТОЯНИЕ: ОТКУДА ПРИШЛИ ---
+  // --- ОТКУДА ПРИШЛИ ---
   const [fromFeed, setFromFeed] = useState(false);
 
   const currentHoliday = getHolidayGreeting();
@@ -369,7 +369,9 @@ export default function Home() {
         body: JSON.stringify({ query: textQuery, sessionId: userId })
       });
       const json = await response.json(); 
-      if (!response.ok) throw new Error(json.error || "Ошибка поиска");
+      if (!response.ok) {
+        throw new Error(json.error || "Ошибка поиска");
+      }
       setRecipe({ ...json.recipe, missing_ingredients: json.recipe.missing_ingredients || [] }); 
       updateLatestRecipeId();
     } catch (err: any) { 
@@ -399,27 +401,23 @@ export default function Home() {
     } catch (err: any) { alert("Ошибка: " + err.message); } finally { setAsking(false); }
   };
 
-  // --- ЛОГИКА ОТКРЫТИЯ/ЗАКРЫТИЯ РЕЦЕПТА (ИСПРАВЛЕНО) ---
-  
+  // --- ЛОГИКА ОТКРЫТИЯ/ЗАКРЫТИЯ РЕЦЕПТА ---
   const loadFromHistory = (item: DBRecipe, source: 'feed' | 'history' = 'history') => {
     setAnalysisResult(null); setQuestion(""); setAnswer(null);
     setRecipe({ id: item.id, is_favorite: item.is_favorite, title: item.title, description: item.description, time: item.time, calories: item.calories, steps: item.steps || [], missing_ingredients: item.missing_ingredients || [], ingredients: item.ingredients || [], detailed_ingredients: item.detailed_ingredients || [] });
     
-    // Запоминаем, откуда пришли
     setFromFeed(source === 'feed');
-    
     window.scrollTo({ top: 0, behavior: 'smooth' }); 
     setActiveView('service'); 
   };
 
-  // Функция кнопки "Назад"
+  // КНОПКА НАЗАД
   const handleBackToSource = () => {
     setRecipe(null);
     if (fromFeed) {
       setActiveView('feed');
       setFromFeed(false);
     } else {
-      // Если были в поиске/истории, просто очищаем рецепт, и остается поиск
       setActiveView('service');
     }
   };
@@ -473,7 +471,7 @@ export default function Home() {
       {/* === СЕРВИС (ГЛАВНАЯ) === */}
       {activeView === 'service' && (
         <>
-          {/* ЕСЛИ РЕЦЕПТ НЕ ВЫБРАН - ПОКАЗЫВАЕМ ПОИСК И ИСТОРИЮ */}
+          {/* ЕСЛИ РЕЦЕПТ НЕ ВЫБРАН */}
           {!recipe && !analysisResult && (
             <>
               <div className="hero">
@@ -571,7 +569,7 @@ export default function Home() {
             </>
           )}
 
-          {/* Результаты анализа (список блюд по фото) */}
+          {/* Результаты анализа */}
           {analysisResult && !recipe && (
             <div className="card">
               <h3 style={{textAlign: 'center', marginBottom: '20px'}}>Я вижу продукты:</h3>
@@ -613,14 +611,21 @@ export default function Home() {
           {recipe && (
             <div className="card" style={{position: 'relative', overflow: 'visible', marginTop: '20px'}}>
               
-              {/* КНОПКА НАЗАД */}
+              {/* КНОПКА НАЗАД (ОБВЕДЕННАЯ) */}
               <button 
                 onClick={handleBackToSource}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: '6px',
-                  background: 'transparent', border: 'none',
-                  color: '#6b7280', fontSize: '14px', fontWeight: 600,
-                  marginBottom: '15px', cursor: 'pointer', padding: 0
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                  background: 'white', 
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '100px',
+                  padding: '8px 16px',
+                  color: '#374151', 
+                  fontSize: '14px', fontWeight: 600,
+                  marginBottom: '20px', 
+                  cursor: 'pointer', 
+                  boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
+                  transition: 'all 0.2s'
                 }}
               >
                 <ArrowLeft size={18} /> {fromFeed ? "Назад в ленту" : "Назад к поиску"}

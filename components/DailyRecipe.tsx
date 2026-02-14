@@ -28,9 +28,16 @@ const safeString = (val: any) => {
   return "";
 };
 
-// Очистка текста шагов
+// Очистка текста шагов (удаляет нумерацию в начале)
 const cleanText = (text: any) => {
   return safeString(text).replace(/^(Шаг \d+|Step \d+|\d+[\.\)])[:\s]*/i, '').trim();
+};
+
+// Очистка названия для блока покупок (удаляет граммовки в скобках)
+const cleanNameForBuy = (text: any) => {
+  const str = safeString(text);
+  // Регулярка удаляет всё содержимое скобок и сами скобки, например "Рис (100г)" -> "Рис"
+  return str.replace(/\s*\([^)]*\)/g, '').trim();
 };
 
 // Красивый формат калорий
@@ -155,7 +162,7 @@ export default function DailyRecipe({ data }: DailyRecipeProps) {
         )}
       </div>
 
-      {/* БЛОК ПОКУПОК (ЖЕЛТЫЙ) */}
+      {/* БЛОК ПОКУПОК (ЖЕЛТЫЙ) - С ИСПРАВЛЕНИЕМ */}
       {missingIngs.length > 0 && (
         <div style={{
           background: '#fffbeb',
@@ -171,30 +178,35 @@ export default function DailyRecipe({ data }: DailyRecipeProps) {
             <ShoppingCart size={18} /> Купить ингредиенты:
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
-            {missingIngs.map((item: any, idx: number) => (
-              <a
-                key={idx}
-                href={`https://www.ozon.ru/search/?text=${encodeURIComponent(safeString(item))}&from_global=true`}
-                target="_blank" rel="noopener noreferrer"
-                style={{
-                  background: '#ffffff',
-                  padding: '6px 12px',
-                  borderRadius: '10px',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  textDecoration: 'none',
-                  color: '#92400e',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  border: '1px solid #fcd34d',
-                  boxShadow: '0 2px 5px rgba(252, 211, 77, 0.2)',
-                  transition: 'transform 0.2s'
-                }}
-              >
-                {safeString(item)} <ExternalLink size={12} style={{ opacity: 0.5 }} />
-              </a>
-            ))}
+            {missingIngs.map((item: any, idx: number) => {
+              // Чистим название от граммовок
+              const cleanItem = cleanNameForBuy(item);
+              return (
+                <a
+                  key={idx}
+                  // В поиске тоже используем чистое название, чтобы лучше искалось
+                  href={`https://www.ozon.ru/search/?text=${encodeURIComponent(cleanItem)}&from_global=true`}
+                  target="_blank" rel="noopener noreferrer"
+                  style={{
+                    background: '#ffffff',
+                    padding: '6px 12px',
+                    borderRadius: '10px',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    textDecoration: 'none',
+                    color: '#92400e',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    border: '1px solid #fcd34d',
+                    boxShadow: '0 2px 5px rgba(252, 211, 77, 0.2)',
+                    transition: 'transform 0.2s'
+                  }}
+                >
+                  {cleanItem} <ExternalLink size={12} style={{ opacity: 0.5 }} />
+                </a>
+              );
+            })}
           </div>
           <div style={{ 
             fontSize: '12px', color: '#b45309', display: 'flex', alignItems: 'center', gap: '5px', opacity: 0.8 
@@ -204,7 +216,7 @@ export default function DailyRecipe({ data }: DailyRecipeProps) {
         </div>
       )}
 
-      {/* ИНГРЕДИЕНТЫ */}
+      {/* ИНГРЕДИЕНТЫ (ЗДЕСЬ ВСЁ ОСТАЕТСЯ КАК БЫЛО, С ГРАММАМИ) */}
       <div style={{ marginBottom: '30px' }}>
         <h3 style={{ fontSize: '20px', fontWeight: 800, margin: '0 0 15px 0' }}>🥬 Ингредиенты</h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>

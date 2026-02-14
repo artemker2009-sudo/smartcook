@@ -1,71 +1,50 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { createClient } from "@supabase/supabase-js";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export async function POST(req: Request) {
   try {
     const { query, sessionId } = await req.json();
 
     const systemPrompt = `
-      Ты — строгий инженер-технолог общественного питания.
-      Пользователь ищет рецепт: "${query}".
-      
-      Твоя задача — выдать ИДЕАЛЬНО ТОЧНУЮ технологическую карту блюда ровно на 1 ПОРЦИЮ.
-      
-      ЖЕЛЕЗНЫЕ ПРАВИЛА (Игнорирование карается):
-      1. ГРАММОВКИ: 
-         - Расчет строго на 1 человека (1 порция).
-         - ЗАПРЕЩЕНО писать "по вкусу" (кроме соли), "на глаз", "немного".
-         - ОБЯЗАТЕЛЬНО пиши точный вес (г) или объем (мл) для КАЖДОГО ингредиента.
-         - Пример: Не "Сливки", а "Сливки 20% (100 мл)". Не "Спагетти", а "Спагетти (100 г)".
-      
-      2. ВРЕМЯ:
-         - В шагах приготовления ОБЯЗАТЕЛЬНО указывай время в минутах.
-         - Пример: "Варить 8 минут", "Жарить 3 минуты".
-      
-      3. ОПИСАНИЕ:
-         - Напиши краткое, вкусное вступление (2 предложения).
-
-      4. ПОКУПКИ (Missing Ingredients):
-         - Так как это поиск по названию, считай, что у пользователя дома есть ТОЛЬКО (Соль, Перец, Вода, Масло).
-         - ВСЕ остальные ингредиенты добавь в список "missing_ingredients".
-
-      Верни ответ ТОЛЬКО валидный JSON:
-      {
-        "title": "Точное название блюда",
-        "description": "Вкусное описание...",
-        "time": "Общее время (мин)",
-        "calories": "Ккал на порцию",
-        "ingredients": ["Список ингредиентов для отображения"],
-        "missing_ingredients": ["Товар 1", "Товар 2"], 
-        "detailed_ingredients": [
-           { "name": "Продукт", "amount": "Вес/Объем" }
-        ],
-        "steps": ["Шаг 1 (с минутами)...", "Шаг 2 (с минутами)..."]
-      }
+      Ты — шеф-повар. Придумай рецепт по запросу: "${query}".
+      Правила: строгие граммовки, тайминги, 1 персона.
+      Верни JSON: { "title": "...", "time": "...", "calories": "...", "detailed_ingredients": [{"name":"", "amount":""}], "missing_ingredients": [], "steps": [] }
     `;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: `Дай рецепт: ${query}` },
-      ],
+      messages: [{ role: "system", content: systemPrompt }],
       response_format: { type: "json_object" },
     });
 
     const content = completion.choices[0].message.content;
-    if (!content) throw new Error("Empty response");
+    if (!content) throw new Error("Empty");
+    const recipe = JSON.parse(content);
 
-    const recipeData = JSON.parse(content);
+    // СОХРАНЯЕМ
+    if (sessionId) {
+      await supabase.from('recipes').insert({
+        session_id: sessionId,
+        title: recipe.title,
+        description: recipe.description,
+        time: recipe.time,
+        calories: recipe.calories,
+        ingredients: recipe.detailed_ingredients?.map((i: any) => `${i.name} ${i.amount}`) || [],
+        detailed_ingredients: recipe.detailed_ingredients,
+        steps: recipe.steps,
+        is_favorite: false
+      });
+    }
 
-    return NextResponse.json({ recipe: recipeData });
-
-  } catch (error: any) {
-    console.error("Search recipe error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ recipe });
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

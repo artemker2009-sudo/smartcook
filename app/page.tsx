@@ -6,7 +6,7 @@ import DailyRecipe from "@/components/DailyRecipe";
 import { 
   Menu, X, Flame, Send, Camera, Search, Clock, Heart, 
   ArrowRight, RotateCcw, CheckCircle, Sparkles, Image as ImageIcon, 
-  Wallet, Zap, Leaf, Globe, ChevronRight, ChevronDown, ChevronUp, Shuffle, ShoppingCart, Lock, ShoppingBag, ExternalLink, Info 
+  Wallet, Zap, Leaf, Globe, ChevronRight, ChevronDown, ChevronUp, Shuffle, ShoppingCart, Lock, ShoppingBag, ExternalLink, Info, ThumbsUp 
 } from "lucide-react";
 
 import imageCompression from 'browser-image-compression';
@@ -15,7 +15,7 @@ import imageCompression from 'browser-image-compression';
 interface AnalysisData { ingredients: string[]; dishes: string[]; }
 interface DetailedIngredient { name: string; amount: string; }
 
-// Тип для обычного рецепта из базы/поиска
+// Тип для обычного рецепта (текущий просмотр)
 interface RecipeData { 
   id?: number; 
   is_favorite?: boolean; 
@@ -29,10 +29,24 @@ interface RecipeData {
   detailed_ingredients?: DetailedIngredient[]; 
 }
 
-// Тип для рецепта из БД (Supabase)
+// Тип для рецепта из БД (История и Лента)
 interface DBRecipe { 
-  id: number; title: string; time: string; calories?: string; is_favorite: boolean; 
-  created_at: string; steps: string[]; ingredients: string[]; detailed_ingredients?: DetailedIngredient[]; session_id: string; 
+  id: number; 
+  title: string; 
+  time: string; 
+  calories?: string; 
+  is_favorite: boolean; 
+  created_at: string; 
+  steps: string[]; 
+  ingredients: string[]; 
+  detailed_ingredients?: DetailedIngredient[]; 
+  missing_ingredients?: string[]; // Добавлено для совместимости
+  description?: string; // Добавлено для ленты
+  session_id: string; 
+  
+  // Поля для социальной ленты
+  likes_count?: number;
+  is_liked?: boolean; 
 }
 
 // Тип для Рецепта Дня
@@ -57,73 +71,23 @@ const getHolidayGreeting = () => {
   const key = `${day}.${month}`;
 
   const holidays: Record<string, { title: string; text: string; gradient: string; icon: string }> = {
-    "14.2": {
-      title: "С Днем святого Валентина! 💖",
-      text: "Пусть ваша жизнь будет наполнена любовью, а ужины — романтикой. Готовьте для любимых вместе со SmartCook!",
-      gradient: "linear-gradient(135deg, #ec4899 0%, #be185d 100%)", 
-      icon: "💘"
-    },
-    "23.2": {
-      title: "С Днем защитника Отечества!",
-      text: "Силы, мужества и сытных побед на кулинарном фронте! SmartCook всегда поддержит в готовке.",
-      gradient: "linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)", 
-      icon: "⭐"
-    },
-    "8.3": {
-      title: "С 8 Марта! 💐",
-      text: "Красоты, нежности и вдохновения! Пусть сегодня на кухне творит чудеса кто-то другой (или наш ИИ)!",
-      gradient: "linear-gradient(135deg, #d946ef 0%, #a21caf 100%)", 
-      icon: "🌷"
-    },
-    "1.3": {
-      title: "С первым днем весны!",
-      text: "Природа просыпается, и аппетит тоже! Время свежих салатов и легких рецептов.",
-      gradient: "linear-gradient(135deg, #84cc16 0%, #4d7c0f 100%)", 
-      icon: "🌱"
-    },
-    "1.5": {
-      title: "Мир, Труд, Май!",
-      text: "Отличный повод выбраться на шашлыки или приготовить что-то особенное дома. С праздником!",
-      gradient: "linear-gradient(135deg, #f97316 0%, #ea580c 100%)", 
-      icon: "🔥"
-    },
-    "9.5": {
-      title: "С Днем Победы!",
-      text: "Мирного неба над головой и тепла в вашем доме. Поздравляем с великим праздником!",
-      gradient: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)", 
-      icon: "🎖"
-    },
-    "1.6": {
-      title: "Ура, лето!",
-      text: "Сезон мороженого, окрошки и лимонадов открыт! SmartCook уже придумал летнее меню.",
-      gradient: "linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)", 
-      icon: "☀"
-    },
-    "1.9": {
-      title: "С Днем знаний!",
-      text: "Учиться никогда не поздно, особенно готовить новые блюда. Успехов в новом сезоне!",
-      gradient: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)", 
-      icon: "🔔"
-    },
-    "31.12": {
-      title: "С Наступающим! 🎄",
-      text: "Оливье готов? Мандарины куплены? Пусть Новый год принесет только вкусные моменты!",
-      gradient: "linear-gradient(135deg, #dc2626 0%, #166534 100%)", 
-      icon: "🎅"
-    },
-    "1.1": {
-      title: "С Новым 2026 годом! 🎉",
-      text: "Начинаем год вкусно! Если остались силы после застолья, давайте приготовим что-то легкое.",
-      gradient: "linear-gradient(135deg, #fbbf24 0%, #b45309 100%)", 
-      icon: "🥂"
-    }
+    "14.2": { title: "С Днем святого Валентина! 💖", text: "Пусть ваша жизнь будет наполнена любовью, а ужины — романтикой.", gradient: "linear-gradient(135deg, #ec4899 0%, #be185d 100%)", icon: "💘" },
+    "23.2": { title: "С Днем защитника Отечества!", text: "Силы, мужества и сытных побед на кулинарном фронте!", gradient: "linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)", icon: "⭐" },
+    "8.3": { title: "С 8 Марта! 💐", text: "Красоты, нежности и вдохновения! Пусть сегодня готовит кто-то другой.", gradient: "linear-gradient(135deg, #d946ef 0%, #a21caf 100%)", icon: "🌷" },
+    "1.3": { title: "С первым днем весны!", text: "Природа просыпается, и аппетит тоже!", gradient: "linear-gradient(135deg, #84cc16 0%, #4d7c0f 100%)", icon: "🌱" },
+    "1.5": { title: "Мир, Труд, Май!", text: "Отличный повод выбраться на шашлыки!", gradient: "linear-gradient(135deg, #f97316 0%, #ea580c 100%)", icon: "🔥" },
+    "9.5": { title: "С Днем Победы!", text: "Мирного неба над головой и тепла в вашем доме.", gradient: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)", icon: "🎖" },
+    "1.6": { title: "Ура, лето!", text: "Сезон мороженого и окрошки открыт!", gradient: "linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)", icon: "☀" },
+    "1.9": { title: "С Днем знаний!", text: "Учиться никогда не поздно, особенно готовить!", gradient: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)", icon: "🔔" },
+    "31.12": { title: "С Наступающим! 🎄", text: "Оливье готов? Мандарины куплены?", gradient: "linear-gradient(135deg, #dc2626 0%, #166534 100%)", icon: "🎅" },
+    "1.1": { title: "С Новым 2026 годом! 🎉", text: "Начинаем год вкусно!", gradient: "linear-gradient(135deg, #fbbf24 0%, #b45309 100%)", icon: "🥂" }
   };
 
   return holidays[key] || null;
 };
 
 export default function Home() {
-  const [activeView, setActiveView] = useState<'service' | 'about' | 'daily'>('service');
+  const [activeView, setActiveView] = useState<'service' | 'about' | 'daily' | 'feed'>('service');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [dailyRecipe, setDailyRecipe] = useState<DailyRecipeType | null>(null);
   
@@ -142,7 +106,12 @@ export default function Home() {
   const [analysisResult, setAnalysisResult] = useState<AnalysisData | null>(null);
   const [selectedDish, setSelectedDish] = useState<string | null>(null);
   const [recipe, setRecipe] = useState<RecipeData | null>(null);
-  const [feed, setFeed] = useState<DBRecipe[]>([]);
+  
+  // Состояния для списков
+  const [feed, setFeed] = useState<DBRecipe[]>([]); // Личная история
+  const [publicFeed, setPublicFeed] = useState<DBRecipe[]>([]); // Общая лента
+  const [feedSort, setFeedSort] = useState<'new' | 'top'>('new');
+  
   const [userId, setUserId] = useState<string | null>(null);
   
   const [historyExpanded, setHistoryExpanded] = useState(false);
@@ -153,6 +122,7 @@ export default function Home() {
 
   const currentHoliday = getHolidayGreeting();
 
+  // --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
   const cleanText = (text: any) => {
     if (!text) return "";
     return String(text).replace(/^(Шаг \d+|Step \d+|\d+[\.\)])[:\s]*/i, '').trim();
@@ -171,6 +141,7 @@ export default function Home() {
     return `${cleanCal} ккал`;
   };
 
+  // --- ЭФФЕКТЫ ---
   useEffect(() => {
     try {
       let storedId = localStorage.getItem("cook_user_id");
@@ -182,17 +153,27 @@ export default function Home() {
       fetchMyRecipes(storedId); 
     } catch (e) { console.error(e); }
 
+    // Загрузка рецепта дня
     fetch('/api/daily')
       .then(res => res.json())
       .then(data => {
         if (data && !data.error) {
           setDailyRecipe(data);
         } else {
-          console.error("Ошибка загрузки рецепта дня:", data.error);
+          console.error("Daily Recipe Error:", data.error);
         }
       })
       .catch(console.error);
   }, []);
+
+  // Если переключились на Ленту - грузим её
+  useEffect(() => {
+    if (activeView === 'feed') {
+      fetchPublicFeed(feedSort);
+    }
+  }, [activeView]);
+
+  // --- РАБОТА С ДАННЫМИ ---
 
   const fetchMyRecipes = async (currentId: string) => {
     if (!currentId) return;
@@ -203,15 +184,57 @@ export default function Home() {
       .order('created_at', { ascending: false });
       
     if (error) {
-      console.error("Ошибка загрузки истории:", error);
+      console.error("History Error:", error);
     } else if (data) {
       setFeed(data);
     }
   };
 
+  // Загрузка ОБЩЕЙ ЛЕНТЫ
+  const fetchPublicFeed = async (sortType: 'new' | 'top') => {
+    setFeedSort(sortType);
+    if (!userId) return;
+    try {
+      const res = await fetch("/api/feed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sort: sortType, userId: userId })
+      });
+      const json = await res.json();
+      if (json.feed) {
+        setPublicFeed(json.feed);
+      }
+    } catch (e) { console.error("Feed Error:", e); }
+  };
+
+  // Лайк в ОБЩЕЙ ленте (публичный)
+  const handlePublicLike = async (e: any, item: DBRecipe) => {
+    e.stopPropagation();
+    if (!userId) return;
+
+    const action = item.is_liked ? 'unlike' : 'like';
+    const newCount = item.is_liked ? (item.likes_count || 0) - 1 : (item.likes_count || 0) + 1;
+
+    // Оптимистичное обновление UI
+    const updatedFeed = publicFeed.map(r => 
+      r.id === item.id ? { ...r, is_liked: !item.is_liked, likes_count: newCount } : r
+    );
+    setPublicFeed(updatedFeed);
+
+    try {
+      await fetch("/api/like", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recipeId: item.id, userId: userId, action })
+      });
+    } catch (err) {
+      console.error("Like Error:", err);
+    }
+  };
+
+  // Лайк в ЛИЧНОЙ истории (Избранное)
   const toggleFavorite = async (e: any, targetId: number, currentStatus: boolean = false) => {
     e.stopPropagation(); 
-    
     if (!targetId) return;
     
     const newStatus = !currentStatus;
@@ -229,10 +252,11 @@ export default function Home() {
         body: JSON.stringify({ id: targetId, isFavorite: newStatus }) 
       });
     } catch (err) { 
-      console.error("Ошибка лайка:", err); 
+      console.error("Favorite Error:", err); 
     }
   };
 
+  // --- ЗАГРУЗКА ФОТО ---
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files; 
     if (!files || files.length === 0) return;
@@ -248,7 +272,6 @@ export default function Home() {
       setFile(finalFile);
       setPreview(URL.createObjectURL(finalFile)); 
     } catch (error) {
-      console.error("Ошибка:", error);
       alert("Не удалось обработать фото.");
       setFile(null); 
     } finally {
@@ -260,10 +283,10 @@ export default function Home() {
     document.getElementById('hidden-file-input')?.click();
   };
 
+  // --- АНАЛИЗ ФОТО ---
   const handleAnalyze = async () => {
     if (!file) return; 
-    setAnalyzing(true); 
-    setRecipe(null);
+    setAnalyzing(true); setRecipe(null);
     try {
       const formData = new FormData(); 
       formData.append("image", file);
@@ -291,44 +314,24 @@ export default function Home() {
 
   const getRecipeFromPhoto = async (dishName: string) => {
     if (!analysisResult || !userId) return; 
-    setSelectedDish(dishName); 
-    setLoadingRecipe(true); 
-    setRecipe(null);
+    setSelectedDish(dishName); setLoadingRecipe(true); setRecipe(null);
     try {
       const response = await fetch("/api/recipe", { 
         method: "POST", 
         headers: { "Content-Type": "application/json" }, 
-        body: JSON.stringify({ 
-          dish: dishName, 
-          ingredients: analysisResult.ingredients, 
-          sessionId: userId 
-        }) 
+        body: JSON.stringify({ dish: dishName, ingredients: analysisResult.ingredients, sessionId: userId }) 
       });
       const json = await response.json(); 
       if (json.error) throw new Error(json.error); 
-      
       setRecipe({ ...json.recipe, ingredients: analysisResult.ingredients }); 
-      
-      const { data } = await supabase
-        .from('recipes')
-        .select('*')
-        .eq('session_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      if (data && data.length > 0) {
-        const latest = data[0];
-        setRecipe(prev => prev ? { ...prev, id: latest.id, is_favorite: latest.is_favorite } : prev);
-        fetchMyRecipes(userId);
-      }
-
+      updateLatestRecipeId();
     } catch (err: any) { alert("Ошибка: " + err.message); } finally { setLoadingRecipe(false); }
   };
 
   const handleSmartVariant = async () => {
     setLoadingRecipe(true);
-    if (analysisResult) {
-      try {
+    try {
+      if (analysisResult) {
         const response = await fetch("/api/regenerate", { 
           method: "POST", 
           headers: { "Content-Type": "application/json" }, 
@@ -340,42 +343,25 @@ export default function Home() {
         const freshIdea = newDishes.length > 0 ? newDishes[0] : json.dishes[0];
         setAnalysisResult({ ...analysisResult, dishes: json.dishes });
         await getRecipeFromPhoto(freshIdea);
-      } catch (err: any) { 
-        alert("Ошибка: " + err.message); 
-        setLoadingRecipe(false);
-      }
-    } else if (searchMode === 'text' && textQuery) {
-      try {
+      } else if (searchMode === 'text' && textQuery) {
         const response = await fetch("/api/search-recipe", { 
           method: "POST", 
           headers: { "Content-Type": "application/json" }, 
           body: JSON.stringify({ query: textQuery, sessionId: userId, isVariant: true }) 
         });
         const json = await response.json(); 
-        if (json.error) throw new Error(json.error);
+        if (!response.ok) throw new Error(json.error);
         setRecipe({ ...json.recipe, missing_ingredients: json.recipe.missing_ingredients || [] }); 
-        
-        const { data } = await supabase
-          .from('recipes')
-          .select('*')
-          .eq('session_id', userId!)
-          .order('created_at', { ascending: false })
-          .limit(1);
-
-        if (data && data.length > 0) {
-          const latest = data[0];
-          setRecipe(prev => prev ? { ...prev, id: latest.id, is_favorite: latest.is_favorite } : prev);
-          fetchMyRecipes(userId!);
-        }
-      } catch (err: any) {
-        alert("Ошибка: " + err.message);
-      } finally {
-        setLoadingRecipe(false);
+        updateLatestRecipeId();
       }
+    } catch (err: any) { 
+      alert("Ошибка: " + err.message); 
+    } finally { 
+      setLoadingRecipe(false); 
     }
   };
 
-  // --- ИСПРАВЛЕННЫЙ ПОИСК ПО ТЕКСТУ С ОБРАБОТКОЙ ОШИБОК ---
+  // --- ПОИСК ПО ТЕКСТУ (ГЛАВНОЕ ИСПРАВЛЕНИЕ) ---
   const handleTextSearch = async () => {
     if (!textQuery.trim() || !userId) return; 
     setLoadingRecipe(true); 
@@ -389,31 +375,30 @@ export default function Home() {
       });
       const json = await response.json(); 
       
-      // ВАЖНО: Если сервер вернул 400 (ошибка валидации), показываем это
+      // ВОТ ЗДЕСЬ ПРОВЕРКА НА ОШИБКУ (400 Bad Request)
       if (!response.ok) {
         throw new Error(json.error || "Ошибка поиска");
       }
       
       setRecipe({ ...json.recipe, missing_ingredients: json.recipe.missing_ingredients || [] }); 
-      
-      const { data } = await supabase
-        .from('recipes')
-        .select('*')
-        .eq('session_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      if (data && data.length > 0) {
-        const latest = data[0];
-        setRecipe(prev => prev ? { ...prev, id: latest.id, is_favorite: latest.is_favorite } : prev);
-        fetchMyRecipes(userId);
-      }
+      updateLatestRecipeId();
 
     } catch (err: any) { 
-      // Выводим сообщение от сервера (например: "Такого блюда не существует")
+      // Показываем красивое сообщение пользователю
       alert("🛑 " + err.message); 
     } finally { 
       setLoadingRecipe(false); 
+    }
+  };
+
+  // Хелпер для обновления ID после создания рецепта
+  const updateLatestRecipeId = async () => {
+    if (!userId) return;
+    const { data } = await supabase.from('recipes').select('*').eq('session_id', userId).order('created_at', { ascending: false }).limit(1);
+    if (data && data.length > 0) {
+      const latest = data[0];
+      setRecipe(prev => prev ? { ...prev, id: latest.id, is_favorite: latest.is_favorite } : prev);
+      fetchMyRecipes(userId);
     }
   };
 
@@ -427,13 +412,15 @@ export default function Home() {
     } catch (err: any) { alert("Ошибка: " + err.message); } finally { setAsking(false); }
   };
 
+  // Загрузка рецепта из истории или ленты
   const loadFromHistory = (item: DBRecipe) => {
     setAnalysisResult(null); setQuestion(""); setAnswer(null);
-    setRecipe({ id: item.id, is_favorite: item.is_favorite, title: item.title, time: item.time, calories: item.calories, steps: item.steps || [], missing_ingredients: [], ingredients: item.ingredients || [], detailed_ingredients: item.detailed_ingredients || [] });
-    window.scrollTo({ top: 0, behavior: 'smooth' }); setActiveView('service');
+    setRecipe({ id: item.id, is_favorite: item.is_favorite, title: item.title, description: item.description, time: item.time, calories: item.calories, steps: item.steps || [], missing_ingredients: item.missing_ingredients || [], ingredients: item.ingredients || [], detailed_ingredients: item.detailed_ingredients || [] });
+    window.scrollTo({ top: 0, behavior: 'smooth' }); 
+    setActiveView('service'); 
   };
 
-  const switchView = (view: 'service' | 'about' | 'daily') => {
+  const switchView = (view: 'service' | 'about' | 'daily' | 'feed') => {
     setActiveView(view);
     setIsMenuOpen(false);
     setQuestion(""); 
@@ -446,7 +433,7 @@ export default function Home() {
   return (
     <div className="container">
       
-      {/* КНОПКА МЕНЮ */}
+      {/* КНОПКА МЕНЮ (СЛЕВА) */}
       <button 
         className="menu-btn" 
         onClick={() => setIsMenuOpen(true)}
@@ -455,7 +442,7 @@ export default function Home() {
         <Menu size={24} color="#111" />
       </button>
 
-      {/* МЕНЮ (СЛЕВА) */}
+      {/* МЕНЮ (ВЫЕЗЖАЕТ СЛЕВА) */}
       {isMenuOpen && (
         <>
           <div className="menu-overlay" onClick={() => setIsMenuOpen(false)} />
@@ -473,6 +460,8 @@ export default function Home() {
             </div>
             <div className="menu-link" onClick={() => switchView('service')}><Search size={20}/> Поиск</div>
             <div className="menu-link" onClick={() => switchView('daily')}><Flame size={20} color="#f97316"/> Рецепт дня</div>
+            {/* НОВЫЙ ПУНКТ - ЛЕНТА */}
+            <div className="menu-link" onClick={() => switchView('feed')}><Globe size={20} color="#8b5cf6"/> Лента</div>
             <div className="menu-link" onClick={() => switchView('about')}><CheckCircle size={20} color="#3b82f6"/> О проекте</div>
           </div>
         </>
@@ -485,7 +474,6 @@ export default function Home() {
             <h1 className="brand-name">SmartCook</h1>
             <div className="brand-sub">Ваш личный AI Шеф-повар</div>
             
-            {/* --- БЛОК ПРАЗДНИКОВ --- */}
             {currentHoliday && (
               <div className="animate-fade-in" style={{
                 background: currentHoliday.gradient,
@@ -501,22 +489,10 @@ export default function Home() {
                  <div style={{position: 'absolute', top: '-10px', right: '-10px', width: '60px', height: '60px', background: 'white', opacity: 0.1, borderRadius: '50%'}}></div>
                  <div style={{position: 'absolute', bottom: '-20px', left: '-10px', width: '80px', height: '80px', background: 'white', opacity: 0.1, borderRadius: '50%'}}></div>
 
-                 <div style={{
-                   fontFamily: '"Times New Roman", serif', 
-                   fontSize: '22px', 
-                   marginBottom: '8px', 
-                   fontStyle: 'italic',
-                   fontWeight: '700',
-                   textShadow: '0 2px 4px rgba(0,0,0,0.2)'
-                 }}>
+                 <div style={{fontSize: '22px', marginBottom: '8px', fontWeight: '700', fontFamily: '"Times New Roman", serif', fontStyle: 'italic'}}>
                    {currentHoliday.icon} {currentHoliday.title}
                  </div>
-                 <div style={{
-                   fontSize: '15px', 
-                   lineHeight: '1.5', 
-                   opacity: 0.95,
-                   fontWeight: '500'
-                 }}>
+                 <div style={{fontSize: '15px', lineHeight: '1.5', opacity: 0.95, fontWeight: '500'}}>
                    {currentHoliday.text}
                  </div>
               </div>
@@ -557,7 +533,6 @@ export default function Home() {
                   </div>
                 )}
 
-                {/* БЛОК ПЕРЕКЛЮЧЕНИЯ РЕЖИМА */}
                 {file && (
                    <div className="mode-toggle-container">
                       <button 
@@ -634,7 +609,6 @@ export default function Home() {
               <div className="recipe-header" style={{flexDirection: 'column', alignItems: 'flex-start', gap: '15px'}}>
                 <div style={{display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center'}}>
                   <h2 className="recipe-title" style={{marginBottom: 0, paddingRight: '10px', fontSize: '24px'}}>{recipe.title}</h2>
-                  {/* СЕРДЕЧКО ЛАЙКА */}
                   <div onClick={(e) => toggleFavorite(e, recipe.id!, recipe.is_favorite)} style={{cursor: 'pointer', flexShrink: 0}}>
                     <Heart size={30} 
                       className={recipe.is_favorite ? "fill-red-500 text-red-500" : "text-gray-300"} 
@@ -644,14 +618,12 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* ОПИСАНИЕ БЛЮДА */}
                 {recipe.description && (
                   <p style={{fontSize: '15px', color: '#4b5563', lineHeight: '1.5', margin: '5px 0 15px 0'}}>
                     {recipe.description}
                   </p>
                 )}
               
-                {/* Кнопка "ДРУГОЙ ВАРИАНТ" */}
                 {(analysisResult || (searchMode === 'text' && recipe)) && (
                   <button 
                     onClick={handleSmartVariant}
@@ -676,7 +648,6 @@ export default function Home() {
                 {recipe.calories && <div className="tag-badge orange"><Flame size={16}/> {formatCalories(recipe.calories)}</div>}
               </div>
 
-              {/* БЛОК НЕДОСТАЮЩИХ ИНГРЕДИЕНТОВ С ССЫЛКАМИ НА OZON */}
               {recipe.missing_ingredients && recipe.missing_ingredients.length > 0 && (
                 <div style={{
                   background: '#fffbeb', 
@@ -780,7 +751,6 @@ export default function Home() {
              <div className="empty-msg">В избранном пока пусто 💔<br/>Добавьте рецепты лайком!</div>
           ) : (
             <>
-              {/* --- КАРТОЧКИ ИСТОРИИ --- */}
               <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '10px'}}>
                 {visibleHistory?.map((item) => (
                   <div key={item.id} className="card" style={{padding: '15px', cursor: 'pointer', marginBottom: 0}} onClick={() => loadFromHistory(item)}>
@@ -794,7 +764,6 @@ export default function Home() {
                   </div>
                 ))}
               </div>
-              {/* ------------------------- */}
 
               {!historyExpanded && displayedFeed && displayedFeed.length > 4 && (
                 <button 
@@ -817,6 +786,104 @@ export default function Home() {
           </section>
 
         </>
+      )}
+
+      {/* === ЛЕНТА ВКУСОВ (НОВЫЙ ЭКРАН) === */}
+      {activeView === 'feed' && (
+        <div style={{marginTop: '60px'}}>
+          <div style={{textAlign: 'center', marginBottom: '25px'}}>
+            <h1 style={{fontSize: '28px', fontWeight: '900', margin: '0 0 10px 0'}}>Лента Вкусов 🌍</h1>
+            <p style={{color: '#6b7280', margin: 0}}>Что готовят другие прямо сейчас</p>
+          </div>
+
+          <div style={{display: 'flex', background: '#f3f4f6', padding: '4px', borderRadius: '12px', marginBottom: '25px'}}>
+            <button 
+              onClick={() => fetchPublicFeed('new')}
+              style={{
+                flex: 1, padding: '10px', borderRadius: '10px', border: 'none',
+                background: feedSort === 'new' ? 'white' : 'transparent',
+                fontWeight: 700,
+                boxShadow: feedSort === 'new' ? '0 2px 10px rgba(0,0,0,0.05)' : 'none',
+                color: feedSort === 'new' ? '#111' : '#6b7280',
+                transition: 'all 0.2s'
+              }}
+            >
+              ✨ Новое
+            </button>
+            <button 
+              onClick={() => fetchPublicFeed('top')}
+              style={{
+                flex: 1, padding: '10px', borderRadius: '10px', border: 'none',
+                background: feedSort === 'top' ? 'white' : 'transparent',
+                fontWeight: 700,
+                boxShadow: feedSort === 'top' ? '0 2px 10px rgba(0,0,0,0.05)' : 'none',
+                color: feedSort === 'top' ? '#111' : '#6b7280',
+                transition: 'all 0.2s'
+              }}
+            >
+              🔥 Популярное
+            </button>
+          </div>
+
+          <div style={{display: 'flex', flexDirection: 'column', gap: '20px'}}>
+            {publicFeed.map((item) => (
+              <div 
+                key={item.id} 
+                className="card" 
+                style={{padding: '0', overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.1s'}}
+                onClick={() => loadFromHistory(item)}
+              >
+                {/* Цветная заглушка вместо фото */}
+                <div style={{
+                  height: '100px', 
+                  background: 'linear-gradient(135deg, #fce7f3 0%, #e0f2fe 100%)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  position: 'relative'
+                }}>
+                   <div style={{fontSize: '40px', opacity: 0.2}}>🍲</div>
+                   <div style={{position: 'absolute', bottom: '10px', left: '15px', display: 'flex', gap: '10px'}}>
+                      <div style={{background: 'rgba(255,255,255,0.9)', padding: '4px 10px', borderRadius: '100px', fontSize: '11px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px'}}>
+                        <Clock size={12}/> {formatTime(item.time)}
+                      </div>
+                   </div>
+                </div>
+
+                <div style={{padding: '20px'}}>
+                  <h3 style={{margin: '0 0 10px 0', fontSize: '18px', fontWeight: 700, lineHeight: 1.3}}>{item.title}</h3>
+                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px'}}>
+                    {/* Кнопка ЛАЙКА */}
+                    <button 
+                      onClick={(e) => handlePublicLike(e, item)}
+                      style={{
+                        background: item.is_liked ? '#fee2e2' : '#f3f4f6',
+                        border: 'none',
+                        borderRadius: '100px',
+                        padding: '8px 16px',
+                        display: 'flex', alignItems: 'center', gap: '6px',
+                        color: item.is_liked ? '#ef4444' : '#4b5563',
+                        fontWeight: 700,
+                        fontSize: '14px',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      <Heart size={18} fill={item.is_liked ? "#ef4444" : "none"} /> 
+                      {item.likes_count || 0}
+                    </button>
+
+                    <span style={{fontSize: '13px', fontWeight: 600, color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '4px'}}>
+                      Открыть рецепт <ArrowRight size={14}/>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {publicFeed.length === 0 && (
+              <div style={{textAlign: 'center', padding: '40px', color: '#9ca3af'}}>
+                Пока пусто. Станьте первым, кто создаст рецепт! 👨‍🍳
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* === РЕЦЕПТ ДНЯ === */}

@@ -74,8 +74,9 @@ export default function Home() {
 
   const formatCalories = (c: string) => {
     if (!c) return "";
-    if (/[а-яa-z]/i.test(c)) return c;
-    return `${c} ккал`;
+    // Очищаем от слова ккал, если оно там уже есть, и добавляем заново один раз
+    const cleanCal = c.replace(/ккал/gi, '').trim();
+    return `${cleanCal} ккал`;
   };
 
   useEffect(() => {
@@ -175,8 +176,6 @@ export default function Home() {
 
   const handleSmartVariant = async () => {
     setLoadingRecipe(true);
-    
-    // 1. Сценарий ФОТО
     if (analysisResult) {
       try {
         const response = await fetch("/api/regenerate", { 
@@ -186,19 +185,15 @@ export default function Home() {
         });
         const json = await response.json(); 
         if (json.error) throw new Error(json.error);
-        
         const newDishes = json.dishes.filter((d: string) => d !== selectedDish);
         const freshIdea = newDishes.length > 0 ? newDishes[0] : json.dishes[0];
-        
         setAnalysisResult({ ...analysisResult, dishes: json.dishes });
         await getRecipeFromPhoto(freshIdea);
       } catch (err: any) { 
         alert("Ошибка: " + err.message); 
         setLoadingRecipe(false);
       }
-    } 
-    // 2. Сценарий ТЕКСТ
-    else if (searchMode === 'text' && textQuery) {
+    } else if (searchMode === 'text' && textQuery) {
       try {
         const response = await fetch("/api/search-recipe", { 
           method: "POST", 
@@ -207,7 +202,6 @@ export default function Home() {
         });
         const json = await response.json(); 
         if (json.error) throw new Error(json.error);
-        
         setRecipe({ ...json.recipe, missing_ingredients: json.recipe.missing_ingredients || [] }); 
         fetchMyRecipes(userId!);
       } catch (err: any) {
@@ -281,6 +275,25 @@ export default function Home() {
           <div className="hero">
             <h1 className="brand-name">SmartCook</h1>
             <div className="brand-sub">Ваш личный AI Шеф-повар</div>
+            
+            {/* --- ВАЛЕНТИНКА (НОВЫЙ БЛОК) --- */}
+            <div style={{
+              background: 'linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%)',
+              color: '#be185d',
+              padding: '15px',
+              borderRadius: '16px',
+              marginTop: '20px',
+              border: '1px solid #f9a8d4',
+              textAlign: 'center',
+              lineHeight: '1.5',
+              boxShadow: '0 4px 15px rgba(251, 207, 232, 0.4)'
+            }}>
+               <div style={{fontSize: '18px', marginBottom: '5px'}}>💖 <strong>С 14 Февраля!</strong></div>
+               <div style={{fontSize: '14px'}}>
+                 SmartCook от всей души поздравляет всех влюблённых! Желаем, чтобы ваша жизнь была такой же вкусной и страстной, как наши лучшие рецепты! Любите и кормите друг друга! 🍝🍷
+               </div>
+            </div>
+            {/* ------------------------------- */}
           </div>
 
           <div className="daily-teaser" onClick={() => switchView('daily')}>

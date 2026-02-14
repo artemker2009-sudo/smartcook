@@ -14,7 +14,7 @@ interface DailyRecipeProps {
     calories: string;
     ingredients?: string[];
     detailed_ingredients?: DetailedIngredient[];
-    missing_ingredients?: string[]; // Добавили список покупок
+    missing_ingredients?: string[]; 
     steps: string[];
     date?: string;
   } | null;
@@ -28,6 +28,14 @@ export default function DailyRecipe({ data }: DailyRecipeProps) {
       <div className="animate-pulse">⏳ Шеф выбирает лучшее блюдо дня...</div>
     </div>
   );
+
+  // Исправление дублей "ккал"
+  const formatCalories = (cal: string) => {
+    // Удаляем всё, кроме цифр (и пробелов), чтобы избавиться от старого "ккал"
+    // Или просто заменяем "ккал" на пустоту и добавляем заново
+    const clean = cal.replace(/ккал/gi, '').trim();
+    return `${clean} ккал`;
+  };
 
   return (
     <div className="card">
@@ -57,7 +65,8 @@ export default function DailyRecipe({ data }: DailyRecipeProps) {
           <Clock size={16} /> {data.time.includes('мин') ? data.time : `${data.time} мин.`}
         </div>
         <div className="tag-badge orange">
-          <Flame size={16} /> {data.calories.includes('ккал') ? data.calories : `${data.calories} ккал`}
+          {/* Вот здесь применяем нашу функцию очистки */}
+          <Flame size={16} /> {formatCalories(data.calories)}
         </div>
       </div>
 
@@ -118,7 +127,6 @@ export default function DailyRecipe({ data }: DailyRecipeProps) {
           ))}
         </div>
       ) : (
-        // Запасной вариант, если вдруг придет старый формат
         <div className="ing-box">
           <h3 style={{ marginTop: 0, marginBottom: '15px' }}>Ингредиенты</h3>
           {data.ingredients?.map((ing, i) => (

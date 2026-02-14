@@ -1,94 +1,142 @@
-"use client";
+import React from 'react';
+import { Clock, Flame, Info, ExternalLink, ShoppingCart } from 'lucide-react';
 
-import { Clock, Flame, CheckCircle, Sparkles, ChefHat } from "lucide-react";
-
-interface DailyRecipeProps {
-  data: any;
+interface DetailedIngredient {
+  name: string;
+  amount: string;
 }
 
-export default function DailyRecipe({ data }: DailyRecipeProps) {
-  
-  // Состояние загрузки (красивый скелетон)
-  if (!data) {
-    return (
-      <div className="daily-full-card" style={{padding: '60px 20px', textAlign: 'center'}}>
-         <Sparkles className="animate-spin" size={48} color="#f97316" style={{margin: '0 auto 20px auto'}} />
-         <div style={{fontSize: '20px', fontWeight: 800, color: '#111'}}>Шеф выбирает блюдо дня...</div>
-         <div style={{color: '#9ca3af', marginTop: '10px'}}>Анализируем свежие продукты</div>
-      </div>
-    );
-  }
+interface DailyRecipeProps {
+  data: {
+    title: string;
+    description?: string;
+    time: string;
+    calories: string;
+    ingredients?: string[];
+    detailed_ingredients?: DetailedIngredient[];
+    missing_ingredients?: string[]; // Добавили список покупок
+    steps: string[];
+    date?: string;
+  } | null;
+}
 
-  const cleanText = (text: string) => text.replace(/^\d+[\.\)]\s*/, '');
+const cleanText = (text: string) => text.replace(/^\d+[\.\)]\s*/, '');
+
+export default function DailyRecipe({ data }: DailyRecipeProps) {
+  if (!data) return (
+    <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
+      <div className="animate-pulse">⏳ Шеф выбирает лучшее блюдо дня...</div>
+    </div>
+  );
 
   return (
-    <div className="daily-full-card">
-      
-      {/* 1. HERO HEADER (Оранжевая подложка) */}
-      <div className="daily-hero-bg">
-        <div className="daily-badge-lg">
-          <Flame size={18} fill="white" /> Рецепт дня
+    <div className="card">
+      <div style={{ marginBottom: '20px' }}>
+        <div style={{ 
+          fontSize: '12px', 
+          fontWeight: 'bold', 
+          color: '#f97316', 
+          textTransform: 'uppercase', 
+          letterSpacing: '1px',
+          marginBottom: '5px' 
+        }}>
+          📅 Рецепт дня {data.date && `• ${data.date}`}
         </div>
-        
-        <h1 className="daily-title-lg">
+        <h2 style={{ fontSize: '28px', fontWeight: '900', lineHeight: '1.2', margin: '0 0 10px 0' }}>
           {data.title}
-        </h1>
-        
-        <p className="daily-desc">
-          {data.description}
-        </p>
+        </h2>
+        {data.description && (
+          <p style={{ fontSize: '15px', color: '#4b5563', lineHeight: '1.5' }}>
+            {data.description}
+          </p>
+        )}
+      </div>
 
-        <div className="daily-meta-row">
-          <div className="daily-meta-pill">
-            <Clock size={20} color="#4b5563" /> {data.time}
-          </div>
-          <div className="daily-meta-pill" style={{color: '#ea580c', background: '#fff7ed'}}>
-            <Flame size={20} color="#ea580c" /> {data.calories}
-          </div>
+      <div className="recipe-tags" style={{ marginBottom: '25px' }}>
+        <div className="tag-badge">
+          <Clock size={16} /> {data.time.includes('мин') ? data.time : `${data.time} мин.`}
+        </div>
+        <div className="tag-badge orange">
+          <Flame size={16} /> {data.calories.includes('ккал') ? data.calories : `${data.calories} ккал`}
         </div>
       </div>
 
-      {/* 2. CONTENT (Белый фон) */}
-      <div className="daily-content">
-        
-        {/* Ингредиенты */}
-        <div className="daily-section-title">
-          <CheckCircle size={28} color="#059669" fill="#d1fae5" /> 
-          Ингредиенты
+      {/* БЛОК ПОКУПОК (OZON) */}
+      {data.missing_ingredients && data.missing_ingredients.length > 0 && (
+        <div style={{
+          background: '#fffbeb',
+          border: '1px solid #fcd34d',
+          borderRadius: '12px',
+          padding: '15px',
+          marginBottom: '25px',
+          color: '#92400e'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', fontWeight: 800 }}>
+            <ShoppingCart size={20} /> Купить ингредиенты:
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
+            {data.missing_ingredients.map((item, idx) => (
+              <a
+                key={idx}
+                href={`https://www.ozon.ru/search/?text=${encodeURIComponent(item)}&from_global=true`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  background: '#fef3c7',
+                  padding: '6px 12px',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  textDecoration: 'none',
+                  color: '#92400e',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  border: '1px solid #fcd34d',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+              >
+                {item} <ExternalLink size={12} style={{ opacity: 0.6 }} />
+              </a>
+            ))}
+          </div>
+          <div style={{ fontSize: '12px', color: '#b45309', display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <Info size={14} /> Заказать быструю доставку Ozon Fresh до двери
+          </div>
         </div>
-        
-        <div className="daily-ing-grid">
-          {data.ingredients?.map((ing: string, i: number) => (
-            <div key={i} className="daily-ing-item">
-              {ing}
+      )}
+
+      {/* ПОДРОБНЫЕ ИНГРЕДИЕНТЫ */}
+      {data.detailed_ingredients ? (
+        <div className="ing-box">
+          <h3 style={{ marginTop: 0, marginBottom: '15px' }}>Ингредиенты (1 порция)</h3>
+          {data.detailed_ingredients.map((ing, i) => (
+            <div key={i} className="ing-row">
+              <span>{ing.name}</span> <span className="ing-val">{ing.amount}</span>
             </div>
           ))}
         </div>
-
-        {/* Инструкция */}
-        <div className="daily-section-title">
-          <ChefHat size={28} color="#111" /> 
-          Как готовить
-        </div>
-
-        <div style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
-          {data.steps?.map((step: string, i: number) => (
-            <div key={i} className="daily-step">
-               <div className="daily-step-num">
-                 {i + 1}
-               </div>
-               <div className="daily-step-text">
-                 {cleanText(step)}
-               </div>
+      ) : (
+        // Запасной вариант, если вдруг придет старый формат
+        <div className="ing-box">
+          <h3 style={{ marginTop: 0, marginBottom: '15px' }}>Ингредиенты</h3>
+          {data.ingredients?.map((ing, i) => (
+            <div key={i} className="ing-row">
+              <span>{ing}</span>
             </div>
           ))}
         </div>
+      )}
 
-        {/* Футер */}
-        <div className="daily-footer">
-           ✨ Понравилось? Возвращайся завтра за новым секретным рецептом!
-        </div>
-
+      <h3 style={{ fontSize: '22px', fontWeight: 800, marginBottom: '20px' }}>👨‍🍳 Как готовить</h3>
+      <div>
+        {data.steps.map((step, i) => (
+          <div key={i} className="step-row">
+            <div className="step-num">{i + 1}</div>
+            <div className="step-text">{cleanText(step)}</div>
+          </div>
+        ))}
       </div>
     </div>
   );

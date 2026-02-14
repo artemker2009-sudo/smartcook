@@ -1,74 +1,73 @@
-import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import OpenAI from 'openai';
+import { NextResponse } from "next/server";
+import OpenAI from "openai";
 
-// Инициализация (используем сервисный ключ, чтобы писать в базу)
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY! // ВАЖНО: Нужен Service Role Key (не Anon)
-);
-
+// Инициализация OpenAI
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+export const revalidate = 0; // Отключаем кэширование, чтобы рецепт обновлялся
+
 export async function GET() {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    // Получаем текущую дату, чтобы рецепт менялся раз в день
+    const date = new Date().toLocaleDateString("ru-RU");
 
-    // 1. Проверяем, есть ли рецепт на сегодня
-    const { data: existingRecipe } = await supabase
-      .from('daily_recipes')
-      .select('*')
-      .eq('date', today)
-      .single();
+    const systemPrompt = `
+      Ты — ведущий шеф-повар и технолог ресторана.
+      Твоя задача — предложить "Блюдо дня" на сегодня (${date}).
+      
+      Критерии выбора:
+      - Блюдо должно быть интересным, но доступным для приготовления дома.
+      - Желательно учитывать сезонность.
+      
+      ЖЕЛЕЗНЫЕ ПРАВИЛА СОСТАВЛЕНИЯ (как для техкарты):
+      1. ПОРЦИИ: Расчет СТРОГО на 1 персону.
+      2. ГРАММОВКИ: 
+         - Никаких "по вкусу" (кроме соли/перца). 
+         - ТОЛЬКО точные граммы (г) или миллилитры (мл).
+         - Пример: "Куриное филе (150 г)", "Сливки 20% (100 мл)".
+      3. ШАГИ: 
+         - Максимально подробно.
+         - ОБЯЗАТЕЛЬНО указывай время для жарки/варки/запекания.
+         - Пример: "Обжаривайте 5 минут до золотистой корочки".
+      4. ПОКУПКИ:
+         - Считаем, что у пользователя пустой холодильник (кроме соли, масла, воды).
+         - ВСЕ ингредиенты добавь в список missing_ingredients.
 
-    if (existingRecipe) {
-      return NextResponse.json(existingRecipe);
-    }
-
-    // 2. Если нет — Генерируем новый
-    // Определяем день недели для контекста
-    const dayOfWeek = new Date().toLocaleDateString('ru-RU', { weekday: 'long' });
-    
-    const prompt = `Ты шеф-повар. Придумай "Рецепт дня" на сегодня (${dayOfWeek}).
-    - Если понедельник: что-то быстрое и легкое.
-    - Если пятница/суббота: что-то праздничное или стрит-фуд.
-    - В остальные дни: сезонное блюдо.
-    Верни ТОЛЬКО JSON:
-    {
-      "title": "Название блюда",
-      "description": "Краткое вкусное описание (1 предложение)",
-      "time": "Время (напр. 20 мин)",
-      "calories": "Калории (напр. 450 ккал)",
-      "ingredients": ["ингредиент 1", "ингредиент 2"],
-      "steps": ["шаг 1", "шаг 2"]
-    }`;
+      Верни ответ ТОЛЬКО валидный JSON:
+      {
+        "title": "Красивое название блюда",
+        "description": "Аппетитное описание из 2 предложений, почему это стоит приготовить сегодня.",
+        "time": "Время (мин)",
+        "calories": "Ккал",
+        "ingredients": ["Список для отображения (краткий)"],
+        "missing_ingredients": ["Продукт 1", "Продукт 2"],
+        "detailed_ingredients": [
+           { "name": "Продукт", "amount": "Вес/Объем" }
+        ],
+        "steps": ["Шаг 1...", "Шаг 2..."]
+      }
+    `;
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini", // Дешевая и быстрая модель
-      messages: [{ role: "user", content: prompt }],
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: `Придумай рецепт дня на ${date}.` },
+      ],
       response_format: { type: "json_object" },
     });
 
-    const aiContent = JSON.parse(completion.choices[0].message.content || "{}");
+    const content = completion.choices[0].message.content;
+    if (!content) throw new Error("Empty response");
 
-    // 3. Сохраняем в базу (чтобы следующий юзер не генерировал заново)
-    const { data: newRecipe, error } = await supabase
-      .from('daily_recipes')
-      .insert([{
-        date: today,
-        ...aiContent
-      }])
-      .select()
-      .single();
+    const recipeData = JSON.parse(content);
 
-    if (error) throw error;
-
-    return NextResponse.json(newRecipe);
+    return NextResponse.json({ ...recipeData, date });
 
   } catch (error: any) {
-    console.error('Daily Recipe Error:', error);
+    console.error("Daily recipe error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

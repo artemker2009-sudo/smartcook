@@ -22,16 +22,17 @@ interface DailyRecipeProps {
 
 const cleanText = (text: string) => text.replace(/^\d+[\.\)]\s*/, '');
 
-// 👇 ВОТ ЗДЕСЬ БЫЛА ОШИБКА. ДОЛЖНО БЫТЬ "export default function"
 export default function DailyRecipe({ data }: DailyRecipeProps) {
+  // 1. Если данных нет вообще — показываем загрузку
   if (!data) return (
     <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
       <div className="animate-pulse">⏳ Шеф выбирает лучшее блюдо дня...</div>
     </div>
   );
 
-  // Функция для красивого вывода калорий (чтобы не было "ккал ккал")
-  const formatCalories = (cal: string) => {
+  // 2. Безопасная функция для калорий (чтобы не падало, если калорий нет)
+  const formatCalories = (cal?: string) => {
+    if (!cal) return "";
     const clean = cal.replace(/ккал/gi, '').trim();
     return `${clean} ккал`;
   };
@@ -44,7 +45,7 @@ export default function DailyRecipe({ data }: DailyRecipeProps) {
           fontWeight: 'bold', 
           color: '#f97316', 
           textTransform: 'uppercase', 
-          letterSpacing: '1px',
+          letterSpacing: '1px', 
           marginBottom: '5px' 
         }}>
           📅 Рецепт дня {data.date && `• ${data.date}`}
@@ -61,14 +62,16 @@ export default function DailyRecipe({ data }: DailyRecipeProps) {
 
       <div className="recipe-tags" style={{ marginBottom: '25px' }}>
         <div className="tag-badge">
-          <Clock size={16} /> {data.time.includes('мин') ? data.time : `${data.time} мин.`}
+          <Clock size={16} /> {data.time && (data.time.includes('мин') ? data.time : `${data.time} мин.`)}
         </div>
-        <div className="tag-badge orange">
-          <Flame size={16} /> {formatCalories(data.calories)}
-        </div>
+        {data.calories && (
+          <div className="tag-badge orange">
+            <Flame size={16} /> {formatCalories(data.calories)}
+          </div>
+        )}
       </div>
 
-      {/* БЛОК ПОКУПОК (OZON) */}
+      {/* БЛОК ПОКУПОК (OZON) - показываем только если есть список */}
       {data.missing_ingredients && data.missing_ingredients.length > 0 && (
         <div style={{
           background: '#fffbeb',
@@ -115,7 +118,7 @@ export default function DailyRecipe({ data }: DailyRecipeProps) {
       )}
 
       {/* ПОДРОБНЫЕ ИНГРЕДИЕНТЫ */}
-      {data.detailed_ingredients ? (
+      {data.detailed_ingredients && data.detailed_ingredients.length > 0 ? (
         <div className="ing-box">
           <h3 style={{ marginTop: 0, marginBottom: '15px' }}>Ингредиенты (1 порция)</h3>
           {data.detailed_ingredients.map((ing, i) => (
@@ -125,24 +128,32 @@ export default function DailyRecipe({ data }: DailyRecipeProps) {
           ))}
         </div>
       ) : (
-        <div className="ing-box">
-          <h3 style={{ marginTop: 0, marginBottom: '15px' }}>Ингредиенты</h3>
-          {data.ingredients?.map((ing, i) => (
-            <div key={i} className="ing-row">
-              <span>{ing}</span>
-            </div>
-          ))}
-        </div>
+        // Запасной вариант для старого формата
+        data.ingredients && (
+          <div className="ing-box">
+            <h3 style={{ marginTop: 0, marginBottom: '15px' }}>Ингредиенты</h3>
+            {data.ingredients.map((ing, i) => (
+              <div key={i} className="ing-row">
+                <span>{ing}</span>
+              </div>
+            ))}
+          </div>
+        )
       )}
 
       <h3 style={{ fontSize: '22px', fontWeight: 800, marginBottom: '20px' }}>👨‍🍳 Как готовить</h3>
       <div>
-        {data.steps.map((step, i) => (
-          <div key={i} className="step-row">
-            <div className="step-num">{i + 1}</div>
-            <div className="step-text">{cleanText(step)}</div>
-          </div>
-        ))}
+        {/* Защита от пустых шагов */}
+        {data.steps && data.steps.length > 0 ? (
+           data.steps.map((step, i) => (
+            <div key={i} className="step-row">
+              <div className="step-num">{i + 1}</div>
+              <div className="step-text">{cleanText(step)}</div>
+            </div>
+          ))
+        ) : (
+          <div>Шаги приготовления не загрузились.</div>
+        )}
       </div>
     </div>
   );

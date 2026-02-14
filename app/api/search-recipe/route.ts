@@ -14,27 +14,39 @@ export async function POST(req: Request) {
     const { query, sessionId } = await req.json();
 
     const systemPrompt = `
-      Ты — строгий шеф-повар и технолог.
-      Твоя задача — написать подробный рецепт по запросу: "${query}".
+      Ты — строгий шеф-повар и профессиональный технолог.
+      Твоя задача — написать ИДЕАЛЬНУЮ ТЕХНОЛОГИЧЕСКУЮ КАРТУ по запросу: "${query}".
       
-      ПРАВИЛА ТЕХНОЛОГИЧЕСКОЙ КАРТЫ:
-      1. ГРАММОВКИ: Все ингредиенты строго с весом (г/мл). Никаких "на глаз".
-      2. ТАЙМИНГИ: В шагах обязательно указывай время готовки в минутах (например, "варите 10 минут").
-      3. ОФОРМЛЕНИЕ: НЕ пиши "Шаг 1" или цифры перед шагом. Пиши только текст действия.
-      4. ОПЦИИ: Ингредиенты для подачи помечай "(по желанию)".
-      5. ПОРЦИИ: Рассчитывай на 2 персоны (стандарт).
+      === ЖЕЛЕЗНЫЕ ПРАВИЛА ===
+      1. ГРАММОВКИ: 
+         - Все ингредиенты СТРОГО с весом (г) или объемом (мл). 
+         - Никаких "на глаз" или "по вкусу" (кроме соли).
+      
+      2. ТАЙМИНГИ: 
+         - В шагах ОБЯЗАТЕЛЬНО указывай время готовки в минутах (например, "варите ровно 10 минут").
+      
+      3. ОФОРМЛЕНИЕ ШАГОВ (ВАЖНО): 
+         - НЕ пиши "Шаг 1", "1.", "Step 1". 
+         - Пиши только чистое действие. Наш сайт сам поставит цифры.
+         - Пример: "Нарежьте лук кубиком и обжарьте 5 минут."
+      
+      4. ОПЦИИ: 
+         - Ингредиенты для подачи (сметана, зелень, хлеб) помечай в названии: "Сметана (для подачи)", "Хлеб (по желанию)".
+      
+      5. ПОРЦИИ: 
+         - Рассчитывай на 2 персоны (стандарт).
 
       Верни JSON:
       {
         "title": "Название",
-        "description": "Описание",
+        "description": "Аппетитное описание",
         "time": "Время (мин)",
         "calories": "Ккал",
         "detailed_ingredients": [
-          { "name": "Продукт", "amount": "Вес" }
+          { "name": "Продукт (пометка если доп)", "amount": "Вес" }
         ],
         "missing_ingredients": ["Полный список покупок"],
-        "steps": ["Текст первого шага...", "Текст второго шага..."]
+        "steps": ["Текст шага 1", "Текст шага 2"]
       }
     `;
 
@@ -49,7 +61,7 @@ export async function POST(req: Request) {
 
     const recipe = JSON.parse(content);
 
-    // --- СОХРАНЕНИЕ В ИСТОРИЮ ---
+    // --- СОХРАНЕНИЕ В ИСТОРИЮ (SUPABASE) ---
     if (sessionId) {
       const { error } = await supabase.from('recipes').insert({
         session_id: sessionId,
@@ -57,13 +69,17 @@ export async function POST(req: Request) {
         description: recipe.description,
         time: recipe.time,
         calories: recipe.calories,
+        // Сохраняем и простой список (для старых версий), и подробный JSON
         ingredients: recipe.detailed_ingredients?.map((i: any) => `${i.name} - ${i.amount}`) || [],
         detailed_ingredients: recipe.detailed_ingredients,
+        missing_ingredients: recipe.missing_ingredients,
         steps: recipe.steps,
         is_favorite: false
       });
       
-      if (error) console.error("History save error:", error);
+      if (error) {
+        console.error("History save error:", error);
+      }
     }
 
     return NextResponse.json({ recipe });

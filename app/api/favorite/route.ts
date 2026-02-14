@@ -14,14 +14,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No ID provided" }, { status: 400 });
     }
 
-    // Обновляем статус в базе данных
     const { error } = await supabase
       .from('recipes')
       .update({ is_favorite: isFavorite })
       .eq('id', id);
 
     if (error) {
-      console.error("Favorite update error:", error);
+      console.error("Favorite error:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 

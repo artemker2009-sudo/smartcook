@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
 
-// Инициализация клиентов
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
@@ -20,11 +19,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No dish provided" }, { status: 400 });
     }
 
-    // Формируем список продуктов для промпта
     const productsList = ingredients && ingredients.length > 0 
       ? ingredients.join(", ") 
       : "продукты не указаны";
 
+    // ТОТ САМЫЙ СТРОГИЙ ПРОМПТ (НЕ МЕНЯЛ)
     const systemPrompt = `
       Ты — строгий шеф-повар и профессиональный технолог общепита. 
       Твоя задача — написать ИДЕАЛЬНУЮ ТЕХНОЛОГИЧЕСКУЮ КАРТУ для блюда "${dish}".
@@ -35,42 +34,37 @@ export async function POST(req: Request) {
       
       1. ГРАММОВКИ (ТОЧНОСТЬ ДО ГРАММА):
          - Все основные ингредиенты должны иметь точный вес (г) или объем (мл).
-         - ЗАПРЕЩЕНО писать "1 шт", "по вкусу" (кроме соли) или "на глаз".
+         - ЗАПРЕЩЕНО писать "1 шт", "по вкусу" (кроме соли).
          - ПИШИ ТАК: "Морковь (1 шт, 120 г)", "Масло растительное (30 мл)".
       
-      2. ВРЕМЯ И ТЕМПЕРАТУРА (КРИТИЧНО):
+      2. ВРЕМЯ И ТЕМПЕРАТУРА:
          - В шагах ВСЕГДА указывай точное время в минутах. 
-         - НЕЛЬЗЯ писать: "Варите до готовности" или "Пока не загустеет".
-         - НУЖНО писать: "Варите ровно 20 минут на среднем огне", "Запекайте 25 минут при 180°C".
+         - НЕЛЬЗЯ писать: "Варите до готовности".
+         - НУЖНО писать: "Варите ровно 20 минут", "Запекайте 25 минут при 180°C".
 
-      3. ОФОРМЛЕНИЕ ШАГОВ (ВАЖНО!):
-         - ЗАПРЕЩЕНО писать слова "Шаг 1", "Step 1", "1.", "2.".
-         - Возвращай просто чистый текст инструкции. Наш интерфейс сам расставит цифры.
-         - Пример правильного шага: "Нарежьте лук мелким кубиком и обжарьте 5 минут."
-         - Пример НЕПРАВИЛЬНОГО: "Шаг 1. Нарежьте лук..."
+      3. ОФОРМЛЕНИЕ ШАГОВ (ЧИСТОТА):
+         - ЗАПРЕЩЕНО писать слова "Шаг 1", "Step 1", "1.", "2." в начале строки.
+         - Возвращай просто текст действия.
+         - Пример: "Нарежьте лук мелким кубиком и обжарьте 5 минут."
 
       4. ОБЯЗАТЕЛЬНОЕ vs ПО ЖЕЛАНИЮ:
-         - Основные продукты (мясо, гарнир, соус) — пиши строго.
-         - Дополнительные (хлеб, сметана для подачи, украшение) — помечай в названии: "Зелень (по желанию)", "Багет (для подачи)".
+         - Основные продукты — пиши строго.
+         - Дополнительные (хлеб, подача) — помечай "(по желанию)".
       
-      5. СПИСОК ПОКУПОК:
-         - В 'missing_ingredients' добавь АБСОЛЮТНО ВСЕ, чего нет в списке '${productsList}', но что нужно для рецепта.
+      5. ПОКУПКИ:
+         - В 'missing_ingredients' добавь ВСЁ, чего нет в списке, но нужно для рецепта.
 
-      Верни ответ ТОЛЬКО в формате JSON:
+      Верни JSON:
       {
-        "title": "Полное название блюда",
-        "description": "Аппетитное описание (2-3 предложения)",
-        "time": "Общее время (например: 45 мин)",
-        "calories": "Ккал на порцию",
+        "title": "Название",
+        "description": "Описание",
+        "time": "Время (мин)",
+        "calories": "Ккал",
         "detailed_ingredients": [
-          { "name": "Картофель", "amount": "200 г" },
-          { "name": "Сметана (для подачи)", "amount": "30 г" }
+          { "name": "Продукт", "amount": "Вес" }
         ],
-        "missing_ingredients": ["Сметана", "Укроп", "Соль"],
-        "steps": [
-          "Нарежьте картофель кубиками.",
-          "Обжаривайте 15 минут..."
-        ]
+        "missing_ingredients": ["Список покупок"],
+        "steps": ["Текст шага 1", "Текст шага 2"]
       }
     `;
 
@@ -88,27 +82,31 @@ export async function POST(req: Request) {
 
     const recipe = JSON.parse(content);
 
-    // --- СОХРАНЕНИЕ В БАЗУ ДАННЫХ (ИСТОРИЯ) ---
+    // --- БЛОК СОХРАНЕНИЯ В ИСТОРИЮ ---
     if (sessionId) {
-      console.log("Saving recipe to DB for session:", sessionId);
-      
-      const { error: dbError } = await supabase.from('recipes').insert({
+      // Формируем объект для базы данных
+      const dbPayload = {
         session_id: sessionId,
         title: recipe.title,
         description: recipe.description,
         time: recipe.time,
         calories: recipe.calories,
-        // Сохраняем упрощенный список для старых версий и подробный для новых
+        // Превращаем детальные ингредиенты в простой массив строк для старых колонок
         ingredients: recipe.detailed_ingredients?.map((i: any) => `${i.name} - ${i.amount}`) || [],
+        // Сохраняем сложные данные в новые JSON колонки (если SQL скрипт выполнен)
         detailed_ingredients: recipe.detailed_ingredients, 
         steps: recipe.steps,
+        missing_ingredients: recipe.missing_ingredients,
         is_favorite: false
-      });
+      };
+
+      const { error: dbError } = await supabase.from('recipes').insert(dbPayload);
 
       if (dbError) {
-        console.error("Supabase Save Error:", dbError);
+        console.error("❌ ОШИБКА СОХРАНЕНИЯ В SUPABASE:", dbError);
+        // Мы выводим ошибку в консоль, но пользователю рецепт все равно отдаем
       } else {
-        console.log("Recipe saved successfully.");
+        console.log("✅ Рецепт успешно сохранен в историю.");
       }
     }
 

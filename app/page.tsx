@@ -141,12 +141,10 @@ export default function Home() {
   // --- ИСПРАВЛЕННОЕ ФОРМАТИРОВАНИЕ ВРЕМЕНИ ---
   const formatTime = (t: string) => {
     if (!t) return "";
-    // Оставляем только цифры
     const digits = t.replace(/\D/g, ''); 
-    if (!digits) return t; // Если вдруг цифр нет, возвращаем как было
+    if (!digits) return t; 
     return `${digits} мин.`;
   };
-  // -------------------------------------------
 
   const formatCalories = (c: string) => {
     if (!c) return "";
@@ -185,7 +183,12 @@ export default function Home() {
   const toggleFavorite = async (e: any, targetId: number, currentStatus: boolean = false) => {
     e.stopPropagation(); 
     
-    // Оптимистичное обновление (сразу меняем цвет)
+    // Если id нет (это новый рецепт, и мы еще не успели его подтянуть), то ничего не делаем
+    if (!targetId) {
+      console.warn("Попытка лайкнуть рецепт без ID");
+      return;
+    }
+    
     const newStatus = !currentStatus;
     const updatedFeed = feed?.map(r => r.id === targetId ? { ...r, is_favorite: newStatus } : r) || [];
     setFeed(updatedFeed);
@@ -195,7 +198,6 @@ export default function Home() {
     }
 
     try { 
-      // Отправляем на сервер
       const res = await fetch("/api/favorite", { 
         method: "POST", 
         headers: { "Content-Type": "application/json" }, 
@@ -203,7 +205,6 @@ export default function Home() {
       });
       if (!res.ok) {
         console.error("Сервер не сохранил лайк", await res.text());
-        // Если ошибка — можно откатить, но пока оставим так
       }
     } catch (err) { 
       console.error("Ошибка сети при лайке:", err); 
@@ -266,6 +267,7 @@ export default function Home() {
     } catch (err: any) { alert("Ошибка: " + err.message); } finally { setIsRegenerating(false); }
   };
 
+  // --- ВАЖНОЕ ИСПРАВЛЕНИЕ ЗДЕСЬ ---
   const getRecipeFromPhoto = async (dishName: string) => {
     if (!analysisResult || !userId) return; 
     setSelectedDish(dishName); 
@@ -284,8 +286,27 @@ export default function Home() {
       const json = await response.json(); 
       if (json.error) throw new Error(json.error); 
       
+      // Сначала ставим рецепт как есть (без ID)
       setRecipe({ ...json.recipe, ingredients: analysisResult.ingredients }); 
-      fetchMyRecipes(userId); 
+      
+      // А теперь запрашиваем свежую историю из базы, чтобы получить ID этого нового рецепта
+      // И обновляем текущий рецепт, добавляя ему ID
+      const { data } = await supabase
+        .from('recipes')
+        .select('*')
+        .eq('session_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (data && data.length > 0) {
+        // Обновляем состояние рецепта, добавляя ему настоящий ID из базы
+        const latest = data[0];
+        setRecipe(prev => prev ? { ...prev, id: latest.id, is_favorite: latest.is_favorite } : prev);
+        
+        // Обновляем всю ленту
+        fetchMyRecipes(userId);
+      }
+
     } catch (err: any) { alert("Ошибка: " + err.message); } finally { setLoadingRecipe(false); }
   };
 
@@ -317,8 +338,22 @@ export default function Home() {
         });
         const json = await response.json(); 
         if (json.error) throw new Error(json.error);
+        
+        // Тут тоже обновляем ID
         setRecipe({ ...json.recipe, missing_ingredients: json.recipe.missing_ingredients || [] }); 
-        fetchMyRecipes(userId!);
+        
+        const { data } = await supabase
+          .from('recipes')
+          .select('*')
+          .eq('session_id', userId!)
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (data && data.length > 0) {
+          const latest = data[0];
+          setRecipe(prev => prev ? { ...prev, id: latest.id, is_favorite: latest.is_favorite } : prev);
+          fetchMyRecipes(userId!);
+        }
       } catch (err: any) {
         alert("Ошибка: " + err.message);
       } finally {
@@ -327,6 +362,7 @@ export default function Home() {
     }
   };
 
+  // --- И ЗДЕСЬ ТОЖЕ ---
   const handleTextSearch = async () => {
     if (!textQuery.trim() || !userId) return; 
     setLoadingRecipe(true); 
@@ -342,7 +378,23 @@ export default function Home() {
       if (json.error) throw new Error(json.error); 
       
       setRecipe({ ...json.recipe, missing_ingredients: json.recipe.missing_ingredients || [] }); 
-      fetchMyRecipes(userId);
+      
+      // Получаем ID только что созданного рецепта
+      const { data } = await supabase
+        .from('recipes')
+        .select('*')
+        .eq('session_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (data && data.length > 0) {
+        const latest = data[0];
+        // Присваиваем ID текущему рецепту на экране
+        setRecipe(prev => prev ? { ...prev, id: latest.id, is_favorite: latest.is_favorite } : prev);
+        // Обновляем список истории
+        fetchMyRecipes(userId);
+      }
+
     } catch (err: any) { alert("Ошибка: " + err.message); } finally { setLoadingRecipe(false); }
   };
 
@@ -735,57 +787,6 @@ export default function Home() {
           </section>
 
         </>
-      )}
-
-      {/* === РЕЦЕПТ ДНЯ === */}
-      {activeView === 'daily' && (
-        <div style={{marginTop: '60px'}}>
-          <DailyRecipe data={dailyRecipe} />
-          
-          <div className="chat-box" style={{marginBottom: '40px'}}>
-            <div style={{fontWeight: 800, marginBottom: '20px', color: '#1e40af', fontSize: '18px', textAlign: 'center'}}>
-               Задайте вопрос AI шеф-повару!
-            </div>
-            <div className="chat-layout">
-              <input className="chat-input" placeholder="Например: можно ли готовить без лука?" value={question} onChange={(e) => setQuestion(e.target.value)} />
-              <button className="chat-btn-center" onClick={handleAskChef}>
-                <Send size={18}/> Спросить
-              </button>
-            </div>
-            {answer && <div style={{marginTop: '20px', lineHeight: 1.5, background: 'white', padding: '15px', borderRadius: '16px'}}><strong>Ответ:</strong> {answer}</div>}
-          </div>
-        </div>
-      )}
-      
-      {/* === О ПРОЕКТЕ === */}
-      {activeView === 'about' && (
-        <div className="card" style={{marginTop: '60px', padding: '0', overflow: 'hidden', border: 'none', boxShadow: '0 20px 60px -10px rgba(0,0,0,0.15)'}}>
-          <div style={{background: 'linear-gradient(135deg, #059669 0%, #047857 100%)', padding: '40px 25px', color: 'white', textAlign: 'center'}}>
-            <div style={{fontSize: '50px', marginBottom: '10px'}}>🚀</div>
-            <h1 style={{fontSize: '32px', fontWeight: 900, margin: '0 0 10px 0', lineHeight: 1.1}}>Кухонная революция</h1>
-            <p style={{fontSize: '18px', opacity: 0.9, fontWeight: 500, maxWidth: '400px', margin: '0 auto'}}>Мы превращаем ваше «нечего есть» в гастрономический шедевр.</p>
-          </div>
-          <div style={{padding: '30px 25px'}}>
-            <div style={{background: '#fff1f2', borderRadius: '20px', padding: '20px', marginBottom: '30px', border: '1px solid #fecdd3'}}>
-              <h3 style={{marginTop: 0, color: '#be123c', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '20px', fontWeight: 800}}>
-                <span style={{fontSize: '24px'}}>💸</span> Вы теряете 30.000₽
-              </h3>
-              <p style={{marginBottom: 0, color: '#881337', lineHeight: 1.5}}>Именно столько средняя семья выбрасывает в мусорку ежегодно в виде испорченных продуктов.</p>
-            </div>
-            <h3 style={{textAlign: 'center', fontSize: '22px', fontWeight: 800, marginBottom: '20px'}}>Почему это работает?</h3>
-            <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '40px'}}>
-              <div style={{background: '#f8fafc', padding: '20px 15px', borderRadius: '16px', textAlign: 'center', border: '1px solid #e2e8f0'}}><div style={{background: '#dbeafe', color: '#2563eb', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px auto'}}><Wallet size={20} /></div><div style={{fontWeight: 800, fontSize: '15px', marginBottom: '5px'}}>Экономия</div><div style={{fontSize: '12px', color: '#64748b'}}>До 5000₽ в месяц</div></div>
-              <div style={{background: '#f8fafc', padding: '20px 15px', borderRadius: '16px', textAlign: 'center', border: '1px solid #e2e8f0'}}><div style={{background: '#fef3c7', color: '#d97706', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px auto'}}><Zap size={20} /></div><div style={{fontWeight: 800, fontSize: '15px', marginBottom: '5px'}}>Скорость</div><div style={{fontSize: '12px', color: '#64748b'}}>Мгновенный рецепт</div></div>
-              <div style={{background: '#f8fafc', padding: '20px 15px', borderRadius: '16px', textAlign: 'center', border: '1px solid #e2e8f0'}}><div style={{background: '#dcfce7', color: '#16a34a', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px auto'}}><Leaf size={20} /></div><div style={{fontWeight: 800, fontSize: '15px', marginBottom: '5px'}}>Zero Waste</div><div style={{fontSize: '12px', color: '#64748b'}}>Спасаем еду</div></div>
-              <div style={{background: '#f8fafc', padding: '20px 15px', borderRadius: '16px', textAlign: 'center', border: '1px solid #e2e8f0'}}><div style={{background: '#f3e8ff', color: '#9333ea', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px auto'}}><Globe size={20} /></div><div style={{fontWeight: 800, fontSize: '15px', marginBottom: '5px'}}>Разнообразие</div><div style={{fontSize: '12px', color: '#64748b'}}>Новые блюда</div></div>
-            </div>
-            <div style={{background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', borderRadius: '24px', padding: '30px 20px', textAlign: 'center', color: 'white', boxShadow: '0 10px 25px rgba(2, 132, 199, 0.4)', position: 'relative', overflow: 'hidden'}}>
-              <h3 style={{margin: '0 0 10px 0', fontSize: '22px', fontWeight: 900}}>Telegram канал проекта</h3>
-              <p style={{opacity: 0.9, fontSize: '15px', marginBottom: '25px', lineHeight: 1.5}}>Следите за обновлениями, предлагайте идеи и общайтесь напрямую с разработчиком.</p>
-              <a href="https://t.me/smartcook2026" target="_blank" style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', background: 'white', color: '#0284c7', textDecoration: 'none', padding: '16px 20px', borderRadius: '100px', fontWeight: 800, fontSize: '16px', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', transition: 'transform 0.2s'}}> <Send size={20} /> Подписаться</a>
-            </div>
-          </div>
-        </div>
       )}
 
     </div>

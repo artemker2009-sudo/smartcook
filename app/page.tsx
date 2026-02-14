@@ -436,7 +436,7 @@ export default function Home() {
   return (
     <div className="container">
       
-      {/* КНОПКА МЕНЮ ПЕРЕМЕЩЕНА ВЛЕВО */}
+      {/* КНОПКА МЕНЮ */}
       <button 
         className="menu-btn" 
         onClick={() => setIsMenuOpen(true)}
@@ -445,11 +445,21 @@ export default function Home() {
         <Menu size={24} color="#111" />
       </button>
 
-      {/* МЕНЮ */}
+      {/* МЕНЮ (СЛЕВА) */}
       {isMenuOpen && (
         <>
           <div className="menu-overlay" onClick={() => setIsMenuOpen(false)} />
-          <div className={`menu-drawer ${isMenuOpen ? 'open' : ''}`}>
+          <div 
+            className={`menu-drawer ${isMenuOpen ? 'open' : ''}`}
+            // Добавляем стиль для открытия слева:
+            // left: 0 (вместо right: 0)
+            // transform: если открыто - 0, если закрыто - сдвиг влево на 100%
+            style={{ 
+              left: 0, 
+              right: 'auto', 
+              transform: isMenuOpen ? 'translateX(0)' : 'translateX(-100%)' 
+            }}
+          >
             <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '40px'}}>
                <span style={{fontSize: '24px', fontWeight: '900', color: '#059669'}}>SmartCook</span>
                <X size={24} onClick={() => setIsMenuOpen(false)} style={{cursor: 'pointer'}} />

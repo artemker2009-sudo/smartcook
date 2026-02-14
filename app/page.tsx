@@ -32,6 +32,81 @@ interface DBRecipe {
 }
 interface DailyRecipeType { title: string; description: string; time: string; calories: string; ingredients: string[]; steps: string[]; date: string; }
 
+// --- КОНФИГУРАЦИЯ ПРАЗДНИКОВ ---
+// Эта функция проверяет дату и возвращает тему праздника или null
+const getHolidayGreeting = () => {
+  const d = new Date();
+  const day = d.getDate();
+  const month = d.getMonth() + 1; // 1 = Январь, 2 = Февраль ...
+  const key = `${day}.${month}`;
+
+  // Настройки праздников
+  const holidays: Record<string, { title: string; text: string; gradient: string; icon: string }> = {
+    "14.2": {
+      title: "С Днем святого Валентина! 💖",
+      text: "Пусть ваша жизнь будет наполнена любовью, а ужины — романтикой. Готовьте для любимых вместе со SmartCook!",
+      gradient: "linear-gradient(135deg, #ec4899 0%, #be185d 100%)", // Розовый
+      icon: "💘"
+    },
+    "23.2": {
+      title: "С Днем защитника Отечества!",
+      text: "Силы, мужества и сытных побед на кулинарном фронте! SmartCook всегда поддержит в готовке.",
+      gradient: "linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)", // Строгий синий
+      icon: "⭐"
+    },
+    "8.3": {
+      title: "С 8 Марта! 💐",
+      text: "Красоты, нежности и вдохновения! Пусть сегодня на кухне творит чудеса кто-то другой (или наш ИИ)!",
+      gradient: "linear-gradient(135deg, #d946ef 0%, #a21caf 100%)", // Фиолетово-розовый
+      icon: "🌷"
+    },
+    "1.3": {
+      title: "С первым днем весны!",
+      text: "Природа просыпается, и аппетит тоже! Время свежих салатов и легких рецептов.",
+      gradient: "linear-gradient(135deg, #84cc16 0%, #4d7c0f 100%)", // Свежий зеленый
+      icon: "🌱"
+    },
+    "1.5": {
+      title: "Мир, Труд, Май!",
+      text: "Отличный повод выбраться на шашлыки или приготовить что-то особенное дома. С праздником!",
+      gradient: "linear-gradient(135deg, #f97316 0%, #ea580c 100%)", // Оранжевый
+      icon: "🔥"
+    },
+    "9.5": {
+      title: "С Днем Победы!",
+      text: "Мирного неба над головой и тепла в вашем доме. Поздравляем с великим праздником!",
+      gradient: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)", // Красный
+      icon: "🎖"
+    },
+    "1.6": {
+      title: "Ура, лето!",
+      text: "Сезон мороженого, окрошки и лимонадов открыт! SmartCook уже придумал летнее меню.",
+      gradient: "linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)", // Голубой
+      icon: "☀"
+    },
+    "1.9": {
+      title: "С Днем знаний!",
+      text: "Учиться никогда не поздно, особенно готовить новые блюда. Успехов в новом сезоне!",
+      gradient: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)", // Желто-осенний
+      icon: "🔔"
+    },
+    "31.12": {
+      title: "С Наступающим! 🎄",
+      text: "Оливье готов? Мандарины куплены? Пусть Новый год принесет только вкусные моменты!",
+      gradient: "linear-gradient(135deg, #dc2626 0%, #166534 100%)", // Красно-зеленый
+      icon: "🎅"
+    },
+    "1.1": {
+      title: "С Новым 2026 годом! 🎉",
+      text: "Начинаем год вкусно! Если остались силы после застолья, давайте приготовим что-то легкое.",
+      gradient: "linear-gradient(135deg, #fbbf24 0%, #b45309 100%)", // Золотой
+      icon: "🥂"
+    }
+  };
+
+  return holidays[key] || null;
+};
+
 export default function Home() {
   const [activeView, setActiveView] = useState<'service' | 'about' | 'daily'>('service');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -42,7 +117,6 @@ export default function Home() {
   const [searchMode, setSearchMode] = useState<'photo' | 'text'>('photo');
   const [textQuery, setTextQuery] = useState(""); 
   
-  // Состояние режима готовки
   const [cookingMode, setCookingMode] = useState<'strict' | 'extended'>('strict');
   
   const [isProcessing, setIsProcessing] = useState(false);
@@ -57,15 +131,16 @@ export default function Home() {
   const [userId, setUserId] = useState<string | null>(null);
   
   const [historyExpanded, setHistoryExpanded] = useState(false);
-  
   const [filterMode, setFilterMode] = useState<'all' | 'favorites'>('all');
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
 
+  // Получаем текущий праздник
+  const currentHoliday = getHolidayGreeting();
+
   const cleanText = (text: string) => text.replace(/^\d+[\.\)]\s*/, '');
 
-  // --- ФУНКЦИИ ФОРМАТИРОВАНИЯ ---
   const formatTime = (t: string) => {
     if (!t) return "";
     if (/[а-яa-z]/i.test(t)) return t;
@@ -74,7 +149,6 @@ export default function Home() {
 
   const formatCalories = (c: string) => {
     if (!c) return "";
-    // Очищаем от слова ккал, если оно там уже есть, и добавляем заново один раз
     const cleanCal = c.replace(/ккал/gi, '').trim();
     return `${cleanCal} ккал`;
   };
@@ -108,9 +182,7 @@ export default function Home() {
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files; 
     if (!files || files.length === 0) return;
-    
     const rawFile = files[0];
-    
     setPreview(URL.createObjectURL(rawFile));
     setAnalysisResult(null); setRecipe(null); setSelectedDish(null); setQuestion(""); setAnswer(null); 
     setIsProcessing(true);
@@ -276,23 +348,43 @@ export default function Home() {
             <h1 className="brand-name">SmartCook</h1>
             <div className="brand-sub">Ваш личный AI Шеф-повар</div>
             
-            {/* --- ВАЛЕНТИНКА (НОВЫЙ БЛОК) --- */}
-            <div style={{
-              background: 'linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%)',
-              color: '#be185d',
-              padding: '15px',
-              borderRadius: '16px',
-              marginTop: '20px',
-              border: '1px solid #f9a8d4',
-              textAlign: 'center',
-              lineHeight: '1.5',
-              boxShadow: '0 4px 15px rgba(251, 207, 232, 0.4)'
-            }}>
-               <div style={{fontSize: '18px', marginBottom: '5px'}}>💖 <strong>С 14 Февраля!</strong></div>
-               <div style={{fontSize: '14px'}}>
-                 SmartCook от всей души поздравляет всех влюблённых! Желаем, чтобы ваша жизнь была такой же вкусной и страстной, как наши лучшие рецепты! Любите и кормите друг друга! 🍝🍷
-               </div>
-            </div>
+            {/* --- УМНЫЙ БЛОК ПРАЗДНИКОВ --- */}
+            {currentHoliday && (
+              <div className="animate-fade-in" style={{
+                background: currentHoliday.gradient,
+                color: 'white',
+                padding: '20px',
+                borderRadius: '20px',
+                marginTop: '25px',
+                textAlign: 'center',
+                boxShadow: '0 10px 30px -10px rgba(0,0,0,0.3)',
+                position: 'relative',
+                overflow: 'hidden'
+              }}>
+                 {/* Декоративные круги */}
+                 <div style={{position: 'absolute', top: '-10px', right: '-10px', width: '60px', height: '60px', background: 'white', opacity: 0.1, borderRadius: '50%'}}></div>
+                 <div style={{position: 'absolute', bottom: '-20px', left: '-10px', width: '80px', height: '80px', background: 'white', opacity: 0.1, borderRadius: '50%'}}></div>
+
+                 <div style={{
+                   fontFamily: '"Times New Roman", serif', // Красивый шрифт с засечками
+                   fontSize: '22px', 
+                   marginBottom: '8px', 
+                   fontStyle: 'italic',
+                   fontWeight: '700',
+                   textShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                 }}>
+                   {currentHoliday.icon} {currentHoliday.title}
+                 </div>
+                 <div style={{
+                   fontSize: '15px', 
+                   lineHeight: '1.5', 
+                   opacity: 0.95,
+                   fontWeight: '500'
+                 }}>
+                   {currentHoliday.text}
+                 </div>
+              </div>
+            )}
             {/* ------------------------------- */}
           </div>
 
@@ -489,7 +581,6 @@ export default function Home() {
                       </a>
                     ))}
                   </div>
-                  {/* ТЕКСТ-ПОДСКАЗКА С "ДО ДВЕРИ" */}
                   <div style={{fontSize: '12px', color: '#b45309', display: 'flex', alignItems: 'center', gap: '5px'}}>
                      <Info size={14} /> Нажмите на ингредиент, чтобы заказать быструю доставку Ozon Fresh до двери
                   </div>

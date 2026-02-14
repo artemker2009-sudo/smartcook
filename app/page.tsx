@@ -136,11 +136,7 @@ export default function Home() {
 
   const currentHoliday = getHolidayGreeting();
 
-  // Функция очистки текста от "Шаг 1", "Step 1", "1." и т.д.
-  const cleanText = (text: string) => {
-    // Регулярка удаляет: цифры с точкой, скобкой, слова "Шаг X", "Step X" в начале строки
-    return text.replace(/^(Шаг \d+|Step \d+|\d+[\.\)])[:\s]*/i, '').trim();
-  };
+  const cleanText = (text: string) => text.replace(/^(Шаг \d+|Step \d+|\d+[\.\)])[:\s]*/i, '').trim();
 
   const formatTime = (t: string) => {
     if (!t) return "";
@@ -154,7 +150,6 @@ export default function Home() {
     return `${cleanCal} ккал`;
   };
 
-  // Инициализация пользователя и загрузка истории
   useEffect(() => {
     try {
       let storedId = localStorage.getItem("cook_user_id");
@@ -170,7 +165,6 @@ export default function Home() {
 
   const fetchMyRecipes = async (currentId: string) => {
     if (!currentId) return;
-    // Загружаем рецепты именно для этого пользователя
     const { data, error } = await supabase
       .from('recipes')
       .select('*')
@@ -187,7 +181,7 @@ export default function Home() {
   const toggleFavorite = async (e: any, targetId: number, currentStatus: boolean = false) => {
     e.stopPropagation(); 
     
-    // Оптимистичное обновление интерфейса (сразу красим сердечко)
+    // Мгновенно обновляем интерфейс
     const newStatus = !currentStatus;
     const updatedFeed = feed?.map(r => r.id === targetId ? { ...r, is_favorite: newStatus } : r) || [];
     setFeed(updatedFeed);
@@ -197,15 +191,17 @@ export default function Home() {
     }
 
     try { 
-      // Отправляем запрос на сервер
-      await fetch("/api/favorite", { 
+      // Отправляем запрос на сервер для сохранения
+      const res = await fetch("/api/favorite", { 
         method: "POST", 
         headers: { "Content-Type": "application/json" }, 
         body: JSON.stringify({ id: targetId, isFavorite: newStatus }) 
-      }); 
+      });
+      if (!res.ok) {
+        console.error("Не удалось сохранить избранное");
+      }
     } catch (err) { 
       console.error("Ошибка лайка:", err); 
-      // Если ошибка - откатываем (можно добавить логику отката)
     }
   };
 
@@ -277,14 +273,13 @@ export default function Home() {
         body: JSON.stringify({ 
           dish: dishName, 
           ingredients: analysisResult.ingredients, 
-          sessionId: userId // Передаем ID для сохранения в историю
+          sessionId: userId 
         }) 
       });
       const json = await response.json(); 
       if (json.error) throw new Error(json.error); 
       
       setRecipe({ ...json.recipe, ingredients: analysisResult.ingredients }); 
-      // Обновляем историю сразу после получения рецепта
       fetchMyRecipes(userId); 
     } catch (err: any) { alert("Ошибка: " + err.message); } finally { setLoadingRecipe(false); }
   };
@@ -336,7 +331,7 @@ export default function Home() {
       const response = await fetch("/api/search-recipe", { 
         method: "POST", 
         headers: { "Content-Type": "application/json" }, 
-        body: JSON.stringify({ query: textQuery, sessionId: userId }) // ID для истории
+        body: JSON.stringify({ query: textQuery, sessionId: userId })
       });
       const json = await response.json(); 
       if (json.error) throw new Error(json.error); 
@@ -402,7 +397,7 @@ export default function Home() {
             <h1 className="brand-name">SmartCook</h1>
             <div className="brand-sub">Ваш личный AI Шеф-повар</div>
             
-            {/* --- УМНЫЙ БЛОК ПРАЗДНИКОВ --- */}
+            {/* --- БЛОК ПРАЗДНИКОВ --- */}
             {currentHoliday && (
               <div className="animate-fade-in" style={{
                 background: currentHoliday.gradient,
@@ -415,7 +410,6 @@ export default function Home() {
                 position: 'relative',
                 overflow: 'hidden'
               }}>
-                 {/* Декоративные круги */}
                  <div style={{position: 'absolute', top: '-10px', right: '-10px', width: '60px', height: '60px', background: 'white', opacity: 0.1, borderRadius: '50%'}}></div>
                  <div style={{position: 'absolute', bottom: '-20px', left: '-10px', width: '80px', height: '80px', background: 'white', opacity: 0.1, borderRadius: '50%'}}></div>
 
@@ -656,7 +650,6 @@ export default function Home() {
                 {recipe.steps.map((step, i) => (
                   <div key={i} className="step-row">
                     <div className="step-num">{i + 1}</div>
-                    {/* Чистим текст от дублирования номеров */}
                     <div className="step-text">{cleanText(step)}</div>
                   </div>
                 ))}
@@ -699,14 +692,22 @@ export default function Home() {
              <div className="empty-msg">В избранном пока пусто 💔<br/>Добавьте рецепты лайком!</div>
           ) : (
             <>
+              {/* --- КАРТОЧКИ ИСТОРИИ (С НОВЫМ ДИЗАЙНОМ) --- */}
               <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '10px'}}>
                 {visibleHistory?.map((item) => (
                   <div key={item.id} className="card" style={{padding: '15px', cursor: 'pointer', marginBottom: 0}} onClick={() => loadFromHistory(item)}>
                     <div style={{fontWeight: 700, fontSize: '14px', marginBottom: '8px', lineHeight: 1.3, height: '38px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical'}}>{item.title}</div>
-                    <div style={{fontSize: '11px', color: '#9ca3af', display: 'flex', alignItems: 'center', gap: '4px'}}><Clock size={12}/> {item.time}</div>
+                    
+                    {/* ТЕПЕРЬ ТУТ НЕ ТОЛЬКО ВРЕМЯ, НО И КАЛОРИИ С ОГОНЬКОМ */}
+                    <div style={{display: 'flex', gap: '10px', fontSize: '11px', color: '#6b7280'}}>
+                       <div style={{display: 'flex', alignItems: 'center', gap: '3px'}}><Clock size={12}/> {item.time}</div>
+                       {item.calories && <div style={{display: 'flex', alignItems: 'center', gap: '3px', color: '#f97316'}}><Flame size={12}/> {formatCalories(item.calories)}</div>}
+                    </div>
+
                   </div>
                 ))}
               </div>
+              {/* ------------------------------------------- */}
 
               {!historyExpanded && displayedFeed && displayedFeed.length > 4 && (
                 <button 

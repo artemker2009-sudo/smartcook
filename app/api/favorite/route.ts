@@ -14,18 +14,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No ID provided" }, { status: 400 });
     }
 
+    // Обновляем поле is_favorite в базе данных
     const { error } = await supabase
       .from('recipes')
       .update({ is_favorite: isFavorite })
       .eq('id', id);
 
     if (error) {
-      console.error("Favorite error:", error);
+      console.error("Ошибка при обновлении избранного:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
+    console.error("Favorite route error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

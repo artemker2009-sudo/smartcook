@@ -138,11 +138,15 @@ export default function Home() {
 
   const cleanText = (text: string) => text.replace(/^(Шаг \d+|Step \d+|\d+[\.\)])[:\s]*/i, '').trim();
 
+  // --- ИСПРАВЛЕННОЕ ФОРМАТИРОВАНИЕ ВРЕМЕНИ ---
   const formatTime = (t: string) => {
     if (!t) return "";
-    if (/[а-яa-z]/i.test(t)) return t;
-    return `${t} мин.`;
+    // Оставляем только цифры
+    const digits = t.replace(/\D/g, ''); 
+    if (!digits) return t; // Если вдруг цифр нет, возвращаем как было
+    return `${digits} мин.`;
   };
+  // -------------------------------------------
 
   const formatCalories = (c: string) => {
     if (!c) return "";
@@ -181,7 +185,7 @@ export default function Home() {
   const toggleFavorite = async (e: any, targetId: number, currentStatus: boolean = false) => {
     e.stopPropagation(); 
     
-    // Мгновенно обновляем интерфейс
+    // Оптимистичное обновление (сразу меняем цвет)
     const newStatus = !currentStatus;
     const updatedFeed = feed?.map(r => r.id === targetId ? { ...r, is_favorite: newStatus } : r) || [];
     setFeed(updatedFeed);
@@ -191,17 +195,18 @@ export default function Home() {
     }
 
     try { 
-      // Отправляем запрос на сервер для сохранения
+      // Отправляем на сервер
       const res = await fetch("/api/favorite", { 
         method: "POST", 
         headers: { "Content-Type": "application/json" }, 
         body: JSON.stringify({ id: targetId, isFavorite: newStatus }) 
       });
       if (!res.ok) {
-        console.error("Не удалось сохранить избранное");
+        console.error("Сервер не сохранил лайк", await res.text());
+        // Если ошибка — можно откатить, но пока оставим так
       }
     } catch (err) { 
-      console.error("Ошибка лайка:", err); 
+      console.error("Ошибка сети при лайке:", err); 
     }
   };
 
@@ -692,22 +697,22 @@ export default function Home() {
              <div className="empty-msg">В избранном пока пусто 💔<br/>Добавьте рецепты лайком!</div>
           ) : (
             <>
-              {/* --- КАРТОЧКИ ИСТОРИИ (С НОВЫМ ДИЗАЙНОМ) --- */}
+              {/* --- КАРТОЧКИ ИСТОРИИ --- */}
               <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '10px'}}>
                 {visibleHistory?.map((item) => (
                   <div key={item.id} className="card" style={{padding: '15px', cursor: 'pointer', marginBottom: 0}} onClick={() => loadFromHistory(item)}>
                     <div style={{fontWeight: 700, fontSize: '14px', marginBottom: '8px', lineHeight: 1.3, height: '38px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical'}}>{item.title}</div>
                     
-                    {/* ТЕПЕРЬ ТУТ НЕ ТОЛЬКО ВРЕМЯ, НО И КАЛОРИИ С ОГОНЬКОМ */}
+                    {/* Исправленный вывод времени */}
                     <div style={{display: 'flex', gap: '10px', fontSize: '11px', color: '#6b7280'}}>
-                       <div style={{display: 'flex', alignItems: 'center', gap: '3px'}}><Clock size={12}/> {item.time}</div>
+                       <div style={{display: 'flex', alignItems: 'center', gap: '3px'}}><Clock size={12}/> {formatTime(item.time)}</div>
                        {item.calories && <div style={{display: 'flex', alignItems: 'center', gap: '3px', color: '#f97316'}}><Flame size={12}/> {formatCalories(item.calories)}</div>}
                     </div>
 
                   </div>
                 ))}
               </div>
-              {/* ------------------------------------------- */}
+              {/* ------------------------- */}
 
               {!historyExpanded && displayedFeed && displayedFeed.length > 4 && (
                 <button 

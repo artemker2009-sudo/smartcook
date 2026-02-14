@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
 
-// 1. Инициализируем Supabase и OpenAI
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
@@ -24,30 +23,46 @@ export async function POST(req: Request) {
       ? ingredients.join(", ") 
       : "продукты не указаны";
 
-    // 2. Генерируем рецепт (СТРОГИЙ РЕЖИМ)
     const systemPrompt = `
-      Ты — строгий шеф-повар и технолог ресторана. 
+      Ты — строгий шеф-повар и главный технолог ресторана. 
       Твоя задача — написать ИДЕАЛЬНУЮ ТЕХНОЛОГИЧЕСКУЮ КАРТУ для блюда "${dish}".
 
       У пользователя есть: ${productsList}.
 
-      СТРОГИЕ ПРАВИЛА:
-      1. ГРАММОВКИ: Все основные ингредиенты должны иметь точный вес (г) или объем (мл).
-      2. ВРЕМЯ: В шагах ВСЕГДА указывай точное время (мин) и температуру.
-      3. ОПЦИОНАЛЬНО: Дополнительные продукты помечай "(по желанию)" или "(для подачи)".
-      4. ПОКУПКИ: В 'missing_ingredients' добавь то, чего нет в списке '${productsList}'.
+      ЖЕЛЕЗНЫЕ ПРАВИЛА ТЕХНОЛОГА:
+      
+      1. ГРАММОВКИ (ТОЧНОСТЬ):
+         - Все основные ингредиенты должны иметь точный вес (г) или объем (мл).
+         - Не пиши "1 штука", пиши "Морковь (1 шт, ок. 100 г)".
+      
+      2. ВРЕМЯ И ТЕМПЕРАТУРА (КРИТИЧНО):
+         - В шагах ВСЕГДА указывай точное время. 
+         - НЕЛЬЗЯ писать: "Варите до готовности".
+         - НУЖНО писать: "Варите ровно 20 минут на среднем огне".
+         - Если духовка — указывай градусы (например, 180°C).
 
-      Верни ответ JSON:
+      3. ОБЯЗАТЕЛЬНОЕ vs ПО ЖЕЛАНИЮ:
+         - Основные продукты (мясо, рыба, база супа, гарнир) — пиши строго.
+         - Дополнительные (сметана для подачи, хлеб вприкуску, зелень для украшения) — помечай в названии как "(по желанию)" или "(для подачи)".
+      
+      4. СПИСОК ПОКУПОК:
+         - В 'missing_ingredients' добавь ВСЁ, чего нет в списке '${productsList}', но что нужно для рецепта (включая соль, масло и опциональное).
+
+      Формат ответа JSON:
       {
-        "title": "Название",
-        "description": "Описание",
-        "time": "Время (мин)",
-        "calories": "Ккал",
+        "title": "Название блюда",
+        "description": "Краткое описание",
+        "time": "Общее время (например: 45 мин)",
+        "calories": "Ккал на порцию",
         "detailed_ingredients": [
-          { "name": "Продукт", "amount": "Вес" }
+          { "name": "Картофель", "amount": "200 г" },
+          { "name": "Сметана (для подачи)", "amount": "30 г" }
         ],
-        "missing_ingredients": ["Продукт 1", "Продукт 2"],
-        "steps": ["Шаг 1...", "Шаг 2..."]
+        "missing_ingredients": ["Сметана", "Укроп"],
+        "steps": [
+          "Нарежьте картофель кубиками 2х2 см.",
+          "Обжаривайте на сильном огне ровно 5 минут до корочки."
+        ]
       }
     `;
 
@@ -55,7 +70,7 @@ export async function POST(req: Request) {
       model: "gpt-4o",
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: `Составь техкарту для "${dish}".` },
+        { role: "user", content: `Составь полную техкарту для "${dish}".` },
       ],
       response_format: { type: "json_object" },
     });
@@ -65,25 +80,19 @@ export async function POST(req: Request) {
 
     const recipe = JSON.parse(content);
 
-    // 3. СОХРАНЯЕМ В ИСТОРИЮ (SUPABASE) — ВОТ ЭТО Я ВЕРНУЛ
+    // СОХРАНЕНИЕ В ИСТОРИЮ
     if (sessionId) {
-      const { error: dbError } = await supabase.from('recipes').insert({
+      await supabase.from('recipes').insert({
         session_id: sessionId,
         title: recipe.title,
         description: recipe.description,
         time: recipe.time,
         calories: recipe.calories,
-        // Сохраняем подробные ингредиенты, если есть колонка, или просто список
         ingredients: recipe.detailed_ingredients?.map((i: any) => `${i.name} - ${i.amount}`) || [],
         detailed_ingredients: recipe.detailed_ingredients, 
         steps: recipe.steps,
         is_favorite: false
       });
-
-      if (dbError) {
-        console.error("Supabase Save Error:", dbError);
-        // Не ломаем работу, если не сохранилось, но пишем в лог
-      }
     }
 
     return NextResponse.json({ recipe });

@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import DailyRecipe from "@/components/DailyRecipe";
 import { 
   Menu, X, Flame, Send, Camera, Search, Clock, Heart, 
-  ArrowRight, RotateCcw, CheckCircle, Sparkles, Image as ImageIcon, 
+  ArrowRight, ArrowLeft, RotateCcw, CheckCircle, Sparkles, Image as ImageIcon, 
   Wallet, Zap, Leaf, Globe, ChevronRight, ChevronDown, ChevronUp, Shuffle, ShoppingCart, Lock, ShoppingBag, ExternalLink, Info, ThumbsUp 
 } from "lucide-react";
 
@@ -40,8 +40,8 @@ interface DBRecipe {
   steps: string[]; 
   ingredients: string[]; 
   detailed_ingredients?: DetailedIngredient[]; 
-  missing_ingredients?: string[]; // Добавлено для совместимости
-  description?: string; // Добавлено для ленты
+  missing_ingredients?: string[]; 
+  description?: string; 
   session_id: string; 
   
   // Поля для социальной ленты
@@ -108,8 +108,8 @@ export default function Home() {
   const [recipe, setRecipe] = useState<RecipeData | null>(null);
   
   // Состояния для списков
-  const [feed, setFeed] = useState<DBRecipe[]>([]); // Личная история
-  const [publicFeed, setPublicFeed] = useState<DBRecipe[]>([]); // Общая лента
+  const [feed, setFeed] = useState<DBRecipe[]>([]); 
+  const [publicFeed, setPublicFeed] = useState<DBRecipe[]>([]);
   const [feedSort, setFeedSort] = useState<'new' | 'top'>('new');
   
   const [userId, setUserId] = useState<string | null>(null);
@@ -119,6 +119,9 @@ export default function Home() {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
+
+  // --- НОВОЕ СОСТОЯНИЕ: ОТКУДА ПРИШЛИ ---
+  const [fromFeed, setFromFeed] = useState(false);
 
   const currentHoliday = getHolidayGreeting();
 
@@ -153,7 +156,6 @@ export default function Home() {
       fetchMyRecipes(storedId); 
     } catch (e) { console.error(e); }
 
-    // Загрузка рецепта дня
     fetch('/api/daily')
       .then(res => res.json())
       .then(data => {
@@ -166,7 +168,6 @@ export default function Home() {
       .catch(console.error);
   }, []);
 
-  // Если переключились на Ленту - грузим её
   useEffect(() => {
     if (activeView === 'feed') {
       fetchPublicFeed(feedSort);
@@ -190,7 +191,6 @@ export default function Home() {
     }
   };
 
-  // Загрузка ОБЩЕЙ ЛЕНТЫ
   const fetchPublicFeed = async (sortType: 'new' | 'top') => {
     setFeedSort(sortType);
     if (!userId) return;
@@ -207,7 +207,6 @@ export default function Home() {
     } catch (e) { console.error("Feed Error:", e); }
   };
 
-  // Лайк в ОБЩЕЙ ленте (публичный)
   const handlePublicLike = async (e: any, item: DBRecipe) => {
     e.stopPropagation();
     if (!userId) return;
@@ -215,7 +214,6 @@ export default function Home() {
     const action = item.is_liked ? 'unlike' : 'like';
     const newCount = item.is_liked ? (item.likes_count || 0) - 1 : (item.likes_count || 0) + 1;
 
-    // Оптимистичное обновление UI
     const updatedFeed = publicFeed.map(r => 
       r.id === item.id ? { ...r, is_liked: !item.is_liked, likes_count: newCount } : r
     );
@@ -232,7 +230,6 @@ export default function Home() {
     }
   };
 
-  // Лайк в ЛИЧНОЙ истории (Избранное)
   const toggleFavorite = async (e: any, targetId: number, currentStatus: boolean = false) => {
     e.stopPropagation(); 
     if (!targetId) return;
@@ -283,7 +280,6 @@ export default function Home() {
     document.getElementById('hidden-file-input')?.click();
   };
 
-  // --- АНАЛИЗ ФОТО ---
   const handleAnalyze = async () => {
     if (!file) return; 
     setAnalyzing(true); setRecipe(null);
@@ -361,7 +357,6 @@ export default function Home() {
     }
   };
 
-  // --- ПОИСК ПО ТЕКСТУ (ГЛАВНОЕ ИСПРАВЛЕНИЕ) ---
   const handleTextSearch = async () => {
     if (!textQuery.trim() || !userId) return; 
     setLoadingRecipe(true); 
@@ -374,24 +369,16 @@ export default function Home() {
         body: JSON.stringify({ query: textQuery, sessionId: userId })
       });
       const json = await response.json(); 
-      
-      // ВОТ ЗДЕСЬ ПРОВЕРКА НА ОШИБКУ (400 Bad Request)
-      if (!response.ok) {
-        throw new Error(json.error || "Ошибка поиска");
-      }
-      
+      if (!response.ok) throw new Error(json.error || "Ошибка поиска");
       setRecipe({ ...json.recipe, missing_ingredients: json.recipe.missing_ingredients || [] }); 
       updateLatestRecipeId();
-
     } catch (err: any) { 
-      // Показываем красивое сообщение пользователю
       alert("🛑 " + err.message); 
     } finally { 
       setLoadingRecipe(false); 
     }
   };
 
-  // Хелпер для обновления ID после создания рецепта
   const updateLatestRecipeId = async () => {
     if (!userId) return;
     const { data } = await supabase.from('recipes').select('*').eq('session_id', userId).order('created_at', { ascending: false }).limit(1);
@@ -412,12 +399,29 @@ export default function Home() {
     } catch (err: any) { alert("Ошибка: " + err.message); } finally { setAsking(false); }
   };
 
-  // Загрузка рецепта из истории или ленты
-  const loadFromHistory = (item: DBRecipe) => {
+  // --- ЛОГИКА ОТКРЫТИЯ/ЗАКРЫТИЯ РЕЦЕПТА (ИСПРАВЛЕНО) ---
+  
+  const loadFromHistory = (item: DBRecipe, source: 'feed' | 'history' = 'history') => {
     setAnalysisResult(null); setQuestion(""); setAnswer(null);
     setRecipe({ id: item.id, is_favorite: item.is_favorite, title: item.title, description: item.description, time: item.time, calories: item.calories, steps: item.steps || [], missing_ingredients: item.missing_ingredients || [], ingredients: item.ingredients || [], detailed_ingredients: item.detailed_ingredients || [] });
+    
+    // Запоминаем, откуда пришли
+    setFromFeed(source === 'feed');
+    
     window.scrollTo({ top: 0, behavior: 'smooth' }); 
     setActiveView('service'); 
+  };
+
+  // Функция кнопки "Назад"
+  const handleBackToSource = () => {
+    setRecipe(null);
+    if (fromFeed) {
+      setActiveView('feed');
+      setFromFeed(false);
+    } else {
+      // Если были в поиске/истории, просто очищаем рецепт, и остается поиск
+      setActiveView('service');
+    }
   };
 
   const switchView = (view: 'service' | 'about' | 'daily' | 'feed') => {
@@ -433,7 +437,7 @@ export default function Home() {
   return (
     <div className="container">
       
-      {/* КНОПКА МЕНЮ (СЛЕВА) */}
+      {/* КНОПКА МЕНЮ */}
       <button 
         className="menu-btn" 
         onClick={() => setIsMenuOpen(true)}
@@ -442,7 +446,7 @@ export default function Home() {
         <Menu size={24} color="#111" />
       </button>
 
-      {/* МЕНЮ (ВЫЕЗЖАЕТ СЛЕВА) */}
+      {/* МЕНЮ */}
       {isMenuOpen && (
         <>
           <div className="menu-overlay" onClick={() => setIsMenuOpen(false)} />
@@ -460,7 +464,6 @@ export default function Home() {
             </div>
             <div className="menu-link" onClick={() => switchView('service')}><Search size={20}/> Поиск</div>
             <div className="menu-link" onClick={() => switchView('daily')}><Flame size={20} color="#f97316"/> Рецепт дня</div>
-            {/* НОВЫЙ ПУНКТ - ЛЕНТА */}
             <div className="menu-link" onClick={() => switchView('feed')}><Globe size={20} color="#8b5cf6"/> Лента</div>
             <div className="menu-link" onClick={() => switchView('about')}><CheckCircle size={20} color="#3b82f6"/> О проекте</div>
           </div>
@@ -470,102 +473,105 @@ export default function Home() {
       {/* === СЕРВИС (ГЛАВНАЯ) === */}
       {activeView === 'service' && (
         <>
-          <div className="hero">
-            <h1 className="brand-name">SmartCook</h1>
-            <div className="brand-sub">Ваш личный AI Шеф-повар</div>
-            
-            {currentHoliday && (
-              <div className="animate-fade-in" style={{
-                background: currentHoliday.gradient,
-                color: 'white',
-                padding: '20px',
-                borderRadius: '20px',
-                marginTop: '25px',
-                textAlign: 'center',
-                boxShadow: '0 10px 30px -10px rgba(0,0,0,0.3)',
-                position: 'relative',
-                overflow: 'hidden'
-              }}>
-                 <div style={{position: 'absolute', top: '-10px', right: '-10px', width: '60px', height: '60px', background: 'white', opacity: 0.1, borderRadius: '50%'}}></div>
-                 <div style={{position: 'absolute', bottom: '-20px', left: '-10px', width: '80px', height: '80px', background: 'white', opacity: 0.1, borderRadius: '50%'}}></div>
-
-                 <div style={{fontSize: '22px', marginBottom: '8px', fontWeight: '700', fontFamily: '"Times New Roman", serif', fontStyle: 'italic'}}>
-                   {currentHoliday.icon} {currentHoliday.title}
-                 </div>
-                 <div style={{fontSize: '15px', lineHeight: '1.5', opacity: 0.95, fontWeight: '500'}}>
-                   {currentHoliday.text}
-                 </div>
+          {/* ЕСЛИ РЕЦЕПТ НЕ ВЫБРАН - ПОКАЗЫВАЕМ ПОИСК И ИСТОРИЮ */}
+          {!recipe && !analysisResult && (
+            <>
+              <div className="hero">
+                <h1 className="brand-name">SmartCook</h1>
+                <div className="brand-sub">Ваш личный AI Шеф-повар</div>
+                {currentHoliday && (
+                  <div className="animate-fade-in" style={{
+                    background: currentHoliday.gradient,
+                    color: 'white',
+                    padding: '20px',
+                    borderRadius: '20px',
+                    marginTop: '25px',
+                    textAlign: 'center',
+                    boxShadow: '0 10px 30px -10px rgba(0,0,0,0.3)',
+                    position: 'relative',
+                    overflow: 'hidden'
+                  }}>
+                     <div style={{position: 'absolute', top: '-10px', right: '-10px', width: '60px', height: '60px', background: 'white', opacity: 0.1, borderRadius: '50%'}}></div>
+                     <div style={{position: 'absolute', bottom: '-20px', left: '-10px', width: '80px', height: '80px', background: 'white', opacity: 0.1, borderRadius: '50%'}}></div>
+                     <div style={{fontSize: '22px', marginBottom: '8px', fontWeight: '700', fontFamily: '"Times New Roman", serif', fontStyle: 'italic'}}>
+                       {currentHoliday.icon} {currentHoliday.title}
+                     </div>
+                     <div style={{fontSize: '15px', lineHeight: '1.5', opacity: 0.95, fontWeight: '500'}}>
+                       {currentHoliday.text}
+                     </div>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
 
-          <div className="daily-teaser" onClick={() => switchView('daily')}>
-            <div style={{background: '#fff7ed', padding: '12px', borderRadius: '12px'}}><Flame color="#f97316" size={24} /></div>
-            <div style={{flex: 1}}>
-               <div style={{fontSize: '12px', fontWeight: 'bold', color: '#f97316', textTransform: 'uppercase', letterSpacing: '0.5px'}}>🔥 Рецепт дня</div>
-               <div style={{fontWeight: '800', fontSize: '18px'}}>{dailyRecipe ? dailyRecipe.title : "Секрет от шефа..."}</div>
-            </div>
-            <ArrowRight size={20} color="#cbd5e1"/>
-          </div>
+              <div className="daily-teaser" onClick={() => switchView('daily')}>
+                <div style={{background: '#fff7ed', padding: '12px', borderRadius: '12px'}}><Flame color="#f97316" size={24} /></div>
+                <div style={{flex: 1}}>
+                   <div style={{fontSize: '12px', fontWeight: 'bold', color: '#f97316', textTransform: 'uppercase', letterSpacing: '0.5px'}}>🔥 Рецепт дня</div>
+                   <div style={{fontWeight: '800', fontSize: '18px'}}>{dailyRecipe ? dailyRecipe.title : "Секрет от шефа..."}</div>
+                </div>
+                <ArrowRight size={20} color="#cbd5e1"/>
+              </div>
 
-          <div className="switch-box">
-            <button className={`switch-btn ${searchMode === 'photo' ? 'active' : ''}`} onClick={() => setSearchMode('photo')}>📸 Фото</button>
-            <button className={`switch-btn ${searchMode === 'text' ? 'active' : ''}`} onClick={() => setSearchMode('text')}>📝 Название</button>
-          </div>
+              <div className="switch-box">
+                <button className={`switch-btn ${searchMode === 'photo' ? 'active' : ''}`} onClick={() => setSearchMode('photo')}>📸 Фото</button>
+                <button className={`switch-btn ${searchMode === 'text' ? 'active' : ''}`} onClick={() => setSearchMode('text')}>📝 Название</button>
+              </div>
 
-          <div className="card">
-            {searchMode === 'photo' ? (
-              <>
-                {!file ? (
-                  <div className="upload-zone">
-                    <input id="hidden-file-input" type="file" accept="image/png, image/jpeg, image/jpg, .heic, .HEIC" className="upload-input" onChange={handleFileChange} />
-                    <Camera size={48} color="#059669" style={{marginBottom: '15px'}} />
-                    <div style={{fontWeight: '700', fontSize: '18px', color: '#374151', marginBottom: '5px'}}>Выберите фото</div>
-                    <div style={{fontSize: '14px', color: '#9ca3af'}}>HEIC, JPG, PNG</div>
-                  </div>
-                ) : (
-                  <div className="upload-compact">
-                    {preview && <img src={preview} className="preview-img" alt="Preview" />}
-                    <input id="hidden-file-input" type="file" accept="image/png, image/jpeg, image/jpg, .heic, .HEIC" style={{display: 'none'}} onChange={handleFileChange} />
-                    <button className="btn-replace" onClick={triggerFileInput}>
-                      <RotateCcw size={16} /> Заменить фото
+              <div className="card">
+                {searchMode === 'photo' ? (
+                  <>
+                    {!file ? (
+                      <div className="upload-zone">
+                        <input id="hidden-file-input" type="file" accept="image/png, image/jpeg, image/jpg, .heic, .HEIC" className="upload-input" onChange={handleFileChange} />
+                        <Camera size={48} color="#059669" style={{marginBottom: '15px'}} />
+                        <div style={{fontWeight: '700', fontSize: '18px', color: '#374151', marginBottom: '5px'}}>Выберите фото</div>
+                        <div style={{fontSize: '14px', color: '#9ca3af'}}>HEIC, JPG, PNG</div>
+                      </div>
+                    ) : (
+                      <div className="upload-compact">
+                        {preview && <img src={preview} className="preview-img" alt="Preview" />}
+                        <input id="hidden-file-input" type="file" accept="image/png, image/jpeg, image/jpg, .heic, .HEIC" style={{display: 'none'}} onChange={handleFileChange} />
+                        <button className="btn-replace" onClick={triggerFileInput}>
+                          <RotateCcw size={16} /> Заменить фото
+                        </button>
+                      </div>
+                    )}
+
+                    {file && (
+                       <div className="mode-toggle-container">
+                          <button 
+                            className={`mode-btn ${cookingMode === 'strict' ? 'active' : ''}`}
+                            onClick={() => setCookingMode('strict')}
+                          >
+                             <Lock size={16} /> Строго из этого
+                          </button>
+                          <button 
+                            className={`mode-btn ${cookingMode === 'extended' ? 'active' : ''}`}
+                            onClick={() => setCookingMode('extended')}
+                          >
+                             <ShoppingBag size={16} /> Могу докупить
+                          </button>
+                       </div>
+                    )}
+
+                    <button className="btn-primary" onClick={handleAnalyze} disabled={!file || analyzing || isProcessing}>
+                      {isProcessing ? "🔄 Обработка фото..." : analyzing ? "🔍 Изучаю продукты..." : "✨ Найти рецепт"}
                     </button>
-                  </div>
+                  </>
+                ) : (
+                  <>
+                    <input type="text" className="text-search-input" 
+                           placeholder="Например: Паста Карбонара" value={textQuery} onChange={(e) => setTextQuery(e.target.value)} />
+                    <button className="btn-primary" onClick={handleTextSearch} disabled={loadingRecipe || !textQuery.trim()}>
+                      {loadingRecipe ? "🍳 Готовлю..." : "🔍 Найти"}
+                    </button>
+                  </>
                 )}
+              </div>
+            </>
+          )}
 
-                {file && (
-                   <div className="mode-toggle-container">
-                      <button 
-                        className={`mode-btn ${cookingMode === 'strict' ? 'active' : ''}`}
-                        onClick={() => setCookingMode('strict')}
-                      >
-                         <Lock size={16} /> Строго из этого
-                      </button>
-                      <button 
-                        className={`mode-btn ${cookingMode === 'extended' ? 'active' : ''}`}
-                        onClick={() => setCookingMode('extended')}
-                      >
-                         <ShoppingBag size={16} /> Могу докупить
-                      </button>
-                   </div>
-                )}
-
-                <button className="btn-primary" onClick={handleAnalyze} disabled={!file || analyzing || isProcessing}>
-                  {isProcessing ? "🔄 Обработка фото..." : analyzing ? "🔍 Изучаю продукты..." : "✨ Найти рецепт"}
-                </button>
-              </>
-            ) : (
-              <>
-                <input type="text" className="text-search-input" 
-                       placeholder="Например: Паста Карбонара" value={textQuery} onChange={(e) => setTextQuery(e.target.value)} />
-                <button className="btn-primary" onClick={handleTextSearch} disabled={loadingRecipe || !textQuery.trim()}>
-                  {loadingRecipe ? "🍳 Готовлю..." : "🔍 Найти"}
-                </button>
-              </>
-            )}
-          </div>
-
-          {/* Результаты анализа */}
+          {/* Результаты анализа (список блюд по фото) */}
           {analysisResult && !recipe && (
             <div className="card">
               <h3 style={{textAlign: 'center', marginBottom: '20px'}}>Я вижу продукты:</h3>
@@ -603,9 +609,23 @@ export default function Home() {
             </div>
           )}
 
-          {/* РЕЦЕПТ */}
+          {/* === ПРОСМОТР РЕЦЕПТА === */}
           {recipe && (
-            <div className="card" style={{position: 'relative', overflow: 'visible'}}>
+            <div className="card" style={{position: 'relative', overflow: 'visible', marginTop: '20px'}}>
+              
+              {/* КНОПКА НАЗАД */}
+              <button 
+                onClick={handleBackToSource}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '6px',
+                  background: 'transparent', border: 'none',
+                  color: '#6b7280', fontSize: '14px', fontWeight: 600,
+                  marginBottom: '15px', cursor: 'pointer', padding: 0
+                }}
+              >
+                <ArrowLeft size={18} /> {fromFeed ? "Назад в ленту" : "Назад к поиску"}
+              </button>
+
               <div className="recipe-header" style={{flexDirection: 'column', alignItems: 'flex-start', gap: '15px'}}>
                 <div style={{display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center'}}>
                   <h2 className="recipe-title" style={{marginBottom: 0, paddingRight: '10px', fontSize: '24px'}}>{recipe.title}</h2>
@@ -729,49 +749,54 @@ export default function Home() {
             </div>
           )}
 
-          <div className="history-bar">
-            <span className="history-title">📜 История рецептов</span>
-            <div className="history-filters">
-              <button className={`filter-pill ${filterMode === 'all' ? 'active' : ''}`} onClick={() => setFilterMode('all')}>Все</button>
-              <button className={`filter-pill ${filterMode === 'favorites' ? 'active' : ''}`} onClick={() => setFilterMode('favorites')}>❤️ Избранное</button>
-            </div>
-          </div>
-          
-          {historyExpanded && displayedFeed && displayedFeed.length > 4 && (
-            <button 
-              className="btn-expand-history"
-              onClick={() => setHistoryExpanded(false)}
-              style={{marginTop: '0', marginBottom: '15px'}}
-            >
-              Свернуть историю <ChevronUp size={16}/>
-            </button>
-          )}
-          
-          {displayedFeed?.length === 0 && filterMode === 'favorites' ? (
-             <div className="empty-msg">В избранном пока пусто 💔<br/>Добавьте рецепты лайком!</div>
-          ) : (
+          {/* ИСТОРИЯ (Показываем только если не смотрим конкретный рецепт) */}
+          {!recipe && !analysisResult && (
             <>
-              <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '10px'}}>
-                {visibleHistory?.map((item) => (
-                  <div key={item.id} className="card" style={{padding: '15px', cursor: 'pointer', marginBottom: 0}} onClick={() => loadFromHistory(item)}>
-                    <div style={{fontWeight: 700, fontSize: '14px', marginBottom: '8px', lineHeight: 1.3, height: '38px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical'}}>{item.title}</div>
-                    
-                    <div style={{display: 'flex', gap: '10px', fontSize: '11px', color: '#6b7280'}}>
-                       <div style={{display: 'flex', alignItems: 'center', gap: '3px'}}><Clock size={12}/> {formatTime(item.time)}</div>
-                       {item.calories && <div style={{display: 'flex', alignItems: 'center', gap: '3px', color: '#f97316'}}><Flame size={12}/> {formatCalories(item.calories)}</div>}
-                    </div>
-
-                  </div>
-                ))}
+              <div className="history-bar">
+                <span className="history-title">📜 История рецептов</span>
+                <div className="history-filters">
+                  <button className={`filter-pill ${filterMode === 'all' ? 'active' : ''}`} onClick={() => setFilterMode('all')}>Все</button>
+                  <button className={`filter-pill ${filterMode === 'favorites' ? 'active' : ''}`} onClick={() => setFilterMode('favorites')}>❤️ Избранное</button>
+                </div>
               </div>
-
-              {!historyExpanded && displayedFeed && displayedFeed.length > 4 && (
+              
+              {historyExpanded && displayedFeed && displayedFeed.length > 4 && (
                 <button 
                   className="btn-expand-history"
-                  onClick={() => setHistoryExpanded(true)}
+                  onClick={() => setHistoryExpanded(false)}
+                  style={{marginTop: '0', marginBottom: '15px'}}
                 >
-                  Показать еще ({displayedFeed.length - 4}) <ChevronDown size={16}/>
+                  Свернуть историю <ChevronUp size={16}/>
                 </button>
+              )}
+              
+              {displayedFeed?.length === 0 && filterMode === 'favorites' ? (
+                 <div className="empty-msg">В избранном пока пусто 💔<br/>Добавьте рецепты лайком!</div>
+              ) : (
+                <>
+                  <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '10px'}}>
+                    {visibleHistory?.map((item) => (
+                      <div key={item.id} className="card" style={{padding: '15px', cursor: 'pointer', marginBottom: 0}} onClick={() => loadFromHistory(item, 'history')}>
+                        <div style={{fontWeight: 700, fontSize: '14px', marginBottom: '8px', lineHeight: 1.3, height: '38px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical'}}>{item.title}</div>
+                        
+                        <div style={{display: 'flex', gap: '10px', fontSize: '11px', color: '#6b7280'}}>
+                           <div style={{display: 'flex', alignItems: 'center', gap: '3px'}}><Clock size={12}/> {formatTime(item.time)}</div>
+                           {item.calories && <div style={{display: 'flex', alignItems: 'center', gap: '3px', color: '#f97316'}}><Flame size={12}/> {formatCalories(item.calories)}</div>}
+                        </div>
+
+                      </div>
+                    ))}
+                  </div>
+
+                  {!historyExpanded && displayedFeed && displayedFeed.length > 4 && (
+                    <button 
+                      className="btn-expand-history"
+                      onClick={() => setHistoryExpanded(true)}
+                    >
+                      Показать еще ({displayedFeed.length - 4}) <ChevronDown size={16}/>
+                    </button>
+                  )}
+                </>
               )}
             </>
           )}
@@ -831,7 +856,7 @@ export default function Home() {
                 key={item.id} 
                 className="card" 
                 style={{padding: '0', overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.1s'}}
-                onClick={() => loadFromHistory(item)}
+                onClick={() => loadFromHistory(item, 'feed')} // ТУТ ВАЖНО: 'feed'
               >
                 {/* Цветная заглушка вместо фото */}
                 <div style={{

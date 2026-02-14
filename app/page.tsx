@@ -375,6 +375,7 @@ export default function Home() {
     }
   };
 
+  // --- ИСПРАВЛЕННЫЙ ПОИСК ПО ТЕКСТУ С ОБРАБОТКОЙ ОШИБОК ---
   const handleTextSearch = async () => {
     if (!textQuery.trim() || !userId) return; 
     setLoadingRecipe(true); 
@@ -387,7 +388,11 @@ export default function Home() {
         body: JSON.stringify({ query: textQuery, sessionId: userId })
       });
       const json = await response.json(); 
-      if (json.error) throw new Error(json.error); 
+      
+      // ВАЖНО: Если сервер вернул 400 (ошибка валидации), показываем это
+      if (!response.ok) {
+        throw new Error(json.error || "Ошибка поиска");
+      }
       
       setRecipe({ ...json.recipe, missing_ingredients: json.recipe.missing_ingredients || [] }); 
       
@@ -404,7 +409,12 @@ export default function Home() {
         fetchMyRecipes(userId);
       }
 
-    } catch (err: any) { alert("Ошибка: " + err.message); } finally { setLoadingRecipe(false); }
+    } catch (err: any) { 
+      // Выводим сообщение от сервера (например: "Такого блюда не существует")
+      alert("🛑 " + err.message); 
+    } finally { 
+      setLoadingRecipe(false); 
+    }
   };
 
   const handleAskChef = async () => {
@@ -451,9 +461,6 @@ export default function Home() {
           <div className="menu-overlay" onClick={() => setIsMenuOpen(false)} />
           <div 
             className={`menu-drawer ${isMenuOpen ? 'open' : ''}`}
-            // Добавляем стиль для открытия слева:
-            // left: 0 (вместо right: 0)
-            // transform: если открыто - 0, если закрыто - сдвиг влево на 100%
             style={{ 
               left: 0, 
               right: 'auto', 

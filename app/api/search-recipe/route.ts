@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
 
+// 1. Инициализация
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const supabase = createClient(
@@ -13,40 +14,61 @@ export async function POST(req: Request) {
   try {
     const { query, sessionId } = await req.json();
 
-    const systemPrompt = `
-      Ты — строгий шеф-повар и профессиональный технолог.
-      Твоя задача — написать ИДЕАЛЬНУЮ ТЕХНОЛОГИЧЕСКУЮ КАРТУ по запросу: "${query}".
-      
-      === ЖЕЛЕЗНЫЕ ПРАВИЛА ===
-      1. ГРАММОВКИ: 
-         - Все ингредиенты СТРОГО с весом (г) или объемом (мл). 
-         - Никаких "на глаз" или "по вкусу" (кроме соли).
-      
-      2. ТАЙМИНГИ: 
-         - В шагах ОБЯЗАТЕЛЬНО указывай время готовки в минутах (например, "варите ровно 10 минут").
-      
-      3. ОФОРМЛЕНИЕ ШАГОВ (ВАЖНО): 
-         - НЕ пиши "Шаг 1", "1.", "Step 1". 
-         - Пиши только чистое действие. Наш сайт сам поставит цифры.
-         - Пример: "Нарежьте лук кубиком и обжарьте 5 минут."
-      
-      4. ОПЦИИ: 
-         - Ингредиенты для подачи (сметана, зелень, хлеб) помечай в названии: "Сметана (для подачи)", "Хлеб (по желанию)".
-      
-      5. ПОРЦИИ: 
-         - Рассчитывай на 2 персоны (стандарт).
+    // Базовая проверка на пустоту
+    if (!query || query.trim().length < 2) {
+       return NextResponse.json({ error: "Введите название блюда" }, { status: 400 });
+    }
 
-      Верни JSON:
+    // 2. Промпт с "Фейс-контролем" и правилом на 1 персону
+    const systemPrompt = `
+      Ты — строгий профессиональный шеф-повар и технолог.
+      Пользователь просит рецепт: "${query}".
+
+      === ЭТАП 1: ПРОВЕРКА НА АДЕКВАТНОСТЬ (ФИЛЬТР) ===
+      Проанализируй запрос.
+      ЕСЛИ ЭТО:
+      - Бессмысленный набор букв (пример: "ываыва", "gjhkjkl").
+      - Несуществующее слово или выдуманное название.
+      - Несъедобный предмет (пример: "жареные гвозди", "бетон").
+      - Оскорбление или спам.
+      
+      ТОГДА ВЕРНИ СТРОГО JSON С ОШИБКОЙ:
       {
-        "title": "Название",
-        "description": "Аппетитное описание",
-        "time": "Время (мин)",
-        "calories": "Ккал",
+        "error": "Такого блюда не существует. Проверьте название."
+      }
+
+      === ЭТАП 2: ЕСЛИ ЭТО РЕАЛЬНАЯ ЕДА — ПИШИ ТЕХКАРТУ ===
+      Составь идеальный рецепт, соблюдая правила:
+      
+      1. ПОРЦИЯ:
+         - Расчет СТРОГО НА 1 ПЕРСОНУ.
+      
+      2. ГРАММОВКИ: 
+         - Все ингредиенты указывай СТРОГО с весом (г) или объемом (мл).
+         - Не пиши "по вкусу" (кроме соли/перца) или "на глаз".
+         - Пример: "Лук репчатый (1 шт., 80 г)".
+      
+      3. ТАЙМИНГИ И ТЕМПЕРАТУРА: 
+         - В шагах ОБЯЗАТЕЛЬНО указывай время готовки в минутах.
+         - Если запекание — указывай температуру (градусы).
+      
+      4. ОФОРМЛЕНИЕ ШАГОВ: 
+         - НЕ пиши "Шаг 1", "1.". Пиши только чистый текст действия.
+      
+      5. ОПЦИИ: 
+         - Ингредиенты для подачи (сметана, хлеб, зелень) помечай: "(по желанию)" или "(для подачи)".
+
+      Верни JSON (если блюдо реальное):
+      {
+        "title": "Правильное название блюда",
+        "description": "Краткое описание",
+        "time": "Общее время (например: 30 мин)",
+        "calories": "Ккал на порцию",
         "detailed_ingredients": [
-          { "name": "Продукт (пометка если доп)", "amount": "Вес" }
+          { "name": "Продукт", "amount": "Вес (г/мл)" }
         ],
         "missing_ingredients": ["Полный список покупок"],
-        "steps": ["Текст шага 1", "Текст шага 2"]
+        "steps": ["Текст первого действия...", "Текст второго действия..."]
       }
     `;
 
@@ -54,14 +76,22 @@ export async function POST(req: Request) {
       model: "gpt-4o",
       messages: [{ role: "system", content: systemPrompt }],
       response_format: { type: "json_object" },
+      temperature: 0.3, // Низкая температура, чтобы он не выдумывал несуществующие блюда
     });
 
     const content = completion.choices[0].message.content;
     if (!content) throw new Error("Empty response");
 
-    const recipe = JSON.parse(content);
+    const result = JSON.parse(content);
 
-    // --- СОХРАНЕНИЕ В ИСТОРИЮ (SUPABASE) ---
+    // 3. Если ИИ сказал, что это бред — возвращаем ошибку клиенту
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+
+    const recipe = result;
+
+    // 4. Сохраняем в историю (только если рецепт настоящий)
     if (sessionId) {
       const { error } = await supabase.from('recipes').insert({
         session_id: sessionId,
@@ -69,7 +99,6 @@ export async function POST(req: Request) {
         description: recipe.description,
         time: recipe.time,
         calories: recipe.calories,
-        // Сохраняем и простой список (для старых версий), и подробный JSON
         ingredients: recipe.detailed_ingredients?.map((i: any) => `${i.name} - ${i.amount}`) || [],
         detailed_ingredients: recipe.detailed_ingredients,
         missing_ingredients: recipe.missing_ingredients,
@@ -83,6 +112,7 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ recipe });
+
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

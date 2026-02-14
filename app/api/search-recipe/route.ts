@@ -18,10 +18,11 @@ export async function POST(req: Request) {
       Твоя задача — написать подробный рецепт по запросу: "${query}".
       
       ПРАВИЛА ТЕХНОЛОГИЧЕСКОЙ КАРТЫ:
-      1. ГРАММОВКИ: Все ингредиенты строго с весом (г/мл).
-      2. ТАЙМИНГИ: В шагах обязательно указывай время готовки в минутах.
-      3. ОПЦИИ: Ингредиенты для подачи помечай "(по желанию)".
-      4. ПОРЦИИ: Рассчитывай на 2 персоны (стандарт).
+      1. ГРАММОВКИ: Все ингредиенты строго с весом (г/мл). Никаких "на глаз".
+      2. ТАЙМИНГИ: В шагах обязательно указывай время готовки в минутах (например, "варите 10 минут").
+      3. ОФОРМЛЕНИЕ: НЕ пиши "Шаг 1" или цифры перед шагом. Пиши только текст действия.
+      4. ОПЦИИ: Ингредиенты для подачи помечай "(по желанию)".
+      5. ПОРЦИИ: Рассчитывай на 2 персоны (стандарт).
 
       Верни JSON:
       {
@@ -33,7 +34,7 @@ export async function POST(req: Request) {
           { "name": "Продукт", "amount": "Вес" }
         ],
         "missing_ingredients": ["Полный список покупок"],
-        "steps": ["Шаг 1 с временем...", "Шаг 2..."]
+        "steps": ["Текст первого шага...", "Текст второго шага..."]
       }
     `;
 
@@ -48,9 +49,9 @@ export async function POST(req: Request) {
 
     const recipe = JSON.parse(content);
 
-    // СОХРАНЕНИЕ В ИСТОРИЮ
+    // --- СОХРАНЕНИЕ В ИСТОРИЮ ---
     if (sessionId) {
-      await supabase.from('recipes').insert({
+      const { error } = await supabase.from('recipes').insert({
         session_id: sessionId,
         title: recipe.title,
         description: recipe.description,
@@ -61,6 +62,8 @@ export async function POST(req: Request) {
         steps: recipe.steps,
         is_favorite: false
       });
+      
+      if (error) console.error("History save error:", error);
     }
 
     return NextResponse.json({ recipe });

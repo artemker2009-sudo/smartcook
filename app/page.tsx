@@ -33,73 +33,71 @@ interface DBRecipe {
 interface DailyRecipeType { title: string; description: string; time: string; calories: string; ingredients: string[]; steps: string[]; date: string; }
 
 // --- КОНФИГУРАЦИЯ ПРАЗДНИКОВ ---
-// Эта функция проверяет дату и возвращает тему праздника или null
 const getHolidayGreeting = () => {
   const d = new Date();
   const day = d.getDate();
-  const month = d.getMonth() + 1; // 1 = Январь, 2 = Февраль ...
+  const month = d.getMonth() + 1; 
   const key = `${day}.${month}`;
 
-  // Настройки праздников
   const holidays: Record<string, { title: string; text: string; gradient: string; icon: string }> = {
     "14.2": {
       title: "С Днем святого Валентина! 💖",
       text: "Пусть ваша жизнь будет наполнена любовью, а ужины — романтикой. Готовьте для любимых вместе со SmartCook!",
-      gradient: "linear-gradient(135deg, #ec4899 0%, #be185d 100%)", // Розовый
+      gradient: "linear-gradient(135deg, #ec4899 0%, #be185d 100%)", 
       icon: "💘"
     },
     "23.2": {
       title: "С Днем защитника Отечества!",
       text: "Силы, мужества и сытных побед на кулинарном фронте! SmartCook всегда поддержит в готовке.",
-      gradient: "linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)", // Строгий синий
+      gradient: "linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)", 
       icon: "⭐"
     },
     "8.3": {
       title: "С 8 Марта! 💐",
       text: "Красоты, нежности и вдохновения! Пусть сегодня на кухне творит чудеса кто-то другой (или наш ИИ)!",
-      gradient: "linear-gradient(135deg, #d946ef 0%, #a21caf 100%)", // Фиолетово-розовый
+      gradient: "linear-gradient(135deg, #d946ef 0%, #a21caf 100%)", 
       icon: "🌷"
     },
     "1.3": {
       title: "С первым днем весны!",
       text: "Природа просыпается, и аппетит тоже! Время свежих салатов и легких рецептов.",
-      gradient: "linear-gradient(135deg, #84cc16 0%, #4d7c0f 100%)", // Свежий зеленый
+      gradient: "linear-gradient(135deg, #84cc16 0%, #4d7c0f 100%)", 
       icon: "🌱"
     },
     "1.5": {
       title: "Мир, Труд, Май!",
       text: "Отличный повод выбраться на шашлыки или приготовить что-то особенное дома. С праздником!",
-      gradient: "linear-gradient(135deg, #f97316 0%, #ea580c 100%)", // Оранжевый
+      gradient: "linear-gradient(135deg, #f97316 0%, #ea580c 100%)", 
       icon: "🔥"
     },
     "9.5": {
       title: "С Днем Победы!",
       text: "Мирного неба над головой и тепла в вашем доме. Поздравляем с великим праздником!",
-      gradient: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)", // Красный
+      gradient: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)", 
       icon: "🎖"
     },
     "1.6": {
       title: "Ура, лето!",
       text: "Сезон мороженого, окрошки и лимонадов открыт! SmartCook уже придумал летнее меню.",
-      gradient: "linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)", // Голубой
+      gradient: "linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)", 
       icon: "☀"
     },
     "1.9": {
       title: "С Днем знаний!",
       text: "Учиться никогда не поздно, особенно готовить новые блюда. Успехов в новом сезоне!",
-      gradient: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)", // Желто-осенний
+      gradient: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)", 
       icon: "🔔"
     },
     "31.12": {
       title: "С Наступающим! 🎄",
       text: "Оливье готов? Мандарины куплены? Пусть Новый год принесет только вкусные моменты!",
-      gradient: "linear-gradient(135deg, #dc2626 0%, #166534 100%)", // Красно-зеленый
+      gradient: "linear-gradient(135deg, #dc2626 0%, #166534 100%)", 
       icon: "🎅"
     },
     "1.1": {
       title: "С Новым 2026 годом! 🎉",
       text: "Начинаем год вкусно! Если остались силы после застолья, давайте приготовим что-то легкое.",
-      gradient: "linear-gradient(135deg, #fbbf24 0%, #b45309 100%)", // Золотой
+      gradient: "linear-gradient(135deg, #fbbf24 0%, #b45309 100%)", 
       icon: "🥂"
     }
   };
@@ -136,10 +134,13 @@ export default function Home() {
   const [answer, setAnswer] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
 
-  // Получаем текущий праздник
   const currentHoliday = getHolidayGreeting();
 
-  const cleanText = (text: string) => text.replace(/^\d+[\.\)]\s*/, '');
+  // Функция очистки текста от "Шаг 1", "Step 1", "1." и т.д.
+  const cleanText = (text: string) => {
+    // Регулярка удаляет: цифры с точкой, скобкой, слова "Шаг X", "Step X" в начале строки
+    return text.replace(/^(Шаг \d+|Step \d+|\d+[\.\)])[:\s]*/i, '').trim();
+  };
 
   const formatTime = (t: string) => {
     if (!t) return "";
@@ -153,6 +154,7 @@ export default function Home() {
     return `${cleanCal} ккал`;
   };
 
+  // Инициализация пользователя и загрузка истории
   useEffect(() => {
     try {
       let storedId = localStorage.getItem("cook_user_id");
@@ -160,23 +162,51 @@ export default function Home() {
         storedId = "user_" + Math.random().toString(36).substr(2, 9); 
         localStorage.setItem("cook_user_id", storedId); 
       }
-      setUserId(storedId); fetchMyRecipes(storedId); 
+      setUserId(storedId); 
+      fetchMyRecipes(storedId); 
     } catch (e) { console.error(e); }
     fetch('/api/daily').then(res => res.json()).then(data => setDailyRecipe(data)).catch(console.error);
   }, []);
 
   const fetchMyRecipes = async (currentId: string) => {
     if (!currentId) return;
-    const { data } = await supabase.from('recipes').select('*').eq('session_id', currentId).order('created_at', { ascending: false });
-    if (data) setFeed(data);
+    // Загружаем рецепты именно для этого пользователя
+    const { data, error } = await supabase
+      .from('recipes')
+      .select('*')
+      .eq('session_id', currentId)
+      .order('created_at', { ascending: false });
+      
+    if (error) {
+      console.error("Ошибка загрузки истории:", error);
+    } else if (data) {
+      setFeed(data);
+    }
   };
 
   const toggleFavorite = async (e: any, targetId: number, currentStatus: boolean = false) => {
-    e.stopPropagation(); const newStatus = !currentStatus;
+    e.stopPropagation(); 
+    
+    // Оптимистичное обновление интерфейса (сразу красим сердечко)
+    const newStatus = !currentStatus;
     const updatedFeed = feed?.map(r => r.id === targetId ? { ...r, is_favorite: newStatus } : r) || [];
     setFeed(updatedFeed);
-    if (recipe && recipe.id === targetId) setRecipe({ ...recipe, is_favorite: newStatus });
-    try { await fetch("/api/favorite", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: targetId, isFavorite: newStatus }) }); } catch (err) { console.error(err); }
+    
+    if (recipe && recipe.id === targetId) {
+      setRecipe({ ...recipe, is_favorite: newStatus });
+    }
+
+    try { 
+      // Отправляем запрос на сервер
+      await fetch("/api/favorite", { 
+        method: "POST", 
+        headers: { "Content-Type": "application/json" }, 
+        body: JSON.stringify({ id: targetId, isFavorite: newStatus }) 
+      }); 
+    } catch (err) { 
+      console.error("Ошибка лайка:", err); 
+      // Если ошибка - откатываем (можно добавить логику отката)
+    }
   };
 
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -241,8 +271,21 @@ export default function Home() {
     setLoadingRecipe(true); 
     setRecipe(null);
     try {
-      const response = await fetch("/api/recipe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ dish: dishName, ingredients: analysisResult.ingredients, sessionId: userId }) });
-      const json = await response.json(); if (json.error) throw new Error(json.error); setRecipe({ ...json.recipe, ingredients: analysisResult.ingredients }); fetchMyRecipes(userId); 
+      const response = await fetch("/api/recipe", { 
+        method: "POST", 
+        headers: { "Content-Type": "application/json" }, 
+        body: JSON.stringify({ 
+          dish: dishName, 
+          ingredients: analysisResult.ingredients, 
+          sessionId: userId // Передаем ID для сохранения в историю
+        }) 
+      });
+      const json = await response.json(); 
+      if (json.error) throw new Error(json.error); 
+      
+      setRecipe({ ...json.recipe, ingredients: analysisResult.ingredients }); 
+      // Обновляем историю сразу после получения рецепта
+      fetchMyRecipes(userId); 
     } catch (err: any) { alert("Ошибка: " + err.message); } finally { setLoadingRecipe(false); }
   };
 
@@ -285,10 +328,21 @@ export default function Home() {
   };
 
   const handleTextSearch = async () => {
-    if (!textQuery.trim() || !userId) return; setLoadingRecipe(true); setRecipe(null); setAnalysisResult(null);
+    if (!textQuery.trim() || !userId) return; 
+    setLoadingRecipe(true); 
+    setRecipe(null); 
+    setAnalysisResult(null);
     try {
-      const response = await fetch("/api/search-recipe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query: textQuery, sessionId: userId }) });
-      const json = await response.json(); if (json.error) throw new Error(json.error); setRecipe({ ...json.recipe, missing_ingredients: json.recipe.missing_ingredients || [] }); fetchMyRecipes(userId);
+      const response = await fetch("/api/search-recipe", { 
+        method: "POST", 
+        headers: { "Content-Type": "application/json" }, 
+        body: JSON.stringify({ query: textQuery, sessionId: userId }) // ID для истории
+      });
+      const json = await response.json(); 
+      if (json.error) throw new Error(json.error); 
+      
+      setRecipe({ ...json.recipe, missing_ingredients: json.recipe.missing_ingredients || [] }); 
+      fetchMyRecipes(userId);
     } catch (err: any) { alert("Ошибка: " + err.message); } finally { setLoadingRecipe(false); }
   };
 
@@ -366,7 +420,7 @@ export default function Home() {
                  <div style={{position: 'absolute', bottom: '-20px', left: '-10px', width: '80px', height: '80px', background: 'white', opacity: 0.1, borderRadius: '50%'}}></div>
 
                  <div style={{
-                   fontFamily: '"Times New Roman", serif', // Красивый шрифт с засечками
+                   fontFamily: '"Times New Roman", serif', 
                    fontSize: '22px', 
                    marginBottom: '8px', 
                    fontStyle: 'italic',
@@ -385,7 +439,6 @@ export default function Home() {
                  </div>
               </div>
             )}
-            {/* ------------------------------- */}
           </div>
 
           <div className="daily-teaser" onClick={() => switchView('daily')}>
@@ -499,6 +552,7 @@ export default function Home() {
               <div className="recipe-header" style={{flexDirection: 'column', alignItems: 'flex-start', gap: '15px'}}>
                 <div style={{display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center'}}>
                   <h2 className="recipe-title" style={{marginBottom: 0, paddingRight: '10px', fontSize: '24px'}}>{recipe.title}</h2>
+                  {/* СЕРДЕЧКО ЛАЙКА */}
                   <div onClick={(e) => toggleFavorite(e, recipe.id!, recipe.is_favorite)} style={{cursor: 'pointer', flexShrink: 0}}>
                     <Heart size={30} 
                       className={recipe.is_favorite ? "fill-red-500 text-red-500" : "text-gray-300"} 
@@ -551,7 +605,6 @@ export default function Home() {
                   color: '#92400e'
                 }}>
                   <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontWeight: 800}}>
-                    {/* АДАПТИВНЫЙ ЗАГОЛОВОК */}
                     <ShoppingCart size={20} /> {searchMode === 'text' ? "Нужно купить:" : "Нужно докупить:"}
                   </div>
                   <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px'}}>
@@ -603,6 +656,7 @@ export default function Home() {
                 {recipe.steps.map((step, i) => (
                   <div key={i} className="step-row">
                     <div className="step-num">{i + 1}</div>
+                    {/* Чистим текст от дублирования номеров */}
                     <div className="step-text">{cleanText(step)}</div>
                   </div>
                 ))}

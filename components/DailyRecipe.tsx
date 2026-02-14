@@ -1,45 +1,65 @@
 import React from 'react';
 import { Clock, Flame, Info, ExternalLink, ShoppingCart } from 'lucide-react';
 
+// Типы данных
 interface DetailedIngredient {
   name: string;
   amount: string;
 }
 
 interface DailyRecipeProps {
-  data: any; // Ставим any, чтобы принять любые данные и не упасть
+  data: any; // Используем any, чтобы компонент был "всеядным" и не падал от ошибок типов
 }
 
-// Безопасная очистка текста
-const safeString = (val: any) => {
-  if (typeof val === 'string') return val;
-  if (typeof val === 'number') return String(val);
-  return "";
+// 1. Умная функция очистки текста
+const cleanText = (text: any) => {
+  if (!text) return "";
+  // Превращаем в строку и удаляем нумерацию в начале (1., Шаг 1 и т.д.)
+  return String(text).replace(/^(Шаг \d+|Step \d+|\d+[\.\)])[:\s]*/i, '').trim();
 };
 
-const cleanText = (text: any) => safeString(text).replace(/^\d+[\.\)]\s*/, '');
+// 2. ЗАЩИТА ОТ БЕЛОГО ЭКРАНА: Гарантируем, что это массив
+const ensureArray = (item: any): any[] => {
+  if (!item) return [];
+  if (Array.isArray(item)) return item;
+  // Если пришла просто строка, кладем её в массив, чтобы map сработал
+  if (typeof item === 'string') return [item];
+  return [];
+};
 
 export default function DailyRecipe({ data }: DailyRecipeProps) {
-  // 1. Если данных нет - заглушка
+  // Если данных нет, показываем красивую загрузку
   if (!data) return (
     <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
       <div className="animate-pulse">⏳ Шеф загружает рецепт...</div>
     </div>
   );
 
-  // 2. Извлекаем данные безопасно
-  const title = safeString(data.title) || "Без названия";
-  const description = safeString(data.description);
-  const time = safeString(data.time);
-  const calories = safeString(data.calories);
-  const date = safeString(data.date);
-  
-  // Проверяем массивы
-  const steps = Array.isArray(data.steps) ? data.steps : [];
-  const missing = Array.isArray(data.missing_ingredients) ? data.missing_ingredients : [];
-  const detailed = Array.isArray(data.detailed_ingredients) ? data.detailed_ingredients : [];
-  const simpleIngs = Array.isArray(data.ingredients) ? data.ingredients : [];
+  // Если вдруг пришла ошибка вместо рецепта
+  if (data.error) {
+    return (
+      <div className="card" style={{ textAlign: 'center', padding: '20px', color: 'red' }}>
+        <h3>Упс, ошибка кухни</h3>
+        <p>{data.error}</p>
+      </div>
+    );
+  }
 
+  // Безопасное извлечение данных
+  const title = data.title || "Рецепт дня";
+  const description = data.description || "";
+  // Время и калории приводим к строке
+  const time = data.time ? String(data.time) : "";
+  const calories = data.calories ? String(data.calories) : "";
+  const date = data.date || "";
+
+  // 3. Используем защитную функцию для всех списков
+  const steps = ensureArray(data.steps);
+  const detailedIngs = ensureArray(data.detailed_ingredients);
+  const simpleIngs = ensureArray(data.ingredients);
+  const missingIngs = ensureArray(data.missing_ingredients);
+
+  // Форматирование калорий
   const formatCalories = (cal: string) => {
     return cal.replace(/ккал/gi, '').trim() + " ккал";
   };
@@ -74,8 +94,8 @@ export default function DailyRecipe({ data }: DailyRecipeProps) {
         )}
       </div>
 
-      {/* ПОКУПКИ */}
-      {missing.length > 0 && (
+      {/* БЛОК ПОКУПОК (OZON) */}
+      {missingIngs.length > 0 && (
         <div style={{
           background: '#fffbeb', border: '1px solid #fcd34d',
           borderRadius: '12px', padding: '15px', marginBottom: '25px', color: '#92400e'
@@ -84,10 +104,10 @@ export default function DailyRecipe({ data }: DailyRecipeProps) {
             <ShoppingCart size={20} /> Купить ингредиенты:
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
-            {missing.map((item: any, idx: number) => (
+            {missingIngs.map((item: any, idx: number) => (
               <a
                 key={idx}
-                href={`https://www.ozon.ru/search/?text=${encodeURIComponent(safeString(item))}&from_global=true`}
+                href={`https://www.ozon.ru/search/?text=${encodeURIComponent(String(item))}&from_global=true`}
                 target="_blank" rel="noopener noreferrer"
                 style={{
                   background: '#fef3c7', padding: '6px 12px', borderRadius: '8px',
@@ -95,7 +115,7 @@ export default function DailyRecipe({ data }: DailyRecipeProps) {
                   display: 'flex', alignItems: 'center', gap: '6px', border: '1px solid #fcd34d'
                 }}
               >
-                {safeString(item)} <ExternalLink size={12} style={{ opacity: 0.6 }} />
+                {String(item)} <ExternalLink size={12} style={{ opacity: 0.6 }} />
               </a>
             ))}
           </div>
@@ -108,20 +128,27 @@ export default function DailyRecipe({ data }: DailyRecipeProps) {
       {/* ИНГРЕДИЕНТЫ */}
       <div className="ing-box">
         <h3 style={{ marginTop: 0, marginBottom: '15px' }}>Ингредиенты</h3>
-        {detailed.length > 0 ? (
-          detailed.map((ing: any, i: number) => (
+        {detailedIngs.length > 0 ? (
+          detailedIngs.map((ing: any, i: number) => (
             <div key={i} className="ing-row">
-              <span>{safeString(ing.name)}</span> 
-              <span className="ing-val">{safeString(ing.amount)}</span>
+              {/* Проверяем, объект это или строка */}
+              <span>{typeof ing === 'object' ? ing.name : ing}</span> 
+              {typeof ing === 'object' && ing.amount && (
+                 <span className="ing-val">{ing.amount}</span>
+              )}
             </div>
           ))
         ) : (
           simpleIngs.map((ing: any, i: number) => (
-            <div key={i} className="ing-row"><span>{safeString(ing)}</span></div>
+            <div key={i} className="ing-row"><span>{String(ing)}</span></div>
           ))
+        )}
+        {detailedIngs.length === 0 && simpleIngs.length === 0 && (
+          <div style={{ color: '#9ca3af', fontStyle: 'italic' }}>Список ингредиентов не загрузился</div>
         )}
       </div>
 
+      {/* ШАГИ ПРИГОТОВЛЕНИЯ */}
       <h3 style={{ fontSize: '22px', fontWeight: 800, marginBottom: '20px' }}>👨‍🍳 Как готовить</h3>
       <div>
         {steps.length > 0 ? (
@@ -132,7 +159,7 @@ export default function DailyRecipe({ data }: DailyRecipeProps) {
             </div>
           ))
         ) : (
-          <div>Инструкция не загрузилась. Попробуйте обновить страницу.</div>
+          <div style={{ color: '#6b7280' }}>Инструкция по приготовлению пока не готова.</div>
         )}
       </div>
     </div>

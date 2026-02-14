@@ -1,48 +1,47 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { unstable_cache } from "next/cache";
 
-// Инициализация OpenAI
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-export const revalidate = 0; // Отключаем кэширование, чтобы рецепт обновлялся
+// Заставляем маршрут быть динамическим
+export const dynamic = 'force-dynamic';
 
-export async function GET() {
-  try {
-    // Получаем текущую дату, чтобы рецепт менялся раз в день
-    const date = new Date().toLocaleDateString("ru-RU");
+// Кэшируемая функция
+const getDailyRecipe = unstable_cache(
+  async (dateStr: string) => {
+    console.log(`Generating new Daily Recipe for ${dateStr}...`); 
 
     const systemPrompt = `
       Ты — ведущий шеф-повар и технолог ресторана.
-      Твоя задача — предложить "Блюдо дня" на сегодня (${date}).
+      Твоя задача — предложить "Блюдо дня" на сегодня (${dateStr}).
       
       Критерии выбора:
-      - Блюдо должно быть интересным, но доступным для приготовления дома.
-      - Желательно учитывать сезонность.
+      - Блюдо должно быть интересным, вкусным и доступным.
+      - Если сегодня праздник, предложи тематическое блюдо.
       
-      ЖЕЛЕЗНЫЕ ПРАВИЛА СОСТАВЛЕНИЯ (как для техкарты):
-      1. ПОРЦИИ: Расчет СТРОГО на 1 персону.
+      ЖЕЛЕЗНЫЕ ПРАВИЛА СОСТАВЛЕНИЯ:
+      1. ПОРЦИИ: Расчет СТРОГО на 1 персону (одна порция).
       2. ГРАММОВКИ: 
-         - Никаких "по вкусу" (кроме соли/перца). 
-         - ТОЛЬКО точные граммы (г) или миллилитры (мл).
-         - Пример: "Куриное филе (150 г)", "Сливки 20% (100 мл)".
+         - Никаких "по вкусу". ТОЛЬКО точные граммы (г) или мл.
+         - Пример: "Куриное филе (150 г)", "Рис (80 г)".
       3. ШАГИ: 
          - Максимально подробно.
-         - ОБЯЗАТЕЛЬНО указывай время для жарки/варки/запекания.
-         - Пример: "Обжаривайте 5 минут до золотистой корочки".
+         - Указывай время для всех процессов.
       4. ПОКУПКИ:
-         - Считаем, что у пользователя пустой холодильник (кроме соли, масла, воды).
+         - Считаем, что у пользователя пустой холодильник.
          - ВСЕ ингредиенты добавь в список missing_ingredients.
 
       Верни ответ ТОЛЬКО валидный JSON:
       {
-        "title": "Красивое название блюда",
-        "description": "Аппетитное описание из 2 предложений, почему это стоит приготовить сегодня.",
+        "title": "Красивое название",
+        "description": "Аппетитное описание...",
         "time": "Время (мин)",
         "calories": "Ккал",
-        "ingredients": ["Список для отображения (краткий)"],
-        "missing_ingredients": ["Продукт 1", "Продукт 2"],
+        "ingredients": ["Список ингредиентов"],
+        "missing_ingredients": ["Ингредиент 1", "Ингредиент 2"],
         "detailed_ingredients": [
            { "name": "Продукт", "amount": "Вес/Объем" }
         ],
@@ -54,15 +53,30 @@ export async function GET() {
       model: "gpt-4o",
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: `Придумай рецепт дня на ${date}.` },
+        { role: "user", content: `Придумай рецепт дня на ${dateStr}.` },
       ],
       response_format: { type: "json_object" },
+      temperature: 0.5,
     });
 
     const content = completion.choices[0].message.content;
     if (!content) throw new Error("Empty response");
 
-    const recipeData = JSON.parse(content);
+    return JSON.parse(content);
+  },
+  ['daily-recipe-cache'], 
+  { 
+    revalidate: 3600 * 24 
+  }
+);
+
+export async function GET() {
+  try {
+    const date = new Date().toLocaleDateString("ru-RU", {
+      timeZone: "Europe/Moscow",
+    });
+
+    const recipeData = await getDailyRecipe(date);
 
     return NextResponse.json({ ...recipeData, date });
 

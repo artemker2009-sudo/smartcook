@@ -22,6 +22,7 @@ interface DailyRecipeProps {
 
 const cleanText = (text: string) => text.replace(/^\d+[\.\)]\s*/, '');
 
+// 👇 ВОТ ЗДЕСЬ БЫЛА ОШИБКА. ДОЛЖНО БЫТЬ "export default function"
 export default function DailyRecipe({ data }: DailyRecipeProps) {
   if (!data) return (
     <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
@@ -29,10 +30,8 @@ export default function DailyRecipe({ data }: DailyRecipeProps) {
     </div>
   );
 
-  // Исправление дублей "ккал"
+  // Функция для красивого вывода калорий (чтобы не было "ккал ккал")
   const formatCalories = (cal: string) => {
-    // Удаляем всё, кроме цифр (и пробелов), чтобы избавиться от старого "ккал"
-    // Или просто заменяем "ккал" на пустоту и добавляем заново
     const clean = cal.replace(/ккал/gi, '').trim();
     return `${clean} ккал`;
   };
@@ -65,7 +64,6 @@ export default function DailyRecipe({ data }: DailyRecipeProps) {
           <Clock size={16} /> {data.time.includes('мин') ? data.time : `${data.time} мин.`}
         </div>
         <div className="tag-badge orange">
-          {/* Вот здесь применяем нашу функцию очистки */}
           <Flame size={16} /> {formatCalories(data.calories)}
         </div>
       </div>

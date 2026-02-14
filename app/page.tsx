@@ -2,7 +2,6 @@
 
 import { useState, useEffect, ChangeEvent } from "react";
 import { supabase } from "@/lib/supabase"; 
-// Убедись, что путь правильный. Если файл называется DailyRecipe.tsx, то импорт верный.
 import DailyRecipe from "@/components/DailyRecipe";
 import { 
   Menu, X, Flame, Send, Camera, Search, Clock, Heart, 
@@ -36,7 +35,7 @@ interface DBRecipe {
   created_at: string; steps: string[]; ingredients: string[]; detailed_ingredients?: DetailedIngredient[]; session_id: string; 
 }
 
-// ИСПРАВЛЕННЫЙ Тип для Рецепта Дня (добавил все возможные поля)
+// Тип для Рецепта Дня
 interface DailyRecipeType { 
   title: string; 
   description?: string; 
@@ -47,7 +46,7 @@ interface DailyRecipeType {
   missing_ingredients?: string[];
   steps: string[]; 
   date?: string; 
-  error?: string; // На случай, если API вернет ошибку
+  error?: string; 
 }
 
 // --- КОНФИГУРАЦИЯ ПРАЗДНИКОВ ---
@@ -154,7 +153,6 @@ export default function Home() {
 
   const currentHoliday = getHolidayGreeting();
 
-  // Функция безопасной очистки текста (принимает any на случай ошибок API)
   const cleanText = (text: any) => {
     if (!text) return "";
     return String(text).replace(/^(Шаг \d+|Step \d+|\d+[\.\)])[:\s]*/i, '').trim();
@@ -184,7 +182,6 @@ export default function Home() {
       fetchMyRecipes(storedId); 
     } catch (e) { console.error(e); }
 
-    // Загрузка рецепта дня с обработкой ошибок
     fetch('/api/daily')
       .then(res => res.json())
       .then(data => {
@@ -312,7 +309,6 @@ export default function Home() {
       
       setRecipe({ ...json.recipe, ingredients: analysisResult.ingredients }); 
       
-      // Обновляем ID
       const { data } = await supabase
         .from('recipes')
         .select('*')
@@ -412,7 +408,6 @@ export default function Home() {
   };
 
   const handleAskChef = async () => {
-    // Безопасное приведение типов для чата
     const currentContext = activeView === 'daily' ? (dailyRecipe as any) : recipe;
     if (!question.trim() || !currentContext) return;
     setAsking(true); setAnswer(null);
@@ -441,7 +436,12 @@ export default function Home() {
   return (
     <div className="container">
       
-      <button className="menu-btn" onClick={() => setIsMenuOpen(true)}>
+      {/* КНОПКА МЕНЮ ПЕРЕМЕЩЕНА ВЛЕВО */}
+      <button 
+        className="menu-btn" 
+        onClick={() => setIsMenuOpen(true)}
+        style={{ left: '20px', right: 'auto' }} 
+      >
         <Menu size={24} color="#111" />
       </button>
 

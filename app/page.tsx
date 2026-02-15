@@ -611,7 +611,7 @@ export default function Home() {
           {recipe && (
             <div className="card" style={{position: 'relative', overflow: 'visible', marginTop: '20px'}}>
               
-              {/* КНОПКА НАЗАД (ОБВЕДЕННАЯ) */}
+              {/* КНОПКА НАЗАД (ОТОДВИНУТА ОТ МЕНЮ) */}
               <button 
                 onClick={handleBackToSource}
                 style={{
@@ -622,6 +622,7 @@ export default function Home() {
                   padding: '8px 16px',
                   color: '#374151', 
                   fontSize: '14px', fontWeight: 600,
+                  marginTop: '40px', // УВЕЛИЧИЛ ОТСТУП СВЕРХУ
                   marginBottom: '20px', 
                   cursor: 'pointer', 
                   boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
@@ -754,7 +755,7 @@ export default function Home() {
             </div>
           )}
 
-          {/* ИСТОРИЯ (Показываем только если не смотрим конкретный рецепт) */}
+          {/* ИСТОРИЯ */}
           {!recipe && !analysisResult && (
             <>
               <div className="history-bar">
@@ -818,21 +819,25 @@ export default function Home() {
         </>
       )}
 
-      {/* === ЛЕНТА ВКУСОВ (НОВЫЙ ЭКРАН) === */}
+      {/* === ЛЕНТА (ФИД) === */}
       {activeView === 'feed' && (
         <div style={{marginTop: '60px'}}>
           <div style={{textAlign: 'center', marginBottom: '25px'}}>
-            <h1 style={{fontSize: '28px', fontWeight: '900', margin: '0 0 10px 0'}}>Лента Вкусов 🌍</h1>
+            <h1 style={{fontSize: '28px', fontWeight: '900', margin: '0 0 10px 0'}}>Лента 🌍</h1>
             <p style={{color: '#6b7280', margin: 0}}>Что готовят другие прямо сейчас</p>
+          </div>
+
+          <div style={{fontSize: '14px', fontWeight: 600, color: '#6b7280', marginBottom: '8px', paddingLeft: '5px'}}>
+            Сортировать по:
           </div>
 
           <div style={{display: 'flex', background: '#f3f4f6', padding: '4px', borderRadius: '12px', marginBottom: '25px'}}>
             <button 
               onClick={() => fetchPublicFeed('new')}
               style={{
-                flex: 1, padding: '10px', borderRadius: '10px', border: 'none',
+                flex: 1, padding: '12px', borderRadius: '10px', border: 'none',
                 background: feedSort === 'new' ? 'white' : 'transparent',
-                fontWeight: 700,
+                fontWeight: 700, fontSize: '16px', // УВЕЛИЧИЛ ШРИФТ
                 boxShadow: feedSort === 'new' ? '0 2px 10px rgba(0,0,0,0.05)' : 'none',
                 color: feedSort === 'new' ? '#111' : '#6b7280',
                 transition: 'all 0.2s'
@@ -843,9 +848,9 @@ export default function Home() {
             <button 
               onClick={() => fetchPublicFeed('top')}
               style={{
-                flex: 1, padding: '10px', borderRadius: '10px', border: 'none',
+                flex: 1, padding: '12px', borderRadius: '10px', border: 'none',
                 background: feedSort === 'top' ? 'white' : 'transparent',
-                fontWeight: 700,
+                fontWeight: 700, fontSize: '16px', // УВЕЛИЧИЛ ШРИФТ
                 boxShadow: feedSort === 'top' ? '0 2px 10px rgba(0,0,0,0.05)' : 'none',
                 color: feedSort === 'top' ? '#111' : '#6b7280',
                 transition: 'all 0.2s'
@@ -861,9 +866,9 @@ export default function Home() {
                 key={item.id} 
                 className="card" 
                 style={{padding: '0', overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.1s'}}
-                onClick={() => loadFromHistory(item, 'feed')} // ТУТ ВАЖНО: 'feed'
+                onClick={() => loadFromHistory(item, 'feed')}
               >
-                {/* Цветная заглушка вместо фото */}
+                {/* Заглушка вместо фото */}
                 <div style={{
                   height: '100px', 
                   background: 'linear-gradient(135deg, #fce7f3 0%, #e0f2fe 100%)',
@@ -871,10 +876,17 @@ export default function Home() {
                   position: 'relative'
                 }}>
                    <div style={{fontSize: '40px', opacity: 0.2}}>🍲</div>
-                   <div style={{position: 'absolute', bottom: '10px', left: '15px', display: 'flex', gap: '10px'}}>
+                   
+                   {/* ВРЕМЯ И КАЛОРИИ В ЛЕНТЕ */}
+                   <div style={{position: 'absolute', bottom: '10px', left: '15px', display: 'flex', gap: '8px'}}>
                       <div style={{background: 'rgba(255,255,255,0.9)', padding: '4px 10px', borderRadius: '100px', fontSize: '11px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px'}}>
                         <Clock size={12}/> {formatTime(item.time)}
                       </div>
+                      {item.calories && (
+                         <div style={{background: 'rgba(255,255,255,0.9)', padding: '4px 10px', borderRadius: '100px', fontSize: '11px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', color: '#ea580c'}}>
+                           <Flame size={12}/> {formatCalories(item.calories)}
+                         </div>
+                      )}
                    </div>
                 </div>
 

@@ -138,10 +138,16 @@ export default function Home() {
     return `${digits} мин.`;
   };
 
+  // --- ИСПРАВЛЕННАЯ ФУНКЦИЯ КАЛОРИЙ ---
   const formatCalories = (c: string) => {
     if (!c) return "";
-    const cleanCal = c.replace(/ккал/gi, '').trim();
-    return `${cleanCal} ккал`;
+    // Регулярное выражение ищет первое число в строке
+    const match = c.match(/\d+/);
+    // Если нашли число, возвращаем его + ккал. Если нет - пустую строку или оригинал.
+    if (match) {
+      return `${match[0]} ккал`;
+    }
+    return ""; 
   };
 
   // --- ЭФФЕКТЫ ---

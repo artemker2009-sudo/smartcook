@@ -810,8 +810,12 @@ export default function Home() {
                         style={{
                           padding: '15px', 
                           cursor: 'pointer', 
-                          marginBottom: 0
-                          // УБРАЛ height: '100%', ВЕРНУЛСЯ К СТАНДАРТУ, ЧТОБЫ БЫЛО РОВНО ПО РЯДАМ
+                          marginBottom: 0,
+                          // ВОТ ЗДЕСЬ ИСПРАВЛЕНИЕ ДЛЯ РОВНОЙ СЕТКИ:
+                          height: '100%', 
+                          display: 'flex', 
+                          flexDirection: 'column', 
+                          justifyContent: 'space-between'
                         }} 
                         onClick={() => loadFromHistory(item, 'history')}
                       >

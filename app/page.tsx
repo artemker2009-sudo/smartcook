@@ -777,7 +777,7 @@ export default function Home() {
             </div>
           )}
 
-          {/* ИСТОРИЯ (ИСПРАВЛЕНО: РОВНАЯ ВЫСОТА БЛОКОВ) */}
+          {/* ИСТОРИЯ (ИСПРАВЛЕНО: РОВНАЯ СЕТКА) */}
           {!fromFeed && (
             <>
               <div className="history-bar" style={{marginTop: '40px'}}>
@@ -802,7 +802,13 @@ export default function Home() {
                  <div className="empty-msg">В избранном пока пусто 💔<br/>Добавьте рецепты лайком!</div>
               ) : (
                 <>
-                  <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '10px'}}>
+                  <div style={{
+                    display: 'grid', 
+                    // ИСПРАВЛЕНИЕ ЗДЕСЬ: repeat(2, minmax(0, 1fr)) гарантирует ровно 50% ширины
+                    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', 
+                    gap: '15px', 
+                    marginBottom: '10px'
+                  }}>
                     {visibleHistory?.map((item) => (
                       <div 
                         key={item.id} 
@@ -811,7 +817,6 @@ export default function Home() {
                           padding: '15px', 
                           cursor: 'pointer', 
                           marginBottom: 0,
-                          // ВОТ ЗДЕСЬ ИСПРАВЛЕНИЕ ДЛЯ РОВНОЙ СЕТКИ:
                           height: '100%', 
                           display: 'flex', 
                           flexDirection: 'column', 
@@ -824,11 +829,12 @@ export default function Home() {
                           fontSize: '14px', 
                           marginBottom: '8px', 
                           lineHeight: 1.3, 
-                          height: '38px', // ФИКСИРОВАННАЯ ВЫСОТА ЗАГОЛОВКА - ЭТО ВАЖНО
+                          height: '38px', 
                           overflow: 'hidden', 
                           display: '-webkit-box', 
                           WebkitLineClamp: 2, 
-                          WebkitBoxOrient: 'vertical'
+                          WebkitBoxOrient: 'vertical',
+                          wordBreak: 'break-word' // Дополнительная защита от длинных слов
                         }}>
                           {item.title}
                         </div>

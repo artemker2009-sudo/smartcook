@@ -117,7 +117,6 @@ export default function Home() {
   const [answer, setAnswer] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
 
-  // Состояние: true, если мы смотрим рецепт, открытый из Ленты
   const [fromFeed, setFromFeed] = useState(false);
 
   const currentHoliday = getHolidayGreeting();
@@ -428,14 +427,27 @@ export default function Home() {
   return (
     <div className="container">
       
-      <button className="menu-btn" onClick={() => setIsMenuOpen(true)} style={{ left: '20px', right: 'auto' }}>
+      {/* КНОПКА МЕНЮ */}
+      <button 
+        className="menu-btn" 
+        onClick={() => setIsMenuOpen(true)}
+        style={{ left: '20px', right: 'auto' }} 
+      >
         <Menu size={24} color="#111" />
       </button>
 
+      {/* МЕНЮ */}
       {isMenuOpen && (
         <>
           <div className="menu-overlay" onClick={() => setIsMenuOpen(false)} />
-          <div className={`menu-drawer ${isMenuOpen ? 'open' : ''}`} style={{ left: 0, right: 'auto', transform: isMenuOpen ? 'translateX(0)' : 'translateX(-100%)' }}>
+          <div 
+            className={`menu-drawer ${isMenuOpen ? 'open' : ''}`}
+            style={{ 
+              left: 0, 
+              right: 'auto', 
+              transform: isMenuOpen ? 'translateX(0)' : 'translateX(-100%)' 
+            }}
+          >
             <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '40px'}}>
                <span style={{fontSize: '24px', fontWeight: '900', color: '#059669'}}>SmartCook</span>
                <X size={24} onClick={() => setIsMenuOpen(false)} style={{cursor: 'pointer'}} />
@@ -451,11 +463,10 @@ export default function Home() {
       {/* === СЕРВИС (ГЛАВНАЯ) === */}
       {activeView === 'service' && (
         <>
-          {/* ВАЖНОЕ ИЗМЕНЕНИЕ: 
-             Теперь поиск и шапка показываются ВСЕГДА, если мы НЕ пришли из ленты.
-             Даже если рецепт открыт, поиск остается сверху.
+          {/* ВАЖНО: Я убрал проверку {!recipe}, теперь блок поиска показывается ВСЕГДА, 
+             даже когда рецепт открыт.
           */}
-          {!fromFeed && !analysisResult && (
+          {!fromFeed && (
             <>
               <div className="hero">
                 <h1 className="brand-name">SmartCook</h1>
@@ -552,8 +563,8 @@ export default function Home() {
             </>
           )}
 
-          {/* Результаты анализа (список блюд) */}
-          {analysisResult && !recipe && (
+          {/* Результаты анализа (список блюд) - ТЕПЕРЬ ПОКАЗЫВАЮТСЯ ВСЕГДА, ЕСЛИ ЕСТЬ, ДАЖЕ ЕСЛИ ОТКРЫТ РЕЦЕПТ */}
+          {analysisResult && (
             <div className="card">
               <h3 style={{textAlign: 'center', marginBottom: '20px'}}>Я вижу продукты:</h3>
               <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', marginBottom: '25px'}}>
@@ -635,7 +646,11 @@ export default function Home() {
                   </p>
                 )}
               
-                {(analysisResult || (searchMode === 'text' && recipe)) && (
+                {/* Кнопка "ДРУГОЙ ВАРИАНТ" нужна только если мы в режиме поиска
+                   (не из ленты и не из истории, хотя из истории может быть полезно)
+                   Пока оставим всегда, если это не лента.
+                */}
+                {!fromFeed && (
                   <button 
                     onClick={handleSmartVariant}
                     disabled={loadingRecipe}
@@ -740,10 +755,8 @@ export default function Home() {
             </div>
           )}
 
-          {/* ИСТОРИЯ (Показываем только если не смотрим конкретный рецепт, ЛИБО если не пришли из ленты) 
-              Логика: Если я ищу рецепт, я хочу видеть историю снизу.
-          */}
-          {!analysisResult && (
+          {/* ИСТОРИЯ (Показываем только если не смотрим конкретный рецепт, ЛИБО если не пришли из ленты) */}
+          {!fromFeed && (
             <>
               <div className="history-bar" style={{marginTop: '40px'}}>
                 <span className="history-title">📜 История рецептов</span>
@@ -855,6 +868,7 @@ export default function Home() {
                 style={{padding: '0', overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.1s'}}
                 onClick={() => loadFromHistory(item, 'feed')}
               >
+                {/* Заглушка вместо фото */}
                 <div style={{
                   height: '100px', 
                   background: 'linear-gradient(135deg, #fce7f3 0%, #e0f2fe 100%)',
@@ -863,6 +877,7 @@ export default function Home() {
                 }}>
                    <div style={{fontSize: '40px', opacity: 0.2}}>🍲</div>
                    
+                   {/* ВРЕМЯ И КАЛОРИИ В ЛЕНТЕ */}
                    <div style={{position: 'absolute', bottom: '10px', left: '15px', display: 'flex', gap: '8px'}}>
                       <div style={{background: 'rgba(255,255,255,0.9)', padding: '4px 10px', borderRadius: '100px', fontSize: '11px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px'}}>
                         <Clock size={12}/> {formatTime(item.time)}
@@ -878,6 +893,7 @@ export default function Home() {
                 <div style={{padding: '20px'}}>
                   <h3 style={{margin: '0 0 10px 0', fontSize: '18px', fontWeight: 700, lineHeight: 1.3}}>{item.title}</h3>
                   <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px'}}>
+                    {/* Кнопка ЛАЙКА */}
                     <button 
                       onClick={(e) => handlePublicLike(e, item)}
                       style={{

@@ -434,19 +434,24 @@ export default function Home() {
   return (
     <div className="container">
       
-      {/* КНОПКА МЕНЮ (ИСПРАВЛЕНО: ТЕПЕРЬ ФИКСИРОВАННАЯ) */}
+      {/* КНОПКА МЕНЮ (ИСПРАВЛЕНО: КРУГЛАЯ И ВЫШЕ) */}
       <button 
         className="menu-btn" 
         onClick={() => setIsMenuOpen(true)}
         style={{ 
           position: 'fixed', 
-          top: '20px', 
+          top: '12px',  // ПОДНЯЛ ВЫШЕ
           left: '20px', 
           right: 'auto', 
           zIndex: 50,
           background: 'white',
-          borderRadius: '50%',
-          padding: '10px',
+          borderRadius: '50%', // ИДЕАЛЬНО КРУГЛАЯ
+          width: '40px',       // ФИКСИРОВАННЫЙ РАЗМЕР
+          height: '40px',      // ФИКСИРОВАННЫЙ РАЗМЕР
+          padding: 0,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
           boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
           border: 'none',
           cursor: 'pointer'
@@ -483,7 +488,6 @@ export default function Home() {
       {/* === СЕРВИС (ГЛАВНАЯ) === */}
       {activeView === 'service' && (
         <>
-          {/* БЛОК ПОИСКА ТЕПЕРЬ ПОКАЗЫВАЕТСЯ ВСЕГДА, кроме перехода из Ленты */}
           {!fromFeed && (
             <>
               <div className="hero">
@@ -581,7 +585,6 @@ export default function Home() {
             </>
           )}
 
-          {/* Результаты анализа (список блюд) */}
           {analysisResult && (
             <div className="card">
               <h3 style={{textAlign: 'center', marginBottom: '20px'}}>Я вижу продукты:</h3>
@@ -619,7 +622,6 @@ export default function Home() {
             </div>
           )}
 
-          {/* === ПРОСМОТР РЕЦЕПТА === */}
           {recipe && (
             <div className="card" style={{position: 'relative', overflow: 'visible', marginTop: '20px'}}>
               
@@ -663,7 +665,6 @@ export default function Home() {
                   </p>
                 )}
               
-                {/* Кнопка "ДРУГОЙ ВАРИАНТ" */}
                 {!fromFeed && (analysisResult || (searchMode === 'text' && recipe)) && (
                   <button 
                     onClick={handleSmartVariant}
@@ -796,7 +797,21 @@ export default function Home() {
                 <>
                   <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '10px'}}>
                     {visibleHistory?.map((item) => (
-                      <div key={item.id} className="card" style={{padding: '15px', cursor: 'pointer', marginBottom: 0}} onClick={() => loadFromHistory(item, 'history')}>
+                      <div 
+                        key={item.id} 
+                        className="card" 
+                        style={{
+                          padding: '15px', 
+                          cursor: 'pointer', 
+                          marginBottom: 0,
+                          // ИСПРАВЛЕНИЕ ВЫСОТЫ КАРТОЧЕК:
+                          height: '100%', 
+                          display: 'flex', 
+                          flexDirection: 'column', 
+                          justifyContent: 'space-between'
+                        }} 
+                        onClick={() => loadFromHistory(item, 'history')}
+                      >
                         <div style={{fontWeight: 700, fontSize: '14px', marginBottom: '8px', lineHeight: 1.3, height: '38px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical'}}>{item.title}</div>
                         
                         <div style={{display: 'flex', gap: '10px', fontSize: '11px', color: '#6b7280'}}>

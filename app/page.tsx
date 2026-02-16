@@ -9,7 +9,7 @@ import {
   Wallet, Zap, Leaf, Globe, ChevronRight, ChevronDown, ChevronUp, Shuffle, ShoppingCart, Lock, ShoppingBag, ExternalLink, Info, ThumbsUp 
 } from "lucide-react";
 
-// УБРАЛИ ТЯЖЕЛЫЙ ИМПОРТ СВЕРХУ, ЧТОБЫ САЙТ ГРУЗИЛСЯ БЫСТРЕЕ
+// Ленивая загрузка для ускорения
 // import imageCompression from 'browser-image-compression'; 
 
 /* --- ТИПЫ ДАННЫХ --- */
@@ -105,8 +105,6 @@ export default function Home() {
   const [asking, setAsking] = useState(false);
 
   const [fromFeed, setFromFeed] = useState(false);
-  
-  // ИСПРАВЛЕНИЕ 1: Праздник теперь в стейте, чтобы не ломать гидратацию
   const [currentHoliday, setCurrentHoliday] = useState<HolidayType | null>(null);
 
   const cleanText = (text: any) => {
@@ -132,7 +130,6 @@ export default function Home() {
 
   // --- ЭФФЕКТЫ ---
   useEffect(() => {
-    // 1. Инициализация пользователя
     try {
       let storedId = localStorage.getItem("cook_user_id");
       if (!storedId) { 
@@ -143,7 +140,6 @@ export default function Home() {
       fetchMyRecipes(storedId); 
     } catch (e) { console.error(e); }
 
-    // 2. Загрузка рецепта дня
     fetch('/api/daily')
       .then(res => res.json())
       .then(data => {
@@ -155,7 +151,6 @@ export default function Home() {
       })
       .catch(console.error);
 
-    // 3. ИСПРАВЛЕНИЕ 1 (Продолжение): Вычисляем праздник ТОЛЬКО на клиенте
     const d = new Date();
     const day = d.getDate();
     const month = d.getMonth() + 1; 
@@ -177,7 +172,6 @@ export default function Home() {
     if (holidays[key]) {
       setCurrentHoliday(holidays[key]);
     }
-
   }, []);
 
   useEffect(() => {
@@ -186,24 +180,18 @@ export default function Home() {
     }
   }, [activeView]);
 
-  // --- РАБОТА С ДАННЫМИ ---
-
   const fetchMyRecipes = async (currentId: string) => {
     if (!currentId) return;
-    try {
-      const { data, error } = await supabase
-        .from('recipes')
-        .select('*')
-        .eq('session_id', currentId)
-        .order('created_at', { ascending: false });
-        
-      if (error) {
-        console.error("History Error:", error);
-      } else if (data) {
-        setFeed(data);
-      }
-    } catch (e) {
-      console.error("Connection Error", e);
+    const { data, error } = await supabase
+      .from('recipes')
+      .select('*')
+      .eq('session_id', currentId)
+      .order('created_at', { ascending: false });
+      
+    if (error) {
+      console.error("History Error:", error);
+    } else if (data) {
+      setFeed(data);
     }
   };
 
@@ -269,7 +257,6 @@ export default function Home() {
     }
   };
 
-  // --- ЗАГРУЗКА ФОТО (ИСПРАВЛЕНИЕ 2: ЛЕНИВАЯ ЗАГРУЗКА БИБЛИОТЕКИ) ---
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files; 
     if (!files || files.length === 0) return;
@@ -279,16 +266,13 @@ export default function Home() {
     setIsProcessing(true);
 
     try {
-      // ДИНАМИЧЕСКИЙ ИМПОРТ: грузим библиотеку только когда она нужна
       const imageCompression = (await import('browser-image-compression')).default;
-      
       const options = { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true, fileType: "image/jpeg" };
       const compressedFile = await imageCompression(rawFile, options);
       const finalFile = new File([compressedFile], "image.jpg", { type: "image/jpeg" });
       setFile(finalFile);
       setPreview(URL.createObjectURL(finalFile)); 
     } catch (error) {
-      console.error("File error:", error);
       alert("Не удалось обработать фото.");
       setFile(null); 
     } finally {
@@ -421,7 +405,6 @@ export default function Home() {
     } catch (err: any) { alert("Ошибка: " + err.message); } finally { setAsking(false); }
   };
 
-  // --- ЛОГИКА ОТКРЫТИЯ/ЗАКРЫТИЯ РЕЦЕПТА ---
   const loadFromHistory = (item: DBRecipe, source: 'feed' | 'history' = 'history') => {
     setAnalysisResult(null); setQuestion(""); setAnswer(null);
     setRecipe({ id: item.id, is_favorite: item.is_favorite, title: item.title, description: item.description, time: item.time, calories: item.calories, steps: item.steps || [], missing_ingredients: item.missing_ingredients || [], ingredients: item.ingredients || [], detailed_ingredients: item.detailed_ingredients || [] });
@@ -454,27 +437,14 @@ export default function Home() {
   return (
     <div className="container">
       
-      {/* КНОПКА МЕНЮ */}
-      <button 
-        className="menu-btn" 
-        onClick={() => setIsMenuOpen(true)}
-        style={{ left: '20px', right: 'auto' }} 
-      >
+      <button className="menu-btn" onClick={() => setIsMenuOpen(true)} style={{ left: '20px', right: 'auto' }}>
         <Menu size={24} color="#111" />
       </button>
 
-      {/* МЕНЮ */}
       {isMenuOpen && (
         <>
           <div className="menu-overlay" onClick={() => setIsMenuOpen(false)} />
-          <div 
-            className={`menu-drawer ${isMenuOpen ? 'open' : ''}`}
-            style={{ 
-              left: 0, 
-              right: 'auto', 
-              transform: isMenuOpen ? 'translateX(0)' : 'translateX(-100%)' 
-            }}
-          >
+          <div className={`menu-drawer ${isMenuOpen ? 'open' : ''}`} style={{ left: 0, right: 'auto', transform: isMenuOpen ? 'translateX(0)' : 'translateX(-100%)' }}>
             <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '40px'}}>
                <span style={{fontSize: '24px', fontWeight: '900', color: '#059669'}}>SmartCook</span>
                <X size={24} onClick={() => setIsMenuOpen(false)} style={{cursor: 'pointer'}} />
@@ -490,13 +460,12 @@ export default function Home() {
       {/* === СЕРВИС (ГЛАВНАЯ) === */}
       {activeView === 'service' && (
         <>
-          {/* ЕСЛИ РЕЦЕПТ НЕ ВЫБРАН ИЛИ МЫ НЕ ПРИШЛИ ИЗ ЛЕНТЫ - ПОКАЗЫВАЕМ ПОИСК */}
+          {/* ИСПРАВЛЕНИЕ: БЛОК ПОИСКА ТЕПЕРЬ ПОКАЗЫВАЕТСЯ ВСЕГДА (кроме перехода из Ленты) */}
           {!fromFeed && (
             <>
               <div className="hero">
                 <h1 className="brand-name">SmartCook</h1>
                 <div className="brand-sub">Ваш личный AI Шеф-повар</div>
-                {/* Теперь рендерим праздник из стейта, чтобы не было ошибки гидратации */}
                 {currentHoliday && (
                   <div className="animate-fade-in" style={{
                     background: currentHoliday.gradient,
@@ -589,7 +558,7 @@ export default function Home() {
             </>
           )}
 
-          {/* Результаты анализа (список блюд) - ТЕПЕРЬ ПОКАЗЫВАЮТСЯ ВСЕГДА, ЕСЛИ ЕСТЬ */}
+          {/* ИСПРАВЛЕНИЕ: Результаты анализа (список блюд) теперь показываются ВСЕГДА, если есть, даже если рецепт открыт */}
           {analysisResult && (
             <div className="card">
               <h3 style={{textAlign: 'center', marginBottom: '20px'}}>Я вижу продукты:</h3>
@@ -627,11 +596,10 @@ export default function Home() {
             </div>
           )}
 
-          {/* === ПРОСМОТР РЕЦЕПТА === */}
+          {/* === ПРОСМОТР РЕЦЕПТА (ТЕПЕРЬ НИЖЕ ВСЕГО ОСТАЛЬНОГО) === */}
           {recipe && (
             <div className="card" style={{position: 'relative', overflow: 'visible', marginTop: '20px'}}>
               
-              {/* Кнопка НАЗАД показывается ТОЛЬКО если пришли из ЛЕНТЫ */}
               {fromFeed && (
                 <button 
                   onClick={handleBackToSource}
@@ -672,7 +640,7 @@ export default function Home() {
                   </p>
                 )}
               
-                {/* Кнопку "Другой вариант" показываем только если мы НЕ из ленты (то есть ищем сами) */}
+                {/* Кнопка "ДРУГОЙ ВАРИАНТ" */}
                 {!fromFeed && (analysisResult || (searchMode === 'text' && recipe)) && (
                   <button 
                     onClick={handleSmartVariant}
@@ -778,8 +746,8 @@ export default function Home() {
             </div>
           )}
 
-          {/* ИСТОРИЯ (Показываем только если не смотрим конкретный рецепт, ЛИБО если не пришли из ленты) */}
-          {!fromFeed && (
+          {/* ИСТОРИЯ (Скрывается при активном анализе или рецепте, чтобы не мешать) */}
+          {!analysisResult && !recipe && !fromFeed && (
             <>
               <div className="history-bar" style={{marginTop: '40px'}}>
                 <span className="history-title">📜 История рецептов</span>
@@ -891,7 +859,6 @@ export default function Home() {
                 style={{padding: '0', overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.1s'}}
                 onClick={() => loadFromHistory(item, 'feed')}
               >
-                {/* Заглушка вместо фото */}
                 <div style={{
                   height: '100px', 
                   background: 'linear-gradient(135deg, #fce7f3 0%, #e0f2fe 100%)',
@@ -900,7 +867,6 @@ export default function Home() {
                 }}>
                    <div style={{fontSize: '40px', opacity: 0.2}}>🍲</div>
                    
-                   {/* ВРЕМЯ И КАЛОРИИ В ЛЕНТЕ */}
                    <div style={{position: 'absolute', bottom: '10px', left: '15px', display: 'flex', gap: '8px'}}>
                       <div style={{background: 'rgba(255,255,255,0.9)', padding: '4px 10px', borderRadius: '100px', fontSize: '11px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px'}}>
                         <Clock size={12}/> {formatTime(item.time)}
@@ -916,7 +882,6 @@ export default function Home() {
                 <div style={{padding: '20px'}}>
                   <h3 style={{margin: '0 0 10px 0', fontSize: '18px', fontWeight: 700, lineHeight: 1.3}}>{item.title}</h3>
                   <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px'}}>
-                    {/* Кнопка ЛАЙКА */}
                     <button 
                       onClick={(e) => handlePublicLike(e, item)}
                       style={{

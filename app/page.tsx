@@ -9,14 +9,12 @@ import {
   Wallet, Zap, Leaf, Globe, ChevronRight, ChevronDown, ChevronUp, Shuffle, ShoppingCart, Lock, ShoppingBag, ExternalLink, Info, ThumbsUp 
 } from "lucide-react";
 
-// Ленивая загрузка для ускорения
 // import imageCompression from 'browser-image-compression'; 
 
 /* --- ТИПЫ ДАННЫХ --- */
 interface AnalysisData { ingredients: string[]; dishes: string[]; }
 interface DetailedIngredient { name: string; amount: string; }
 
-// Тип для обычного рецепта
 interface RecipeData { 
   id?: number; 
   is_favorite?: boolean; 
@@ -30,7 +28,6 @@ interface RecipeData {
   detailed_ingredients?: DetailedIngredient[]; 
 }
 
-// Тип для рецепта из БД
 interface DBRecipe { 
   id: number; 
   title: string; 
@@ -48,7 +45,6 @@ interface DBRecipe {
   is_liked?: boolean; 
 }
 
-// Тип для Рецепта Дня
 interface DailyRecipeType { 
   title: string; 
   description?: string; 
@@ -62,7 +58,6 @@ interface DailyRecipeType {
   error?: string; 
 }
 
-// Тип для праздника
 interface HolidayType {
   title: string;
   text: string;
@@ -91,7 +86,6 @@ export default function Home() {
   const [selectedDish, setSelectedDish] = useState<string | null>(null);
   const [recipe, setRecipe] = useState<RecipeData | null>(null);
   
-  // Состояния для списков
   const [feed, setFeed] = useState<DBRecipe[]>([]); 
   const [publicFeed, setPublicFeed] = useState<DBRecipe[]>([]);
   const [feedSort, setFeedSort] = useState<'new' | 'top'>('new');
@@ -128,7 +122,6 @@ export default function Home() {
     return ""; 
   };
 
-  // --- ЭФФЕКТЫ ---
   useEffect(() => {
     try {
       let storedId = localStorage.getItem("cook_user_id");
@@ -315,6 +308,10 @@ export default function Home() {
   const getRecipeFromPhoto = async (dishName: string) => {
     if (!analysisResult || !userId) return; 
     setSelectedDish(dishName); setLoadingRecipe(true); setRecipe(null);
+    
+    // Скролл вниз, чтобы пользователь видел, что что-то происходит
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+
     try {
       const response = await fetch("/api/recipe", { 
         method: "POST", 
@@ -437,14 +434,40 @@ export default function Home() {
   return (
     <div className="container">
       
-      <button className="menu-btn" onClick={() => setIsMenuOpen(true)} style={{ left: '20px', right: 'auto' }}>
+      {/* КНОПКА МЕНЮ (ИСПРАВЛЕНО: ТЕПЕРЬ ФИКСИРОВАННАЯ) */}
+      <button 
+        className="menu-btn" 
+        onClick={() => setIsMenuOpen(true)}
+        style={{ 
+          position: 'fixed', 
+          top: '20px', 
+          left: '20px', 
+          right: 'auto', 
+          zIndex: 50,
+          background: 'white',
+          borderRadius: '50%',
+          padding: '10px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+          border: 'none',
+          cursor: 'pointer'
+        }} 
+      >
         <Menu size={24} color="#111" />
       </button>
 
+      {/* МЕНЮ */}
       {isMenuOpen && (
         <>
-          <div className="menu-overlay" onClick={() => setIsMenuOpen(false)} />
-          <div className={`menu-drawer ${isMenuOpen ? 'open' : ''}`} style={{ left: 0, right: 'auto', transform: isMenuOpen ? 'translateX(0)' : 'translateX(-100%)' }}>
+          <div className="menu-overlay" onClick={() => setIsMenuOpen(false)} style={{zIndex: 99}} />
+          <div 
+            className={`menu-drawer ${isMenuOpen ? 'open' : ''}`}
+            style={{ 
+              left: 0, 
+              right: 'auto', 
+              transform: isMenuOpen ? 'translateX(0)' : 'translateX(-100%)',
+              zIndex: 100
+            }}
+          >
             <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '40px'}}>
                <span style={{fontSize: '24px', fontWeight: '900', color: '#059669'}}>SmartCook</span>
                <X size={24} onClick={() => setIsMenuOpen(false)} style={{cursor: 'pointer'}} />
@@ -460,7 +483,7 @@ export default function Home() {
       {/* === СЕРВИС (ГЛАВНАЯ) === */}
       {activeView === 'service' && (
         <>
-          {/* ИСПРАВЛЕНИЕ: БЛОК ПОИСКА ТЕПЕРЬ ПОКАЗЫВАЕТСЯ ВСЕГДА (кроме перехода из Ленты) */}
+          {/* БЛОК ПОИСКА ТЕПЕРЬ ПОКАЗЫВАЕТСЯ ВСЕГДА, кроме перехода из Ленты */}
           {!fromFeed && (
             <>
               <div className="hero">
@@ -558,7 +581,7 @@ export default function Home() {
             </>
           )}
 
-          {/* ИСПРАВЛЕНИЕ: Результаты анализа (список блюд) теперь показываются ВСЕГДА, если есть, даже если рецепт открыт */}
+          {/* Результаты анализа (список блюд) */}
           {analysisResult && (
             <div className="card">
               <h3 style={{textAlign: 'center', marginBottom: '20px'}}>Я вижу продукты:</h3>
@@ -596,7 +619,7 @@ export default function Home() {
             </div>
           )}
 
-          {/* === ПРОСМОТР РЕЦЕПТА (ТЕПЕРЬ НИЖЕ ВСЕГО ОСТАЛЬНОГО) === */}
+          {/* === ПРОСМОТР РЕЦЕПТА === */}
           {recipe && (
             <div className="card" style={{position: 'relative', overflow: 'visible', marginTop: '20px'}}>
               
@@ -746,8 +769,8 @@ export default function Home() {
             </div>
           )}
 
-          {/* ИСТОРИЯ (Скрывается при активном анализе или рецепте, чтобы не мешать) */}
-          {!analysisResult && !recipe && !fromFeed && (
+          {/* ИСТОРИЯ (ИСПРАВЛЕНО: Показывается ВСЕГДА на главной, внизу страницы) */}
+          {!fromFeed && (
             <>
               <div className="history-bar" style={{marginTop: '40px'}}>
                 <span className="history-title">📜 История рецептов</span>
@@ -859,6 +882,7 @@ export default function Home() {
                 style={{padding: '0', overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.1s'}}
                 onClick={() => loadFromHistory(item, 'feed')}
               >
+                {/* Заглушка вместо фото */}
                 <div style={{
                   height: '100px', 
                   background: 'linear-gradient(135deg, #fce7f3 0%, #e0f2fe 100%)',
@@ -867,6 +891,7 @@ export default function Home() {
                 }}>
                    <div style={{fontSize: '40px', opacity: 0.2}}>🍲</div>
                    
+                   {/* ВРЕМЯ И КАЛОРИИ В ЛЕНТЕ */}
                    <div style={{position: 'absolute', bottom: '10px', left: '15px', display: 'flex', gap: '8px'}}>
                       <div style={{background: 'rgba(255,255,255,0.9)', padding: '4px 10px', borderRadius: '100px', fontSize: '11px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px'}}>
                         <Clock size={12}/> {formatTime(item.time)}
@@ -882,6 +907,7 @@ export default function Home() {
                 <div style={{padding: '20px'}}>
                   <h3 style={{margin: '0 0 10px 0', fontSize: '18px', fontWeight: 700, lineHeight: 1.3}}>{item.title}</h3>
                   <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px'}}>
+                    {/* Кнопка ЛАЙКА */}
                     <button 
                       onClick={(e) => handlePublicLike(e, item)}
                       style={{

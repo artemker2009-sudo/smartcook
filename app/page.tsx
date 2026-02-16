@@ -15,7 +15,7 @@ import imageCompression from 'browser-image-compression';
 interface AnalysisData { ingredients: string[]; dishes: string[]; }
 interface DetailedIngredient { name: string; amount: string; }
 
-// Тип для обычного рецепта (текущий просмотр)
+// Тип для обычного рецепта
 interface RecipeData { 
   id?: number; 
   is_favorite?: boolean; 
@@ -29,7 +29,7 @@ interface RecipeData {
   detailed_ingredients?: DetailedIngredient[]; 
 }
 
-// Тип для рецепта из БД (История и Лента)
+// Тип для рецепта из БД
 interface DBRecipe { 
   id: number; 
   title: string; 
@@ -43,8 +43,6 @@ interface DBRecipe {
   missing_ingredients?: string[]; 
   description?: string; 
   session_id: string; 
-  
-  // Поля для социальной ленты
   likes_count?: number;
   is_liked?: boolean; 
 }
@@ -107,7 +105,6 @@ export default function Home() {
   const [selectedDish, setSelectedDish] = useState<string | null>(null);
   const [recipe, setRecipe] = useState<RecipeData | null>(null);
   
-  // Состояния для списков
   const [feed, setFeed] = useState<DBRecipe[]>([]); 
   const [publicFeed, setPublicFeed] = useState<DBRecipe[]>([]);
   const [feedSort, setFeedSort] = useState<'new' | 'top'>('new');
@@ -120,12 +117,11 @@ export default function Home() {
   const [answer, setAnswer] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
 
-  // --- ОТКУДА ПРИШЛИ ---
+  // Состояние: true, если мы смотрим рецепт, открытый из Ленты
   const [fromFeed, setFromFeed] = useState(false);
 
   const currentHoliday = getHolidayGreeting();
 
-  // --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
   const cleanText = (text: any) => {
     if (!text) return "";
     return String(text).replace(/^(Шаг \d+|Step \d+|\d+[\.\)])[:\s]*/i, '').trim();
@@ -138,19 +134,15 @@ export default function Home() {
     return `${digits} мин.`;
   };
 
-  // --- ИСПРАВЛЕННАЯ ФУНКЦИЯ КАЛОРИЙ ---
   const formatCalories = (c: string) => {
     if (!c) return "";
-    // Регулярное выражение ищет первое число в строке
     const match = c.match(/\d+/);
-    // Если нашли число, возвращаем его + ккал. Если нет - пустую строку или оригинал.
     if (match) {
       return `${match[0]} ккал`;
     }
     return ""; 
   };
 
-  // --- ЭФФЕКТЫ ---
   useEffect(() => {
     try {
       let storedId = localStorage.getItem("cook_user_id");
@@ -179,8 +171,6 @@ export default function Home() {
       fetchPublicFeed(feedSort);
     }
   }, [activeView]);
-
-  // --- РАБОТА С ДАННЫМИ ---
 
   const fetchMyRecipes = async (currentId: string) => {
     if (!currentId) return;
@@ -259,7 +249,6 @@ export default function Home() {
     }
   };
 
-  // --- ЗАГРУЗКА ФОТО ---
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files; 
     if (!files || files.length === 0) return;
@@ -407,7 +396,6 @@ export default function Home() {
     } catch (err: any) { alert("Ошибка: " + err.message); } finally { setAsking(false); }
   };
 
-  // --- ЛОГИКА ОТКРЫТИЯ/ЗАКРЫТИЯ РЕЦЕПТА ---
   const loadFromHistory = (item: DBRecipe, source: 'feed' | 'history' = 'history') => {
     setAnalysisResult(null); setQuestion(""); setAnswer(null);
     setRecipe({ id: item.id, is_favorite: item.is_favorite, title: item.title, description: item.description, time: item.time, calories: item.calories, steps: item.steps || [], missing_ingredients: item.missing_ingredients || [], ingredients: item.ingredients || [], detailed_ingredients: item.detailed_ingredients || [] });
@@ -417,7 +405,6 @@ export default function Home() {
     setActiveView('service'); 
   };
 
-  // КНОПКА НАЗАД
   const handleBackToSource = () => {
     setRecipe(null);
     if (fromFeed) {
@@ -441,27 +428,14 @@ export default function Home() {
   return (
     <div className="container">
       
-      {/* КНОПКА МЕНЮ */}
-      <button 
-        className="menu-btn" 
-        onClick={() => setIsMenuOpen(true)}
-        style={{ left: '20px', right: 'auto' }} 
-      >
+      <button className="menu-btn" onClick={() => setIsMenuOpen(true)} style={{ left: '20px', right: 'auto' }}>
         <Menu size={24} color="#111" />
       </button>
 
-      {/* МЕНЮ */}
       {isMenuOpen && (
         <>
           <div className="menu-overlay" onClick={() => setIsMenuOpen(false)} />
-          <div 
-            className={`menu-drawer ${isMenuOpen ? 'open' : ''}`}
-            style={{ 
-              left: 0, 
-              right: 'auto', 
-              transform: isMenuOpen ? 'translateX(0)' : 'translateX(-100%)' 
-            }}
-          >
+          <div className={`menu-drawer ${isMenuOpen ? 'open' : ''}`} style={{ left: 0, right: 'auto', transform: isMenuOpen ? 'translateX(0)' : 'translateX(-100%)' }}>
             <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '40px'}}>
                <span style={{fontSize: '24px', fontWeight: '900', color: '#059669'}}>SmartCook</span>
                <X size={24} onClick={() => setIsMenuOpen(false)} style={{cursor: 'pointer'}} />
@@ -477,8 +451,11 @@ export default function Home() {
       {/* === СЕРВИС (ГЛАВНАЯ) === */}
       {activeView === 'service' && (
         <>
-          {/* ЕСЛИ РЕЦЕПТ НЕ ВЫБРАН */}
-          {!recipe && !analysisResult && (
+          {/* ВАЖНОЕ ИЗМЕНЕНИЕ: 
+             Теперь поиск и шапка показываются ВСЕГДА, если мы НЕ пришли из ленты.
+             Даже если рецепт открыт, поиск остается сверху.
+          */}
+          {!fromFeed && !analysisResult && (
             <>
               <div className="hero">
                 <h1 className="brand-name">SmartCook</h1>
@@ -575,7 +552,7 @@ export default function Home() {
             </>
           )}
 
-          {/* Результаты анализа */}
+          {/* Результаты анализа (список блюд) */}
           {analysisResult && !recipe && (
             <div className="card">
               <h3 style={{textAlign: 'center', marginBottom: '20px'}}>Я вижу продукты:</h3>
@@ -617,26 +594,28 @@ export default function Home() {
           {recipe && (
             <div className="card" style={{position: 'relative', overflow: 'visible', marginTop: '20px'}}>
               
-              {/* КНОПКА НАЗАД (ОТОДВИНУТА ОТ МЕНЮ) */}
-              <button 
-                onClick={handleBackToSource}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '8px',
-                  background: 'white', 
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '100px',
-                  padding: '8px 16px',
-                  color: '#374151', 
-                  fontSize: '14px', fontWeight: 600,
-                  marginTop: '40px', // УВЕЛИЧИЛ ОТСТУП СВЕРХУ
-                  marginBottom: '20px', 
-                  cursor: 'pointer', 
-                  boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
-                  transition: 'all 0.2s'
-                }}
-              >
-                <ArrowLeft size={18} /> {fromFeed ? "Назад в ленту" : "Назад к поиску"}
-              </button>
+              {/* Кнопка НАЗАД показывается ТОЛЬКО если пришли из ЛЕНТЫ */}
+              {fromFeed && (
+                <button 
+                  onClick={handleBackToSource}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    background: 'white', 
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '100px',
+                    padding: '8px 16px',
+                    color: '#374151', 
+                    fontSize: '14px', fontWeight: 600,
+                    marginTop: '40px',
+                    marginBottom: '20px', 
+                    cursor: 'pointer', 
+                    boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <ArrowLeft size={18} /> Назад в ленту
+                </button>
+              )}
 
               <div className="recipe-header" style={{flexDirection: 'column', alignItems: 'flex-start', gap: '15px'}}>
                 <div style={{display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center'}}>
@@ -761,10 +740,12 @@ export default function Home() {
             </div>
           )}
 
-          {/* ИСТОРИЯ */}
-          {!recipe && !analysisResult && (
+          {/* ИСТОРИЯ (Показываем только если не смотрим конкретный рецепт, ЛИБО если не пришли из ленты) 
+              Логика: Если я ищу рецепт, я хочу видеть историю снизу.
+          */}
+          {!analysisResult && (
             <>
-              <div className="history-bar">
+              <div className="history-bar" style={{marginTop: '40px'}}>
                 <span className="history-title">📜 История рецептов</span>
                 <div className="history-filters">
                   <button className={`filter-pill ${filterMode === 'all' ? 'active' : ''}`} onClick={() => setFilterMode('all')}>Все</button>
@@ -843,7 +824,7 @@ export default function Home() {
               style={{
                 flex: 1, padding: '12px', borderRadius: '10px', border: 'none',
                 background: feedSort === 'new' ? 'white' : 'transparent',
-                fontWeight: 700, fontSize: '16px', // УВЕЛИЧИЛ ШРИФТ
+                fontWeight: 700, fontSize: '16px',
                 boxShadow: feedSort === 'new' ? '0 2px 10px rgba(0,0,0,0.05)' : 'none',
                 color: feedSort === 'new' ? '#111' : '#6b7280',
                 transition: 'all 0.2s'
@@ -856,7 +837,7 @@ export default function Home() {
               style={{
                 flex: 1, padding: '12px', borderRadius: '10px', border: 'none',
                 background: feedSort === 'top' ? 'white' : 'transparent',
-                fontWeight: 700, fontSize: '16px', // УВЕЛИЧИЛ ШРИФТ
+                fontWeight: 700, fontSize: '16px',
                 boxShadow: feedSort === 'top' ? '0 2px 10px rgba(0,0,0,0.05)' : 'none',
                 color: feedSort === 'top' ? '#111' : '#6b7280',
                 transition: 'all 0.2s'
@@ -874,7 +855,6 @@ export default function Home() {
                 style={{padding: '0', overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.1s'}}
                 onClick={() => loadFromHistory(item, 'feed')}
               >
-                {/* Заглушка вместо фото */}
                 <div style={{
                   height: '100px', 
                   background: 'linear-gradient(135deg, #fce7f3 0%, #e0f2fe 100%)',
@@ -883,7 +863,6 @@ export default function Home() {
                 }}>
                    <div style={{fontSize: '40px', opacity: 0.2}}>🍲</div>
                    
-                   {/* ВРЕМЯ И КАЛОРИИ В ЛЕНТЕ */}
                    <div style={{position: 'absolute', bottom: '10px', left: '15px', display: 'flex', gap: '8px'}}>
                       <div style={{background: 'rgba(255,255,255,0.9)', padding: '4px 10px', borderRadius: '100px', fontSize: '11px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px'}}>
                         <Clock size={12}/> {formatTime(item.time)}
@@ -899,7 +878,6 @@ export default function Home() {
                 <div style={{padding: '20px'}}>
                   <h3 style={{margin: '0 0 10px 0', fontSize: '18px', fontWeight: 700, lineHeight: 1.3}}>{item.title}</h3>
                   <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px'}}>
-                    {/* Кнопка ЛАЙКА */}
                     <button 
                       onClick={(e) => handlePublicLike(e, item)}
                       style={{

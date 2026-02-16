@@ -309,7 +309,6 @@ export default function Home() {
     if (!analysisResult || !userId) return; 
     setSelectedDish(dishName); setLoadingRecipe(true); setRecipe(null);
     
-    // Скролл вниз, чтобы пользователь видел, что что-то происходит
     window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
 
     try {
@@ -434,20 +433,20 @@ export default function Home() {
   return (
     <div className="container">
       
-      {/* КНОПКА МЕНЮ (ИСПРАВЛЕНО: КРУГЛАЯ И ВЫШЕ) */}
+      {/* КНОПКА МЕНЮ (ФИКСИРОВАННАЯ, ВЫШЕ, КРУГЛАЯ) */}
       <button 
         className="menu-btn" 
         onClick={() => setIsMenuOpen(true)}
         style={{ 
           position: 'fixed', 
-          top: '12px',  // ПОДНЯЛ ВЫШЕ
+          top: '10px',  // ПОДНЯЛ ЕЩЕ ЧУТЬ ВЫШЕ
           left: '20px', 
           right: 'auto', 
           zIndex: 50,
           background: 'white',
           borderRadius: '50%', // ИДЕАЛЬНО КРУГЛАЯ
-          width: '40px',       // ФИКСИРОВАННЫЙ РАЗМЕР
-          height: '40px',      // ФИКСИРОВАННЫЙ РАЗМЕР
+          width: '44px',       // ЧУТЬ БОЛЬШЕ ДЛЯ УДОБСТВА
+          height: '44px',      
           padding: 0,
           display: 'flex',
           justifyContent: 'center',
@@ -770,7 +769,7 @@ export default function Home() {
             </div>
           )}
 
-          {/* ИСТОРИЯ (ИСПРАВЛЕНО: Показывается ВСЕГДА на главной, внизу страницы) */}
+          {/* ИСТОРИЯ (ПОКАЗЫВАЕТСЯ ВСЕГДА ВНИЗУ) */}
           {!fromFeed && (
             <>
               <div className="history-bar" style={{marginTop: '40px'}}>
@@ -797,21 +796,7 @@ export default function Home() {
                 <>
                   <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '10px'}}>
                     {visibleHistory?.map((item) => (
-                      <div 
-                        key={item.id} 
-                        className="card" 
-                        style={{
-                          padding: '15px', 
-                          cursor: 'pointer', 
-                          marginBottom: 0,
-                          // ИСПРАВЛЕНИЕ ВЫСОТЫ КАРТОЧЕК:
-                          height: '100%', 
-                          display: 'flex', 
-                          flexDirection: 'column', 
-                          justifyContent: 'space-between'
-                        }} 
-                        onClick={() => loadFromHistory(item, 'history')}
-                      >
+                      <div key={item.id} className="card" style={{padding: '15px', cursor: 'pointer', marginBottom: 0}} onClick={() => loadFromHistory(item, 'history')}>
                         <div style={{fontWeight: 700, fontSize: '14px', marginBottom: '8px', lineHeight: 1.3, height: '38px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical'}}>{item.title}</div>
                         
                         <div style={{display: 'flex', gap: '10px', fontSize: '11px', color: '#6b7280'}}>
@@ -897,7 +882,6 @@ export default function Home() {
                 style={{padding: '0', overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.1s'}}
                 onClick={() => loadFromHistory(item, 'feed')}
               >
-                {/* Заглушка вместо фото */}
                 <div style={{
                   height: '100px', 
                   background: 'linear-gradient(135deg, #fce7f3 0%, #e0f2fe 100%)',
@@ -906,7 +890,6 @@ export default function Home() {
                 }}>
                    <div style={{fontSize: '40px', opacity: 0.2}}>🍲</div>
                    
-                   {/* ВРЕМЯ И КАЛОРИИ В ЛЕНТЕ */}
                    <div style={{position: 'absolute', bottom: '10px', left: '15px', display: 'flex', gap: '8px'}}>
                       <div style={{background: 'rgba(255,255,255,0.9)', padding: '4px 10px', borderRadius: '100px', fontSize: '11px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px'}}>
                         <Clock size={12}/> {formatTime(item.time)}
@@ -922,7 +905,6 @@ export default function Home() {
                 <div style={{padding: '20px'}}>
                   <h3 style={{margin: '0 0 10px 0', fontSize: '18px', fontWeight: 700, lineHeight: 1.3}}>{item.title}</h3>
                   <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px'}}>
-                    {/* Кнопка ЛАЙКА */}
                     <button 
                       onClick={(e) => handlePublicLike(e, item)}
                       style={{

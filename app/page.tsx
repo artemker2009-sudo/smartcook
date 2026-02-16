@@ -309,6 +309,7 @@ export default function Home() {
     if (!analysisResult || !userId) return; 
     setSelectedDish(dishName); setLoadingRecipe(true); setRecipe(null);
     
+    // Скролл вниз, чтобы пользователь видел, что что-то происходит
     window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
 
     try {
@@ -433,19 +434,19 @@ export default function Home() {
   return (
     <div className="container">
       
-      {/* КНОПКА МЕНЮ (ФИКСИРОВАННАЯ, ВЫШЕ, КРУГЛАЯ) */}
+      {/* КНОПКА МЕНЮ */}
       <button 
         className="menu-btn" 
         onClick={() => setIsMenuOpen(true)}
         style={{ 
           position: 'fixed', 
-          top: '10px',  // ПОДНЯЛ ЕЩЕ ЧУТЬ ВЫШЕ
+          top: '10px',  
           left: '20px', 
           right: 'auto', 
           zIndex: 50,
           background: 'white',
-          borderRadius: '50%', // ИДЕАЛЬНО КРУГЛАЯ
-          width: '44px',       // ЧУТЬ БОЛЬШЕ ДЛЯ УДОБСТВА
+          borderRadius: '50%', // КРУГЛАЯ
+          width: '44px',       
           height: '44px',      
           padding: 0,
           display: 'flex',
@@ -459,7 +460,7 @@ export default function Home() {
         <Menu size={24} color="#111" />
       </button>
 
-      {/* МЕНЮ */}
+      {/* МЕНЮ (ИСПРАВЛЕНО: ЗАКРУГЛЕНИЯ СПРАВА) */}
       {isMenuOpen && (
         <>
           <div className="menu-overlay" onClick={() => setIsMenuOpen(false)} style={{zIndex: 99}} />
@@ -469,7 +470,12 @@ export default function Home() {
               left: 0, 
               right: 'auto', 
               transform: isMenuOpen ? 'translateX(0)' : 'translateX(-100%)',
-              zIndex: 100
+              zIndex: 100,
+              // ИСПРАВЛЕНИЕ: Квадратная слева, круглая справа
+              borderTopRightRadius: '24px',
+              borderBottomRightRadius: '24px',
+              borderTopLeftRadius: '0',
+              borderBottomLeftRadius: '0'
             }}
           >
             <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '40px'}}>
@@ -584,6 +590,7 @@ export default function Home() {
             </>
           )}
 
+          {/* Результаты анализа */}
           {analysisResult && (
             <div className="card">
               <h3 style={{textAlign: 'center', marginBottom: '20px'}}>Я вижу продукты:</h3>
@@ -621,6 +628,7 @@ export default function Home() {
             </div>
           )}
 
+          {/* === ПРОСМОТР РЕЦЕПТА === */}
           {recipe && (
             <div className="card" style={{position: 'relative', overflow: 'visible', marginTop: '20px'}}>
               
@@ -769,7 +777,7 @@ export default function Home() {
             </div>
           )}
 
-          {/* ИСТОРИЯ (ПОКАЗЫВАЕТСЯ ВСЕГДА ВНИЗУ) */}
+          {/* ИСТОРИЯ (ИСПРАВЛЕНО: РОВНАЯ ВЫСОТА БЛОКОВ) */}
           {!fromFeed && (
             <>
               <div className="history-bar" style={{marginTop: '40px'}}>
@@ -796,8 +804,30 @@ export default function Home() {
                 <>
                   <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '10px'}}>
                     {visibleHistory?.map((item) => (
-                      <div key={item.id} className="card" style={{padding: '15px', cursor: 'pointer', marginBottom: 0}} onClick={() => loadFromHistory(item, 'history')}>
-                        <div style={{fontWeight: 700, fontSize: '14px', marginBottom: '8px', lineHeight: 1.3, height: '38px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical'}}>{item.title}</div>
+                      <div 
+                        key={item.id} 
+                        className="card" 
+                        style={{
+                          padding: '15px', 
+                          cursor: 'pointer', 
+                          marginBottom: 0
+                          // УБРАЛ height: '100%', ВЕРНУЛСЯ К СТАНДАРТУ, ЧТОБЫ БЫЛО РОВНО ПО РЯДАМ
+                        }} 
+                        onClick={() => loadFromHistory(item, 'history')}
+                      >
+                        <div style={{
+                          fontWeight: 700, 
+                          fontSize: '14px', 
+                          marginBottom: '8px', 
+                          lineHeight: 1.3, 
+                          height: '38px', // ФИКСИРОВАННАЯ ВЫСОТА ЗАГОЛОВКА - ЭТО ВАЖНО
+                          overflow: 'hidden', 
+                          display: '-webkit-box', 
+                          WebkitLineClamp: 2, 
+                          WebkitBoxOrient: 'vertical'
+                        }}>
+                          {item.title}
+                        </div>
                         
                         <div style={{display: 'flex', gap: '10px', fontSize: '11px', color: '#6b7280'}}>
                            <div style={{display: 'flex', alignItems: 'center', gap: '3px'}}><Clock size={12}/> {formatTime(item.time)}</div>

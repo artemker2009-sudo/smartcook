@@ -9,7 +9,8 @@ import {
   Wallet, Zap, Leaf, Globe, ChevronRight, ChevronDown, ChevronUp, Shuffle, ShoppingCart, Lock, ShoppingBag, ExternalLink, Info, ThumbsUp 
 } from "lucide-react";
 
-import imageCompression from 'browser-image-compression';
+// УБРАЛИ ТЯЖЕЛЫЙ ИМПОРТ СВЕРХУ, ЧТОБЫ САЙТ ГРУЗИЛСЯ БЫСТРЕЕ
+// import imageCompression from 'browser-image-compression'; 
 
 /* --- ТИПЫ ДАННЫХ --- */
 interface AnalysisData { ingredients: string[]; dishes: string[]; }
@@ -61,28 +62,13 @@ interface DailyRecipeType {
   error?: string; 
 }
 
-// --- КОНФИГУРАЦИЯ ПРАЗДНИКОВ ---
-const getHolidayGreeting = () => {
-  const d = new Date();
-  const day = d.getDate();
-  const month = d.getMonth() + 1; 
-  const key = `${day}.${month}`;
-
-  const holidays: Record<string, { title: string; text: string; gradient: string; icon: string }> = {
-    "14.2": { title: "С Днем святого Валентина! 💖", text: "Пусть ваша жизнь будет наполнена любовью, а ужины — романтикой.", gradient: "linear-gradient(135deg, #ec4899 0%, #be185d 100%)", icon: "💘" },
-    "23.2": { title: "С Днем защитника Отечества!", text: "Силы, мужества и сытных побед на кулинарном фронте!", gradient: "linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)", icon: "⭐" },
-    "8.3": { title: "С 8 Марта! 💐", text: "Красоты, нежности и вдохновения! Пусть сегодня готовит кто-то другой.", gradient: "linear-gradient(135deg, #d946ef 0%, #a21caf 100%)", icon: "🌷" },
-    "1.3": { title: "С первым днем весны!", text: "Природа просыпается, и аппетит тоже!", gradient: "linear-gradient(135deg, #84cc16 0%, #4d7c0f 100%)", icon: "🌱" },
-    "1.5": { title: "Мир, Труд, Май!", text: "Отличный повод выбраться на шашлыки!", gradient: "linear-gradient(135deg, #f97316 0%, #ea580c 100%)", icon: "🔥" },
-    "9.5": { title: "С Днем Победы!", text: "Мирного неба над головой и тепла в вашем доме.", gradient: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)", icon: "🎖" },
-    "1.6": { title: "Ура, лето!", text: "Сезон мороженого и окрошки открыт!", gradient: "linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)", icon: "☀" },
-    "1.9": { title: "С Днем знаний!", text: "Учиться никогда не поздно, особенно готовить!", gradient: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)", icon: "🔔" },
-    "31.12": { title: "С Наступающим! 🎄", text: "Оливье готов? Мандарины куплены?", gradient: "linear-gradient(135deg, #dc2626 0%, #166534 100%)", icon: "🎅" },
-    "1.1": { title: "С Новым 2026 годом! 🎉", text: "Начинаем год вкусно!", gradient: "linear-gradient(135deg, #fbbf24 0%, #b45309 100%)", icon: "🥂" }
-  };
-
-  return holidays[key] || null;
-};
+// Тип для праздника
+interface HolidayType {
+  title: string;
+  text: string;
+  gradient: string;
+  icon: string;
+}
 
 export default function Home() {
   const [activeView, setActiveView] = useState<'service' | 'about' | 'daily' | 'feed'>('service');
@@ -105,6 +91,7 @@ export default function Home() {
   const [selectedDish, setSelectedDish] = useState<string | null>(null);
   const [recipe, setRecipe] = useState<RecipeData | null>(null);
   
+  // Состояния для списков
   const [feed, setFeed] = useState<DBRecipe[]>([]); 
   const [publicFeed, setPublicFeed] = useState<DBRecipe[]>([]);
   const [feedSort, setFeedSort] = useState<'new' | 'top'>('new');
@@ -118,8 +105,9 @@ export default function Home() {
   const [asking, setAsking] = useState(false);
 
   const [fromFeed, setFromFeed] = useState(false);
-
-  const currentHoliday = getHolidayGreeting();
+  
+  // ИСПРАВЛЕНИЕ 1: Праздник теперь в стейте, чтобы не ломать гидратацию
+  const [currentHoliday, setCurrentHoliday] = useState<HolidayType | null>(null);
 
   const cleanText = (text: any) => {
     if (!text) return "";
@@ -142,7 +130,9 @@ export default function Home() {
     return ""; 
   };
 
+  // --- ЭФФЕКТЫ ---
   useEffect(() => {
+    // 1. Инициализация пользователя
     try {
       let storedId = localStorage.getItem("cook_user_id");
       if (!storedId) { 
@@ -153,6 +143,7 @@ export default function Home() {
       fetchMyRecipes(storedId); 
     } catch (e) { console.error(e); }
 
+    // 2. Загрузка рецепта дня
     fetch('/api/daily')
       .then(res => res.json())
       .then(data => {
@@ -163,6 +154,30 @@ export default function Home() {
         }
       })
       .catch(console.error);
+
+    // 3. ИСПРАВЛЕНИЕ 1 (Продолжение): Вычисляем праздник ТОЛЬКО на клиенте
+    const d = new Date();
+    const day = d.getDate();
+    const month = d.getMonth() + 1; 
+    const key = `${day}.${month}`;
+
+    const holidays: Record<string, HolidayType> = {
+      "14.2": { title: "С Днем святого Валентина! 💖", text: "Пусть ваша жизнь будет наполнена любовью, а ужины — романтикой.", gradient: "linear-gradient(135deg, #ec4899 0%, #be185d 100%)", icon: "💘" },
+      "23.2": { title: "С Днем защитника Отечества!", text: "Силы, мужества и сытных побед на кулинарном фронте!", gradient: "linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)", icon: "⭐" },
+      "8.3": { title: "С 8 Марта! 💐", text: "Красоты, нежности и вдохновения! Пусть сегодня готовит кто-то другой.", gradient: "linear-gradient(135deg, #d946ef 0%, #a21caf 100%)", icon: "🌷" },
+      "1.3": { title: "С первым днем весны!", text: "Природа просыпается, и аппетит тоже!", gradient: "linear-gradient(135deg, #84cc16 0%, #4d7c0f 100%)", icon: "🌱" },
+      "1.5": { title: "Мир, Труд, Май!", text: "Отличный повод выбраться на шашлыки!", gradient: "linear-gradient(135deg, #f97316 0%, #ea580c 100%)", icon: "🔥" },
+      "9.5": { title: "С Днем Победы!", text: "Мирного неба над головой и тепла в вашем доме.", gradient: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)", icon: "🎖" },
+      "1.6": { title: "Ура, лето!", text: "Сезон мороженого и окрошки открыт!", gradient: "linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)", icon: "☀" },
+      "1.9": { title: "С Днем знаний!", text: "Учиться никогда не поздно, особенно готовить!", gradient: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)", icon: "🔔" },
+      "31.12": { title: "С Наступающим! 🎄", text: "Оливье готов? Мандарины куплены?", gradient: "linear-gradient(135deg, #dc2626 0%, #166534 100%)", icon: "🎅" },
+      "1.1": { title: "С Новым 2026 годом! 🎉", text: "Начинаем год вкусно!", gradient: "linear-gradient(135deg, #fbbf24 0%, #b45309 100%)", icon: "🥂" }
+    };
+
+    if (holidays[key]) {
+      setCurrentHoliday(holidays[key]);
+    }
+
   }, []);
 
   useEffect(() => {
@@ -171,18 +186,24 @@ export default function Home() {
     }
   }, [activeView]);
 
+  // --- РАБОТА С ДАННЫМИ ---
+
   const fetchMyRecipes = async (currentId: string) => {
     if (!currentId) return;
-    const { data, error } = await supabase
-      .from('recipes')
-      .select('*')
-      .eq('session_id', currentId)
-      .order('created_at', { ascending: false });
-      
-    if (error) {
-      console.error("History Error:", error);
-    } else if (data) {
-      setFeed(data);
+    try {
+      const { data, error } = await supabase
+        .from('recipes')
+        .select('*')
+        .eq('session_id', currentId)
+        .order('created_at', { ascending: false });
+        
+      if (error) {
+        console.error("History Error:", error);
+      } else if (data) {
+        setFeed(data);
+      }
+    } catch (e) {
+      console.error("Connection Error", e);
     }
   };
 
@@ -248,6 +269,7 @@ export default function Home() {
     }
   };
 
+  // --- ЗАГРУЗКА ФОТО (ИСПРАВЛЕНИЕ 2: ЛЕНИВАЯ ЗАГРУЗКА БИБЛИОТЕКИ) ---
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files; 
     if (!files || files.length === 0) return;
@@ -257,12 +279,16 @@ export default function Home() {
     setIsProcessing(true);
 
     try {
+      // ДИНАМИЧЕСКИЙ ИМПОРТ: грузим библиотеку только когда она нужна
+      const imageCompression = (await import('browser-image-compression')).default;
+      
       const options = { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true, fileType: "image/jpeg" };
       const compressedFile = await imageCompression(rawFile, options);
       const finalFile = new File([compressedFile], "image.jpg", { type: "image/jpeg" });
       setFile(finalFile);
       setPreview(URL.createObjectURL(finalFile)); 
     } catch (error) {
+      console.error("File error:", error);
       alert("Не удалось обработать фото.");
       setFile(null); 
     } finally {
@@ -395,6 +421,7 @@ export default function Home() {
     } catch (err: any) { alert("Ошибка: " + err.message); } finally { setAsking(false); }
   };
 
+  // --- ЛОГИКА ОТКРЫТИЯ/ЗАКРЫТИЯ РЕЦЕПТА ---
   const loadFromHistory = (item: DBRecipe, source: 'feed' | 'history' = 'history') => {
     setAnalysisResult(null); setQuestion(""); setAnswer(null);
     setRecipe({ id: item.id, is_favorite: item.is_favorite, title: item.title, description: item.description, time: item.time, calories: item.calories, steps: item.steps || [], missing_ingredients: item.missing_ingredients || [], ingredients: item.ingredients || [], detailed_ingredients: item.detailed_ingredients || [] });
@@ -463,14 +490,13 @@ export default function Home() {
       {/* === СЕРВИС (ГЛАВНАЯ) === */}
       {activeView === 'service' && (
         <>
-          {/* ВАЖНО: Я убрал проверку {!recipe}, теперь блок поиска показывается ВСЕГДА, 
-             даже когда рецепт открыт.
-          */}
+          {/* ЕСЛИ РЕЦЕПТ НЕ ВЫБРАН ИЛИ МЫ НЕ ПРИШЛИ ИЗ ЛЕНТЫ - ПОКАЗЫВАЕМ ПОИСК */}
           {!fromFeed && (
             <>
               <div className="hero">
                 <h1 className="brand-name">SmartCook</h1>
                 <div className="brand-sub">Ваш личный AI Шеф-повар</div>
+                {/* Теперь рендерим праздник из стейта, чтобы не было ошибки гидратации */}
                 {currentHoliday && (
                   <div className="animate-fade-in" style={{
                     background: currentHoliday.gradient,
@@ -563,7 +589,7 @@ export default function Home() {
             </>
           )}
 
-          {/* Результаты анализа (список блюд) - ТЕПЕРЬ ПОКАЗЫВАЮТСЯ ВСЕГДА, ЕСЛИ ЕСТЬ, ДАЖЕ ЕСЛИ ОТКРЫТ РЕЦЕПТ */}
+          {/* Результаты анализа (список блюд) - ТЕПЕРЬ ПОКАЗЫВАЮТСЯ ВСЕГДА, ЕСЛИ ЕСТЬ */}
           {analysisResult && (
             <div className="card">
               <h3 style={{textAlign: 'center', marginBottom: '20px'}}>Я вижу продукты:</h3>
@@ -646,11 +672,8 @@ export default function Home() {
                   </p>
                 )}
               
-                {/* Кнопка "ДРУГОЙ ВАРИАНТ" нужна только если мы в режиме поиска
-                   (не из ленты и не из истории, хотя из истории может быть полезно)
-                   Пока оставим всегда, если это не лента.
-                */}
-                {!fromFeed && (
+                {/* Кнопку "Другой вариант" показываем только если мы НЕ из ленты (то есть ищем сами) */}
+                {!fromFeed && (analysisResult || (searchMode === 'text' && recipe)) && (
                   <button 
                     onClick={handleSmartVariant}
                     disabled={loadingRecipe}

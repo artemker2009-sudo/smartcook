@@ -104,6 +104,18 @@ export default function Home() {
   // Стейт для сохранения рецепта дня
   const [dailyFavoriteId, setDailyFavoriteId] = useState<number | null>(null);
 
+  // ИСПРАВЛЕНИЕ: Автоматически проверяем, есть ли уже этот рецепт в истории пользователя
+  useEffect(() => {
+    if (dailyRecipe && feed.length > 0) {
+      const alreadySaved = feed.find(r => r.title === dailyRecipe.title && r.is_favorite);
+      if (alreadySaved) {
+        setDailyFavoriteId(alreadySaved.id);
+      } else {
+        setDailyFavoriteId(null);
+      }
+    }
+  }, [dailyRecipe, feed]);
+
   const cleanText = (text: any) => {
     if (!text) return "";
     return String(text).replace(/^(Шаг \d+|Step \d+|\d+[\.\)])[:\s]*/i, '').trim();
@@ -1076,9 +1088,7 @@ export default function Home() {
                     {dailyRecipe.calories && <div className="tag-badge orange" style={{fontSize: '15px', padding: '8px 16px'}}><Flame size={18}/> {formatCalories(String(dailyRecipe.calories))}</div>}
                   </div>
 
-                  {/* ИСПРАВЛЕНИЕ: ДОБАВЛЕН БЛОК ПОКУПОК ДЛЯ РЕЦЕПТА ДНЯ */}
                   {(() => {
-                    // Для рецепта дня мы берем все ингредиенты, так как пользователь еще ничего не сканировал
                     const itemsToBuy = dailyRecipe.detailed_ingredients 
                       ? dailyRecipe.detailed_ingredients.map(ing => ing.name) 
                       : (dailyRecipe.ingredients || []);

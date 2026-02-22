@@ -706,7 +706,8 @@ export default function Home() {
                   color: '#92400e'
                 }}>
                   <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontWeight: 800}}>
-                    <ShoppingCart size={20} /> {searchMode === 'text' ? "Нужно купить:" : "Нужно докупить:"}
+                    {/* ИСПРАВЛЕНИЕ: ДОБАВЛЕНО УСЛОВИЕ fromFeed ДЛЯ ОТОБРАЖЕНИЯ "Нужно купить:" */}
+                    <ShoppingCart size={20} /> {(searchMode === 'text' || fromFeed) ? "Нужно купить:" : "Нужно докупить:"}
                   </div>
                   <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px'}}>
                     {recipe.missing_ingredients.map((item, idx) => (

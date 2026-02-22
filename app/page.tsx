@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { 
   Menu, X, Flame, Send, Camera, Search, Clock, Heart, 
   ArrowRight, ArrowLeft, RotateCcw, CheckCircle, Sparkles, Image as ImageIcon, 
-  Wallet, Zap, Leaf, Globe, ChevronRight, ChevronDown, ChevronUp, Shuffle, ShoppingCart, Lock, ShoppingBag, ExternalLink, Info, ThumbsUp 
+  Wallet, Zap, Leaf, Globe, ChevronRight, ChevronDown, ChevronUp, Shuffle, ShoppingCart, Lock, ShoppingBag, ExternalLink, Info, ThumbsUp, Share2 
 } from "lucide-react";
 
 // import imageCompression from 'browser-image-compression'; 
@@ -296,6 +296,27 @@ export default function Home() {
          setDailyFavoriteId(data[0].id);
          fetchMyRecipes(userId); // Обновляем историю
       }
+    }
+  };
+
+  // ФУНКЦИЯ ПОДЕЛИТЬСЯ РЕЦЕПТОМ ДНЯ
+  const handleShareDaily = async () => {
+    if (!dailyRecipe) return;
+    const shareData = {
+      title: dailyRecipe.title,
+      text: `Смотри, какой рецепт дня: ${dailyRecipe.title}! 🔥\n\n${dailyRecipe.description || ''}`,
+      url: window.location.origin, 
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(`${shareData.text}\n${shareData.url}`);
+        alert("Ссылка на сайт скопирована в буфер обмена!");
+      }
+    } catch (err) {
+      console.error("Ошибка при попытке поделиться:", err);
     }
   };
 
@@ -1057,29 +1078,52 @@ export default function Home() {
                  <h1 style={{fontSize: '26px', fontWeight: 900, margin: '0 0 15px 0', lineHeight: 1.2, textShadow: '0 2px 10px rgba(0,0,0,0.1)'}}>{dailyRecipe.title}</h1>
                  {dailyRecipe.description && <p style={{opacity: 0.95, fontSize: '15px', margin: 0, fontWeight: 500}}>{dailyRecipe.description}</p>}
                  
-                 <button 
-                    onClick={toggleDailyFavorite}
-                    style={{
-                      marginTop: '25px',
-                      background: 'white',
-                      color: dailyFavoriteId ? '#ef4444' : '#ea580c',
-                      border: 'none',
-                      padding: '10px 20px',
-                      borderRadius: '100px',
-                      fontWeight: 800,
-                      fontSize: '14px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      margin: '25px auto 0 auto',
-                      cursor: 'pointer',
-                      boxShadow: '0 5px 15px rgba(0,0,0,0.1)',
-                      transition: 'transform 0.2s'
-                    }}
-                 >
-                    <Heart size={20} fill={dailyFavoriteId ? "#ef4444" : "none"} color={dailyFavoriteId ? "#ef4444" : "currentColor"} /> 
-                    {dailyFavoriteId ? "В избранном" : "В избранное"}
-                 </button>
+                 {/* ИСПРАВЛЕНИЕ: Две кнопки (Поделиться и Избранное) в одном ряду */}
+                 <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginTop: '25px' }}>
+                   <button 
+                      onClick={handleShareDaily}
+                      style={{
+                        background: 'white',
+                        color: '#ea580c',
+                        border: 'none',
+                        padding: '10px 20px',
+                        borderRadius: '100px',
+                        fontWeight: 800,
+                        fontSize: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        cursor: 'pointer',
+                        boxShadow: '0 5px 15px rgba(0,0,0,0.1)',
+                        transition: 'transform 0.2s'
+                      }}
+                   >
+                      <Share2 size={20} color="currentColor" /> 
+                      Поделиться
+                   </button>
+
+                   <button 
+                      onClick={toggleDailyFavorite}
+                      style={{
+                        background: 'white',
+                        color: dailyFavoriteId ? '#ef4444' : '#ea580c',
+                        border: 'none',
+                        padding: '10px 20px',
+                        borderRadius: '100px',
+                        fontWeight: 800,
+                        fontSize: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        cursor: 'pointer',
+                        boxShadow: '0 5px 15px rgba(0,0,0,0.1)',
+                        transition: 'transform 0.2s'
+                      }}
+                   >
+                      <Heart size={20} fill={dailyFavoriteId ? "#ef4444" : "none"} color={dailyFavoriteId ? "#ef4444" : "currentColor"} /> 
+                      {dailyFavoriteId ? "В избранном" : "В избранное"}
+                   </button>
+                 </div>
               </div>
               
               <div style={{padding: '25px'}}>

@@ -180,7 +180,6 @@ export default function Home() {
       setCurrentHoliday(holidays[key]);
     }
 
-    // ИСПРАВЛЕНИЕ: Проверяем, перешел ли пользователь по ссылке на конкретный рецепт
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const sharedId = params.get('recipeId');
@@ -304,12 +303,12 @@ export default function Home() {
     }
   };
 
-  // ИСПРАВЛЕНИЕ: ФУНКЦИЯ ПОДЕЛИТЬСЯ РЕЦЕПТОМ ДНЯ С ТЕКСТОМ SMARTCOOK
+  // ИСПРАВЛЕНИЕ: Обновлен текст для "Поделиться" Рецептом дня
   const handleShareDaily = async () => {
     if (!dailyRecipe) return;
     const shareData = {
       title: dailyRecipe.title,
-      text: `Рецепт дня: "${dailyRecipe.title}" 🔥\nПриготовлено с помощью SmartCook 👨‍🍳\n\nСмотри тут:`,
+      text: `«${dailyRecipe.title}» — приготовлено с помощью SmartCook 👨‍🍳\n\nСмотри рецепт по ссылке:`,
       url: window.location.origin, 
     };
 
@@ -325,16 +324,15 @@ export default function Home() {
     }
   };
 
-  // ИСПРАВЛЕНИЕ: ФУНКЦИЯ ПОДЕЛИТЬСЯ ДЛЯ ОБЫЧНЫХ РЕЦЕПТОВ (СО ССЫЛКОЙ И ТЕКСТОМ)
+  // ИСПРАВЛЕНИЕ: Обновлен текст для "Поделиться" обычным рецептом
   const handleShareRecipe = async () => {
     if (!recipe) return;
     
-    // Генерируем ссылку именно на этот рецепт (если он сохранен в БД и имеет id)
     const recipeUrl = recipe.id ? `${window.location.origin}/?recipeId=${recipe.id}` : window.location.origin;
 
     const shareData = {
       title: recipe.title,
-      text: `Смотри, какой рецепт я нашел: "${recipe.title}" 🍲\nПриготовлено с помощью SmartCook 👨‍🍳\n\nОткрой рецепт по ссылке:`,
+      text: `«${recipe.title}» — приготовлено с помощью SmartCook 👨‍🍳\n\nОткрой рецепт по ссылке:`,
       url: recipeUrl, 
     };
 
@@ -511,7 +509,6 @@ export default function Home() {
     setActiveView('service'); 
   };
 
-  // ИСПРАВЛЕНИЕ: ФУНКЦИЯ ДЛЯ ЗАГРУЗКИ РЕЦЕПТА ПО ССЫЛКЕ
   const loadSharedRecipe = async (id: string) => {
     try {
       const { data, error } = await supabase

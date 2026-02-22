@@ -104,7 +104,6 @@ export default function Home() {
   // Стейт для сохранения рецепта дня
   const [dailyFavoriteId, setDailyFavoriteId] = useState<number | null>(null);
 
-  // ИСПРАВЛЕНИЕ: Автоматически проверяем, есть ли уже этот рецепт в истории пользователя
   useEffect(() => {
     if (dailyRecipe && feed.length > 0) {
       const alreadySaved = feed.find(r => r.title === dailyRecipe.title && r.is_favorite);
@@ -265,12 +264,10 @@ export default function Home() {
     }
   };
 
-  // ФУНКЦИЯ ДЛЯ ДОБАВЛЕНИЯ РЕЦЕПТА ДНЯ В ИЗБРАННОЕ
   const toggleDailyFavorite = async () => {
     if (!dailyRecipe || !userId) return;
     
     if (dailyFavoriteId) {
-      // Удаляем из избранного
       const updatedFeed = feed?.map(r => r.id === dailyFavoriteId ? { ...r, is_favorite: false } : r) || [];
       setFeed(updatedFeed);
       setDailyFavoriteId(null);
@@ -278,7 +275,6 @@ export default function Home() {
         await fetch("/api/favorite", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: dailyFavoriteId, isFavorite: false }) });
       } catch(e) { console.error(e); }
     } else {
-      // Добавляем в БД
       const { data, error } = await supabase.from('recipes').insert({
         session_id: userId,
         title: dailyRecipe.title,
@@ -294,17 +290,37 @@ export default function Home() {
       
       if (data && data.length > 0) {
          setDailyFavoriteId(data[0].id);
-         fetchMyRecipes(userId); // Обновляем историю
+         fetchMyRecipes(userId); 
       }
     }
   };
 
-  // ФУНКЦИЯ ПОДЕЛИТЬСЯ РЕЦЕПТОМ ДНЯ
   const handleShareDaily = async () => {
     if (!dailyRecipe) return;
     const shareData = {
       title: dailyRecipe.title,
       text: `Смотри, какой рецепт дня: ${dailyRecipe.title}! 🔥\n\n${dailyRecipe.description || ''}`,
+      url: window.location.origin, 
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(`${shareData.text}\n${shareData.url}`);
+        alert("Ссылка на сайт скопирована в буфер обмена!");
+      }
+    } catch (err) {
+      console.error("Ошибка при попытке поделиться:", err);
+    }
+  };
+
+  // ИСПРАВЛЕНИЕ: ДОБАВЛЕНА ФУНКЦИЯ ПОДЕЛИТЬСЯ ДЛЯ ОБЫЧНЫХ РЕЦЕПТОВ
+  const handleShareRecipe = async () => {
+    if (!recipe) return;
+    const shareData = {
+      title: recipe.title,
+      text: `Смотри, какой классный рецепт я нашел в SmartCook: ${recipe.title}! 👨‍🍳\n\n${recipe.description || ''}`,
       url: window.location.origin, 
     };
 
@@ -724,15 +740,21 @@ export default function Home() {
                 </button>
               )}
 
+              {/* ИСПРАВЛЕНИЕ: ДОБАВЛЕНА КНОПКА ПОДЕЛИТЬСЯ В ШАПКУ РЕЦЕПТА */}
               <div className="recipe-header" style={{flexDirection: 'column', alignItems: 'flex-start', gap: '15px'}}>
                 <div style={{display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center'}}>
                   <h2 className="recipe-title" style={{marginBottom: 0, paddingRight: '10px', fontSize: '24px'}}>{recipe.title}</h2>
-                  <div onClick={(e) => toggleFavorite(e, recipe.id!, recipe.is_favorite)} style={{cursor: 'pointer', flexShrink: 0}}>
-                    <Heart size={30} 
-                      className={recipe.is_favorite ? "fill-red-500 text-red-500" : "text-gray-300"} 
-                      color={recipe.is_favorite ? "#ef4444" : "#d1d5db"} 
-                      fill={recipe.is_favorite ? "#ef4444" : "none"}
-                    />
+                  <div style={{display: 'flex', gap: '15px', alignItems: 'center', flexShrink: 0}}>
+                    <div onClick={handleShareRecipe} style={{cursor: 'pointer', display: 'flex'}}>
+                      <Share2 size={30} color="#d1d5db" style={{ transition: 'color 0.2s' }} />
+                    </div>
+                    <div onClick={(e) => toggleFavorite(e, recipe.id!, recipe.is_favorite)} style={{cursor: 'pointer'}}>
+                      <Heart size={30} 
+                        className={recipe.is_favorite ? "fill-red-500 text-red-500" : "text-gray-300"} 
+                        color={recipe.is_favorite ? "#ef4444" : "#d1d5db"} 
+                        fill={recipe.is_favorite ? "#ef4444" : "none"}
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -1078,7 +1100,6 @@ export default function Home() {
                  <h1 style={{fontSize: '26px', fontWeight: 900, margin: '0 0 15px 0', lineHeight: 1.2, textShadow: '0 2px 10px rgba(0,0,0,0.1)'}}>{dailyRecipe.title}</h1>
                  {dailyRecipe.description && <p style={{opacity: 0.95, fontSize: '15px', margin: 0, fontWeight: 500}}>{dailyRecipe.description}</p>}
                  
-                 {/* ИСПРАВЛЕНИЕ: Две кнопки (Поделиться и Избранное) в одном ряду */}
                  <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginTop: '25px' }}>
                    <button 
                       onClick={handleShareDaily}

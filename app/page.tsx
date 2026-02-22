@@ -179,6 +179,15 @@ export default function Home() {
     if (holidays[key]) {
       setCurrentHoliday(holidays[key]);
     }
+
+    // ИСПРАВЛЕНИЕ: Проверяем, перешел ли пользователь по ссылке на конкретный рецепт
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const sharedId = params.get('recipeId');
+      if (sharedId) {
+        loadSharedRecipe(sharedId);
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -295,11 +304,12 @@ export default function Home() {
     }
   };
 
+  // ИСПРАВЛЕНИЕ: ФУНКЦИЯ ПОДЕЛИТЬСЯ РЕЦЕПТОМ ДНЯ С ТЕКСТОМ SMARTCOOK
   const handleShareDaily = async () => {
     if (!dailyRecipe) return;
     const shareData = {
       title: dailyRecipe.title,
-      text: `Смотри, какой рецепт дня: ${dailyRecipe.title}! 🔥\n\n${dailyRecipe.description || ''}`,
+      text: `Рецепт дня: "${dailyRecipe.title}" 🔥\nПриготовлено с помощью SmartCook 👨‍🍳\n\nСмотри тут:`,
       url: window.location.origin, 
     };
 
@@ -315,13 +325,17 @@ export default function Home() {
     }
   };
 
-  // ИСПРАВЛЕНИЕ: ДОБАВЛЕНА ФУНКЦИЯ ПОДЕЛИТЬСЯ ДЛЯ ОБЫЧНЫХ РЕЦЕПТОВ
+  // ИСПРАВЛЕНИЕ: ФУНКЦИЯ ПОДЕЛИТЬСЯ ДЛЯ ОБЫЧНЫХ РЕЦЕПТОВ (СО ССЫЛКОЙ И ТЕКСТОМ)
   const handleShareRecipe = async () => {
     if (!recipe) return;
+    
+    // Генерируем ссылку именно на этот рецепт (если он сохранен в БД и имеет id)
+    const recipeUrl = recipe.id ? `${window.location.origin}/?recipeId=${recipe.id}` : window.location.origin;
+
     const shareData = {
       title: recipe.title,
-      text: `Смотри, какой классный рецепт я нашел в SmartCook: ${recipe.title}! 👨‍🍳\n\n${recipe.description || ''}`,
-      url: window.location.origin, 
+      text: `Смотри, какой рецепт я нашел: "${recipe.title}" 🍲\nПриготовлено с помощью SmartCook 👨‍🍳\n\nОткрой рецепт по ссылке:`,
+      url: recipeUrl, 
     };
 
     try {
@@ -329,7 +343,7 @@ export default function Home() {
         await navigator.share(shareData);
       } else {
         await navigator.clipboard.writeText(`${shareData.text}\n${shareData.url}`);
-        alert("Ссылка на сайт скопирована в буфер обмена!");
+        alert("Ссылка на рецепт скопирована в буфер обмена!");
       }
     } catch (err) {
       console.error("Ошибка при попытке поделиться:", err);
@@ -495,6 +509,39 @@ export default function Home() {
     setFromFeed(source === 'feed');
     window.scrollTo({ top: 0, behavior: 'smooth' }); 
     setActiveView('service'); 
+  };
+
+  // ИСПРАВЛЕНИЕ: ФУНКЦИЯ ДЛЯ ЗАГРУЗКИ РЕЦЕПТА ПО ССЫЛКЕ
+  const loadSharedRecipe = async (id: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('recipes')
+        .select('*')
+        .eq('id', id)
+        .single();
+        
+      if (data && !error) {
+        setAnalysisResult(null); 
+        setQuestion(""); 
+        setAnswer(null);
+        setRecipe({ 
+          id: data.id, 
+          is_favorite: data.is_favorite, 
+          title: data.title, 
+          description: data.description, 
+          time: data.time, 
+          calories: data.calories, 
+          steps: data.steps || [], 
+          missing_ingredients: data.missing_ingredients || [], 
+          ingredients: data.ingredients || [], 
+          detailed_ingredients: data.detailed_ingredients || [] 
+        });
+        setActiveView('service');
+        setFromFeed(false); 
+      }
+    } catch (err) {
+      console.error("Ошибка загрузки рецепта по ссылке:", err);
+    }
   };
 
   const handleBackToSource = () => {
@@ -740,7 +787,6 @@ export default function Home() {
                 </button>
               )}
 
-              {/* ИСПРАВЛЕНИЕ: ДОБАВЛЕНА КНОПКА ПОДЕЛИТЬСЯ В ШАПКУ РЕЦЕПТА */}
               <div className="recipe-header" style={{flexDirection: 'column', alignItems: 'flex-start', gap: '15px'}}>
                 <div style={{display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center'}}>
                   <h2 className="recipe-title" style={{marginBottom: 0, paddingRight: '10px', fontSize: '24px'}}>{recipe.title}</h2>

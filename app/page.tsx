@@ -696,51 +696,60 @@ export default function Home() {
                 {recipe.calories && <div className="tag-badge orange"><Flame size={16}/> {formatCalories(recipe.calories)}</div>}
               </div>
 
-              {recipe.missing_ingredients && recipe.missing_ingredients.length > 0 && (
-                <div style={{
-                  background: '#fffbeb', 
-                  border: '1px solid #fcd34d', 
-                  borderRadius: '12px', 
-                  padding: '15px', 
-                  margin: '20px 0',
-                  color: '#92400e'
-                }}>
-                  <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontWeight: 800}}>
-                    {/* ИСПРАВЛЕНИЕ: ДОБАВЛЕНО УСЛОВИЕ fromFeed ДЛЯ ОТОБРАЖЕНИЯ "Нужно купить:" */}
-                    <ShoppingCart size={20} /> {(searchMode === 'text' || fromFeed) ? "Нужно купить:" : "Нужно докупить:"}
+              {/* ИСПРАВЛЕНИЕ: Логика вывода списка "Нужно купить" */}
+              {(() => {
+                // Если открыли из ленты, берем ВСЕ ингредиенты. Иначе берем то, что не хватало (missing_ingredients).
+                const itemsToBuy = (fromFeed && recipe.detailed_ingredients)
+                  ? recipe.detailed_ingredients.map(ing => ing.name)
+                  : (recipe.missing_ingredients || []);
+
+                if (itemsToBuy.length === 0) return null;
+
+                return (
+                  <div style={{
+                    background: '#fffbeb', 
+                    border: '1px solid #fcd34d', 
+                    borderRadius: '12px', 
+                    padding: '15px', 
+                    margin: '20px 0',
+                    color: '#92400e'
+                  }}>
+                    <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontWeight: 800}}>
+                      <ShoppingCart size={20} /> {(searchMode === 'text' || fromFeed) ? "Нужно купить:" : "Нужно докупить:"}
+                    </div>
+                    <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px'}}>
+                      {itemsToBuy.map((item, idx) => (
+                        <a 
+                          key={idx} 
+                          href={`https://www.ozon.ru/search/?text=${encodeURIComponent(item)}&from_global=true`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                             background: '#fef3c7', 
+                             padding: '6px 12px', 
+                             borderRadius: '8px', 
+                             fontSize: '14px', 
+                             fontWeight: 600,
+                             textDecoration: 'none',
+                             color: '#92400e',
+                             display: 'flex',
+                             alignItems: 'center',
+                             gap: '6px',
+                             border: '1px solid #fcd34d',
+                             cursor: 'pointer',
+                             transition: 'all 0.2s'
+                          }}
+                        >
+                          {item} <ExternalLink size={12} style={{opacity: 0.6}} />
+                        </a>
+                      ))}
+                    </div>
+                    <div style={{fontSize: '12px', color: '#b45309', display: 'flex', alignItems: 'center', gap: '5px'}}>
+                       <Info size={14} /> Нажмите на ингредиент, чтобы заказать быструю доставку Ozon Fresh до двери
+                    </div>
                   </div>
-                  <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px'}}>
-                    {recipe.missing_ingredients.map((item, idx) => (
-                      <a 
-                        key={idx} 
-                        href={`https://www.ozon.ru/search/?text=${encodeURIComponent(item)}&from_global=true`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                           background: '#fef3c7', 
-                           padding: '6px 12px', 
-                           borderRadius: '8px', 
-                           fontSize: '14px', 
-                           fontWeight: 600,
-                           textDecoration: 'none',
-                           color: '#92400e',
-                           display: 'flex',
-                           alignItems: 'center',
-                           gap: '6px',
-                           border: '1px solid #fcd34d',
-                           cursor: 'pointer',
-                           transition: 'all 0.2s'
-                        }}
-                      >
-                        {item} <ExternalLink size={12} style={{opacity: 0.6}} />
-                      </a>
-                    ))}
-                  </div>
-                  <div style={{fontSize: '12px', color: '#b45309', display: 'flex', alignItems: 'center', gap: '5px'}}>
-                     <Info size={14} /> Нажмите на ингредиент, чтобы заказать быструю доставку Ozon Fresh до двери
-                  </div>
-                </div>
-              )}
+                );
+              })()}
 
               {recipe.detailed_ingredients && (
                 <div className="ing-box">
@@ -778,7 +787,7 @@ export default function Home() {
             </div>
           )}
 
-          {/* ИСТОРИЯ (ИСПРАВЛЕНО: РОВНАЯ СЕТКА) */}
+          {/* ИСТОРИЯ */}
           {!fromFeed && (
             <>
               <div className="history-bar" style={{marginTop: '40px'}}>
@@ -805,7 +814,6 @@ export default function Home() {
                 <>
                   <div style={{
                     display: 'grid', 
-                    // ИСПРАВЛЕНИЕ ЗДЕСЬ: repeat(2, minmax(0, 1fr)) гарантирует ровно 50% ширины
                     gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', 
                     gap: '15px', 
                     marginBottom: '10px'
@@ -835,7 +843,7 @@ export default function Home() {
                           display: '-webkit-box', 
                           WebkitLineClamp: 2, 
                           WebkitBoxOrient: 'vertical',
-                          wordBreak: 'break-word' // Дополнительная защита от длинных слов
+                          wordBreak: 'break-word' 
                         }}>
                           {item.title}
                         </div>

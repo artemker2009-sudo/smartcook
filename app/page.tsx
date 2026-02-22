@@ -1027,14 +1027,24 @@ export default function Home() {
       {activeView === 'daily' && (
         <div style={{marginTop: '60px'}}>
           {dailyRecipe ? (
-            <div className="card" style={{padding: 0, overflow: 'hidden', border: 'none', boxShadow: '0 20px 50px -10px rgba(249, 115, 22, 0.25)'}}>
+            // ИСПРАВЛЕНИЕ: Убрана огромная тень с карточки-обертки
+            <div className="card" style={{padding: 0, overflow: 'hidden', border: 'none'}}>
               
-              {/* Вау-заголовок */}
-              <div style={{background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', padding: '40px 20px', color: 'white', textAlign: 'center', position: 'relative'}}>
-                 <div style={{fontSize: '60px', marginBottom: '15px', textShadow: '0 10px 20px rgba(0,0,0,0.2)'}}>🔥</div>
-                 <div style={{textTransform: 'uppercase', fontSize: '13px', fontWeight: 800, letterSpacing: '2px', opacity: 0.8, marginBottom: '10px'}}>Рецепт дня</div>
-                 <h1 style={{fontSize: '30px', fontWeight: 900, margin: '0 0 15px 0', lineHeight: 1.2, textShadow: '0 2px 10px rgba(0,0,0,0.1)'}}>{dailyRecipe.title}</h1>
-                 {dailyRecipe.description && <p style={{opacity: 0.95, fontSize: '16px', margin: 0, fontWeight: 500}}>{dailyRecipe.description}</p>}
+              {/* Вау-заголовок (ИСПРАВЛЕНО: аккуратный баннер с закруглениями, отступами и своей тенью) */}
+              <div style={{
+                background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+                padding: '30px 20px', // Уменьшены отступы
+                color: 'white',
+                textAlign: 'center',
+                position: 'relative',
+                borderRadius: '24px', // Закругленные края
+                margin: '10px', // Отступ от краев карточки
+                boxShadow: '0 10px 25px -5px rgba(234, 88, 12, 0.5)' // Маленькая аккуратная оранжевая тень
+              }}>
+                 <div style={{fontSize: '50px', marginBottom: '15px', textShadow: '0 10px 20px rgba(0,0,0,0.2)'}}>🔥</div>
+                 <div style={{textTransform: 'uppercase', fontSize: '12px', fontWeight: 800, letterSpacing: '2px', opacity: 0.8, marginBottom: '10px'}}>Рецепт дня</div>
+                 <h1 style={{fontSize: '26px', fontWeight: 900, margin: '0 0 15px 0', lineHeight: 1.2, textShadow: '0 2px 10px rgba(0,0,0,0.1)'}}>{dailyRecipe.title}</h1>
+                 {dailyRecipe.description && <p style={{opacity: 0.95, fontSize: '15px', margin: 0, fontWeight: 500}}>{dailyRecipe.description}</p>}
                  
                  <button 
                     onClick={toggleDailyFavorite}
@@ -1043,20 +1053,20 @@ export default function Home() {
                       background: 'white',
                       color: dailyFavoriteId ? '#ef4444' : '#ea580c',
                       border: 'none',
-                      padding: '12px 25px',
+                      padding: '10px 20px',
                       borderRadius: '100px',
                       fontWeight: 800,
-                      fontSize: '16px',
+                      fontSize: '14px',
                       display: 'flex',
                       alignItems: 'center',
                       gap: '8px',
                       margin: '25px auto 0 auto',
                       cursor: 'pointer',
-                      boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+                      boxShadow: '0 5px 15px rgba(0,0,0,0.1)',
                       transition: 'transform 0.2s'
                     }}
                  >
-                    <Heart size={22} fill={dailyFavoriteId ? "#ef4444" : "none"} color={dailyFavoriteId ? "#ef4444" : "currentColor"} /> 
+                    <Heart size={20} fill={dailyFavoriteId ? "#ef4444" : "none"} color={dailyFavoriteId ? "#ef4444" : "currentColor"} /> 
                     {dailyFavoriteId ? "В избранном" : "В избранное"}
                  </button>
               </div>

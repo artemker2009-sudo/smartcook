@@ -2,7 +2,7 @@
 
 import { useState, useEffect, ChangeEvent } from "react";
 import { supabase } from "@/lib/supabase"; 
-import DailyRecipe from "@/components/DailyRecipe";
+// import DailyRecipe from "@/components/DailyRecipe"; // Закомментировали, так как теперь рецепт дня встроен с новым ВАУ-дизайном
 import { 
   Menu, X, Flame, Send, Camera, Search, Clock, Heart, 
   ArrowRight, ArrowLeft, RotateCcw, CheckCircle, Sparkles, Image as ImageIcon, 
@@ -100,6 +100,9 @@ export default function Home() {
 
   const [fromFeed, setFromFeed] = useState(false);
   const [currentHoliday, setCurrentHoliday] = useState<HolidayType | null>(null);
+
+  // Стейт для сохранения рецепта дня
+  const [dailyFavoriteId, setDailyFavoriteId] = useState<number | null>(null);
 
   const cleanText = (text: any) => {
     if (!text) return "";
@@ -247,6 +250,40 @@ export default function Home() {
       });
     } catch (err) { 
       console.error("Favorite Error:", err); 
+    }
+  };
+
+  // ФУНКЦИЯ ДЛЯ ДОБАВЛЕНИЯ РЕЦЕПТА ДНЯ В ИЗБРАННОЕ
+  const toggleDailyFavorite = async () => {
+    if (!dailyRecipe || !userId) return;
+    
+    if (dailyFavoriteId) {
+      // Удаляем из избранного
+      const updatedFeed = feed?.map(r => r.id === dailyFavoriteId ? { ...r, is_favorite: false } : r) || [];
+      setFeed(updatedFeed);
+      setDailyFavoriteId(null);
+      try {
+        await fetch("/api/favorite", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: dailyFavoriteId, isFavorite: false }) });
+      } catch(e) { console.error(e); }
+    } else {
+      // Добавляем в БД
+      const { data, error } = await supabase.from('recipes').insert({
+        session_id: userId,
+        title: dailyRecipe.title,
+        description: dailyRecipe.description,
+        time: String(dailyRecipe.time),
+        calories: String(dailyRecipe.calories),
+        ingredients: dailyRecipe.ingredients || dailyRecipe.detailed_ingredients?.map(i => `${i.name} - ${i.amount}`) || [],
+        detailed_ingredients: dailyRecipe.detailed_ingredients || [],
+        missing_ingredients: dailyRecipe.missing_ingredients || [],
+        steps: dailyRecipe.steps,
+        is_favorite: true
+      }).select('*');
+      
+      if (data && data.length > 0) {
+         setDailyFavoriteId(data[0].id);
+         fetchMyRecipes(userId); // Обновляем историю
+      }
     }
   };
 
@@ -696,9 +733,7 @@ export default function Home() {
                 {recipe.calories && <div className="tag-badge orange"><Flame size={16}/> {formatCalories(recipe.calories)}</div>}
               </div>
 
-              {/* ИСПРАВЛЕНИЕ: Логика вывода списка "Нужно купить" */}
               {(() => {
-                // Если открыли из ленты, берем ВСЕ ингредиенты. Иначе берем то, что не хватало (missing_ingredients).
                 const itemsToBuy = (fromFeed && recipe.detailed_ingredients)
                   ? recipe.detailed_ingredients.map(ing => ing.name)
                   : (recipe.missing_ingredients || []);
@@ -988,10 +1023,77 @@ export default function Home() {
         </div>
       )}
 
-      {/* === РЕЦЕПТ ДНЯ === */}
+      {/* === РЕЦЕПТ ДНЯ (Встроенный ВАУ-дизайн) === */}
       {activeView === 'daily' && (
         <div style={{marginTop: '60px'}}>
-          <DailyRecipe data={dailyRecipe} />
+          {dailyRecipe ? (
+            <div className="card" style={{padding: 0, overflow: 'hidden', border: 'none', boxShadow: '0 20px 50px -10px rgba(249, 115, 22, 0.25)'}}>
+              
+              {/* Вау-заголовок */}
+              <div style={{background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', padding: '40px 20px', color: 'white', textAlign: 'center', position: 'relative'}}>
+                 <div style={{fontSize: '60px', marginBottom: '15px', textShadow: '0 10px 20px rgba(0,0,0,0.2)'}}>🔥</div>
+                 <div style={{textTransform: 'uppercase', fontSize: '13px', fontWeight: 800, letterSpacing: '2px', opacity: 0.8, marginBottom: '10px'}}>Рецепт дня</div>
+                 <h1 style={{fontSize: '30px', fontWeight: 900, margin: '0 0 15px 0', lineHeight: 1.2, textShadow: '0 2px 10px rgba(0,0,0,0.1)'}}>{dailyRecipe.title}</h1>
+                 {dailyRecipe.description && <p style={{opacity: 0.95, fontSize: '16px', margin: 0, fontWeight: 500}}>{dailyRecipe.description}</p>}
+                 
+                 <button 
+                    onClick={toggleDailyFavorite}
+                    style={{
+                      marginTop: '25px',
+                      background: 'white',
+                      color: dailyFavoriteId ? '#ef4444' : '#ea580c',
+                      border: 'none',
+                      padding: '12px 25px',
+                      borderRadius: '100px',
+                      fontWeight: 800,
+                      fontSize: '16px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      margin: '25px auto 0 auto',
+                      cursor: 'pointer',
+                      boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+                      transition: 'transform 0.2s'
+                    }}
+                 >
+                    <Heart size={22} fill={dailyFavoriteId ? "#ef4444" : "none"} color={dailyFavoriteId ? "#ef4444" : "currentColor"} /> 
+                    {dailyFavoriteId ? "В избранном" : "В избранное"}
+                 </button>
+              </div>
+              
+              <div style={{padding: '25px'}}>
+                  <div className="recipe-tags" style={{justifyContent: 'center', marginBottom: '30px'}}>
+                    <div className="tag-badge" style={{fontSize: '15px', padding: '8px 16px'}}><Clock size={18}/> {formatTime(String(dailyRecipe.time))}</div>
+                    {dailyRecipe.calories && <div className="tag-badge orange" style={{fontSize: '15px', padding: '8px 16px'}}><Flame size={18}/> {formatCalories(String(dailyRecipe.calories))}</div>}
+                  </div>
+
+                  {dailyRecipe.detailed_ingredients && (
+                    <div className="ing-box" style={{background: '#fff7ed', border: '1px solid #ffedd5'}}>
+                      <h3 style={{marginTop: 0, marginBottom: '15px', color: '#9a3412'}}>Ингредиенты</h3>
+                      {dailyRecipe.detailed_ingredients.map((ing, i) => (
+                        <div key={i} className="ing-row">
+                          <span style={{fontWeight: 600}}>{ing.name}</span> <span className="ing-val" style={{color: '#ea580c'}}>{ing.amount}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <h3 style={{fontSize: '24px', fontWeight: 900, marginBottom: '20px', marginTop: '30px'}}>👨‍🍳 Как приготовить</h3>
+                  <div>
+                    {dailyRecipe.steps.map((step, i) => (
+                      <div key={i} className="step-row">
+                        <div className="step-num">{i + 1}</div>
+                        <div className="step-text">{cleanText(step)}</div>
+                      </div>
+                    ))}
+                  </div>
+              </div>
+            </div>
+          ) : (
+            <div style={{textAlign: 'center', padding: '50px', color: '#6b7280'}}>
+               Загружаем рецепт дня... <Sparkles className="animate-spin" style={{display: 'inline', marginLeft: '10px'}} />
+            </div>
+          )}
           
           <div className="chat-box" style={{marginBottom: '40px'}}>
             <div style={{fontWeight: 800, marginBottom: '20px', color: '#1e40af', fontSize: '18px', textAlign: 'center'}}>

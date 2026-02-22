@@ -2,14 +2,11 @@
 
 import { useState, useEffect, ChangeEvent } from "react";
 import { supabase } from "@/lib/supabase"; 
-// import DailyRecipe from "@/components/DailyRecipe"; // Закомментировали, так как теперь рецепт дня встроен с новым ВАУ-дизайном
 import { 
   Menu, X, Flame, Send, Camera, Search, Clock, Heart, 
   ArrowRight, ArrowLeft, RotateCcw, CheckCircle, Sparkles, Image as ImageIcon, 
   Wallet, Zap, Leaf, Globe, ChevronRight, ChevronDown, ChevronUp, Shuffle, ShoppingCart, Lock, ShoppingBag, ExternalLink, Info, ThumbsUp, Share2 
 } from "lucide-react";
-
-// import imageCompression from 'browser-image-compression'; 
 
 /* --- ТИПЫ ДАННЫХ --- */
 interface AnalysisData { ingredients: string[]; dishes: string[]; }
@@ -99,9 +96,11 @@ export default function Home() {
   const [asking, setAsking] = useState(false);
 
   const [fromFeed, setFromFeed] = useState(false);
+  
+  // ИСПРАВЛЕНИЕ: Добавлен стейт для отслеживания перехода по ссылке
+  const [isSharedView, setIsSharedView] = useState(false);
   const [currentHoliday, setCurrentHoliday] = useState<HolidayType | null>(null);
 
-  // Стейт для сохранения рецепта дня
   const [dailyFavoriteId, setDailyFavoriteId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -303,20 +302,21 @@ export default function Home() {
     }
   };
 
-  // ИСПРАВЛЕНИЕ: Обновлен текст для "Поделиться" Рецептом дня
+  // ИСПРАВЛЕНИЕ: Единый текст для "Поделиться", чтобы мессенджеры не съедали текст
   const handleShareDaily = async () => {
     if (!dailyRecipe) return;
-    const shareData = {
-      title: dailyRecipe.title,
-      text: `«${dailyRecipe.title}» — приготовлено с помощью SmartCook 👨‍🍳\n\nСмотри рецепт по ссылке:`,
-      url: window.location.origin, 
-    };
+    // Склеиваем текст и ссылку в одну переменную
+    const fullText = `«${dailyRecipe.title}» 🍲\nПриготовлено с помощью SmartCook 👨‍🍳\n\nСмотри рецепт по ссылке:\n${window.location.origin}`;
 
     try {
       if (navigator.share) {
-        await navigator.share(shareData);
+        // Передаем только title и text (без url), чтобы Telegram/WhatsApp не удаляли текст
+        await navigator.share({
+          title: dailyRecipe.title,
+          text: fullText
+        });
       } else {
-        await navigator.clipboard.writeText(`${shareData.text}\n${shareData.url}`);
+        await navigator.clipboard.writeText(fullText);
         alert("Ссылка на сайт скопирована в буфер обмена!");
       }
     } catch (err) {
@@ -324,23 +324,22 @@ export default function Home() {
     }
   };
 
-  // ИСПРАВЛЕНИЕ: Обновлен текст для "Поделиться" обычным рецептом
+  // ИСПРАВЛЕНИЕ: Единый текст для "Поделиться" обычным рецептом
   const handleShareRecipe = async () => {
     if (!recipe) return;
     
     const recipeUrl = recipe.id ? `${window.location.origin}/?recipeId=${recipe.id}` : window.location.origin;
-
-    const shareData = {
-      title: recipe.title,
-      text: `«${recipe.title}» — приготовлено с помощью SmartCook 👨‍🍳\n\nОткрой рецепт по ссылке:`,
-      url: recipeUrl, 
-    };
+    const fullText = `«${recipe.title}» 🍲\nПриготовлено с помощью SmartCook 👨‍🍳\n\nОткрой рецепт по ссылке:\n${recipeUrl}`;
 
     try {
       if (navigator.share) {
-        await navigator.share(shareData);
+        // Передаем только title и text (без url), чтобы Telegram/WhatsApp не удаляли текст
+        await navigator.share({
+          title: recipe.title,
+          text: fullText
+        });
       } else {
-        await navigator.clipboard.writeText(`${shareData.text}\n${shareData.url}`);
+        await navigator.clipboard.writeText(fullText);
         alert("Ссылка на рецепт скопирована в буфер обмена!");
       }
     } catch (err) {
@@ -505,6 +504,7 @@ export default function Home() {
     setRecipe({ id: item.id, is_favorite: item.is_favorite, title: item.title, description: item.description, time: item.time, calories: item.calories, steps: item.steps || [], missing_ingredients: item.missing_ingredients || [], ingredients: item.ingredients || [], detailed_ingredients: item.detailed_ingredients || [] });
     
     setFromFeed(source === 'feed');
+    setIsSharedView(false); // Сбрасываем режим шеринга при загрузке из истории
     window.scrollTo({ top: 0, behavior: 'smooth' }); 
     setActiveView('service'); 
   };
@@ -535,6 +535,7 @@ export default function Home() {
         });
         setActiveView('service');
         setFromFeed(false); 
+        setIsSharedView(true); // Включаем режим только просмотра
       }
     } catch (err) {
       console.error("Ошибка загрузки рецепта по ссылке:", err);
@@ -551,11 +552,28 @@ export default function Home() {
     }
   };
 
+  // ИСПРАВЛЕНИЕ: Кнопка "К поиску" для режима просмотра по ссылке
+  const handleBackToSearch = () => {
+    setRecipe(null);
+    setIsSharedView(false);
+    // Очищаем URL от ?recipeId=... чтобы при обновлении не открывался старый рецепт
+    if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', '/');
+    }
+  };
+
   const switchView = (view: 'service' | 'about' | 'daily' | 'feed') => {
     setActiveView(view);
     setIsMenuOpen(false);
     setQuestion(""); 
     setAnswer(null);
+    if (view === 'service') {
+       setIsSharedView(false);
+       setRecipe(null);
+       if (typeof window !== 'undefined') {
+         window.history.pushState({}, '', '/');
+       }
+    }
   };
 
   const displayedFeed = filterMode === 'all' ? feed : feed?.filter(r => r.is_favorite);
@@ -601,7 +619,6 @@ export default function Home() {
               right: 'auto', 
               transform: isMenuOpen ? 'translateX(0)' : 'translateX(-100%)',
               zIndex: 100,
-              // ИСПРАВЛЕНИЕ: Квадратная слева, круглая справа
               borderTopRightRadius: '24px',
               borderBottomRightRadius: '24px',
               borderTopLeftRadius: '0',
@@ -623,7 +640,8 @@ export default function Home() {
       {/* === СЕРВИС (ГЛАВНАЯ) === */}
       {activeView === 'service' && (
         <>
-          {!fromFeed && (
+          {/* ИСПРАВЛЕНИЕ: Скрываем верхнюю часть, если открыт поделенный рецепт */}
+          {!fromFeed && !isSharedView && (
             <>
               <div className="hero">
                 <h1 className="brand-name">SmartCook</h1>
@@ -721,7 +739,7 @@ export default function Home() {
           )}
 
           {/* Результаты анализа */}
-          {analysisResult && (
+          {analysisResult && !isSharedView && (
             <div className="card">
               <h3 style={{textAlign: 'center', marginBottom: '20px'}}>Я вижу продукты:</h3>
               <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', marginBottom: '25px'}}>
@@ -760,8 +778,30 @@ export default function Home() {
 
           {/* === ПРОСМОТР РЕЦЕПТА === */}
           {recipe && (
-            <div className="card" style={{position: 'relative', overflow: 'visible', marginTop: '20px'}}>
+            <div className="card" style={{position: 'relative', overflow: 'visible', marginTop: (isSharedView || fromFeed) ? '60px' : '20px'}}>
               
+              {/* ИСПРАВЛЕНИЕ: Кнопка "К поиску" для режима просмотра по ссылке */}
+              {isSharedView && (
+                <button 
+                  onClick={handleBackToSearch}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    background: 'white', 
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '100px',
+                    padding: '8px 16px',
+                    color: '#374151', 
+                    fontSize: '14px', fontWeight: 600,
+                    marginBottom: '20px', 
+                    cursor: 'pointer', 
+                    boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <Search size={18} color="#059669" /> К поиску
+                </button>
+              )}
+
               {fromFeed && (
                 <button 
                   onClick={handleBackToSource}
@@ -773,7 +813,6 @@ export default function Home() {
                     padding: '8px 16px',
                     color: '#374151', 
                     fontSize: '14px', fontWeight: 600,
-                    marginTop: '40px',
                     marginBottom: '20px', 
                     cursor: 'pointer', 
                     boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
@@ -807,7 +846,7 @@ export default function Home() {
                   </p>
                 )}
               
-                {!fromFeed && (analysisResult || (searchMode === 'text' && recipe)) && (
+                {!fromFeed && !isSharedView && (analysisResult || (searchMode === 'text' && recipe)) && (
                   <button 
                     onClick={handleSmartVariant}
                     disabled={loadingRecipe}
@@ -848,7 +887,7 @@ export default function Home() {
                     color: '#92400e'
                   }}>
                     <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontWeight: 800}}>
-                      <ShoppingCart size={20} /> {(searchMode === 'text' || fromFeed) ? "Нужно купить:" : "Нужно докупить:"}
+                      <ShoppingCart size={20} /> {(searchMode === 'text' || fromFeed || isSharedView) ? "Нужно купить:" : "Нужно докупить:"}
                     </div>
                     <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px'}}>
                       {itemsToBuy.map((item, idx) => (

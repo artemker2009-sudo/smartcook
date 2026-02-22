@@ -1027,19 +1027,18 @@ export default function Home() {
       {activeView === 'daily' && (
         <div style={{marginTop: '60px'}}>
           {dailyRecipe ? (
-            // ИСПРАВЛЕНИЕ: Убрана огромная тень с карточки-обертки
             <div className="card" style={{padding: 0, overflow: 'hidden', border: 'none'}}>
               
-              {/* Вау-заголовок (ИСПРАВЛЕНО: аккуратный баннер с закруглениями, отступами и своей тенью) */}
+              {/* Вау-заголовок */}
               <div style={{
                 background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
-                padding: '30px 20px', // Уменьшены отступы
+                padding: '30px 20px', 
                 color: 'white',
                 textAlign: 'center',
                 position: 'relative',
-                borderRadius: '24px', // Закругленные края
-                margin: '10px', // Отступ от краев карточки
-                boxShadow: '0 10px 25px -5px rgba(234, 88, 12, 0.5)' // Маленькая аккуратная оранжевая тень
+                borderRadius: '24px', 
+                margin: '10px', 
+                boxShadow: '0 10px 25px -5px rgba(234, 88, 12, 0.5)' 
               }}>
                  <div style={{fontSize: '50px', marginBottom: '15px', textShadow: '0 10px 20px rgba(0,0,0,0.2)'}}>🔥</div>
                  <div style={{textTransform: 'uppercase', fontSize: '12px', fontWeight: 800, letterSpacing: '2px', opacity: 0.8, marginBottom: '10px'}}>Рецепт дня</div>
@@ -1076,6 +1075,61 @@ export default function Home() {
                     <div className="tag-badge" style={{fontSize: '15px', padding: '8px 16px'}}><Clock size={18}/> {formatTime(String(dailyRecipe.time))}</div>
                     {dailyRecipe.calories && <div className="tag-badge orange" style={{fontSize: '15px', padding: '8px 16px'}}><Flame size={18}/> {formatCalories(String(dailyRecipe.calories))}</div>}
                   </div>
+
+                  {/* ИСПРАВЛЕНИЕ: ДОБАВЛЕН БЛОК ПОКУПОК ДЛЯ РЕЦЕПТА ДНЯ */}
+                  {(() => {
+                    // Для рецепта дня мы берем все ингредиенты, так как пользователь еще ничего не сканировал
+                    const itemsToBuy = dailyRecipe.detailed_ingredients 
+                      ? dailyRecipe.detailed_ingredients.map(ing => ing.name) 
+                      : (dailyRecipe.ingredients || []);
+
+                    if (itemsToBuy.length === 0) return null;
+
+                    return (
+                      <div style={{
+                        background: '#fffbeb', 
+                        border: '1px solid #fcd34d', 
+                        borderRadius: '12px', 
+                        padding: '15px', 
+                        margin: '20px 0',
+                        color: '#92400e'
+                      }}>
+                        <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontWeight: 800}}>
+                          <ShoppingCart size={20} /> Нужно купить:
+                        </div>
+                        <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px'}}>
+                          {itemsToBuy.map((item, idx) => (
+                            <a 
+                              key={idx} 
+                              href={`https://www.ozon.ru/search/?text=${encodeURIComponent(item)}&from_global=true`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                 background: '#fef3c7', 
+                                 padding: '6px 12px', 
+                                 borderRadius: '8px', 
+                                 fontSize: '14px', 
+                                 fontWeight: 600,
+                                 textDecoration: 'none',
+                                 color: '#92400e',
+                                 display: 'flex',
+                                 alignItems: 'center',
+                                 gap: '6px',
+                                 border: '1px solid #fcd34d',
+                                 cursor: 'pointer',
+                                 transition: 'all 0.2s'
+                              }}
+                            >
+                              {item} <ExternalLink size={12} style={{opacity: 0.6}} />
+                            </a>
+                          ))}
+                        </div>
+                        <div style={{fontSize: '12px', color: '#b45309', display: 'flex', alignItems: 'center', gap: '5px'}}>
+                           <Info size={14} /> Нажмите на ингредиент, чтобы заказать быструю доставку Ozon Fresh до двери
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {dailyRecipe.detailed_ingredients && (
                     <div className="ing-box" style={{background: '#fff7ed', border: '1px solid #ffedd5'}}>

@@ -2,14 +2,11 @@
 
 import { useState, useEffect, ChangeEvent } from "react";
 import { supabase } from "@/lib/supabase"; 
-// import DailyRecipe from "@/components/DailyRecipe"; // Закомментировали, так как теперь рецепт дня встроен с новым ВАУ-дизайном
 import { 
   Menu, X, Flame, Send, Camera, Search, Clock, Heart, 
   ArrowRight, ArrowLeft, RotateCcw, CheckCircle, Sparkles, Image as ImageIcon, 
   Wallet, Zap, Leaf, Globe, ChevronRight, ChevronDown, ChevronUp, Shuffle, ShoppingCart, Lock, ShoppingBag, ExternalLink, Info, ThumbsUp, Share2 
 } from "lucide-react";
-
-// import imageCompression from 'browser-image-compression'; 
 
 /* --- ТИПЫ ДАННЫХ --- */
 interface AnalysisData { ingredients: string[]; dishes: string[]; }
@@ -181,7 +178,6 @@ export default function Home() {
       setCurrentHoliday(holidays[key]);
     }
 
-    // ИСПРАВЛЕНИЕ: Проверяем параметр для обычного рецепта и для Рецепта дня
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const sharedId = params.get('recipeId');
@@ -191,7 +187,6 @@ export default function Home() {
         loadSharedRecipe(sharedId);
       } else if (isDaily === 'true') {
         setActiveView('daily');
-        // Очищаем адресную строку, чтобы при обновлении страницы параметр не залипал
         window.history.replaceState({}, '', '/');
       }
     }
@@ -311,10 +306,8 @@ export default function Home() {
     }
   };
 
-  // ИСПРАВЛЕНИЕ: Добавлен параметр ?daily=true в ссылку
   const handleShareDaily = async () => {
     if (!dailyRecipe) return;
-    
     const recipeUrl = `${window.location.origin}/?daily=true`;
     const fullText = `«${dailyRecipe.title}» 🍲\nПриготовлено с помощью SmartCook 👨‍🍳\n\nСмотри рецепт по ссылке:\n${recipeUrl}`;
 
@@ -830,10 +823,11 @@ export default function Home() {
                 </button>
               )}
 
+              {/* ИСПРАВЛЕНИЕ: Выравнивание flex-start и flex: 1 для заголовка, чтобы кнопки не съезжали */}
               <div className="recipe-header" style={{flexDirection: 'column', alignItems: 'flex-start', gap: '15px'}}>
-                <div style={{display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center'}}>
-                  <h2 className="recipe-title" style={{marginBottom: 0, paddingRight: '10px', fontSize: '24px'}}>{recipe.title}</h2>
-                  <div style={{display: 'flex', gap: '15px', alignItems: 'center', flexShrink: 0}}>
+                <div style={{display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'flex-start', gap: '10px'}}>
+                  <h2 className="recipe-title" style={{marginBottom: 0, fontSize: '24px', flex: 1, wordBreak: 'break-word', lineHeight: 1.2}}>{recipe.title}</h2>
+                  <div style={{display: 'flex', gap: '15px', alignItems: 'center', flexShrink: 0, marginTop: '2px'}}>
                     <div onClick={handleShareRecipe} style={{cursor: 'pointer', display: 'flex'}}>
                       <Share2 size={30} color="#d1d5db" style={{ transition: 'color 0.2s' }} />
                     </div>

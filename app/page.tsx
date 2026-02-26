@@ -62,6 +62,28 @@ interface HolidayType {
   icon: string;
 }
 
+// ИСПРАВЛЕНИЕ: Умная функция для пересчета граммовок
+const scaleAmount = (amount: string, multiplier: number) => {
+  if (!amount) return "";
+  if (multiplier === 1) return amount;
+  
+  // Ищем числа, включая дроби (1/2) и числа с запятой/точкой (1.5 или 1,5)
+  return amount.replace(/(\d+\/\d+|\d+([\.,]\d+)?)/g, (match) => {
+    let num = 0;
+    if (match.includes('/')) {
+      const parts = match.split('/');
+      num = parseInt(parts[0]) / parseInt(parts[1]);
+    } else {
+      num = parseFloat(match.replace(',', '.'));
+    }
+    
+    if (isNaN(num)) return match;
+    const scaled = num * multiplier;
+    // Если число целое - выводим как есть, если с остатком - оставляем 1 знак после запятой
+    return Number.isInteger(scaled) ? String(scaled) : scaled.toFixed(1).replace('.', ',');
+  });
+};
+
 export default function Home() {
   const [activeView, setActiveView] = useState<'service' | 'about' | 'daily' | 'feed'>('service');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -101,6 +123,9 @@ export default function Home() {
   const [currentHoliday, setCurrentHoliday] = useState<HolidayType | null>(null);
 
   const [dailyFavoriteId, setDailyFavoriteId] = useState<number | null>(null);
+
+  // ИСПРАВЛЕНИЕ: Стейт для порций (может быть пустой строкой, когда стираем клавиатурой)
+  const [servings, setServings] = useState<number | "">(1);
 
   useEffect(() => {
     if (dailyRecipe && feed.length > 0) {
@@ -354,6 +379,7 @@ export default function Home() {
     setPreview(URL.createObjectURL(rawFile));
     setAnalysisResult(null); setRecipe(null); setSelectedDish(null); setQuestion(""); setAnswer(null); 
     setIsProcessing(true);
+    setServings(1); // Сбрасываем порции
 
     try {
       const imageCompression = (await import('browser-image-compression')).default;
@@ -405,6 +431,7 @@ export default function Home() {
   const getRecipeFromPhoto = async (dishName: string) => {
     if (!analysisResult || !userId) return; 
     setSelectedDish(dishName); setLoadingRecipe(true); setRecipe(null);
+    setServings(1); // Сбрасываем порции
     
     // Скролл вниз, чтобы пользователь видел, что что-то происходит
     window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
@@ -424,6 +451,7 @@ export default function Home() {
 
   const handleSmartVariant = async () => {
     setLoadingRecipe(true);
+    setServings(1); // Сбрасываем порции
     try {
       if (analysisResult) {
         const response = await fetch("/api/regenerate", { 
@@ -460,6 +488,7 @@ export default function Home() {
     setLoadingRecipe(true); 
     setRecipe(null); 
     setAnalysisResult(null);
+    setServings(1); // Сбрасываем порции
     try {
       const response = await fetch("/api/search-recipe", { 
         method: "POST", 
@@ -501,6 +530,7 @@ export default function Home() {
 
   const loadFromHistory = (item: DBRecipe, source: 'feed' | 'history' = 'history') => {
     setAnalysisResult(null); setQuestion(""); setAnswer(null);
+    setServings(1); // Сбрасываем порции
     setRecipe({ id: item.id, is_favorite: item.is_favorite, title: item.title, description: item.description, time: item.time, calories: item.calories, steps: item.steps || [], missing_ingredients: item.missing_ingredients || [], ingredients: item.ingredients || [], detailed_ingredients: item.detailed_ingredients || [] });
     
     setFromFeed(source === 'feed');
@@ -521,6 +551,7 @@ export default function Home() {
         setAnalysisResult(null); 
         setQuestion(""); 
         setAnswer(null);
+        setServings(1); // Сбрасываем порции
         setRecipe({ 
           id: data.id, 
           is_favorite: data.is_favorite, 
@@ -565,6 +596,7 @@ export default function Home() {
     setIsMenuOpen(false);
     setQuestion(""); 
     setAnswer(null);
+    setServings(1); // Сбрасываем порции
     if (view === 'service') {
        setIsSharedView(false);
        setRecipe(null);
@@ -581,8 +613,22 @@ export default function Home() {
   const displayedFeed = filterMode === 'all' ? feed : feed?.filter(r => r.is_favorite);
   const visibleHistory = historyExpanded ? displayedFeed : displayedFeed?.slice(0, 4);
 
+  // Фактическое количество порций для расчетов (если пусто, то 1)
+  const actualServings = typeof servings === 'number' ? servings : 1;
+
   return (
     <div className="container">
+      {/* Скрываем встроенные стрелочки у поля ввода типа number */}
+      <style>{`
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+          -webkit-appearance: none; 
+          margin: 0; 
+        }
+        input[type=number] {
+          -moz-appearance: textfield;
+        }
+      `}</style>
       
       {/* КНОПКА МЕНЮ */}
       <button 
@@ -595,7 +641,7 @@ export default function Home() {
           right: 'auto', 
           zIndex: 50,
           background: 'white',
-          borderRadius: '50%', // КРУГЛАЯ
+          borderRadius: '50%', 
           width: '44px',       
           height: '44px',      
           padding: 0,
@@ -728,7 +774,6 @@ export default function Home() {
                   </>
                 ) : (
                   <>
-                    {/* ИСПРАВЛЕНИЕ: Добавлен крестик очистки в строку поиска */}
                     <div style={{ position: 'relative', width: '100%', marginBottom: '15px' }}>
                       <input 
                         type="text" 
@@ -736,7 +781,7 @@ export default function Home() {
                         placeholder="Например: Паста Карбонара" 
                         value={textQuery} 
                         onChange={(e) => setTextQuery(e.target.value)} 
-                        style={{ paddingRight: textQuery ? '40px' : '15px', marginBottom: 0 }} // Чтобы текст не залезал под крестик
+                        style={{ paddingRight: textQuery ? '40px' : '15px', marginBottom: 0 }} 
                       />
                       {textQuery && (
                         <button
@@ -895,10 +940,56 @@ export default function Home() {
                 )}
               </div>
 
-              <div className="recipe-tags" style={{marginTop: '15px'}}>
+              <div className="recipe-tags" style={{marginTop: '15px', marginBottom: '15px'}}>
                 <div className="tag-badge"><Clock size={16}/> {formatTime(recipe.time)}</div>
                 {recipe.calories && <div className="tag-badge orange"><Flame size={16}/> {formatCalories(recipe.calories)}</div>}
               </div>
+
+              {recipe.detailed_ingredients && recipe.detailed_ingredients.length > 0 && (
+                <div style={{
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '12px', 
+                  marginBottom: '20px',
+                  background: '#f9fafb',
+                  padding: '10px 15px',
+                  borderRadius: '12px',
+                  width: 'fit-content'
+                }}>
+                  <span style={{fontWeight: 700, color: '#374151', fontSize: '15px'}}>🍽 Порции:</span>
+                  <div style={{display: 'flex', alignItems: 'center', background: 'white', border: '1px solid #d1d5db', borderRadius: '8px', overflow: 'hidden'}}>
+                    <button 
+                      onClick={() => setServings(prev => typeof prev === 'number' && prev > 1 ? prev - 1 : 1)}
+                      disabled={servings === 1 || servings === ""}
+                      style={{padding: '6px 12px', background: 'transparent', border: 'none', fontSize: '18px', color: (servings === 1 || servings === "") ? '#d1d5db' : '#374151', cursor: (servings === 1 || servings === "") ? 'default' : 'pointer', fontWeight: 600}}
+                    >
+                      -
+                    </button>
+                    <input 
+                      type="number"
+                      value={servings}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '') setServings('');
+                        else {
+                          const num = parseInt(val);
+                          if (!isNaN(num) && num > 0 && num <= 100) setServings(num);
+                        }
+                      }}
+                      onBlur={() => {
+                        if (servings === "") setServings(1);
+                      }}
+                      style={{width: '40px', textAlign: 'center', border: 'none', borderLeft: '1px solid #d1d5db', borderRight: '1px solid #d1d5db', padding: '6px 0', fontSize: '16px', fontWeight: 700, color: '#111', outline: 'none'}}
+                    />
+                    <button 
+                      onClick={() => setServings(prev => typeof prev === 'number' ? prev + 1 : 2)}
+                      style={{padding: '6px 12px', background: 'transparent', border: 'none', fontSize: '18px', color: '#374151', cursor: 'pointer', fontWeight: 600}}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {(() => {
                 const itemsToBuy = (fromFeed && recipe.detailed_ingredients)
@@ -958,7 +1049,8 @@ export default function Home() {
                   <h3 style={{marginTop: 0, marginBottom: '15px'}}>Ингредиенты</h3>
                   {recipe.detailed_ingredients.map((ing, i) => (
                     <div key={i} className="ing-row">
-                      <span>{ing.name}</span> <span className="ing-val">{ing.amount}</span>
+                      <span>{ing.name}</span> 
+                      <span className="ing-val">{scaleAmount(ing.amount, actualServings)}</span>
                     </div>
                   ))}
                 </div>
@@ -1260,10 +1352,58 @@ export default function Home() {
               </div>
               
               <div style={{padding: '25px'}}>
-                  <div className="recipe-tags" style={{justifyContent: 'center', marginBottom: '30px'}}>
+                  <div className="recipe-tags" style={{justifyContent: 'center', marginBottom: '20px'}}>
                     <div className="tag-badge" style={{fontSize: '15px', padding: '8px 16px'}}><Clock size={18}/> {formatTime(String(dailyRecipe.time))}</div>
                     {dailyRecipe.calories && <div className="tag-badge orange" style={{fontSize: '15px', padding: '8px 16px'}}><Flame size={18}/> {formatCalories(String(dailyRecipe.calories))}</div>}
                   </div>
+
+                  {dailyRecipe.detailed_ingredients && dailyRecipe.detailed_ingredients.length > 0 && (
+                    <div style={{
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center',
+                      gap: '12px', 
+                      marginBottom: '30px',
+                      background: '#fff7ed',
+                      padding: '10px 15px',
+                      borderRadius: '12px',
+                      width: 'fit-content',
+                      margin: '0 auto 30px auto'
+                    }}>
+                      <span style={{fontWeight: 700, color: '#9a3412', fontSize: '15px'}}>🍽 Порции:</span>
+                      <div style={{display: 'flex', alignItems: 'center', background: 'white', border: '1px solid #ffedd5', borderRadius: '8px', overflow: 'hidden'}}>
+                        <button 
+                          onClick={() => setServings(prev => typeof prev === 'number' && prev > 1 ? prev - 1 : 1)}
+                          disabled={servings === 1 || servings === ""}
+                          style={{padding: '6px 12px', background: 'transparent', border: 'none', fontSize: '18px', color: (servings === 1 || servings === "") ? '#d1d5db' : '#ea580c', cursor: (servings === 1 || servings === "") ? 'default' : 'pointer', fontWeight: 600}}
+                        >
+                          -
+                        </button>
+                        <input 
+                          type="number"
+                          value={servings}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === '') setServings('');
+                            else {
+                              const num = parseInt(val);
+                              if (!isNaN(num) && num > 0 && num <= 100) setServings(num);
+                            }
+                          }}
+                          onBlur={() => {
+                            if (servings === "") setServings(1);
+                          }}
+                          style={{width: '40px', textAlign: 'center', border: 'none', borderLeft: '1px solid #ffedd5', borderRight: '1px solid #ffedd5', padding: '6px 0', fontSize: '16px', fontWeight: 700, color: '#9a3412', outline: 'none'}}
+                        />
+                        <button 
+                          onClick={() => setServings(prev => typeof prev === 'number' ? prev + 1 : 2)}
+                          style={{padding: '6px 12px', background: 'transparent', border: 'none', fontSize: '18px', color: '#ea580c', cursor: 'pointer', fontWeight: 600}}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {(() => {
                     const itemsToBuy = dailyRecipe.detailed_ingredients 
@@ -1323,7 +1463,8 @@ export default function Home() {
                       <h3 style={{marginTop: 0, marginBottom: '15px', color: '#9a3412'}}>Ингредиенты</h3>
                       {dailyRecipe.detailed_ingredients.map((ing, i) => (
                         <div key={i} className="ing-row">
-                          <span style={{fontWeight: 600}}>{ing.name}</span> <span className="ing-val" style={{color: '#ea580c'}}>{ing.amount}</span>
+                          <span style={{fontWeight: 600}}>{ing.name}</span> 
+                          <span className="ing-val" style={{color: '#ea580c'}}>{scaleAmount(ing.amount, actualServings)}</span>
                         </div>
                       ))}
                     </div>

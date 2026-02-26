@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/react";
 import "./globals.css";
+import YandexMetrika from "@/components/YandexMetrika"; // Импортируем компонент Метрики
+import { Suspense } from "react"; // Импортируем Suspense для корректной работы
 
 // 1. Настройки внешнего вида (PWA, цвета, масштаб)
 export const viewport: Viewport = {
@@ -70,7 +72,13 @@ export default function RootLayout({
   return (
     <html lang="ru">
       <body>
+        {/* Оборачиваем Метрику в Suspense, чтобы Next.js не ругался при сборке */}
+        <Suspense fallback={<></>}>
+          <YandexMetrika />
+        </Suspense>
+
         {children}
+        
         {/* Компонент аналитики Vercel */}
         <Analytics />
       </body>

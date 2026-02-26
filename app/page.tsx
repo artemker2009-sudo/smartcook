@@ -728,8 +728,38 @@ export default function Home() {
                   </>
                 ) : (
                   <>
-                    <input type="text" className="text-search-input" 
-                           placeholder="Например: Паста Карбонара" value={textQuery} onChange={(e) => setTextQuery(e.target.value)} />
+                    {/* ИСПРАВЛЕНИЕ: Добавлен крестик очистки в строку поиска */}
+                    <div style={{ position: 'relative', width: '100%', marginBottom: '15px' }}>
+                      <input 
+                        type="text" 
+                        className="text-search-input" 
+                        placeholder="Например: Паста Карбонара" 
+                        value={textQuery} 
+                        onChange={(e) => setTextQuery(e.target.value)} 
+                        style={{ paddingRight: textQuery ? '40px' : '15px', marginBottom: 0 }} // Чтобы текст не залезал под крестик
+                      />
+                      {textQuery && (
+                        <button
+                          onClick={() => setTextQuery("")}
+                          style={{
+                            position: 'absolute',
+                            right: '12px',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            background: 'transparent',
+                            border: 'none',
+                            padding: '4px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#9ca3af',
+                          }}
+                        >
+                          <X size={18} />
+                        </button>
+                      )}
+                    </div>
                     <button className="btn-primary" onClick={handleTextSearch} disabled={loadingRecipe || !textQuery.trim()}>
                       {loadingRecipe ? "🍳 Готовлю..." : "🔍 Найти"}
                     </button>
@@ -823,7 +853,6 @@ export default function Home() {
                 </button>
               )}
 
-              {/* ИСПРАВЛЕНИЕ: Выравнивание flex-start и flex: 1 для заголовка, чтобы кнопки не съезжали */}
               <div className="recipe-header" style={{flexDirection: 'column', alignItems: 'flex-start', gap: '15px'}}>
                 <div style={{display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'flex-start', gap: '10px'}}>
                   <h2 className="recipe-title" style={{marginBottom: 0, fontSize: '24px', flex: 1, wordBreak: 'break-word', lineHeight: 1.2}}>{recipe.title}</h2>

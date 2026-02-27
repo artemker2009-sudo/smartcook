@@ -107,7 +107,6 @@ export default function Home() {
   const [publicFeed, setPublicFeed] = useState<DBRecipe[]>([]);
   const [feedSort, setFeedSort] = useState<'new' | 'top'>('new');
   
-  // Состояния для вкладки Лента (ЭТАП 5)
   const [feedTab, setFeedTab] = useState<'recipes' | 'photos'>('recipes');
   const [photosFeed, setPhotosFeed] = useState<any[]>([]);
   const [photosSort, setPhotosSort] = useState<'new' | 'top'>('new');
@@ -129,13 +128,11 @@ export default function Home() {
 
   const [servings, setServings] = useState<number | "">(1);
 
-  // Авторизация
   const [user, setUser] = useState<any>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authEmail, setAuthEmail] = useState("");
   const [isSendingLink, setIsSendingLink] = useState(false);
 
-  // Загрузка фото в ленту
   const [userPhotoFile, setUserPhotoFile] = useState<File | null>(null);
   const [userPhotoPreview, setUserPhotoPreview] = useState<string | null>(null);
   const [userComment, setUserComment] = useState("");
@@ -152,7 +149,6 @@ export default function Home() {
     }
   }, [dailyRecipe, feed]);
 
-  // Слушатель сессии Auth
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user || null);
@@ -165,16 +161,13 @@ export default function Home() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // ИСПРАВЛЕНИЕ ОШИБКИ TypeScript: Интеллектуальное присвоение ID пользователя с проверкой
   useEffect(() => {
     let currentSessionId = localStorage.getItem("cook_user_id");
     
     if (user) {
-      // Если вошел в аккаунт - привязываем всё к его профилю навсегда
       currentSessionId = user.id;
       localStorage.setItem("cook_user_id", user.id);
     } else if (!currentSessionId) {
-      // Если аноним и нет айдишника - создаем временный
       currentSessionId = "user_" + Math.random().toString(36).substr(2, 9); 
       localStorage.setItem("cook_user_id", currentSessionId); 
     }
@@ -295,7 +288,6 @@ export default function Home() {
     } catch (e) { console.error("Feed Error:", e); }
   };
 
-  // Функция загрузки ленты фото (ЭТАП 5)
   const fetchPhotosFeed = async (sortType: 'new' | 'top') => {
     setPhotosSort(sortType);
     if (!userId) return;
@@ -377,7 +369,6 @@ export default function Home() {
     }
   };
 
-  // Функция лайка для фотографий (ЭТАП 5)
   const handlePhotoLike = async (e: any, item: any) => {
     e.stopPropagation();
     if (!userId) return;
@@ -829,9 +820,10 @@ export default function Home() {
     setQuestion(""); 
     setAnswer(null);
     setServings(1); 
+    
+    // ИСПРАВЛЕНИЕ: Убрали сброс рецепта (setRecipe(null)), чтобы он сохранялся при переходе между вкладками
     if (view === 'service') {
        setIsSharedView(false);
-       setRecipe(null);
        if (typeof window !== 'undefined') {
          window.history.replaceState({}, '', '/');
        }
@@ -972,7 +964,7 @@ export default function Home() {
         <Menu size={24} color="#111" />
       </button>
 
-      {/* МЕНЮ */}
+      {/* МЕНЮ С НОВЫМИ ПОДРАЗДЕЛАМИ */}
       {isMenuOpen && (
         <>
           <div className="menu-overlay" onClick={() => setIsMenuOpen(false)} style={{zIndex: 99}} />
@@ -993,11 +985,16 @@ export default function Home() {
                <span style={{fontSize: '24px', fontWeight: '900', color: '#059669'}}>SmartCook</span>
                <X size={24} onClick={() => setIsMenuOpen(false)} style={{cursor: 'pointer'}} />
             </div>
+            
             <div className="menu-link" onClick={() => switchView('profile')}><User size={20} color="#0ea5e9"/> Личный кабинет</div>
             <div className="menu-link" onClick={() => switchView('service')}><Search size={20}/> Поиск</div>
             <div className="menu-link" onClick={() => switchView('daily')}><Flame size={20} color="#f97316"/> Рецепт дня</div>
-            <div className="menu-link" onClick={() => switchView('feed')}><Globe size={20} color="#8b5cf6"/> Лента</div>
-            <div className="menu-link" onClick={() => switchView('about')}><CheckCircle size={20} color="#3b82f6"/> О проекте</div>
+            
+            <div style={{ padding: '15px 20px 5px 20px', fontSize: '13px', fontWeight: 800, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '1px' }}>Лента 🌍</div>
+            <div className="menu-link" style={{ paddingLeft: '35px' }} onClick={() => { setFeedTab('recipes'); switchView('feed'); }}><Globe size={20} color="#8b5cf6"/> Лента рецептов</div>
+            <div className="menu-link" style={{ paddingLeft: '35px' }} onClick={() => { setFeedTab('photos'); switchView('feed'); }}><ImageIcon size={20} color="#0ea5e9"/> Лента фото</div>
+
+            <div className="menu-link" style={{ marginTop: '10px' }} onClick={() => switchView('about')}><CheckCircle size={20} color="#3b82f6"/> О проекте</div>
           </div>
         </>
       )}
@@ -1383,11 +1380,25 @@ export default function Home() {
                 ))}
               </div>
 
-              {/* ИСПРАВЛЕНИЕ ОШИБКИ JSX: Изменена стрелочка -> на → */}
+              {/* ЧАТ С ШЕФОМ (Перемещен выше фото) */}
+              <div className="chat-box" style={{marginTop: '30px'}}>
+                <div style={{fontWeight: 800, marginBottom: '20px', color: '#1e40af', fontSize: '18px', textAlign: 'center'}}>
+                   Задайте вопрос AI шеф-повару!
+                </div>
+                <div className="chat-layout">
+                  <input className="chat-input" placeholder="Например: чем заменить сливки?" value={question} onChange={(e) => setQuestion(e.target.value)} />
+                  <button className="chat-btn-center" onClick={handleAskChef}>
+                    <Send size={18}/> Спросить
+                  </button>
+                </div>
+                {answer && <div style={{marginTop: '20px', lineHeight: 1.5, background: 'white', padding: '15px', borderRadius: '16px'}}><strong>Ответ:</strong> {answer}</div>}
+              </div>
+
+              {/* БЛОК ПУБЛИКАЦИИ ФОТО (Перемещен под чат) */}
               <div style={{marginTop: '30px', background: '#f8fafc', padding: '25px 20px', borderRadius: '16px', border: '1px solid #e2e8f0', textAlign: 'center'}}>
                 <h3 style={{fontSize: '18px', fontWeight: 800, marginBottom: '5px', color: '#1f2937'}}>📸 Приготовили? Покажите результат!</h3>
                 <p style={{fontSize: '13px', color: '#64748b', marginBottom: '15px', lineHeight: 1.4}}>
-                   Ваше фото появится в разделе <strong>«Лента → Фото от шефов»</strong>, где его смогут оценить другие пользователи!
+                   Ваше фото появится в разделе <strong>«Лента → Лента фото»</strong>, где его смогут оценить другие пользователи!
                 </p>
                 {!user ? (
                    <button className="btn-primary" onClick={() => setIsAuthModalOpen(true)}>Войти, чтобы опубликовать фото</button>
@@ -1426,19 +1437,6 @@ export default function Home() {
                      )}
                    </div>
                 )}
-              </div>
-
-              <div className="chat-box" style={{marginTop: '30px'}}>
-                <div style={{fontWeight: 800, marginBottom: '20px', color: '#1e40af', fontSize: '18px', textAlign: 'center'}}>
-                   Задайте вопрос AI шеф-повару!
-                </div>
-                <div className="chat-layout">
-                  <input className="chat-input" placeholder="Например: чем заменить сливки?" value={question} onChange={(e) => setQuestion(e.target.value)} />
-                  <button className="chat-btn-center" onClick={handleAskChef}>
-                    <Send size={18}/> Спросить
-                  </button>
-                </div>
-                {answer && <div style={{marginTop: '20px', lineHeight: 1.5, background: 'white', padding: '15px', borderRadius: '16px'}}><strong>Ответ:</strong> {answer}</div>}
               </div>
             </div>
           )}
@@ -1538,45 +1536,16 @@ export default function Home() {
         </>
       )}
 
-      {/* === ЛЕНТА (ФИД) С НОВЫМИ ВКЛАДКАМИ === */}
+      {/* === ЛЕНТА (ФИД) БЕЗ ВЕРХНИХ КНОПОК === */}
       {activeView === 'feed' && (
         <div style={{marginTop: '60px'}}>
           <div style={{textAlign: 'center', marginBottom: '25px'}}>
-            <h1 style={{fontSize: '28px', fontWeight: '900', margin: '0 0 10px 0'}}>Лента 🌍</h1>
-            <p style={{color: '#6b7280', margin: 0}}>Вдохновляйтесь идеями других</p>
+            <h1 style={{fontSize: '28px', fontWeight: '900', margin: '0 0 10px 0'}}>
+               {feedTab === 'recipes' ? 'Идеи от ИИ 🤖' : 'Фото от шефов 📸'}
+            </h1>
+            <p style={{color: '#6b7280', margin: 0}}>Вдохновляйтесь блюдами других</p>
           </div>
 
-          {/* Вкладки Рецепты / Фото */}
-          <div style={{display: 'flex', background: '#e5e7eb', padding: '4px', borderRadius: '14px', marginBottom: '20px'}}>
-            <button 
-              onClick={() => setFeedTab('recipes')}
-              style={{
-                flex: 1, padding: '10px', borderRadius: '12px', border: 'none',
-                background: feedTab === 'recipes' ? 'white' : 'transparent',
-                fontWeight: 800, fontSize: '15px',
-                boxShadow: feedTab === 'recipes' ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
-                color: feedTab === 'recipes' ? '#059669' : '#6b7280',
-                transition: 'all 0.2s'
-              }}
-            >
-              Идеи от ИИ
-            </button>
-            <button 
-              onClick={() => setFeedTab('photos')}
-              style={{
-                flex: 1, padding: '10px', borderRadius: '12px', border: 'none',
-                background: feedTab === 'photos' ? 'white' : 'transparent',
-                fontWeight: 800, fontSize: '15px',
-                boxShadow: feedTab === 'photos' ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
-                color: feedTab === 'photos' ? '#0ea5e9' : '#6b7280',
-                transition: 'all 0.2s'
-              }}
-            >
-              Фото от шефов
-            </button>
-          </div>
-
-          {/* Фильтры сортировки */}
           <div style={{display: 'flex', gap: '10px', marginBottom: '25px', overflowX: 'auto', paddingBottom: '5px'}}>
              <button 
                 onClick={() => { feedTab === 'recipes' ? fetchPublicFeed('new') : fetchPhotosFeed('new') }}
@@ -1884,11 +1853,25 @@ export default function Home() {
                     ))}
                   </div>
 
-                  {/* ИСПРАВЛЕНИЕ ОШИБКИ JSX: Изменена стрелочка -> на → */}
+                  {/* ЧАТ С ШЕФОМ (Перемещен выше фото) */}
+                  <div className="chat-box" style={{marginTop: '30px'}}>
+                    <div style={{fontWeight: 800, marginBottom: '20px', color: '#1e40af', fontSize: '18px', textAlign: 'center'}}>
+                       Задайте вопрос AI шеф-повару!
+                    </div>
+                    <div className="chat-layout">
+                      <input className="chat-input" placeholder="Например: можно ли готовить без лука?" value={question} onChange={(e) => setQuestion(e.target.value)} />
+                      <button className="chat-btn-center" onClick={handleAskChef}>
+                        <Send size={18}/> Спросить
+                      </button>
+                    </div>
+                    {answer && <div style={{marginTop: '20px', lineHeight: 1.5, background: 'white', padding: '15px', borderRadius: '16px'}}><strong>Ответ:</strong> {answer}</div>}
+                  </div>
+
+                  {/* БЛОК ПУБЛИКАЦИИ ФОТО ДЛЯ РЕЦЕПТА ДНЯ (Перемещен под чат) */}
                   <div style={{marginTop: '30px', background: '#fff7ed', padding: '25px 20px', borderRadius: '16px', border: '1px solid #ffedd5', textAlign: 'center'}}>
                     <h3 style={{fontSize: '18px', fontWeight: 800, marginBottom: '5px', color: '#9a3412'}}>📸 Приготовили? Покажите результат!</h3>
                     <p style={{fontSize: '13px', color: '#64748b', marginBottom: '15px', lineHeight: 1.4}}>
-                       Ваше фото появится в разделе <strong>«Лента → Фото от шефов»</strong>, где его смогут оценить другие пользователи!
+                       Ваше фото появится в разделе <strong>«Лента → Лента фото»</strong>, где его смогут оценить другие пользователи!
                     </p>
                     {!user ? (
                        <button className="btn-primary" onClick={() => setIsAuthModalOpen(true)}>Войти, чтобы опубликовать фото</button>
@@ -1935,19 +1918,6 @@ export default function Home() {
                Загружаем рецепт дня... <Sparkles className="animate-spin" style={{display: 'inline', marginLeft: '10px'}} />
             </div>
           )}
-          
-          <div className="chat-box" style={{marginBottom: '40px'}}>
-            <div style={{fontWeight: 800, marginBottom: '20px', color: '#1e40af', fontSize: '18px', textAlign: 'center'}}>
-               Задайте вопрос AI шеф-повару!
-            </div>
-            <div className="chat-layout">
-              <input className="chat-input" placeholder="Например: можно ли готовить без лука?" value={question} onChange={(e) => setQuestion(e.target.value)} />
-              <button className="chat-btn-center" onClick={handleAskChef}>
-                <Send size={18}/> Спросить
-              </button>
-            </div>
-            {answer && <div style={{marginTop: '20px', lineHeight: 1.5, background: 'white', padding: '15px', borderRadius: '16px'}}><strong>Ответ:</strong> {answer}</div>}
-          </div>
         </div>
       )}
       

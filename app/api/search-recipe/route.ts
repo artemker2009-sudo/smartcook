@@ -1,36 +1,46 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
-import { unstable_cache } from "next/cache";
+import { createClient } from "@supabase/supabase-js";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+// ИСПРАВЛЕНИЕ: Добавлен .trim() для защиты от невидимых пробелов и переносов строк в ключах
+const openai = new OpenAI({ 
+  apiKey: (process.env.OPENAI_API_KEY || "").trim() 
 });
 
-// Заставляем маршрут быть динамическим, чтобы проверять дату
-export const dynamic = 'force-dynamic';
+const supabase = createClient(
+  (process.env.NEXT_PUBLIC_SUPABASE_URL || "").trim(),
+  (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "").trim()
+);
 
-const getDailyRecipe = unstable_cache(
-  async (dateStr: string) => {
-    console.log(`Generating Seasonal & Strict Daily Recipe for ${dateStr}...`); 
+export async function POST(req: Request) {
+  try {
+    const { query, sessionId } = await req.json();
 
+    // Базовая проверка на пустоту
+    if (!query || query.trim().length < 2) {
+       return NextResponse.json({ error: "Введите название блюда" }, { status: 400 });
+    }
+
+    // 2. Промпт с "Фейс-контролем" и правилом на 1 персону
     const systemPrompt = `
-      Ты — элитный шеф-повар и педантичный технолог ресторана.
-      Твоя задача — создать "Блюдо дня" на сегодня: ${dateStr}.
+      Ты — строгий профессиональный шеф-повар и технолог.
+      Пользователь просит рецепт: "${query}".
 
-      === ЭТАП 1: ТВОРЧЕСТВО (СЕЗОН И ПРАЗДНИКИ) ===
-      1. Проанализируй дату (${dateStr}).
-      2. ЕСТЬ ЛИ ПРАЗДНИК? 
-         - Если сегодня (или скоро) праздник (14 февраля, 23 февраля, 8 марта, Масленица, Пасха, Новый год) — предложи ТЕМАТИЧЕСКОЕ блюдо.
-         - Например: 14 февраля — что-то изысканное/романтичное; Масленица — блины.
-      3. ЕСЛИ ПРАЗДНИКА НЕТ:
-         - Предложи СЕЗОННОЕ блюдо.
-         - Весна: свежая зелень, ранние овощи, легкие и витаминные блюда.
-         - Лето: легкое, свежее, ягодное.
-         - Зима: сытное, горячее, согревающее.
-         - Осень: тыква, грибы, корнеплоды.
+      === ЭТАП 1: ПРОВЕРКА НА АДЕКВАТНОСТЬ (ФИЛЬТР) ===
+      Проанализируй запрос.
+      ЕСЛИ ЭТО:
+      - Бессмысленный набор букв (пример: "ываыва", "gjhkjkl").
+      - Несуществующее слово или выдуманное название.
+      - Несъедобный предмет (пример: "жареные гвозди", "бетон").
+      - Оскорбление или спам.
+      
+      ТОГДА ВЕРНИ СТРОГО JSON С ОШИБКОЙ:
+      {
+        "error": "Такого блюда не существует. Проверьте название."
+      }
 
-      === ЭТАП 2: ТЕХНОЛОГИЯ (СТРОГОСТЬ) ===
-      Когда блюдо выбрано, составь идеальный рецепт, соблюдая правила:
+      === ЭТАП 2: ЕСЛИ ЭТО РЕАЛЬНАЯ ЕДА — ПИШИ ТЕХКАРТУ ===
+      Составь идеальный рецепт, соблюдая правила:
       
       1. ПОРЦИЯ:
          - Расчет СТРОГО НА 1 (одну) ПЕРСОНУ. Пользователь сам умножит граммовки на сайте.
@@ -46,61 +56,67 @@ const getDailyRecipe = unstable_cache(
       
       4. ОФОРМЛЕНИЕ ШАГОВ (ЧИСТОТА И ПОДРОБНОСТЬ): 
          - НЕ пиши "Шаг 1", "1.". Пиши только чистый текст действия.
-         - ЗАПРЕЩЕНО писать граммовки и миллилитры внутри самих шагов. Все цифры веса должны быть ТОЛЬКО в списке ингредиентов. В шагах пиши просто действия (например: "добавьте муку", а не "добавьте 100 г муки").
          - Пиши шаги приготовления максимально подробно и сочно. Объясняй, до какого цвета жарить, как правильно нарезать, добавляй секреты от шефа, чтобы даже новичок приготовил ресторанное блюдо.
       
-      5. ОПЦИИ И ПОКУПКИ: 
+      5. ОПЦИИ: 
          - Ингредиенты для подачи (сметана, хлеб, зелень) помечай: "(по желанию)" или "(для подачи)".
-         - В missing_ingredients добавь ПОЛНЫЙ список всего, что нужно (считаем, что кухня пустая).
 
-      Верни JSON:
+      Верни JSON (если блюдо реальное):
       {
-        "title": "Название (Например: Романтическое ризотто)",
-        "description": "Почему это блюдо идеально именно сегодня (праздник/сезон)...",
-        "time": "Время (мин)",
-        "calories": "Ккал",
-        "ingredients": ["Краткий список"],
-        "missing_ingredients": ["Полный список покупок"],
+        "title": "Правильное название блюда",
+        "description": "Краткое описание",
+        "time": "Общее время (например: 30 мин)",
+        "calories": "Ккал на порцию",
         "detailed_ingredients": [
-           { "name": "Продукт", "amount": "Вес" }
+          { "name": "Продукт", "amount": "Вес (г/мл)" }
         ],
-        "steps": ["Текст шага 1...", "Текст шага 2..."]
+        "missing_ingredients": ["Полный список покупок"],
+        "steps": ["Текст первого действия...", "Текст второго действия..."]
       }
     `;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: `Придумай рецепт дня на ${dateStr} с учетом праздников.` },
-      ],
+      messages: [{ role: "system", content: systemPrompt }],
       response_format: { type: "json_object" },
-      temperature: 0.7, // Чуть выше креативность для праздников
+      temperature: 0.3, // Низкая температура, чтобы он не выдумывал несуществующие блюда
     });
 
     const content = completion.choices[0].message.content;
     if (!content) throw new Error("Empty response");
 
-    return JSON.parse(content);
-  },
-  ['daily-seasonal-v4'], // Новый ключ кэша, чтобы сбросить старый рецепт
-  { 
-    revalidate: 3600 * 24 
-  }
-);
+    const result = JSON.parse(content);
 
-export async function GET() {
-  try {
-    const date = new Date().toLocaleDateString("ru-RU", {
-      timeZone: "Europe/Moscow",
-    });
+    // 3. Если ИИ сказал, что это бред — возвращаем ошибку клиенту
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: 400 });
+    }
 
-    const recipeData = await getDailyRecipe(date);
+    const recipe = result;
 
-    return NextResponse.json({ ...recipeData, date });
+    // 4. Сохраняем в историю (только если рецепт настоящий)
+    if (sessionId) {
+      const { error } = await supabase.from('recipes').insert({
+        session_id: sessionId,
+        title: recipe.title,
+        description: recipe.description,
+        time: recipe.time,
+        calories: recipe.calories,
+        ingredients: recipe.detailed_ingredients?.map((i: any) => `${i.name} - ${i.amount}`) || [],
+        detailed_ingredients: recipe.detailed_ingredients,
+        missing_ingredients: recipe.missing_ingredients,
+        steps: recipe.steps,
+        is_favorite: false
+      });
+      
+      if (error) {
+        console.error("History save error:", error);
+      }
+    }
 
-  } catch (error: any) {
-    console.error("Daily recipe error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ recipe });
+
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

@@ -122,7 +122,6 @@ export default function Home() {
   const [answer, setAnswer] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
 
-  // Обновленный fromFeed для поддержки возврата в подразделы профиля
   const [fromFeed, setFromFeed] = useState<'recipes' | 'photos' | 'profile_history' | 'profile_favorites' | false>(false);
   const [isHistoryView, setIsHistoryView] = useState(false);
   
@@ -144,7 +143,7 @@ export default function Home() {
   const [userComment, setUserComment] = useState("");
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
-  // Состояния для Фулскрина фото и навигации внутри Профиля (добавлен history)
+  // Фулскрин фото и навигация профиля
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
   const [profileView, setProfileView] = useState<'main' | 'favorites' | 'photos' | 'history'>('main');
   const [userPhotos, setUserPhotos] = useState<any[]>([]);
@@ -847,7 +846,6 @@ export default function Home() {
     }
   };
 
-  // Умная логика возврата
   const handleBackToSource = () => {
     setRecipe(null);
     setIsHistoryView(false);
@@ -1494,7 +1492,7 @@ export default function Home() {
                 {answer && <div style={{marginTop: '20px', lineHeight: 1.5, background: 'white', padding: '15px', borderRadius: '16px'}}><strong>Ответ:</strong> {answer}</div>}
               </div>
 
-              {/* БЛОК ПУБЛИКАЦИИ ФОТО ПОД ЧАТОМ */}
+              {/* БЛОК ПУБЛИКАЦИИ ФОТО (ПОД ЧАТОМ) */}
               <div style={{marginTop: '30px', background: '#f8fafc', padding: '25px 20px', borderRadius: '16px', border: '1px solid #e2e8f0', textAlign: 'center'}}>
                 <h3 style={{fontSize: '18px', fontWeight: 800, marginBottom: '5px', color: '#1f2937'}}>📸 Приготовили? Покажите результат!</h3>
                 <p style={{fontSize: '13px', color: '#64748b', marginBottom: '15px', lineHeight: 1.4}}>
@@ -1602,9 +1600,10 @@ export default function Home() {
                           {item.title}
                         </div>
                         
-                        <div style={{display: 'flex', gap: '10px', fontSize: '11px', color: '#6b7280'}}>
-                           <div style={{display: 'flex', alignItems: 'center', gap: '3px'}}><Clock size={12}/> {formatTime(item.time)}</div>
-                           {item.calories && <div style={{display: 'flex', alignItems: 'center', gap: '3px', color: '#f97316'}}><Flame size={12}/> {formatCalories(item.calories)}</div>}
+                        {/* ИСПРАВЛЕНИЕ: flexWrap и whiteSpace для часов и калорий, чтобы не ломались в столбик */}
+                        <div style={{display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#6b7280'}}>
+                           <div style={{display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap'}}><Clock size={12}/> {formatTime(item.time)}</div>
+                           {item.calories && <div style={{display: 'flex', alignItems: 'center', gap: '3px', color: '#f97316', whiteSpace: 'nowrap'}}><Flame size={12}/> {formatCalories(item.calories)}</div>}
                         </div>
 
                       </div>
@@ -1676,12 +1675,12 @@ export default function Home() {
                 <div key={item.id} className="card" style={{padding: '0', overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.1s'}} onClick={() => loadFromHistory(item, 'recipes')}>
                   <div style={{height: '100px', background: 'linear-gradient(135deg, #fce7f3 0%, #e0f2fe 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative'}}>
                      <div style={{fontSize: '40px', opacity: 0.2}}>🍲</div>
-                     <div style={{position: 'absolute', bottom: '10px', left: '15px', display: 'flex', gap: '8px'}}>
-                        <div style={{background: 'rgba(255,255,255,0.9)', padding: '4px 10px', borderRadius: '100px', fontSize: '11px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px'}}>
+                     <div style={{position: 'absolute', bottom: '10px', left: '15px', display: 'flex', flexWrap: 'wrap', gap: '6px'}}>
+                        <div style={{background: 'rgba(255,255,255,0.9)', padding: '4px 10px', borderRadius: '100px', fontSize: '11px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap'}}>
                           <Clock size={12}/> {formatTime(item.time)}
                         </div>
                         {item.calories && (
-                           <div style={{background: 'rgba(255,255,255,0.9)', padding: '4px 10px', borderRadius: '100px', fontSize: '11px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', color: '#ea580c'}}>
+                           <div style={{background: 'rgba(255,255,255,0.9)', padding: '4px 10px', borderRadius: '100px', fontSize: '11px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', color: '#ea580c', whiteSpace: 'nowrap'}}>
                              <Flame size={12}/> {formatCalories(item.calories)}
                            </div>
                         )}
@@ -2176,10 +2175,13 @@ export default function Home() {
                             <div style={{ fontWeight: 700, fontSize: '14px', marginBottom: '8px', lineHeight: 1.3, height: '38px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', wordBreak: 'break-word' }}>
                               {item.title}
                             </div>
-                            <div style={{display: 'flex', gap: '10px', fontSize: '11px', color: '#6b7280'}}>
-                               <div style={{display: 'flex', alignItems: 'center', gap: '3px'}}><Clock size={12}/> {formatTime(item.time)}</div>
-                               {item.calories && <div style={{display: 'flex', alignItems: 'center', gap: '3px', color: '#f97316'}}><Flame size={12}/> {formatCalories(item.calories)}</div>}
+                            
+                            {/* ИСПРАВЛЕНИЕ: flexWrap и whiteSpace для часов и калорий, чтобы не ломались в столбик */}
+                            <div style={{display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#6b7280'}}>
+                               <div style={{display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap'}}><Clock size={12}/> {formatTime(item.time)}</div>
+                               {item.calories && <div style={{display: 'flex', alignItems: 'center', gap: '3px', color: '#f97316', whiteSpace: 'nowrap'}}><Flame size={12}/> {formatCalories(item.calories)}</div>}
                             </div>
+
                           </div>
                         ))}
                       </div>
@@ -2210,9 +2212,11 @@ export default function Home() {
                             <div style={{ fontWeight: 700, fontSize: '14px', marginBottom: '8px', lineHeight: 1.3, height: '38px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', wordBreak: 'break-word' }}>
                               {item.title}
                             </div>
-                            <div style={{display: 'flex', gap: '10px', fontSize: '11px', color: '#6b7280'}}>
-                               <div style={{display: 'flex', alignItems: 'center', gap: '3px'}}><Clock size={12}/> {formatTime(item.time)}</div>
-                               {item.calories && <div style={{display: 'flex', alignItems: 'center', gap: '3px', color: '#f97316'}}><Flame size={12}/> {formatCalories(item.calories)}</div>}
+                            
+                            {/* ИСПРАВЛЕНИЕ: flexWrap и whiteSpace для часов и калорий */}
+                            <div style={{display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#6b7280'}}>
+                               <div style={{display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap'}}><Clock size={12}/> {formatTime(item.time)}</div>
+                               {item.calories && <div style={{display: 'flex', alignItems: 'center', gap: '3px', color: '#f97316', whiteSpace: 'nowrap'}}><Flame size={12}/> {formatCalories(item.calories)}</div>}
                             </div>
                           </div>
                         ))}

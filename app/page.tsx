@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { 
   Menu, X, Flame, Send, Camera, Search, Clock, Heart, 
   ArrowRight, ArrowLeft, RotateCcw, CheckCircle, Sparkles, Image as ImageIcon, 
-  Wallet, Zap, Leaf, Globe, ChevronRight, ChevronDown, ChevronUp, Shuffle, ShoppingCart, Lock, ShoppingBag, ExternalLink, Info, ThumbsUp, Share2 
+  Wallet, Zap, Leaf, Globe, ChevronRight, ChevronDown, ChevronUp, Shuffle, ShoppingCart, Lock, ShoppingBag, ExternalLink, Info, ThumbsUp, Share2, User 
 } from "lucide-react";
 
 /* --- ТИПЫ ДАННЫХ --- */
@@ -85,7 +85,7 @@ const scaleAmount = (amount: string, multiplier: number) => {
 };
 
 export default function Home() {
-  const [activeView, setActiveView] = useState<'service' | 'about' | 'daily' | 'feed'>('service');
+  const [activeView, setActiveView] = useState<'service' | 'about' | 'daily' | 'feed' | 'profile'>('service');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [dailyRecipe, setDailyRecipe] = useState<DailyRecipeType | null>(null);
   
@@ -591,7 +591,7 @@ export default function Home() {
     }
   };
 
-  const switchView = (view: 'service' | 'about' | 'daily' | 'feed') => {
+  const switchView = (view: 'service' | 'about' | 'daily' | 'feed' | 'profile') => {
     setActiveView(view);
     setIsMenuOpen(false);
     setQuestion(""); 
@@ -677,6 +677,8 @@ export default function Home() {
                <span style={{fontSize: '24px', fontWeight: '900', color: '#059669'}}>SmartCook</span>
                <X size={24} onClick={() => setIsMenuOpen(false)} style={{cursor: 'pointer'}} />
             </div>
+            {/* ИСПРАВЛЕНИЕ: Добавлен раздел профиля в меню */}
+            <div className="menu-link" onClick={() => switchView('profile')}><User size={20} color="#0ea5e9"/> Моя кухня</div>
             <div className="menu-link" onClick={() => switchView('service')}><Search size={20}/> Поиск</div>
             <div className="menu-link" onClick={() => switchView('daily')}><Flame size={20} color="#f97316"/> Рецепт дня</div>
             <div className="menu-link" onClick={() => switchView('feed')}><Globe size={20} color="#8b5cf6"/> Лента</div>
@@ -1525,7 +1527,6 @@ export default function Home() {
               <div style={{background: '#f8fafc', padding: '20px 15px', borderRadius: '16px', textAlign: 'center', border: '1px solid #e2e8f0'}}><div style={{background: '#f3e8ff', color: '#9333ea', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px auto'}}><Globe size={20} /></div><div style={{fontWeight: 800, fontSize: '15px', marginBottom: '5px'}}>Разнообразие</div><div style={{fontSize: '12px', color: '#64748b'}}>Новые блюда</div></div>
             </div>
             
-            {/* ИНСТРУКЦИЯ ПО УСТАНОВКЕ PWA */}
             <div style={{background: '#f8fafc', borderRadius: '24px', padding: '25px 20px', marginBottom: '40px', border: '1px solid #e2e8f0'}}>
               <h3 style={{margin: '0 0 10px 0', fontSize: '20px', fontWeight: 800, textAlign: 'center'}}>Установите SmartCook как приложение 📲</h3>
               <p style={{fontSize: '14px', color: '#64748b', textAlign: 'center', marginBottom: '20px', lineHeight: 1.5}}>
@@ -1533,7 +1534,6 @@ export default function Home() {
               </p>
 
               <div style={{display: 'flex', flexDirection: 'column', gap: '15px'}}>
-                {/* iOS */}
                 <div style={{background: 'white', padding: '15px', borderRadius: '16px', border: '1px solid #f1f5f9'}}>
                   <div style={{fontWeight: 800, fontSize: '16px', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px'}}>
                     🍎 Для iPhone (в Safari)
@@ -1544,7 +1544,6 @@ export default function Home() {
                   </ol>
                 </div>
 
-                {/* Android */}
                 <div style={{background: 'white', padding: '15px', borderRadius: '16px', border: '1px solid #f1f5f9'}}>
                   <div style={{fontWeight: 800, fontSize: '16px', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px'}}>
                     🤖 Для Android (в Chrome)
@@ -1562,6 +1561,29 @@ export default function Home() {
               <p style={{opacity: 0.9, fontSize: '15px', marginBottom: '25px', lineHeight: 1.5}}>Следите за обновлениями, предлагайте идеи и общайтесь напрямую с разработчиком.</p>
               <a href="https://t.me/smartcook2026" target="_blank" style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', background: 'white', color: '#0284c7', textDecoration: 'none', padding: '16px 20px', borderRadius: '100px', fontWeight: 800, fontSize: '16px', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', transition: 'transform 0.2s'}}> <Send size={20} /> Подписаться</a>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* === ПРОФИЛЬ / МОЯ КУХНЯ (ЗАГЛУШКА ДЛЯ ЭТАПА 1) === */}
+      {activeView === 'profile' && (
+        <div className="card" style={{marginTop: '60px', padding: '30px 20px', textAlign: 'center'}}>
+          <div style={{background: '#f3f4f6', width: '80px', height: '80px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px auto'}}>
+             <User size={40} color="#9ca3af" />
+          </div>
+          <h2 style={{fontSize: '24px', fontWeight: 800, marginBottom: '10px'}}>Моя кухня</h2>
+          <p style={{color: '#6b7280', fontSize: '15px', marginBottom: '25px', lineHeight: 1.5}}>
+             Здесь будут храниться ваши любимые рецепты и фото кулинарных шедевров.
+          </p>
+          
+          <div style={{background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '16px', padding: '20px', marginBottom: '25px'}}>
+             <h3 style={{margin: '0 0 10px 0', fontSize: '18px', color: '#92400e'}}>Требуется авторизация 🔒</h3>
+             <p style={{fontSize: '13px', color: '#b45309', marginBottom: '20px', lineHeight: 1.5}}>
+               🛡 Нам не нужны ваши личные данные. Авторизация нужна только для того, чтобы ваши любимые рецепты и фото блюд навсегда сохранились в вашем личном кабинете. Никакого спама, обещаем!
+             </p>
+             <button className="btn-primary" style={{marginBottom: '10px'}} onClick={() => alert("Окно регистрации мы сделаем на Этапе 3!")}>
+               Войти в профиль
+             </button>
           </div>
         </div>
       )}

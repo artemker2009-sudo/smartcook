@@ -85,6 +85,10 @@ const scaleAmount = (amount: string, multiplier: number) => {
 export default function Home() {
   const [activeView, setActiveView] = useState<'service' | 'about' | 'daily' | 'feed' | 'profile'>('service');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  
+  // Состояние для выпадающего меню Ленты (Пункт 4)
+  const [isFeedMenuExpanded, setIsFeedMenuExpanded] = useState(false);
+
   const [dailyRecipe, setDailyRecipe] = useState<DailyRecipeType | null>(null);
   
   const [file, setFile] = useState<File | null>(null);
@@ -128,11 +132,13 @@ export default function Home() {
 
   const [servings, setServings] = useState<number | "">(1);
 
+  // Авторизация
   const [user, setUser] = useState<any>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authEmail, setAuthEmail] = useState("");
   const [isSendingLink, setIsSendingLink] = useState(false);
 
+  // Загрузка фото в ленту
   const [userPhotoFile, setUserPhotoFile] = useState<File | null>(null);
   const [userPhotoPreview, setUserPhotoPreview] = useState<string | null>(null);
   const [userComment, setUserComment] = useState("");
@@ -529,19 +535,25 @@ export default function Home() {
 
       if (postError) throw postError;
 
-      const { data: latestPost } = await supabase.from('feed_posts').select('id').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1).single();
-
-      await fetch('/api/telegram-mod', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          postId: latestPost?.id,
-          recipeTitle: currentRecipeContext.title,
-          userName: userName,
-          comment: userComment,
-          photoUrl: photoUrl
-        })
-      });
+      // Обёрнуто в try-catch, чтобы ошибка Телеграма не ломала пользователю сайт
+      try {
+          const { data: latestPost } = await supabase.from('feed_posts').select('id').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1).single();
+          if (latestPost) {
+              await fetch('/api/telegram-mod', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  postId: latestPost.id,
+                  recipeTitle: currentRecipeContext.title,
+                  userName: userName,
+                  comment: userComment,
+                  photoUrl: photoUrl
+                })
+              });
+          }
+      } catch (tgErr) {
+          console.warn("Телеграм-уведомление не отправлено", tgErr);
+      }
 
       alert("Ура! 🎉 Ваше фото отправлено на проверку шефу. Скоро оно появится в общей ленте!");
       setUserPhotoFile(null);
@@ -549,7 +561,7 @@ export default function Home() {
       setUserComment("");
 
     } catch (err: any) {
-      alert("Ошибка отправки: " + err.message);
+      alert("Ошибка отправки: " + err.message + "\n\n(Возможно, в Vercel в ключе NEXT_PUBLIC_SUPABASE_URL есть пробел на конце)");
     } finally {
       setIsUploadingPhoto(false);
     }
@@ -814,16 +826,14 @@ export default function Home() {
     }
   };
 
+  // ИСПРАВЛЕНИЕ: Убрали очистку рецепта при перемещении (Пункт 1)
   const switchView = (view: 'service' | 'about' | 'daily' | 'feed' | 'profile') => {
     setActiveView(view);
     setIsMenuOpen(false);
-    setQuestion(""); 
-    setAnswer(null);
-    setServings(1); 
     
-    // ИСПРАВЛЕНИЕ: Убрали сброс рецепта (setRecipe(null)), чтобы он сохранялся при переходе между вкладками
     if (view === 'service') {
        setIsSharedView(false);
+       setFromFeed(false);
        if (typeof window !== 'undefined') {
          window.history.replaceState({}, '', '/');
        }
@@ -964,7 +974,7 @@ export default function Home() {
         <Menu size={24} color="#111" />
       </button>
 
-      {/* МЕНЮ С НОВЫМИ ПОДРАЗДЕЛАМИ */}
+      {/* ИСПРАВЛЕНИЕ: МЕНЮ С АККОРДЕОНОМ ЛЕНТЫ (Пункт 4) */}
       {isMenuOpen && (
         <>
           <div className="menu-overlay" onClick={() => setIsMenuOpen(false)} style={{zIndex: 99}} />
@@ -990,11 +1000,36 @@ export default function Home() {
             <div className="menu-link" onClick={() => switchView('service')}><Search size={20}/> Поиск</div>
             <div className="menu-link" onClick={() => switchView('daily')}><Flame size={20} color="#f97316"/> Рецепт дня</div>
             
-            <div style={{ padding: '15px 20px 5px 20px', fontSize: '13px', fontWeight: 800, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '1px' }}>Лента 🌍</div>
-            <div className="menu-link" style={{ paddingLeft: '35px' }} onClick={() => { setFeedTab('recipes'); switchView('feed'); }}><Globe size={20} color="#8b5cf6"/> Лента рецептов</div>
-            <div className="menu-link" style={{ paddingLeft: '35px' }} onClick={() => { setFeedTab('photos'); switchView('feed'); }}><ImageIcon size={20} color="#0ea5e9"/> Лента фото</div>
+            {/* Аккордеон Ленты */}
+            <div 
+              className="menu-link" 
+              onClick={() => setIsFeedMenuExpanded(!isFeedMenuExpanded)} 
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><Globe size={20} color="#8b5cf6"/> Лента</div>
+              {isFeedMenuExpanded ? <ChevronUp size={18} color="#9ca3af" /> : <ChevronDown size={18} color="#9ca3af" />}
+            </div>
+            
+            {isFeedMenuExpanded && (
+              <div style={{ background: '#f8fafc', margin: '0 15px 15px 15px', borderRadius: '12px', overflow: 'hidden' }}>
+                <div 
+                  className="menu-link" 
+                  style={{ margin: 0, padding: '12px 15px', fontSize: '14px', borderBottom: '1px solid #e2e8f0', borderRadius: 0 }} 
+                  onClick={() => { setFeedTab('recipes'); switchView('feed'); }}
+                >
+                  🍲 Лента рецептов
+                </div>
+                <div 
+                  className="menu-link" 
+                  style={{ margin: 0, padding: '12px 15px', fontSize: '14px', borderRadius: 0 }} 
+                  onClick={() => { setFeedTab('photos'); switchView('feed'); }}
+                >
+                  📸 Лента фото
+                </div>
+              </div>
+            )}
 
-            <div className="menu-link" style={{ marginTop: '10px' }} onClick={() => switchView('about')}><CheckCircle size={20} color="#3b82f6"/> О проекте</div>
+            <div className="menu-link" onClick={() => switchView('about')}><CheckCircle size={20} color="#3b82f6"/> О проекте</div>
           </div>
         </>
       )}
@@ -1002,7 +1037,8 @@ export default function Home() {
       {/* === СЕРВИС (ГЛАВНАЯ) === */}
       {activeView === 'service' && (
         <>
-          {!fromFeed && !isSharedView && (
+          {/* Скрываем Поиск, только если открыт конкретный рецепт */}
+          {!recipe && !fromFeed && !isSharedView && (
             <>
               <div className="hero">
                 <h1 className="brand-name">SmartCook</h1>
@@ -1170,47 +1206,25 @@ export default function Home() {
           {recipe && (
             <div className="card" style={{position: 'relative', overflow: 'visible', marginTop: (isSharedView || fromFeed) ? '60px' : '20px'}}>
               
-              {isSharedView && (
-                <button 
-                  onClick={handleBackToSearch}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '8px',
-                    background: 'white', 
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '100px',
-                    padding: '8px 16px',
-                    color: '#374151', 
-                    fontSize: '14px', fontWeight: 600,
-                    marginBottom: '20px', 
-                    cursor: 'pointer', 
-                    boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  <Search size={18} color="#059669" /> К поиску
-                </button>
-              )}
-
-              {fromFeed && (
-                <button 
-                  onClick={handleBackToSource}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '8px',
-                    background: 'white', 
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '100px',
-                    padding: '8px 16px',
-                    color: '#374151', 
-                    fontSize: '14px', fontWeight: 600,
-                    marginBottom: '20px', 
-                    cursor: 'pointer', 
-                    boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  <ArrowLeft size={18} /> Назад в ленту
-                </button>
-              )}
+              <button 
+                onClick={handleBackToSearch}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                  background: 'white', 
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '100px',
+                  padding: '8px 16px',
+                  color: '#374151', 
+                  fontSize: '14px', fontWeight: 600,
+                  marginBottom: '20px', 
+                  cursor: 'pointer', 
+                  boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
+                  transition: 'all 0.2s'
+                }}
+              >
+                {fromFeed ? <ArrowLeft size={18} /> : <Search size={18} color="#059669" />}
+                {fromFeed ? "Назад в ленту" : "К поиску"}
+              </button>
 
               <div className="recipe-header" style={{flexDirection: 'column', alignItems: 'flex-start', gap: '15px'}}>
                 <div style={{display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'flex-start', gap: '10px'}}>
@@ -1380,7 +1394,7 @@ export default function Home() {
                 ))}
               </div>
 
-              {/* ЧАТ С ШЕФОМ (Перемещен выше фото) */}
+              {/* ЧАТ С ШЕФОМ (ИСПРАВЛЕНИЕ: Перемещен НАД блоком фото - Пункт 2) */}
               <div className="chat-box" style={{marginTop: '30px'}}>
                 <div style={{fontWeight: 800, marginBottom: '20px', color: '#1e40af', fontSize: '18px', textAlign: 'center'}}>
                    Задайте вопрос AI шеф-повару!
@@ -1394,7 +1408,7 @@ export default function Home() {
                 {answer && <div style={{marginTop: '20px', lineHeight: 1.5, background: 'white', padding: '15px', borderRadius: '16px'}}><strong>Ответ:</strong> {answer}</div>}
               </div>
 
-              {/* БЛОК ПУБЛИКАЦИИ ФОТО (Перемещен под чат) */}
+              {/* БЛОК ПУБЛИКАЦИИ ФОТО (ИСПРАВЛЕНИЕ: Перемещен ПОД чат - Пункт 2) */}
               <div style={{marginTop: '30px', background: '#f8fafc', padding: '25px 20px', borderRadius: '16px', border: '1px solid #e2e8f0', textAlign: 'center'}}>
                 <h3 style={{fontSize: '18px', fontWeight: 800, marginBottom: '5px', color: '#1f2937'}}>📸 Приготовили? Покажите результат!</h3>
                 <p style={{fontSize: '13px', color: '#64748b', marginBottom: '15px', lineHeight: 1.4}}>
@@ -1442,7 +1456,7 @@ export default function Home() {
           )}
 
           {/* ИСТОРИЯ */}
-          {!fromFeed && (
+          {!recipe && !fromFeed && (
             <>
               <div className="history-bar" style={{marginTop: '40px'}}>
                 <span className="history-title">📜 История рецептов</span>
@@ -1524,14 +1538,16 @@ export default function Home() {
             </>
           )}
 
-          <section style={{marginTop: '40px', padding: '20px', background: '#f9fafb', borderRadius: '16px', color: '#6b7280', fontSize: '14px', lineHeight: '1.6'}}>
-            <h2 style={{fontSize: '18px', color: '#1f2937', marginBottom: '10px', fontWeight: '700'}}>
-              SmartCook: Генератор рецептов по фото
-            </h2>
-            <p>
-              SmartCook использует искусственный интеллект для распознавания продуктов и создания рецептов за секунды.
-            </p>
-          </section>
+          {!recipe && !fromFeed && (
+            <section style={{marginTop: '40px', padding: '20px', background: '#f9fafb', borderRadius: '16px', color: '#6b7280', fontSize: '14px', lineHeight: '1.6'}}>
+              <h2 style={{fontSize: '18px', color: '#1f2937', marginBottom: '10px', fontWeight: '700'}}>
+                SmartCook: Генератор рецептов по фото
+              </h2>
+              <p>
+                SmartCook использует искусственный интеллект для распознавания продуктов и создания рецептов за секунды.
+              </p>
+            </section>
+          )}
 
         </>
       )}
@@ -1609,7 +1625,6 @@ export default function Home() {
             <div style={{display: 'flex', flexDirection: 'column', gap: '20px'}}>
               {photosFeed.map((post) => (
                 <div key={post.id} className="card" style={{padding: '0', overflow: 'hidden', border: '1px solid #e5e7eb'}}>
-                  {/* Шапка поста: Автор и Рецепт */}
                   <div style={{padding: '15px', display: 'flex', alignItems: 'center', gap: '10px', background: 'white'}}>
                      <div style={{width: '36px', height: '36px', borderRadius: '50%', background: '#0ea5e9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 800, fontSize: '16px'}}>
                         {post.user_name?.charAt(0).toUpperCase() || 'Ш'}
@@ -1622,10 +1637,8 @@ export default function Home() {
                      </div>
                   </div>
                   
-                  {/* Сама фотография */}
                   <img src={post.photo_url} alt="Блюдо" style={{width: '100%', maxHeight: '400px', objectFit: 'cover', display: 'block', background: '#f3f4f6'}} />
                   
-                  {/* Подвал: Комментарий и Лайки */}
                   <div style={{padding: '15px', background: 'white'}}>
                     {post.comment && (
                        <p style={{margin: '0 0 15px 0', fontSize: '14px', color: '#374151', lineHeight: 1.5}}>
@@ -1661,7 +1674,6 @@ export default function Home() {
           {dailyRecipe ? (
             <div className="card" style={{padding: 0, overflow: 'hidden', border: 'none'}}>
               
-              {/* Вау-заголовок */}
               <div style={{
                 background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
                 padding: '30px 20px', 

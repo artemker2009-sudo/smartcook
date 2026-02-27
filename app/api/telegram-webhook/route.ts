@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+// ИСПРАВЛЕНИЕ: Используем SERVICE_ROLE_KEY, чтобы у вебхука были права админа!
 const supabase = createClient(
   (process.env.NEXT_PUBLIC_SUPABASE_URL || "").trim(),
-  (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "").trim()
+  (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "").trim()
 );
 
 export async function POST(req: Request) {
@@ -22,19 +23,23 @@ export async function POST(req: Request) {
 
       if (data.startsWith('mod_approve_')) {
         const postId = data.replace('mod_approve_', '');
-        await supabase.from('feed_posts').update({ status: 'approved' }).eq('id', postId);
+        const { error } = await supabase.from('feed_posts').update({ status: 'approved' }).eq('id', postId);
+        if (error) console.error("DB Error Approve:", error);
+        
         newStatus = 'approved';
         resultText = '✅ ВЫ ОДОБРИЛИ ЭТО ФОТО. ОНО ДОБАВЛЕНО В ЛЕНТУ.';
       } 
       else if (data.startsWith('mod_reject_')) {
         const postId = data.replace('mod_reject_', '');
-        await supabase.from('feed_posts').update({ status: 'rejected' }).eq('id', postId);
+        const { error } = await supabase.from('feed_posts').update({ status: 'rejected' }).eq('id', postId);
+        if (error) console.error("DB Error Reject:", error);
+        
         newStatus = 'rejected';
         resultText = '❌ ВЫ ОТКЛОНИЛИ И УДАЛИЛИ ЭТО ФОТО.';
       }
 
       if (newStatus) {
-        // МГНОВЕННО отвечаем Телеграму, чтобы убрать "часики" загрузки на кнопке
+        // МГНОВЕННО отвечаем Телеграму, чтобы убрать часики
         await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -44,14 +49,14 @@ export async function POST(req: Request) {
           })
         });
 
-        // Меняем текст сообщения, убираем кнопки и пишем статус
+        // Меняем текст сообщения и убираем кнопки
         await fetch(`https://api.telegram.org/bot${botToken}/editMessageCaption`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             chat_id: chatId,
             message_id: messageId,
-            caption: `${callbackQuery.message.caption}\n\n➖➖➖➖➖➖\n${resultText}`,
+            caption: `${callbackQuery.message.caption || ''}\n\n➖➖➖➖➖➖\n${resultText}`,
             reply_markup: { inline_keyboard: [] } 
           })
         });
@@ -61,7 +66,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true });
   } catch (e: any) {
     console.error("Webhook error:", e);
-    // Обязательно возвращаем статус 200, чтобы Телеграм не зависал
+    // Телеграму всегда нужен ответ 200, иначе он зависнет
     return NextResponse.json({ success: true, error: e.message });
   }
 }

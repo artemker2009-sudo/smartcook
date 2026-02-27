@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { 
   Menu, X, Flame, Send, Camera, Search, Clock, Heart, 
   ArrowRight, ArrowLeft, RotateCcw, CheckCircle, Sparkles, Image as ImageIcon, 
-  Wallet, Zap, Leaf, Globe, ChevronRight, ChevronDown, ChevronUp, Shuffle, ShoppingCart, Lock, ShoppingBag, ExternalLink, Info, ThumbsUp, Share2, User 
+  Wallet, Zap, Leaf, Globe, ChevronRight, ChevronDown, ChevronUp, Shuffle, ShoppingCart, Lock, ShoppingBag, ExternalLink, Info, ThumbsUp, Share2, User, LogOut, Mail 
 } from "lucide-react";
 
 /* --- ТИПЫ ДАННЫХ --- */
@@ -127,6 +127,12 @@ export default function Home() {
   // Стейт для порций (может быть пустой строкой, когда стираем клавиатурой)
   const [servings, setServings] = useState<number | "">(1);
 
+  // Состояния для авторизации (ЭТАП 3)
+  const [user, setUser] = useState<any>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authEmail, setAuthEmail] = useState("");
+  const [isSendingLink, setIsSendingLink] = useState(false);
+
   useEffect(() => {
     if (dailyRecipe && feed.length > 0) {
       const alreadySaved = feed.find(r => r.title === dailyRecipe.title && r.is_favorite);
@@ -137,6 +143,19 @@ export default function Home() {
       }
     }
   }, [dailyRecipe, feed]);
+
+  // Проверка текущей сессии пользователя (ЭТАП 3)
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user || null);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user || null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const cleanText = (text: any) => {
     if (!text) return "";
@@ -252,6 +271,49 @@ export default function Home() {
         setPublicFeed(json.feed);
       }
     } catch (e) { console.error("Feed Error:", e); }
+  };
+
+  // ИСПРАВЛЕНИЕ: Добавлен as any для обхода строгой типизации TypeScript
+  const handleOAuthLogin = async (provider: 'google' | 'yandex' | 'vk') => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: provider as any,
+        options: {
+          redirectTo: window.location.origin
+        }
+      });
+      if (error) throw error;
+    } catch (error: any) {
+      alert("Ошибка входа: " + error.message);
+    }
+  };
+
+  const handleEmailLogin = async () => {
+    if (!authEmail.includes('@')) {
+      alert("Пожалуйста, введите корректный email");
+      return;
+    }
+    setIsSendingLink(true);
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email: authEmail,
+        options: {
+          emailRedirectTo: window.location.origin
+        }
+      });
+      if (error) throw error;
+      alert("✨ Магическая ссылка отправлена! Проверьте вашу почту (и папку Спам).");
+      setIsAuthModalOpen(false);
+    } catch (error: any) {
+      alert("Ошибка отправки: " + error.message);
+    } finally {
+      setIsSendingLink(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setActiveView('service');
   };
 
   const handlePublicLike = async (e: any, item: DBRecipe) => {
@@ -379,7 +441,7 @@ export default function Home() {
     setPreview(URL.createObjectURL(rawFile));
     setAnalysisResult(null); setRecipe(null); setSelectedDish(null); setQuestion(""); setAnswer(null); 
     setIsProcessing(true);
-    setServings(1); // Сбрасываем порции
+    setServings(1); 
 
     try {
       const imageCompression = (await import('browser-image-compression')).default;
@@ -431,9 +493,8 @@ export default function Home() {
   const getRecipeFromPhoto = async (dishName: string) => {
     if (!analysisResult || !userId) return; 
     setSelectedDish(dishName); setLoadingRecipe(true); setRecipe(null);
-    setServings(1); // Сбрасываем порции
+    setServings(1); 
     
-    // Скролл вниз, чтобы пользователь видел, что что-то происходит
     window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
 
     try {
@@ -451,7 +512,7 @@ export default function Home() {
 
   const handleSmartVariant = async () => {
     setLoadingRecipe(true);
-    setServings(1); // Сбрасываем порции
+    setServings(1); 
     try {
       if (analysisResult) {
         const response = await fetch("/api/regenerate", { 
@@ -488,7 +549,7 @@ export default function Home() {
     setLoadingRecipe(true); 
     setRecipe(null); 
     setAnalysisResult(null);
-    setServings(1); // Сбрасываем порции
+    setServings(1); 
     try {
       const response = await fetch("/api/search-recipe", { 
         method: "POST", 
@@ -530,7 +591,7 @@ export default function Home() {
 
   const loadFromHistory = (item: DBRecipe, source: 'feed' | 'history' = 'history') => {
     setAnalysisResult(null); setQuestion(""); setAnswer(null);
-    setServings(1); // Сбрасываем порции
+    setServings(1); 
     setRecipe({ id: item.id, is_favorite: item.is_favorite, title: item.title, description: item.description, time: item.time, calories: item.calories, steps: item.steps || [], missing_ingredients: item.missing_ingredients || [], ingredients: item.ingredients || [], detailed_ingredients: item.detailed_ingredients || [] });
     
     setFromFeed(source === 'feed');
@@ -551,7 +612,7 @@ export default function Home() {
         setAnalysisResult(null); 
         setQuestion(""); 
         setAnswer(null);
-        setServings(1); // Сбрасываем порции
+        setServings(1); 
         setRecipe({ 
           id: data.id, 
           is_favorite: data.is_favorite, 
@@ -596,7 +657,7 @@ export default function Home() {
     setIsMenuOpen(false);
     setQuestion(""); 
     setAnswer(null);
-    setServings(1); // Сбрасываем порции
+    setServings(1); 
     if (view === 'service') {
        setIsSharedView(false);
        setRecipe(null);
@@ -612,13 +673,10 @@ export default function Home() {
 
   const displayedFeed = filterMode === 'all' ? feed : feed?.filter(r => r.is_favorite);
   const visibleHistory = historyExpanded ? displayedFeed : displayedFeed?.slice(0, 4);
-
-  // Фактическое количество порций для расчетов (если пусто, то 1)
   const actualServings = typeof servings === 'number' ? servings : 1;
 
   return (
     <div className="container">
-      {/* Скрываем встроенные стрелочки у поля ввода типа number */}
       <style>{`
         input[type=number]::-webkit-inner-spin-button, 
         input[type=number]::-webkit-outer-spin-button { 
@@ -629,6 +687,97 @@ export default function Home() {
           -moz-appearance: textfield;
         }
       `}</style>
+
+      {/* МОДАЛЬНОЕ ОКНО АВТОРИЗАЦИИ (ЭТАП 3) */}
+      {isAuthModalOpen && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', padding: '20px'
+        }}>
+          <div className="animate-fade-in" style={{
+            background: 'white', borderRadius: '24px', width: '100%', maxWidth: '400px', padding: '30px 25px', position: 'relative',
+            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)'
+          }}>
+            <button 
+              onClick={() => setIsAuthModalOpen(false)}
+              style={{position: 'absolute', top: '15px', right: '15px', background: '#f3f4f6', border: 'none', borderRadius: '50%', padding: '6px', cursor: 'pointer', color: '#6b7280'}}
+            >
+              <X size={20} />
+            </button>
+
+            <div style={{textAlign: 'center', marginBottom: '25px'}}>
+              <h2 style={{fontSize: '24px', fontWeight: 900, color: '#111', margin: '0 0 5px 0'}}>Вход в систему</h2>
+              <p style={{color: '#6b7280', fontSize: '14px', margin: 0}}>Сохраняйте рецепты и делитесь фото</p>
+            </div>
+
+            <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
+              {/* Кнопка Google */}
+              <button onClick={() => handleOAuthLogin('google')} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', width: '100%', padding: '14px', borderRadius: '12px',
+                background: 'white', border: '1px solid #e5e7eb', fontSize: '15px', fontWeight: 600, color: '#374151', cursor: 'pointer',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.05)', transition: 'all 0.2s'
+              }}>
+                <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" style={{width: '20px', height: '20px'}} />
+                Войти через Google
+              </button>
+
+              {/* Кнопка Яндекс */}
+              <button onClick={() => handleOAuthLogin('yandex')} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', width: '100%', padding: '14px', borderRadius: '12px',
+                background: '#fc3f1d', border: 'none', fontSize: '15px', fontWeight: 600, color: 'white', cursor: 'pointer',
+                boxShadow: '0 4px 10px rgba(252, 63, 29, 0.2)', transition: 'all 0.2s'
+              }}>
+                <span style={{fontWeight: 900, fontSize: '18px', lineHeight: 1}}>Я</span>
+                Войти через Яндекс
+              </button>
+
+              {/* Кнопка VK */}
+              <button onClick={() => handleOAuthLogin('vk')} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', width: '100%', padding: '14px', borderRadius: '12px',
+                background: '#0077ff', border: 'none', fontSize: '15px', fontWeight: 600, color: 'white', cursor: 'pointer',
+                boxShadow: '0 4px 10px rgba(0, 119, 255, 0.2)', transition: 'all 0.2s'
+              }}>
+                <span style={{fontWeight: 900, fontSize: '18px', lineHeight: 1}}>VK</span>
+                Войти через ВКонтакте
+              </button>
+
+              <div style={{display: 'flex', alignItems: 'center', margin: '15px 0', color: '#9ca3af', fontSize: '13px'}}>
+                <div style={{flex: 1, height: '1px', background: '#e5e7eb'}}></div>
+                <span style={{padding: '0 10px'}}>ИЛИ</span>
+                <div style={{flex: 1, height: '1px', background: '#e5e7eb'}}></div>
+              </div>
+
+              {/* Вход по Email (Magic Link) */}
+              <div>
+                <input 
+                  type="email" 
+                  placeholder="Ваш Email" 
+                  value={authEmail}
+                  onChange={(e) => setAuthEmail(e.target.value)}
+                  style={{width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #d1d5db', fontSize: '15px', marginBottom: '10px', outline: 'none'}}
+                />
+                <button 
+                  onClick={handleEmailLogin} 
+                  disabled={isSendingLink || !authEmail}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', padding: '14px', borderRadius: '12px',
+                    background: authEmail ? '#059669' : '#d1fae5', color: authEmail ? 'white' : '#047857', border: 'none', fontSize: '15px', fontWeight: 700, cursor: authEmail ? 'pointer' : 'default', transition: 'all 0.2s'
+                  }}
+                >
+                  <Mail size={18} />
+                  {isSendingLink ? "Отправка..." : "Получить ссылку для входа"}
+                </button>
+              </div>
+            </div>
+
+            <div style={{marginTop: '25px', padding: '15px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0'}}>
+              <p style={{fontSize: '11px', color: '#64748b', margin: 0, lineHeight: 1.5, textAlign: 'center'}}>
+                🛡 <strong>Нам не нужны ваши личные данные.</strong> Авторизация нужна только для того, чтобы ваши любимые рецепты и фото блюд навсегда сохранились в вашем личном кабинете. Никакого спама, обещаем!
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* КНОПКА МЕНЮ */}
       <button 
@@ -677,8 +826,7 @@ export default function Home() {
                <span style={{fontSize: '24px', fontWeight: '900', color: '#059669'}}>SmartCook</span>
                <X size={24} onClick={() => setIsMenuOpen(false)} style={{cursor: 'pointer'}} />
             </div>
-            {/* ИСПРАВЛЕНИЕ: Добавлен раздел профиля в меню */}
-            <div className="menu-link" onClick={() => switchView('profile')}><User size={20} color="#0ea5e9"/> Моя кухня</div>
+            <div className="menu-link" onClick={() => switchView('profile')}><User size={20} color="#0ea5e9"/> Личный кабинет</div>
             <div className="menu-link" onClick={() => switchView('service')}><Search size={20}/> Поиск</div>
             <div className="menu-link" onClick={() => switchView('daily')}><Flame size={20} color="#f97316"/> Рецепт дня</div>
             <div className="menu-link" onClick={() => switchView('feed')}><Globe size={20} color="#8b5cf6"/> Лента</div>
@@ -1565,26 +1713,71 @@ export default function Home() {
         </div>
       )}
 
-      {/* === ПРОФИЛЬ / МОЯ КУХНЯ (ЗАГЛУШКА ДЛЯ ЭТАПА 1) === */}
+      {/* === ЛИЧНЫЙ КАБИНЕТ (ЭТАП 3) === */}
       {activeView === 'profile' && (
-        <div className="card" style={{marginTop: '60px', padding: '30px 20px', textAlign: 'center'}}>
-          <div style={{background: '#f3f4f6', width: '80px', height: '80px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px auto'}}>
-             <User size={40} color="#9ca3af" />
-          </div>
-          <h2 style={{fontSize: '24px', fontWeight: 800, marginBottom: '10px'}}>Моя кухня</h2>
-          <p style={{color: '#6b7280', fontSize: '15px', marginBottom: '25px', lineHeight: 1.5}}>
-             Здесь будут храниться ваши любимые рецепты и фото кулинарных шедевров.
-          </p>
+        <div className="card" style={{marginTop: '60px', padding: '30px 20px', textAlign: 'center', minHeight: '60vh'}}>
           
-          <div style={{background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '16px', padding: '20px', marginBottom: '25px'}}>
-             <h3 style={{margin: '0 0 10px 0', fontSize: '18px', color: '#92400e'}}>Требуется авторизация 🔒</h3>
-             <p style={{fontSize: '13px', color: '#b45309', marginBottom: '20px', lineHeight: 1.5}}>
-               🛡 Нам не нужны ваши личные данные. Авторизация нужна только для того, чтобы ваши любимые рецепты и фото блюд навсегда сохранились в вашем личном кабинете. Никакого спама, обещаем!
-             </p>
-             <button className="btn-primary" style={{marginBottom: '10px'}} onClick={() => alert("Окно регистрации мы сделаем на Этапе 3!")}>
-               Войти в профиль
-             </button>
-          </div>
+          {!user ? (
+            <>
+              <div style={{background: '#f3f4f6', width: '80px', height: '80px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px auto'}}>
+                 <User size={40} color="#9ca3af" />
+              </div>
+              <h2 style={{fontSize: '24px', fontWeight: 800, marginBottom: '10px'}}>Личный кабинет</h2>
+              <p style={{color: '#6b7280', fontSize: '15px', marginBottom: '25px', lineHeight: 1.5}}>
+                 Здесь будут храниться ваши любимые рецепты и фото кулинарных шедевров.
+              </p>
+              
+              <div style={{background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '16px', padding: '20px', marginBottom: '25px'}}>
+                 <h3 style={{margin: '0 0 10px 0', fontSize: '18px', color: '#92400e'}}>Требуется авторизация 🔒</h3>
+                 <p style={{fontSize: '13px', color: '#b45309', marginBottom: '20px', lineHeight: 1.5}}>
+                   🛡 Нам не нужны ваши личные данные. Авторизация нужна только для того, чтобы ваши любимые рецепты и фото блюд навсегда сохранились в вашем личном кабинете. Никакого спама, обещаем!
+                 </p>
+                 <button className="btn-primary" style={{marginBottom: '10px'}} onClick={() => setIsAuthModalOpen(true)}>
+                   Войти или зарегистрироваться
+                 </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{position: 'relative', width: '80px', height: '80px', margin: '0 auto 20px auto'}}>
+                {user.user_metadata?.avatar_url ? (
+                  <img src={user.user_metadata.avatar_url} alt="Avatar" style={{width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', border: '3px solid #059669'}} />
+                ) : (
+                  <div style={{background: '#059669', width: '100%', height: '100%', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '30px', fontWeight: 800}}>
+                    {user.email?.charAt(0).toUpperCase() || 'U'}
+                  </div>
+                )}
+                <div style={{position: 'absolute', bottom: 0, right: 0, background: '#10b981', width: '20px', height: '20px', borderRadius: '50%', border: '3px solid white'}}></div>
+              </div>
+              
+              <h2 style={{fontSize: '22px', fontWeight: 800, marginBottom: '5px', color: '#111'}}>
+                {user.user_metadata?.full_name || 'Шеф-повар'}
+              </h2>
+              <p style={{color: '#6b7280', fontSize: '14px', marginBottom: '30px'}}>{user.email}</p>
+
+              <div style={{display: 'flex', gap: '10px', marginBottom: '30px'}}>
+                <div style={{flex: 1, background: '#f3f4f6', padding: '15px', borderRadius: '16px'}}>
+                  <div style={{fontSize: '24px', fontWeight: 900, color: '#0ea5e9'}}>{displayedFeed?.length || 0}</div>
+                  <div style={{fontSize: '12px', color: '#6b7280', fontWeight: 600}}>В избранном</div>
+                </div>
+                <div style={{flex: 1, background: '#f3f4f6', padding: '15px', borderRadius: '16px'}}>
+                  <div style={{fontSize: '24px', fontWeight: 900, color: '#f97316'}}>0</div>
+                  <div style={{fontSize: '12px', color: '#6b7280', fontWeight: 600}}>Фото блюд</div>
+                </div>
+              </div>
+
+              <button 
+                onClick={handleLogout}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', 
+                  padding: '14px', borderRadius: '12px', background: '#fee2e2', color: '#ef4444', 
+                  border: 'none', fontSize: '15px', fontWeight: 700, cursor: 'pointer'
+                }}
+              >
+                <LogOut size={18} /> Выйти из аккаунта
+              </button>
+            </>
+          )}
         </div>
       )}
 

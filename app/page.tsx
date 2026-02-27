@@ -122,16 +122,14 @@ export default function Home() {
   const [answer, setAnswer] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
 
-  const [fromFeed, setFromFeed] = useState(false);
-  
-  // Состояние, чтобы понимать, открыт ли рецепт из истории (для отдельного блока)
+  // ИСПРАВЛЕНИЕ 1: Теперь fromFeed запоминает, с какой именно вкладки ленты мы пришли
+  const [fromFeed, setFromFeed] = useState<'recipes' | 'photos' | false>(false);
   const [isHistoryView, setIsHistoryView] = useState(false);
   
   const [isSharedView, setIsSharedView] = useState(false);
   const [currentHoliday, setCurrentHoliday] = useState<HolidayType | null>(null);
 
   const [dailyFavoriteId, setDailyFavoriteId] = useState<number | null>(null);
-
   const [servings, setServings] = useState<number | "">(1);
 
   // Авторизация
@@ -145,6 +143,11 @@ export default function Home() {
   const [userPhotoPreview, setUserPhotoPreview] = useState<string | null>(null);
   const [userComment, setUserComment] = useState("");
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+
+  // ИСПРАВЛЕНИЕ 3 и 4: Состояния для Фулскрина фото и навигации внутри Профиля
+  const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
+  const [profileView, setProfileView] = useState<'main' | 'favorites' | 'photos'>('main');
+  const [userPhotos, setUserPhotos] = useState<any[]>([]);
 
   useEffect(() => {
     if (dailyRecipe && feed.length > 0) {
@@ -185,6 +188,29 @@ export default function Home() {
       fetchMyRecipes(currentSessionId); 
     }
   }, [user]);
+
+  // Загрузка фотографий пользователя для раздела Профиль
+  useEffect(() => {
+    const fetchUserPhotos = async () => {
+      if (!user) {
+        setUserPhotos([]);
+        return;
+      }
+      const { data, error } = await supabase
+        .from('feed_posts')
+        .select('*, recipes(title)')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+        
+      if (!error && data) {
+        setUserPhotos(data);
+      }
+    };
+
+    if (activeView === 'profile') {
+      fetchUserPhotos();
+    }
+  }, [activeView, user]);
 
   const cleanText = (text: any) => {
     if (!text) return "";
@@ -352,6 +378,7 @@ export default function Home() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setActiveView('service');
+    setProfileView('main');
   };
 
   const handlePublicLike = async (e: any, item: DBRecipe) => {
@@ -617,6 +644,7 @@ export default function Home() {
     setAnalysisResult(null); setRecipe(null); setSelectedDish(null); setQuestion(""); setAnswer(null); 
     setIsProcessing(true);
     setIsHistoryView(false);
+    setFromFeed(false);
     setServings(1); 
 
     try {
@@ -670,6 +698,7 @@ export default function Home() {
     if (!analysisResult || !userId) return; 
     setSelectedDish(dishName); setLoadingRecipe(true); setRecipe(null);
     setIsHistoryView(false);
+    setFromFeed(false);
     setServings(1); 
     
     window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
@@ -690,6 +719,7 @@ export default function Home() {
   const handleSmartVariant = async () => {
     setLoadingRecipe(true);
     setIsHistoryView(false);
+    setFromFeed(false);
     setServings(1); 
     try {
       if (analysisResult) {
@@ -728,6 +758,7 @@ export default function Home() {
     setRecipe(null); 
     setAnalysisResult(null);
     setIsHistoryView(false);
+    setFromFeed(false);
     setServings(1); 
     try {
       const response = await fetch("/api/search-recipe", { 
@@ -768,19 +799,19 @@ export default function Home() {
     } catch (err: any) { alert("Ошибка: " + err.message); } finally { setAsking(false); }
   };
 
-  const loadFromHistory = (item: DBRecipe, source: 'feed' | 'history' = 'history') => {
+  const loadFromHistory = (item: DBRecipe, source: 'recipes' | 'photos' | 'history' = 'history') => {
     setAnalysisResult(null); setQuestion(""); setAnswer(null);
     setServings(1); 
     setRecipe({ id: item.id, is_favorite: item.is_favorite, title: item.title, description: item.description, time: item.time, calories: item.calories, steps: item.steps || [], missing_ingredients: item.missing_ingredients || [], ingredients: item.ingredients || [], detailed_ingredients: item.detailed_ingredients || [] });
     
-    setFromFeed(source === 'feed');
+    setFromFeed(source === 'history' ? false : source);
     setIsHistoryView(source === 'history');
     setIsSharedView(false); 
     window.scrollTo({ top: 0, behavior: 'smooth' }); 
     setActiveView('service'); 
   };
 
-  const loadSharedRecipe = async (id: string) => {
+  const loadSharedRecipe = async (id: string, source: 'recipes' | 'photos' | false = false) => {
     try {
       const { data, error } = await supabase
         .from('recipes')
@@ -806,19 +837,22 @@ export default function Home() {
           detailed_ingredients: data.detailed_ingredients || [] 
         });
         setActiveView('service');
-        setFromFeed(false);
+        setFromFeed(source);
         setIsHistoryView(false); 
-        setIsSharedView(true); 
+        setIsSharedView(source === false); 
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     } catch (err) {
       console.error("Ошибка загрузки рецепта по ссылке:", err);
     }
   };
 
+  // ИСПРАВЛЕНИЕ 1: Возврат обратно в нужную Ленту
   const handleBackToSource = () => {
     setRecipe(null);
     setIsHistoryView(false);
-    if (fromFeed) {
+    if (fromFeed !== false) {
+      setFeedTab(fromFeed);
       setActiveView('feed');
       setFromFeed(false);
     } else {
@@ -838,11 +872,9 @@ export default function Home() {
   const switchView = (view: 'service' | 'about' | 'daily' | 'feed' | 'profile') => {
     setActiveView(view);
     setIsMenuOpen(false);
-    setIsHistoryView(false);
     
     if (view === 'service') {
        setIsSharedView(false);
-       setFromFeed(false);
        if (typeof window !== 'undefined') {
          window.history.replaceState({}, '', '/');
        }
@@ -869,6 +901,25 @@ export default function Home() {
           -moz-appearance: textfield;
         }
       `}</style>
+
+      {/* ИСПРАВЛЕНИЕ 3: Фулскрин для фото */}
+      {fullScreenImage && (
+        <div 
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.9)', 
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
+          }} 
+          onClick={() => setFullScreenImage(null)}
+        >
+          <button 
+            style={{position: 'absolute', top: '20px', right: '20px', background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', padding: '10px', color: 'white', cursor: 'pointer', backdropFilter: 'blur(5px)'}} 
+            onClick={() => setFullScreenImage(null)}
+          >
+            <X size={24} />
+          </button>
+          <img src={fullScreenImage} style={{maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '12px'}} alt="Fullscreen" />
+        </div>
+      )}
 
       {/* МОДАЛЬНОЕ ОКНО АВТОРИЗАЦИИ */}
       {isAuthModalOpen && (
@@ -983,7 +1034,7 @@ export default function Home() {
         <Menu size={24} color="#111" />
       </button>
 
-      {/* МЕНЮ */}
+      {/* МЕНЮ С НОВЫМИ ПОДРАЗДЕЛАМИ */}
       {isMenuOpen && (
         <>
           <div className="menu-overlay" onClick={() => setIsMenuOpen(false)} style={{zIndex: 99}} />
@@ -1005,7 +1056,7 @@ export default function Home() {
                <X size={24} onClick={() => setIsMenuOpen(false)} style={{cursor: 'pointer'}} />
             </div>
             
-            <div className="menu-link" onClick={() => switchView('profile')}><User size={20} color="#0ea5e9"/> Личный кабинет</div>
+            <div className="menu-link" onClick={() => { setProfileView('main'); switchView('profile'); }}><User size={20} color="#0ea5e9"/> Личный кабинет</div>
             <div className="menu-link" onClick={() => switchView('service')}><Search size={20}/> Поиск</div>
             <div className="menu-link" onClick={() => switchView('daily')}><Flame size={20} color="#f97316"/> Рецепт дня</div>
             
@@ -1046,8 +1097,7 @@ export default function Home() {
       {/* === СЕРВИС (ГЛАВНАЯ) === */}
       {activeView === 'service' && (
         <>
-          {/* Скрываем Поиск, только если открыт конкретный рецепт ИЗ ИСТОРИИ или ЛЕНТЫ */}
-          {!isHistoryView && !fromFeed && !isSharedView && (
+          {!isHistoryView && fromFeed === false && !isSharedView && (
             <>
               <div className="hero">
                 <h1 className="brand-name">SmartCook</h1>
@@ -1173,7 +1223,7 @@ export default function Home() {
             </>
           )}
 
-          {/* Результаты анализа */}
+          {/* Результаты анализа (остаются видимыми) */}
           {analysisResult && !isSharedView && !isHistoryView && (
             <div className="card">
               <h3 style={{textAlign: 'center', marginBottom: '20px'}}>Я вижу продукты:</h3>
@@ -1236,7 +1286,7 @@ export default function Home() {
                 </button>
               )}
 
-              {fromFeed && (
+              {fromFeed !== false && (
                 <button 
                   onClick={handleBackToSource}
                   style={{
@@ -1253,7 +1303,7 @@ export default function Home() {
                     transition: 'all 0.2s'
                   }}
                 >
-                  <ArrowLeft size={18} /> Назад в ленту
+                  <ArrowLeft size={18} /> Назад к ленте
                 </button>
               )}
 
@@ -1274,7 +1324,7 @@ export default function Home() {
                     transition: 'all 0.2s'
                   }}
                 >
-                  <ArrowLeft size={18} /> Назад к поиску
+                  <ArrowLeft size={18} /> Назад к истории
                 </button>
               )}
 
@@ -1446,7 +1496,7 @@ export default function Home() {
                 ))}
               </div>
 
-              {/* ЧАТ С ШЕФОМ (Перемещен НАД блоком фото) */}
+              {/* ЧАТ С ШЕФОМ (НАД ФОТО) */}
               <div className="chat-box" style={{marginTop: '30px'}}>
                 <div style={{fontWeight: 800, marginBottom: '20px', color: '#1e40af', fontSize: '18px', textAlign: 'center'}}>
                    Задайте вопрос AI шеф-повару!
@@ -1460,7 +1510,7 @@ export default function Home() {
                 {answer && <div style={{marginTop: '20px', lineHeight: 1.5, background: 'white', padding: '15px', borderRadius: '16px'}}><strong>Ответ:</strong> {answer}</div>}
               </div>
 
-              {/* БЛОК ПУБЛИКАЦИИ ФОТО (Перемещен ПОД чат) */}
+              {/* БЛОК ПУБЛИКАЦИИ ФОТО */}
               <div style={{marginTop: '30px', background: '#f8fafc', padding: '25px 20px', borderRadius: '16px', border: '1px solid #e2e8f0', textAlign: 'center'}}>
                 <h3 style={{fontSize: '18px', fontWeight: 800, marginBottom: '5px', color: '#1f2937'}}>📸 Приготовили? Покажите результат!</h3>
                 <p style={{fontSize: '13px', color: '#64748b', marginBottom: '15px', lineHeight: 1.4}}>
@@ -1609,7 +1659,7 @@ export default function Home() {
         <div style={{marginTop: '60px'}}>
           <div style={{textAlign: 'center', marginBottom: '25px'}}>
             <h1 style={{fontSize: '28px', fontWeight: '900', margin: '0 0 10px 0'}}>
-               {feedTab === 'recipes' ? 'Идеи от ИИ 🤖' : 'Фото от шефов 📸'}
+               {feedTab === 'recipes' ? 'Лента рецептов 🍲' : 'Лента фото 📸'}
             </h1>
             <p style={{color: '#6b7280', margin: 0}}>Вдохновляйтесь блюдами других</p>
           </div>
@@ -1639,7 +1689,7 @@ export default function Home() {
           {feedTab === 'recipes' && (
             <div style={{display: 'flex', flexDirection: 'column', gap: '20px'}}>
               {publicFeed.map((item) => (
-                <div key={item.id} className="card" style={{padding: '0', overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.1s'}} onClick={() => loadFromHistory(item, 'feed')}>
+                <div key={item.id} className="card" style={{padding: '0', overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.1s'}} onClick={() => loadFromHistory(item, 'recipes')}>
                   <div style={{height: '100px', background: 'linear-gradient(135deg, #fce7f3 0%, #e0f2fe 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative'}}>
                      <div style={{fontSize: '40px', opacity: 0.2}}>🍲</div>
                      <div style={{position: 'absolute', bottom: '10px', left: '15px', display: 'flex', gap: '8px'}}>
@@ -1684,12 +1734,13 @@ export default function Home() {
                      <div style={{flex: 1}}>
                         <div style={{fontWeight: 800, fontSize: '14px', color: '#111'}}>{post.user_name || 'Анонимный шеф'}</div>
                         <div style={{fontSize: '12px', color: '#6b7280', display: 'flex', alignItems: 'center', gap: '4px'}}>
-                          Приготовил(а): <span style={{color: '#059669', fontWeight: 600, cursor: 'pointer'}} onClick={() => loadSharedRecipe(post.recipe_id)}>{post.recipes?.title || 'Рецепт'}</span>
+                          Приготовил(а): <span style={{color: '#059669', fontWeight: 600, cursor: 'pointer'}} onClick={() => loadSharedRecipe(post.recipe_id, 'photos')}>{post.recipes?.title || 'Рецепт'}</span>
                         </div>
                      </div>
                   </div>
                   
-                  <img src={post.photo_url} alt="Блюдо" style={{width: '100%', maxHeight: '400px', objectFit: 'cover', display: 'block', background: '#f3f4f6'}} />
+                  {/* ИСПРАВЛЕНИЕ: Клик по фото открывает фулскрин */}
+                  <img src={post.photo_url} alt="Блюдо" onClick={() => setFullScreenImage(post.photo_url)} style={{width: '100%', maxHeight: '400px', objectFit: 'cover', display: 'block', background: '#f3f4f6', cursor: 'zoom-in'}} />
                   
                   <div style={{padding: '15px', background: 'white'}}>
                     {post.comment && (
@@ -1702,7 +1753,7 @@ export default function Home() {
                         <Heart size={18} fill={post.is_liked ? "#ef4444" : "none"} /> {post.likes_count || 0}
                       </button>
                       <button 
-                        onClick={() => loadSharedRecipe(post.recipe_id)}
+                        onClick={() => loadSharedRecipe(post.recipe_id, 'photos')}
                         style={{background: 'transparent', border: 'none', color: '#0ea5e9', fontWeight: 700, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer'}}
                       >
                          К рецепту <ArrowRight size={16} />
@@ -1720,7 +1771,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* === РЕЦЕПТ ДНЯ (Встроенный ВАУ-дизайн) === */}
+      {/* === РЕЦЕПТ ДНЯ === */}
       {activeView === 'daily' && (
         <div style={{marginTop: '60px'}}>
           {dailyRecipe ? (
@@ -1917,7 +1968,7 @@ export default function Home() {
                     ))}
                   </div>
 
-                  {/* ЧАТ С ШЕФОМ (Перемещен НАД блоком фото) */}
+                  {/* ЧАТ С ШЕФОМ (НАД ФОТО) */}
                   <div className="chat-box" style={{marginTop: '30px'}}>
                     <div style={{fontWeight: 800, marginBottom: '20px', color: '#1e40af', fontSize: '18px', textAlign: 'center'}}>
                        Задайте вопрос AI шеф-повару!
@@ -1931,7 +1982,7 @@ export default function Home() {
                     {answer && <div style={{marginTop: '20px', lineHeight: 1.5, background: 'white', padding: '15px', borderRadius: '16px'}}><strong>Ответ:</strong> {answer}</div>}
                   </div>
 
-                  {/* БЛОК ПУБЛИКАЦИИ ФОТО ДЛЯ РЕЦЕПТА ДНЯ (Перемещен ПОД чат) */}
+                  {/* БЛОК ПУБЛИКАЦИИ ФОТО ПОД ЧАТОМ */}
                   <div style={{marginTop: '30px', background: '#fff7ed', padding: '25px 20px', borderRadius: '16px', border: '1px solid #ffedd5', textAlign: 'center'}}>
                     <h3 style={{fontSize: '18px', fontWeight: 800, marginBottom: '5px', color: '#9a3412'}}>📸 Приготовили? Покажите результат!</h3>
                     <p style={{fontSize: '13px', color: '#64748b', marginBottom: '15px', lineHeight: 1.4}}>
@@ -2072,43 +2123,113 @@ export default function Home() {
             </>
           ) : (
             <>
-              <div style={{position: 'relative', width: '80px', height: '80px', margin: '0 auto 20px auto'}}>
-                {user.user_metadata?.avatar_url ? (
-                  <img src={user.user_metadata.avatar_url} alt="Avatar" style={{width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', border: '3px solid #059669'}} />
-                ) : (
-                  <div style={{background: '#059669', width: '100%', height: '100%', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '30px', fontWeight: 800}}>
-                    {user.email?.charAt(0).toUpperCase() || 'U'}
+              {profileView === 'main' && (
+                <>
+                  <div style={{position: 'relative', width: '80px', height: '80px', margin: '0 auto 20px auto'}}>
+                    {user.user_metadata?.avatar_url ? (
+                      <img src={user.user_metadata.avatar_url} alt="Avatar" style={{width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', border: '3px solid #059669'}} />
+                    ) : (
+                      <div style={{background: '#059669', width: '100%', height: '100%', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '30px', fontWeight: 800}}>
+                        {user.email?.charAt(0).toUpperCase() || 'U'}
+                      </div>
+                    )}
+                    <div style={{position: 'absolute', bottom: 0, right: 0, background: '#10b981', width: '20px', height: '20px', borderRadius: '50%', border: '3px solid white'}}></div>
                   </div>
-                )}
-                <div style={{position: 'absolute', bottom: 0, right: 0, background: '#10b981', width: '20px', height: '20px', borderRadius: '50%', border: '3px solid white'}}></div>
-              </div>
-              
-              <h2 style={{fontSize: '22px', fontWeight: 800, marginBottom: '5px', color: '#111'}}>
-                {user.user_metadata?.full_name || 'Шеф-повар'}
-              </h2>
-              <p style={{color: '#6b7280', fontSize: '14px', marginBottom: '30px'}}>{user.email}</p>
+                  
+                  <h2 style={{fontSize: '22px', fontWeight: 800, marginBottom: '5px', color: '#111'}}>
+                    {user.user_metadata?.full_name || 'Шеф-повар'}
+                  </h2>
+                  <p style={{color: '#6b7280', fontSize: '14px', marginBottom: '30px'}}>{user.email}</p>
 
-              <div style={{display: 'flex', gap: '10px', marginBottom: '30px'}}>
-                <div style={{flex: 1, background: '#f3f4f6', padding: '15px', borderRadius: '16px'}}>
-                  <div style={{fontSize: '24px', fontWeight: 900, color: '#0ea5e9'}}>{displayedFeed?.length || 0}</div>
-                  <div style={{fontSize: '12px', color: '#6b7280', fontWeight: 600}}>В избранном</div>
-                </div>
-                <div style={{flex: 1, background: '#f3f4f6', padding: '15px', borderRadius: '16px'}}>
-                  <div style={{fontSize: '24px', fontWeight: 900, color: '#f97316'}}>0</div>
-                  <div style={{fontSize: '12px', color: '#6b7280', fontWeight: 600}}>Фото блюд</div>
-                </div>
-              </div>
+                  <div style={{display: 'flex', gap: '10px', marginBottom: '30px'}}>
+                    <div onClick={() => setProfileView('favorites')} style={{flex: 1, background: '#f3f4f6', padding: '15px', borderRadius: '16px', cursor: 'pointer', transition: 'transform 0.1s'}}>
+                      <div style={{fontSize: '24px', fontWeight: 900, color: '#0ea5e9'}}>{displayedFeed?.length || 0}</div>
+                      <div style={{fontSize: '12px', color: '#6b7280', fontWeight: 600}}>В избранном</div>
+                    </div>
+                    <div onClick={() => setProfileView('photos')} style={{flex: 1, background: '#f3f4f6', padding: '15px', borderRadius: '16px', cursor: 'pointer', transition: 'transform 0.1s'}}>
+                      <div style={{fontSize: '24px', fontWeight: 900, color: '#f97316'}}>{userPhotos.length}</div>
+                      <div style={{fontSize: '12px', color: '#6b7280', fontWeight: 600}}>Фото блюд</div>
+                    </div>
+                  </div>
 
-              <button 
-                onClick={handleLogout}
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', 
-                  padding: '14px', borderRadius: '12px', background: '#fee2e2', color: '#ef4444', 
-                  border: 'none', fontSize: '15px', fontWeight: 700, cursor: 'pointer'
-                }}
-              >
-                <LogOut size={18} /> Выйти из аккаунта
-              </button>
+                  <button 
+                    onClick={handleLogout}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', 
+                      padding: '14px', borderRadius: '12px', background: '#fee2e2', color: '#ef4444', 
+                      border: 'none', fontSize: '15px', fontWeight: 700, cursor: 'pointer'
+                    }}
+                  >
+                    <LogOut size={18} /> Выйти из аккаунта
+                  </button>
+                </>
+              )}
+
+              {/* ВНУТРЕННИЕ СТРАНИЦЫ ПРОФИЛЯ */}
+              {profileView === 'favorites' && (
+                <div style={{textAlign: 'left'}}>
+                   <button 
+                      onClick={() => setProfileView('main')}
+                      style={{display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent', border: 'none', color: '#4b5563', fontWeight: 700, fontSize: '15px', marginBottom: '20px', cursor: 'pointer', padding: 0}}
+                   >
+                     <ArrowLeft size={18} /> В профиль
+                   </button>
+                   <h2 style={{fontSize: '22px', fontWeight: 900, marginBottom: '20px'}}>Моё избранное ❤️</h2>
+                   
+                   {displayedFeed?.length === 0 ? (
+                      <div style={{textAlign: 'center', color: '#9ca3af', padding: '20px'}}>У вас пока нет любимых рецептов.</div>
+                   ) : (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '15px' }}>
+                        {displayedFeed?.map((item) => (
+                          <div 
+                            key={item.id} 
+                            style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '15px', cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', textAlign: 'left', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }} 
+                            onClick={() => loadFromHistory(item, 'history')}
+                          >
+                            <div style={{ fontWeight: 700, fontSize: '14px', marginBottom: '8px', lineHeight: 1.3, height: '38px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', wordBreak: 'break-word' }}>
+                              {item.title}
+                            </div>
+                            <div style={{display: 'flex', gap: '10px', fontSize: '11px', color: '#6b7280'}}>
+                               <div style={{display: 'flex', alignItems: 'center', gap: '3px'}}><Clock size={12}/> {formatTime(item.time)}</div>
+                               {item.calories && <div style={{display: 'flex', alignItems: 'center', gap: '3px', color: '#f97316'}}><Flame size={12}/> {formatCalories(item.calories)}</div>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                   )}
+                </div>
+              )}
+
+              {profileView === 'photos' && (
+                <div style={{textAlign: 'left'}}>
+                   <button 
+                      onClick={() => setProfileView('main')}
+                      style={{display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent', border: 'none', color: '#4b5563', fontWeight: 700, fontSize: '15px', marginBottom: '20px', cursor: 'pointer', padding: 0}}
+                   >
+                     <ArrowLeft size={18} /> В профиль
+                   </button>
+                   <h2 style={{fontSize: '22px', fontWeight: 900, marginBottom: '20px'}}>Мои фото 📸</h2>
+
+                   {userPhotos.length === 0 ? (
+                      <div style={{textAlign: 'center', color: '#9ca3af', padding: '20px'}}>Вы еще не выкладывали фотографии блюд.</div>
+                   ) : (
+                      <div style={{display: 'flex', flexDirection: 'column', gap: '15px'}}>
+                        {userPhotos.map((post) => (
+                          <div key={post.id} style={{border: '1px solid #e2e8f0', borderRadius: '16px', overflow: 'hidden', background: 'white'}}>
+                             <img src={post.photo_url} alt="Мое фото" onClick={() => setFullScreenImage(post.photo_url)} style={{width: '100%', height: '200px', objectFit: 'cover', display: 'block', cursor: 'zoom-in'}} />
+                             <div style={{padding: '12px'}}>
+                               <div style={{fontSize: '13px', fontWeight: 700, color: '#374151', marginBottom: '5px'}}>Рецепт: <span style={{color: '#059669', cursor: 'pointer'}} onClick={() => loadSharedRecipe(post.recipe_id, false)}>{post.recipes?.title}</span></div>
+                               <div style={{fontSize: '12px', color: '#6b7280', display: 'flex', alignItems: 'center', gap: '5px'}}><Heart size={14} fill="#ef4444" color="#ef4444" /> {post.likes_count || 0} лайков</div>
+                               <div style={{fontSize: '11px', color: '#9ca3af', marginTop: '8px', fontWeight: 600}}>
+                                  Статус: {post.status === 'approved' ? '✅ Одобрено' : post.status === 'rejected' ? '❌ Отклонено' : '⏳ На проверке'}
+                               </div>
+                             </div>
+                          </div>
+                        ))}
+                      </div>
+                   )}
+                </div>
+              )}
             </>
           )}
         </div>

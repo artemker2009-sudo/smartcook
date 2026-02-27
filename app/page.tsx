@@ -122,8 +122,8 @@ export default function Home() {
   const [answer, setAnswer] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
 
-  // ИСПРАВЛЕНИЕ 1: Теперь fromFeed запоминает, с какой именно вкладки ленты мы пришли
-  const [fromFeed, setFromFeed] = useState<'recipes' | 'photos' | false>(false);
+  // Обновленный fromFeed для поддержки возврата в подразделы профиля
+  const [fromFeed, setFromFeed] = useState<'recipes' | 'photos' | 'profile_history' | 'profile_favorites' | false>(false);
   const [isHistoryView, setIsHistoryView] = useState(false);
   
   const [isSharedView, setIsSharedView] = useState(false);
@@ -144,9 +144,9 @@ export default function Home() {
   const [userComment, setUserComment] = useState("");
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
-  // ИСПРАВЛЕНИЕ 3 и 4: Состояния для Фулскрина фото и навигации внутри Профиля
+  // Состояния для Фулскрина фото и навигации внутри Профиля (добавлен history)
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
-  const [profileView, setProfileView] = useState<'main' | 'favorites' | 'photos'>('main');
+  const [profileView, setProfileView] = useState<'main' | 'favorites' | 'photos' | 'history'>('main');
   const [userPhotos, setUserPhotos] = useState<any[]>([]);
 
   useEffect(() => {
@@ -799,13 +799,13 @@ export default function Home() {
     } catch (err: any) { alert("Ошибка: " + err.message); } finally { setAsking(false); }
   };
 
-  const loadFromHistory = (item: DBRecipe, source: 'recipes' | 'photos' | 'history' = 'history') => {
+  const loadFromHistory = (item: DBRecipe, source: 'recipes' | 'photos' | 'history' | 'profile_history' | 'profile_favorites' = 'history') => {
     setAnalysisResult(null); setQuestion(""); setAnswer(null);
     setServings(1); 
     setRecipe({ id: item.id, is_favorite: item.is_favorite, title: item.title, description: item.description, time: item.time, calories: item.calories, steps: item.steps || [], missing_ingredients: item.missing_ingredients || [], ingredients: item.ingredients || [], detailed_ingredients: item.detailed_ingredients || [] });
     
     setFromFeed(source === 'history' ? false : source);
-    setIsHistoryView(source === 'history');
+    setIsHistoryView(source === 'history' || source === 'profile_history' || source === 'profile_favorites');
     setIsSharedView(false); 
     window.scrollTo({ top: 0, behavior: 'smooth' }); 
     setActiveView('service'); 
@@ -847,17 +847,23 @@ export default function Home() {
     }
   };
 
-  // ИСПРАВЛЕНИЕ 1: Возврат обратно в нужную Ленту
+  // Умная логика возврата
   const handleBackToSource = () => {
     setRecipe(null);
     setIsHistoryView(false);
-    if (fromFeed !== false) {
+    if (fromFeed === 'recipes' || fromFeed === 'photos') {
       setFeedTab(fromFeed);
       setActiveView('feed');
-      setFromFeed(false);
+    } else if (fromFeed === 'profile_history') {
+      setProfileView('history');
+      setActiveView('profile');
+    } else if (fromFeed === 'profile_favorites') {
+      setProfileView('favorites');
+      setActiveView('profile');
     } else {
       setActiveView('service');
     }
+    setFromFeed(false);
   };
 
   const handleBackToSearch = () => {
@@ -902,7 +908,7 @@ export default function Home() {
         }
       `}</style>
 
-      {/* ИСПРАВЛЕНИЕ 3: Фулскрин для фото */}
+      {/* Фулскрин для фото */}
       {fullScreenImage && (
         <div 
           style={{
@@ -1097,6 +1103,7 @@ export default function Home() {
       {/* === СЕРВИС (ГЛАВНАЯ) === */}
       {activeView === 'service' && (
         <>
+          {/* Скрываем Поиск, только если открыт конкретный рецепт ИЗ ИСТОРИИ или ЛЕНТЫ */}
           {!isHistoryView && fromFeed === false && !isSharedView && (
             <>
               <div className="hero">
@@ -1286,45 +1293,22 @@ export default function Home() {
                 </button>
               )}
 
-              {fromFeed !== false && (
+              {(fromFeed !== false || isHistoryView) && !isSharedView && (
                 <button 
-                  onClick={handleBackToSource}
+                  onClick={fromFeed ? handleBackToSource : handleBackToSearch}
                   style={{
                     display: 'flex', alignItems: 'center', gap: '8px',
-                    background: 'white', 
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '100px',
-                    padding: '8px 16px',
-                    color: '#374151', 
-                    fontSize: '14px', fontWeight: 600,
-                    marginBottom: '20px', 
-                    cursor: 'pointer', 
-                    boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
+                    background: 'white', border: '1px solid #e5e7eb', borderRadius: '100px',
+                    padding: '8px 16px', color: '#374151', fontSize: '14px', fontWeight: 600,
+                    marginBottom: '20px', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
                     transition: 'all 0.2s'
                   }}
                 >
-                  <ArrowLeft size={18} /> Назад к ленте
-                </button>
-              )}
-
-              {isHistoryView && (
-                <button 
-                  onClick={handleBackToSearch}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '8px',
-                    background: 'white', 
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '100px',
-                    padding: '8px 16px',
-                    color: '#374151', 
-                    fontSize: '14px', fontWeight: 600,
-                    marginBottom: '20px', 
-                    cursor: 'pointer', 
-                    boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  <ArrowLeft size={18} /> Назад к истории
+                  <ArrowLeft size={18} /> 
+                  {fromFeed === 'recipes' || fromFeed === 'photos' ? "Назад к ленте" : 
+                   fromFeed === 'profile_history' ? "Назад в профиль" : 
+                   fromFeed === 'profile_favorites' ? "Назад в профиль" : 
+                   "Назад к истории"}
                 </button>
               )}
 
@@ -1510,7 +1494,7 @@ export default function Home() {
                 {answer && <div style={{marginTop: '20px', lineHeight: 1.5, background: 'white', padding: '15px', borderRadius: '16px'}}><strong>Ответ:</strong> {answer}</div>}
               </div>
 
-              {/* БЛОК ПУБЛИКАЦИИ ФОТО */}
+              {/* БЛОК ПУБЛИКАЦИИ ФОТО ПОД ЧАТОМ */}
               <div style={{marginTop: '30px', background: '#f8fafc', padding: '25px 20px', borderRadius: '16px', border: '1px solid #e2e8f0', textAlign: 'center'}}>
                 <h3 style={{fontSize: '18px', fontWeight: 800, marginBottom: '5px', color: '#1f2937'}}>📸 Приготовили? Покажите результат!</h3>
                 <p style={{fontSize: '13px', color: '#64748b', marginBottom: '15px', lineHeight: 1.4}}>
@@ -1557,7 +1541,7 @@ export default function Home() {
             </div>
           )}
 
-          {/* ИСТОРИЯ */}
+          {/* ИСТОРИЯ НА ГЛАВНОЙ СТРАНИЦЕ */}
           {!isHistoryView && !fromFeed && !isSharedView && (
             <>
               <div className="history-bar" style={{marginTop: '40px'}}>
@@ -1739,7 +1723,6 @@ export default function Home() {
                      </div>
                   </div>
                   
-                  {/* ИСПРАВЛЕНИЕ: Клик по фото открывает фулскрин */}
                   <img src={post.photo_url} alt="Блюдо" onClick={() => setFullScreenImage(post.photo_url)} style={{width: '100%', maxHeight: '400px', objectFit: 'cover', display: 'block', background: '#f3f4f6', cursor: 'zoom-in'}} />
                   
                   <div style={{padding: '15px', background: 'white'}}>
@@ -1968,13 +1951,13 @@ export default function Home() {
                     ))}
                   </div>
 
-                  {/* ЧАТ С ШЕФОМ (НАД ФОТО) */}
+                  {/* ЧАТ С ШЕФОМ */}
                   <div className="chat-box" style={{marginTop: '30px'}}>
                     <div style={{fontWeight: 800, marginBottom: '20px', color: '#1e40af', fontSize: '18px', textAlign: 'center'}}>
                        Задайте вопрос AI шеф-повару!
                     </div>
                     <div className="chat-layout">
-                      <input className="chat-input" placeholder="Например: можно ли готовить без лука?" value={question} onChange={(e) => setQuestion(e.target.value)} />
+                      <input className="chat-input" placeholder="Например: чем заменить сливки?" value={question} onChange={(e) => setQuestion(e.target.value)} />
                       <button className="chat-btn-center" onClick={handleAskChef}>
                         <Send size={18}/> Спросить
                       </button>
@@ -1982,7 +1965,7 @@ export default function Home() {
                     {answer && <div style={{marginTop: '20px', lineHeight: 1.5, background: 'white', padding: '15px', borderRadius: '16px'}}><strong>Ответ:</strong> {answer}</div>}
                   </div>
 
-                  {/* БЛОК ПУБЛИКАЦИИ ФОТО ПОД ЧАТОМ */}
+                  {/* БЛОК ПУБЛИКАЦИИ ФОТО */}
                   <div style={{marginTop: '30px', background: '#fff7ed', padding: '25px 20px', borderRadius: '16px', border: '1px solid #ffedd5', textAlign: 'center'}}>
                     <h3 style={{fontSize: '18px', fontWeight: 800, marginBottom: '5px', color: '#9a3412'}}>📸 Приготовили? Покажите результат!</h3>
                     <p style={{fontSize: '13px', color: '#64748b', marginBottom: '15px', lineHeight: 1.4}}>
@@ -2142,9 +2125,13 @@ export default function Home() {
                   <p style={{color: '#6b7280', fontSize: '14px', marginBottom: '30px'}}>{user.email}</p>
 
                   <div style={{display: 'flex', gap: '10px', marginBottom: '30px'}}>
+                    <div onClick={() => setProfileView('history')} style={{flex: 1, background: '#f3f4f6', padding: '15px', borderRadius: '16px', cursor: 'pointer', transition: 'transform 0.1s'}}>
+                      <div style={{fontSize: '24px', fontWeight: 900, color: '#8b5cf6'}}>{feed?.length || 0}</div>
+                      <div style={{fontSize: '12px', color: '#6b7280', fontWeight: 600}}>История</div>
+                    </div>
                     <div onClick={() => setProfileView('favorites')} style={{flex: 1, background: '#f3f4f6', padding: '15px', borderRadius: '16px', cursor: 'pointer', transition: 'transform 0.1s'}}>
-                      <div style={{fontSize: '24px', fontWeight: 900, color: '#0ea5e9'}}>{displayedFeed?.length || 0}</div>
-                      <div style={{fontSize: '12px', color: '#6b7280', fontWeight: 600}}>В избранном</div>
+                      <div style={{fontSize: '24px', fontWeight: 900, color: '#0ea5e9'}}>{feed?.filter(r => r.is_favorite).length || 0}</div>
+                      <div style={{fontSize: '12px', color: '#6b7280', fontWeight: 600}}>Избранное</div>
                     </div>
                     <div onClick={() => setProfileView('photos')} style={{flex: 1, background: '#f3f4f6', padding: '15px', borderRadius: '16px', cursor: 'pointer', transition: 'transform 0.1s'}}>
                       <div style={{fontSize: '24px', fontWeight: 900, color: '#f97316'}}>{userPhotos.length}</div>
@@ -2166,25 +2153,59 @@ export default function Home() {
               )}
 
               {/* ВНУТРЕННИЕ СТРАНИЦЫ ПРОФИЛЯ */}
+              {profileView === 'history' && (
+                <div style={{textAlign: 'left'}}>
+                   <button 
+                      onClick={() => setProfileView('main')}
+                      style={{display: 'flex', alignItems: 'center', gap: '8px', background: 'white', border: '1px solid #e5e7eb', borderRadius: '100px', padding: '8px 16px', color: '#374151', fontSize: '14px', fontWeight: 600, marginBottom: '20px', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', transition: 'all 0.2s', width: 'fit-content'}}
+                   >
+                     <ArrowLeft size={18} /> Назад в профиль
+                   </button>
+                   <h2 style={{fontSize: '22px', fontWeight: 900, marginBottom: '20px'}}>История рецептов 📜</h2>
+                   
+                   {feed?.length === 0 ? (
+                      <div style={{textAlign: 'center', color: '#9ca3af', padding: '20px'}}>Ваша история пуста. Сгенерируйте первый рецепт!</div>
+                   ) : (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '15px' }}>
+                        {feed?.map((item) => (
+                          <div 
+                            key={item.id} 
+                            style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '15px', cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', textAlign: 'left', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }} 
+                            onClick={() => loadFromHistory(item, 'profile_history')}
+                          >
+                            <div style={{ fontWeight: 700, fontSize: '14px', marginBottom: '8px', lineHeight: 1.3, height: '38px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', wordBreak: 'break-word' }}>
+                              {item.title}
+                            </div>
+                            <div style={{display: 'flex', gap: '10px', fontSize: '11px', color: '#6b7280'}}>
+                               <div style={{display: 'flex', alignItems: 'center', gap: '3px'}}><Clock size={12}/> {formatTime(item.time)}</div>
+                               {item.calories && <div style={{display: 'flex', alignItems: 'center', gap: '3px', color: '#f97316'}}><Flame size={12}/> {formatCalories(item.calories)}</div>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                   )}
+                </div>
+              )}
+
               {profileView === 'favorites' && (
                 <div style={{textAlign: 'left'}}>
                    <button 
                       onClick={() => setProfileView('main')}
-                      style={{display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent', border: 'none', color: '#4b5563', fontWeight: 700, fontSize: '15px', marginBottom: '20px', cursor: 'pointer', padding: 0}}
+                      style={{display: 'flex', alignItems: 'center', gap: '8px', background: 'white', border: '1px solid #e5e7eb', borderRadius: '100px', padding: '8px 16px', color: '#374151', fontSize: '14px', fontWeight: 600, marginBottom: '20px', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', transition: 'all 0.2s', width: 'fit-content'}}
                    >
-                     <ArrowLeft size={18} /> В профиль
+                     <ArrowLeft size={18} /> Назад в профиль
                    </button>
                    <h2 style={{fontSize: '22px', fontWeight: 900, marginBottom: '20px'}}>Моё избранное ❤️</h2>
                    
-                   {displayedFeed?.length === 0 ? (
+                   {feed?.filter(r => r.is_favorite).length === 0 ? (
                       <div style={{textAlign: 'center', color: '#9ca3af', padding: '20px'}}>У вас пока нет любимых рецептов.</div>
                    ) : (
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '15px' }}>
-                        {displayedFeed?.map((item) => (
+                        {feed?.filter(r => r.is_favorite).map((item) => (
                           <div 
                             key={item.id} 
                             style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '15px', cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', textAlign: 'left', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }} 
-                            onClick={() => loadFromHistory(item, 'history')}
+                            onClick={() => loadFromHistory(item, 'profile_favorites')}
                           >
                             <div style={{ fontWeight: 700, fontSize: '14px', marginBottom: '8px', lineHeight: 1.3, height: '38px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', wordBreak: 'break-word' }}>
                               {item.title}
@@ -2204,9 +2225,9 @@ export default function Home() {
                 <div style={{textAlign: 'left'}}>
                    <button 
                       onClick={() => setProfileView('main')}
-                      style={{display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent', border: 'none', color: '#4b5563', fontWeight: 700, fontSize: '15px', marginBottom: '20px', cursor: 'pointer', padding: 0}}
+                      style={{display: 'flex', alignItems: 'center', gap: '8px', background: 'white', border: '1px solid #e5e7eb', borderRadius: '100px', padding: '8px 16px', color: '#374151', fontSize: '14px', fontWeight: 600, marginBottom: '20px', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', transition: 'all 0.2s', width: 'fit-content'}}
                    >
-                     <ArrowLeft size={18} /> В профиль
+                     <ArrowLeft size={18} /> Назад в профиль
                    </button>
                    <h2 style={{fontSize: '22px', fontWeight: 900, marginBottom: '20px'}}>Мои фото 📸</h2>
 

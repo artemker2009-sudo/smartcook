@@ -67,7 +67,6 @@ const scaleAmount = (amount: string, multiplier: number) => {
   if (!amount) return "";
   if (multiplier === 1) return amount;
   
-  // Ищем числа, включая дроби (1/2) и числа с запятой/точкой (1.5 или 1,5)
   return amount.replace(/(\d+\/\d+|\d+([\.,]\d+)?)/g, (match) => {
     let num = 0;
     if (match.includes('/')) {
@@ -79,7 +78,6 @@ const scaleAmount = (amount: string, multiplier: number) => {
     
     if (isNaN(num)) return match;
     const scaled = num * multiplier;
-    // Если число целое - выводим как есть, если с остатком - оставляем 1 знак после запятой
     return Number.isInteger(scaled) ? String(scaled) : scaled.toFixed(1).replace('.', ',');
   });
 };
@@ -109,6 +107,11 @@ export default function Home() {
   const [publicFeed, setPublicFeed] = useState<DBRecipe[]>([]);
   const [feedSort, setFeedSort] = useState<'new' | 'top'>('new');
   
+  // Состояния для вкладки Лента (ЭТАП 5)
+  const [feedTab, setFeedTab] = useState<'recipes' | 'photos'>('recipes');
+  const [photosFeed, setPhotosFeed] = useState<any[]>([]);
+  const [photosSort, setPhotosSort] = useState<'new' | 'top'>('new');
+
   const [userId, setUserId] = useState<string | null>(null);
   
   const [historyExpanded, setHistoryExpanded] = useState(false);
@@ -124,16 +127,15 @@ export default function Home() {
 
   const [dailyFavoriteId, setDailyFavoriteId] = useState<number | null>(null);
 
-  // Стейт для порций (может быть пустой строкой, когда стираем клавиатурой)
   const [servings, setServings] = useState<number | "">(1);
 
-  // Состояния для авторизации (ЭТАП 3)
+  // Авторизация
   const [user, setUser] = useState<any>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authEmail, setAuthEmail] = useState("");
   const [isSendingLink, setIsSendingLink] = useState(false);
 
-  // Состояния для загрузки фото в ленту (ЭТАП 4)
+  // Загрузка фото в ленту
   const [userPhotoFile, setUserPhotoFile] = useState<File | null>(null);
   const [userPhotoPreview, setUserPhotoPreview] = useState<string | null>(null);
   const [userComment, setUserComment] = useState("");
@@ -150,7 +152,7 @@ export default function Home() {
     }
   }, [dailyRecipe, feed]);
 
-  // Проверка текущей сессии пользователя
+  // Слушатель сессии Auth
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user || null);
@@ -162,6 +164,26 @@ export default function Home() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // ИСПРАВЛЕНИЕ ОШИБКИ TypeScript: Интеллектуальное присвоение ID пользователя с проверкой
+  useEffect(() => {
+    let currentSessionId = localStorage.getItem("cook_user_id");
+    
+    if (user) {
+      // Если вошел в аккаунт - привязываем всё к его профилю навсегда
+      currentSessionId = user.id;
+      localStorage.setItem("cook_user_id", user.id);
+    } else if (!currentSessionId) {
+      // Если аноним и нет айдишника - создаем временный
+      currentSessionId = "user_" + Math.random().toString(36).substr(2, 9); 
+      localStorage.setItem("cook_user_id", currentSessionId); 
+    }
+    
+    setUserId(currentSessionId); 
+    if (currentSessionId) {
+      fetchMyRecipes(currentSessionId); 
+    }
+  }, [user]);
 
   const cleanText = (text: any) => {
     if (!text) return "";
@@ -185,16 +207,6 @@ export default function Home() {
   };
 
   useEffect(() => {
-    try {
-      let storedId = localStorage.getItem("cook_user_id");
-      if (!storedId) { 
-        storedId = "user_" + Math.random().toString(36).substr(2, 9); 
-        localStorage.setItem("cook_user_id", storedId); 
-      }
-      setUserId(storedId); 
-      fetchMyRecipes(storedId); 
-    } catch (e) { console.error(e); }
-
     fetch('/api/daily')
       .then(res => res.json())
       .then(data => {
@@ -244,9 +256,13 @@ export default function Home() {
 
   useEffect(() => {
     if (activeView === 'feed') {
-      fetchPublicFeed(feedSort);
+      if (feedTab === 'recipes') {
+        fetchPublicFeed(feedSort);
+      } else {
+        fetchPhotosFeed(photosSort);
+      }
     }
-  }, [activeView]);
+  }, [activeView, feedTab]);
 
   const fetchMyRecipes = async (currentId: string) => {
     if (!currentId) return;
@@ -277,6 +293,23 @@ export default function Home() {
         setPublicFeed(json.feed);
       }
     } catch (e) { console.error("Feed Error:", e); }
+  };
+
+  // Функция загрузки ленты фото (ЭТАП 5)
+  const fetchPhotosFeed = async (sortType: 'new' | 'top') => {
+    setPhotosSort(sortType);
+    if (!userId) return;
+    try {
+      const res = await fetch("/api/photo-feed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sort: sortType, sessionId: userId })
+      });
+      const json = await res.json();
+      if (json.feed) {
+        setPhotosFeed(json.feed);
+      }
+    } catch (e) { console.error("Photo Feed Error:", e); }
   };
 
   const handleOAuthLogin = async (provider: 'google' | 'yandex' | 'vk') => {
@@ -341,6 +374,30 @@ export default function Home() {
       });
     } catch (err) {
       console.error("Like Error:", err);
+    }
+  };
+
+  // Функция лайка для фотографий (ЭТАП 5)
+  const handlePhotoLike = async (e: any, item: any) => {
+    e.stopPropagation();
+    if (!userId) return;
+
+    const action = item.is_liked ? 'unlike' : 'like';
+    const newCount = item.is_liked ? Math.max(0, (item.likes_count || 0) - 1) : (item.likes_count || 0) + 1;
+
+    const updatedFeed = photosFeed.map(p => 
+      p.id === item.id ? { ...p, is_liked: !item.is_liked, likes_count: newCount } : p
+    );
+    setPhotosFeed(updatedFeed);
+
+    try {
+      await fetch("/api/photo-like", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postId: item.id, sessionId: userId, action })
+      });
+    } catch (err) {
+      console.error("Photo Like Error:", err);
     }
   };
 
@@ -469,22 +526,25 @@ export default function Home() {
       const photoUrl = publicUrlData.publicUrl;
 
       const userName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Шеф';
-      const { data: postData, error: postError } = await supabase.from('feed_posts').insert({
+      
+      const { error: postError } = await supabase.from('feed_posts').insert({
         recipe_id: dbRecipeId,
         user_id: user.id,
         user_name: userName,
         photo_url: photoUrl,
         comment: userComment,
         status: 'pending'
-      }).select().single();
+      });
 
       if (postError) throw postError;
+
+      const { data: latestPost } = await supabase.from('feed_posts').select('id').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1).single();
 
       await fetch('/api/telegram-mod', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          postId: postData.id,
+          postId: latestPost?.id,
           recipeTitle: currentRecipeContext.title,
           userName: userName,
           comment: userComment,
@@ -1323,9 +1383,12 @@ export default function Home() {
                 ))}
               </div>
 
-              {/* БЛОК ПУБЛИКАЦИИ ФОТО */}
+              {/* ИСПРАВЛЕНИЕ ОШИБКИ JSX: Изменена стрелочка -> на → */}
               <div style={{marginTop: '30px', background: '#f8fafc', padding: '25px 20px', borderRadius: '16px', border: '1px solid #e2e8f0', textAlign: 'center'}}>
-                <h3 style={{fontSize: '18px', fontWeight: 800, marginBottom: '15px', color: '#1f2937'}}>📸 Приготовили? Покажите результат!</h3>
+                <h3 style={{fontSize: '18px', fontWeight: 800, marginBottom: '5px', color: '#1f2937'}}>📸 Приготовили? Покажите результат!</h3>
+                <p style={{fontSize: '13px', color: '#64748b', marginBottom: '15px', lineHeight: 1.4}}>
+                   Ваше фото появится в разделе <strong>«Лента → Фото от шефов»</strong>, где его смогут оценить другие пользователи!
+                </p>
                 {!user ? (
                    <button className="btn-primary" onClick={() => setIsAuthModalOpen(true)}>Войти, чтобы опубликовать фото</button>
                 ) : (
@@ -1475,109 +1538,151 @@ export default function Home() {
         </>
       )}
 
-      {/* === ЛЕНТА (ФИД) === */}
+      {/* === ЛЕНТА (ФИД) С НОВЫМИ ВКЛАДКАМИ === */}
       {activeView === 'feed' && (
         <div style={{marginTop: '60px'}}>
           <div style={{textAlign: 'center', marginBottom: '25px'}}>
             <h1 style={{fontSize: '28px', fontWeight: '900', margin: '0 0 10px 0'}}>Лента 🌍</h1>
-            <p style={{color: '#6b7280', margin: 0}}>Что готовят другие прямо сейчас</p>
+            <p style={{color: '#6b7280', margin: 0}}>Вдохновляйтесь идеями других</p>
           </div>
 
-          <div style={{fontSize: '14px', fontWeight: 600, color: '#6b7280', marginBottom: '8px', paddingLeft: '5px'}}>
-            Сортировать по:
-          </div>
-
-          <div style={{display: 'flex', background: '#f3f4f6', padding: '4px', borderRadius: '12px', marginBottom: '25px'}}>
+          {/* Вкладки Рецепты / Фото */}
+          <div style={{display: 'flex', background: '#e5e7eb', padding: '4px', borderRadius: '14px', marginBottom: '20px'}}>
             <button 
-              onClick={() => fetchPublicFeed('new')}
+              onClick={() => setFeedTab('recipes')}
               style={{
-                flex: 1, padding: '12px', borderRadius: '10px', border: 'none',
-                background: feedSort === 'new' ? 'white' : 'transparent',
-                fontWeight: 700, fontSize: '16px',
-                boxShadow: feedSort === 'new' ? '0 2px 10px rgba(0,0,0,0.05)' : 'none',
-                color: feedSort === 'new' ? '#111' : '#6b7280',
+                flex: 1, padding: '10px', borderRadius: '12px', border: 'none',
+                background: feedTab === 'recipes' ? 'white' : 'transparent',
+                fontWeight: 800, fontSize: '15px',
+                boxShadow: feedTab === 'recipes' ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
+                color: feedTab === 'recipes' ? '#059669' : '#6b7280',
                 transition: 'all 0.2s'
               }}
             >
-              ✨ Новое
+              Идеи от ИИ
             </button>
             <button 
-              onClick={() => fetchPublicFeed('top')}
+              onClick={() => setFeedTab('photos')}
               style={{
-                flex: 1, padding: '12px', borderRadius: '10px', border: 'none',
-                background: feedSort === 'top' ? 'white' : 'transparent',
-                fontWeight: 700, fontSize: '16px',
-                boxShadow: feedSort === 'top' ? '0 2px 10px rgba(0,0,0,0.05)' : 'none',
-                color: feedSort === 'top' ? '#111' : '#6b7280',
+                flex: 1, padding: '10px', borderRadius: '12px', border: 'none',
+                background: feedTab === 'photos' ? 'white' : 'transparent',
+                fontWeight: 800, fontSize: '15px',
+                boxShadow: feedTab === 'photos' ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
+                color: feedTab === 'photos' ? '#0ea5e9' : '#6b7280',
                 transition: 'all 0.2s'
               }}
             >
-              🔥 Популярное
+              Фото от шефов
             </button>
           </div>
 
-          <div style={{display: 'flex', flexDirection: 'column', gap: '20px'}}>
-            {publicFeed.map((item) => (
-              <div 
-                key={item.id} 
-                className="card" 
-                style={{padding: '0', overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.1s'}}
-                onClick={() => loadFromHistory(item, 'feed')}
-              >
-                <div style={{
-                  height: '100px', 
-                  background: 'linear-gradient(135deg, #fce7f3 0%, #e0f2fe 100%)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  position: 'relative'
-                }}>
-                   <div style={{fontSize: '40px', opacity: 0.2}}>🍲</div>
-                   
-                   <div style={{position: 'absolute', bottom: '10px', left: '15px', display: 'flex', gap: '8px'}}>
-                      <div style={{background: 'rgba(255,255,255,0.9)', padding: '4px 10px', borderRadius: '100px', fontSize: '11px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px'}}>
-                        <Clock size={12}/> {formatTime(item.time)}
-                      </div>
-                      {item.calories && (
-                         <div style={{background: 'rgba(255,255,255,0.9)', padding: '4px 10px', borderRadius: '100px', fontSize: '11px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', color: '#ea580c'}}>
-                           <Flame size={12}/> {formatCalories(item.calories)}
-                         </div>
-                      )}
-                   </div>
-                </div>
+          {/* Фильтры сортировки */}
+          <div style={{display: 'flex', gap: '10px', marginBottom: '25px', overflowX: 'auto', paddingBottom: '5px'}}>
+             <button 
+                onClick={() => { feedTab === 'recipes' ? fetchPublicFeed('new') : fetchPhotosFeed('new') }}
+                style={{
+                  padding: '8px 16px', borderRadius: '100px', border: 'none', whiteSpace: 'nowrap',
+                  background: (feedTab === 'recipes' ? feedSort : photosSort) === 'new' ? '#111' : '#f3f4f6',
+                  color: (feedTab === 'recipes' ? feedSort : photosSort) === 'new' ? 'white' : '#4b5563',
+                  fontWeight: 700, fontSize: '14px', transition: 'all 0.2s'
+                }}
+             >✨ Новые</button>
+             <button 
+                onClick={() => { feedTab === 'recipes' ? fetchPublicFeed('top') : fetchPhotosFeed('top') }}
+                style={{
+                  padding: '8px 16px', borderRadius: '100px', border: 'none', whiteSpace: 'nowrap',
+                  background: (feedTab === 'recipes' ? feedSort : photosSort) === 'top' ? '#111' : '#f3f4f6',
+                  color: (feedTab === 'recipes' ? feedSort : photosSort) === 'top' ? 'white' : '#4b5563',
+                  fontWeight: 700, fontSize: '14px', transition: 'all 0.2s'
+                }}
+             >🔥 Популярные</button>
+          </div>
 
-                <div style={{padding: '20px'}}>
-                  <h3 style={{margin: '0 0 10px 0', fontSize: '18px', fontWeight: 700, lineHeight: 1.3}}>{item.title}</h3>
-                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px'}}>
-                    <button 
-                      onClick={(e) => handlePublicLike(e, item)}
-                      style={{
-                        background: item.is_liked ? '#fee2e2' : '#f3f4f6',
-                        border: 'none',
-                        borderRadius: '100px',
-                        padding: '8px 16px',
-                        display: 'flex', alignItems: 'center', gap: '6px',
-                        color: item.is_liked ? '#ef4444' : '#4b5563',
-                        fontWeight: 700,
-                        fontSize: '14px',
-                        transition: 'all 0.2s'
-                      }}
-                    >
-                      <Heart size={18} fill={item.is_liked ? "#ef4444" : "none"} /> 
-                      {item.likes_count || 0}
-                    </button>
-
-                    <span style={{fontSize: '13px', fontWeight: 600, color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '4px'}}>
-                      Открыть рецепт <ArrowRight size={14}/>
-                    </span>
+          {/* КОНТЕНТ: РЕЦЕПТЫ */}
+          {feedTab === 'recipes' && (
+            <div style={{display: 'flex', flexDirection: 'column', gap: '20px'}}>
+              {publicFeed.map((item) => (
+                <div key={item.id} className="card" style={{padding: '0', overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.1s'}} onClick={() => loadFromHistory(item, 'feed')}>
+                  <div style={{height: '100px', background: 'linear-gradient(135deg, #fce7f3 0%, #e0f2fe 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative'}}>
+                     <div style={{fontSize: '40px', opacity: 0.2}}>🍲</div>
+                     <div style={{position: 'absolute', bottom: '10px', left: '15px', display: 'flex', gap: '8px'}}>
+                        <div style={{background: 'rgba(255,255,255,0.9)', padding: '4px 10px', borderRadius: '100px', fontSize: '11px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px'}}>
+                          <Clock size={12}/> {formatTime(item.time)}
+                        </div>
+                        {item.calories && (
+                           <div style={{background: 'rgba(255,255,255,0.9)', padding: '4px 10px', borderRadius: '100px', fontSize: '11px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', color: '#ea580c'}}>
+                             <Flame size={12}/> {formatCalories(item.calories)}
+                           </div>
+                        )}
+                     </div>
+                  </div>
+                  <div style={{padding: '20px'}}>
+                    <h3 style={{margin: '0 0 10px 0', fontSize: '18px', fontWeight: 700, lineHeight: 1.3}}>{item.title}</h3>
+                    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px'}}>
+                      <button onClick={(e) => handlePublicLike(e, item)} style={{background: item.is_liked ? '#fee2e2' : '#f3f4f6', border: 'none', borderRadius: '100px', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px', color: item.is_liked ? '#ef4444' : '#4b5563', fontWeight: 700, fontSize: '14px', transition: 'all 0.2s'}}>
+                        <Heart size={18} fill={item.is_liked ? "#ef4444" : "none"} /> {item.likes_count || 0}
+                      </button>
+                      <span style={{fontSize: '13px', fontWeight: 600, color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '4px'}}>
+                        Открыть рецепт <ArrowRight size={14}/>
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-            {publicFeed.length === 0 && (
-              <div style={{textAlign: 'center', padding: '40px', color: '#9ca3af'}}>
-                Пока пусто. Станьте первым, кто создаст рецепт! 👨‍🍳
-              </div>
-            )}
-          </div>
+              ))}
+              {publicFeed.length === 0 && (
+                <div style={{textAlign: 'center', padding: '40px', color: '#9ca3af'}}>Пока пусто. Станьте первым, кто создаст рецепт! 👨‍🍳</div>
+              )}
+            </div>
+          )}
+
+          {/* КОНТЕНТ: ФОТО ОТ ПОЛЬЗОВАТЕЛЕЙ */}
+          {feedTab === 'photos' && (
+            <div style={{display: 'flex', flexDirection: 'column', gap: '20px'}}>
+              {photosFeed.map((post) => (
+                <div key={post.id} className="card" style={{padding: '0', overflow: 'hidden', border: '1px solid #e5e7eb'}}>
+                  {/* Шапка поста: Автор и Рецепт */}
+                  <div style={{padding: '15px', display: 'flex', alignItems: 'center', gap: '10px', background: 'white'}}>
+                     <div style={{width: '36px', height: '36px', borderRadius: '50%', background: '#0ea5e9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 800, fontSize: '16px'}}>
+                        {post.user_name?.charAt(0).toUpperCase() || 'Ш'}
+                     </div>
+                     <div style={{flex: 1}}>
+                        <div style={{fontWeight: 800, fontSize: '14px', color: '#111'}}>{post.user_name || 'Анонимный шеф'}</div>
+                        <div style={{fontSize: '12px', color: '#6b7280', display: 'flex', alignItems: 'center', gap: '4px'}}>
+                          Приготовил(а): <span style={{color: '#059669', fontWeight: 600, cursor: 'pointer'}} onClick={() => loadSharedRecipe(post.recipe_id)}>{post.recipes?.title || 'Рецепт'}</span>
+                        </div>
+                     </div>
+                  </div>
+                  
+                  {/* Сама фотография */}
+                  <img src={post.photo_url} alt="Блюдо" style={{width: '100%', maxHeight: '400px', objectFit: 'cover', display: 'block', background: '#f3f4f6'}} />
+                  
+                  {/* Подвал: Комментарий и Лайки */}
+                  <div style={{padding: '15px', background: 'white'}}>
+                    {post.comment && (
+                       <p style={{margin: '0 0 15px 0', fontSize: '14px', color: '#374151', lineHeight: 1.5}}>
+                         <strong>{post.user_name}:</strong> {post.comment}
+                       </p>
+                    )}
+                    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                      <button onClick={(e) => handlePhotoLike(e, post)} style={{background: post.is_liked ? '#fee2e2' : '#f3f4f6', border: 'none', borderRadius: '100px', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px', color: post.is_liked ? '#ef4444' : '#4b5563', fontWeight: 700, fontSize: '14px', transition: 'all 0.2s', cursor: 'pointer'}}>
+                        <Heart size={18} fill={post.is_liked ? "#ef4444" : "none"} /> {post.likes_count || 0}
+                      </button>
+                      <button 
+                        onClick={() => loadSharedRecipe(post.recipe_id)}
+                        style={{background: 'transparent', border: 'none', color: '#0ea5e9', fontWeight: 700, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer'}}
+                      >
+                         К рецепту <ArrowRight size={16} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {photosFeed.length === 0 && (
+                <div style={{textAlign: 'center', padding: '40px', color: '#9ca3af'}}>Здесь пока нет фотографий. Поделитесь своим шедевром первым! 📸</div>
+              )}
+            </div>
+          )}
+
         </div>
       )}
 
@@ -1779,9 +1884,12 @@ export default function Home() {
                     ))}
                   </div>
 
-                  {/* БЛОК ПУБЛИКАЦИИ ФОТО ДЛЯ РЕЦЕПТА ДНЯ */}
+                  {/* ИСПРАВЛЕНИЕ ОШИБКИ JSX: Изменена стрелочка -> на → */}
                   <div style={{marginTop: '30px', background: '#fff7ed', padding: '25px 20px', borderRadius: '16px', border: '1px solid #ffedd5', textAlign: 'center'}}>
-                    <h3 style={{fontSize: '18px', fontWeight: 800, marginBottom: '15px', color: '#9a3412'}}>📸 Приготовили? Покажите результат!</h3>
+                    <h3 style={{fontSize: '18px', fontWeight: 800, marginBottom: '5px', color: '#9a3412'}}>📸 Приготовили? Покажите результат!</h3>
+                    <p style={{fontSize: '13px', color: '#64748b', marginBottom: '15px', lineHeight: 1.4}}>
+                       Ваше фото появится в разделе <strong>«Лента → Фото от шефов»</strong>, где его смогут оценить другие пользователи!
+                    </p>
                     {!user ? (
                        <button className="btn-primary" onClick={() => setIsAuthModalOpen(true)}>Войти, чтобы опубликовать фото</button>
                     ) : (

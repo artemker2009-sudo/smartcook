@@ -62,7 +62,7 @@ interface HolidayType {
   icon: string;
 }
 
-// ИСПРАВЛЕНИЕ: Умная функция для пересчета граммовок
+// Умная функция для пересчета граммовок
 const scaleAmount = (amount: string, multiplier: number) => {
   if (!amount) return "";
   if (multiplier === 1) return amount;
@@ -124,7 +124,7 @@ export default function Home() {
 
   const [dailyFavoriteId, setDailyFavoriteId] = useState<number | null>(null);
 
-  // ИСПРАВЛЕНИЕ: Стейт для порций (может быть пустой строкой, когда стираем клавиатурой)
+  // Стейт для порций (может быть пустой строкой, когда стираем клавиатурой)
   const [servings, setServings] = useState<number | "">(1);
 
   useEffect(() => {
@@ -1524,6 +1524,39 @@ export default function Home() {
               <div style={{background: '#f8fafc', padding: '20px 15px', borderRadius: '16px', textAlign: 'center', border: '1px solid #e2e8f0'}}><div style={{background: '#dcfce7', color: '#16a34a', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px auto'}}><Leaf size={20} /></div><div style={{fontWeight: 800, fontSize: '15px', marginBottom: '5px'}}>Zero Waste</div><div style={{fontSize: '12px', color: '#64748b'}}>Спасаем еду</div></div>
               <div style={{background: '#f8fafc', padding: '20px 15px', borderRadius: '16px', textAlign: 'center', border: '1px solid #e2e8f0'}}><div style={{background: '#f3e8ff', color: '#9333ea', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px auto'}}><Globe size={20} /></div><div style={{fontWeight: 800, fontSize: '15px', marginBottom: '5px'}}>Разнообразие</div><div style={{fontSize: '12px', color: '#64748b'}}>Новые блюда</div></div>
             </div>
+            
+            {/* ИНСТРУКЦИЯ ПО УСТАНОВКЕ PWA */}
+            <div style={{background: '#f8fafc', borderRadius: '24px', padding: '25px 20px', marginBottom: '40px', border: '1px solid #e2e8f0'}}>
+              <h3 style={{margin: '0 0 10px 0', fontSize: '20px', fontWeight: 800, textAlign: 'center'}}>Установите SmartCook как приложение 📲</h3>
+              <p style={{fontSize: '14px', color: '#64748b', textAlign: 'center', marginBottom: '20px', lineHeight: 1.5}}>
+                Быстрый доступ к рецептам в один клик. Не занимает память, не требует скачивания из App Store или Google Play!
+              </p>
+
+              <div style={{display: 'flex', flexDirection: 'column', gap: '15px'}}>
+                {/* iOS */}
+                <div style={{background: 'white', padding: '15px', borderRadius: '16px', border: '1px solid #f1f5f9'}}>
+                  <div style={{fontWeight: 800, fontSize: '16px', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px'}}>
+                    🍎 Для iPhone (в Safari)
+                  </div>
+                  <ol style={{margin: 0, paddingLeft: '20px', fontSize: '14px', color: '#475569', lineHeight: 1.6}}>
+                    <li>Нажмите иконку <strong>«Поделиться»</strong> (квадрат со стрелочкой вверх в самом низу экрана).</li>
+                    <li>Пролистайте меню вниз и выберите <strong>«На экран "Домой"»</strong> (со значком ➕).</li>
+                  </ol>
+                </div>
+
+                {/* Android */}
+                <div style={{background: 'white', padding: '15px', borderRadius: '16px', border: '1px solid #f1f5f9'}}>
+                  <div style={{fontWeight: 800, fontSize: '16px', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px'}}>
+                    🤖 Для Android (в Chrome)
+                  </div>
+                  <ol style={{margin: 0, paddingLeft: '20px', fontSize: '14px', color: '#475569', lineHeight: 1.6}}>
+                    <li>Нажмите на <strong>меню</strong> (три точки в правом верхнем углу экрана).</li>
+                    <li>Выберите пункт <strong>«Добавить на гл. экран»</strong> или <strong>«Установить приложение»</strong>.</li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+
             <div style={{background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', borderRadius: '24px', padding: '30px 20px', textAlign: 'center', color: 'white', boxShadow: '0 10px 25px rgba(2, 132, 199, 0.4)', position: 'relative', overflow: 'hidden'}}>
               <h3 style={{margin: '0 0 10px 0', fontSize: '22px', fontWeight: 900}}>Telegram канал проекта</h3>
               <p style={{opacity: 0.9, fontSize: '15px', marginBottom: '25px', lineHeight: 1.5}}>Следите за обновлениями, предлагайте идеи и общайтесь напрямую с разработчиком.</p>

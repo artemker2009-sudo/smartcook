@@ -124,7 +124,7 @@ export default function Home() {
 
   const [dailyFavoriteId, setDailyFavoriteId] = useState<number | null>(null);
 
-  // Стейт для порций
+  // Стейт для порций (может быть пустой строкой, когда стираем клавиатурой)
   const [servings, setServings] = useState<number | "">(1);
 
   // Состояния для авторизации (ЭТАП 3)
@@ -133,7 +133,7 @@ export default function Home() {
   const [authEmail, setAuthEmail] = useState("");
   const [isSendingLink, setIsSendingLink] = useState(false);
 
-  // ИСПРАВЛЕНИЕ: Состояния для загрузки фото в ленту (ЭТАП 4)
+  // Состояния для загрузки фото в ленту (ЭТАП 4)
   const [userPhotoFile, setUserPhotoFile] = useState<File | null>(null);
   const [userPhotoPreview, setUserPhotoPreview] = useState<string | null>(null);
   const [userComment, setUserComment] = useState("");
@@ -398,7 +398,6 @@ export default function Home() {
     }
   };
 
-  // ИСПРАВЛЕНИЕ: Логика загрузки фото пользователя и отправки на модерацию (ЭТАП 4)
   const handleUserPhotoChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -420,12 +419,10 @@ export default function Home() {
     }
   };
 
-  // Вспомогательная функция, чтобы убедиться, что рецепт есть в БД перед привязкой фото
   const ensureRecipeInDB = async (currentRecipe: any) => {
     if (!currentRecipe) return null;
     if (currentRecipe.id) return currentRecipe.id;
 
-    // Если это рецепт дня или не сохраненный, сохраняем его
     const { data } = await supabase.from('recipes').insert({
       session_id: userId,
       title: currentRecipe.title,
@@ -458,11 +455,9 @@ export default function Home() {
 
     setIsUploadingPhoto(true);
     try {
-      // 1. Убеждаемся, что рецепт есть в БД
       const dbRecipeId = await ensureRecipeInDB(currentRecipeContext);
       if (!dbRecipeId) throw new Error("Не удалось привязать рецепт");
 
-      // 2. Грузим фото в Storage
       const fileName = `${user.id}/${Date.now()}.jpg`;
       const { error: uploadError } = await supabase.storage
         .from('recipe_photos')
@@ -470,11 +465,9 @@ export default function Home() {
 
       if (uploadError) throw uploadError;
 
-      // 3. Получаем публичную ссылку
       const { data: publicUrlData } = supabase.storage.from('recipe_photos').getPublicUrl(fileName);
       const photoUrl = publicUrlData.publicUrl;
 
-      // 4. Сохраняем в таблицу feed_posts (со статусом pending)
       const userName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Шеф';
       const { data: postData, error: postError } = await supabase.from('feed_posts').insert({
         recipe_id: dbRecipeId,
@@ -487,7 +480,6 @@ export default function Home() {
 
       if (postError) throw postError;
 
-      // 5. Отправляем сигнал нашему Telegram-боту (API роут создадим на следующем шаге!)
       await fetch('/api/telegram-mod', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1331,7 +1323,7 @@ export default function Home() {
                 ))}
               </div>
 
-              {/* ИСПРАВЛЕНИЕ: БЛОК ПУБЛИКАЦИИ ФОТО (ЭТАП 4) */}
+              {/* БЛОК ПУБЛИКАЦИИ ФОТО */}
               <div style={{marginTop: '30px', background: '#f8fafc', padding: '25px 20px', borderRadius: '16px', border: '1px solid #e2e8f0', textAlign: 'center'}}>
                 <h3 style={{fontSize: '18px', fontWeight: 800, marginBottom: '15px', color: '#1f2937'}}>📸 Приготовили? Покажите результат!</h3>
                 {!user ? (
@@ -1787,7 +1779,7 @@ export default function Home() {
                     ))}
                   </div>
 
-                  {/* ИСПРАВЛЕНИЕ: БЛОК ПУБЛИКАЦИИ ФОТО (ДЛЯ РЕЦЕПТА ДНЯ) */}
+                  {/* БЛОК ПУБЛИКАЦИИ ФОТО ДЛЯ РЕЦЕПТА ДНЯ */}
                   <div style={{marginTop: '30px', background: '#fff7ed', padding: '25px 20px', borderRadius: '16px', border: '1px solid #ffedd5', textAlign: 'center'}}>
                     <h3 style={{fontSize: '18px', fontWeight: 800, marginBottom: '15px', color: '#9a3412'}}>📸 Приготовили? Покажите результат!</h3>
                     {!user ? (
@@ -1912,7 +1904,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* === ЛИЧНЫЙ КАБИНЕТ (ЭТАП 3) === */}
+      {/* === ЛИЧНЫЙ КАБИНЕТ === */}
       {activeView === 'profile' && (
         <div className="card" style={{marginTop: '60px', padding: '30px 20px', textAlign: 'center', minHeight: '60vh'}}>
           

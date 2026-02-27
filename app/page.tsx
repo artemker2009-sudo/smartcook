@@ -86,7 +86,6 @@ export default function Home() {
   const [activeView, setActiveView] = useState<'service' | 'about' | 'daily' | 'feed' | 'profile'>('service');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   
-  // Состояние для выпадающего меню Ленты (Пункт 4)
   const [isFeedMenuExpanded, setIsFeedMenuExpanded] = useState(false);
 
   const [dailyRecipe, setDailyRecipe] = useState<DailyRecipeType | null>(null);
@@ -124,6 +123,9 @@ export default function Home() {
   const [asking, setAsking] = useState(false);
 
   const [fromFeed, setFromFeed] = useState(false);
+  
+  // Состояние, чтобы понимать, открыт ли рецепт из истории (для отдельного блока)
+  const [isHistoryView, setIsHistoryView] = useState(false);
   
   const [isSharedView, setIsSharedView] = useState(false);
   const [currentHoliday, setCurrentHoliday] = useState<HolidayType | null>(null);
@@ -535,7 +537,6 @@ export default function Home() {
 
       if (postError) throw postError;
 
-      // Обёрнуто в try-catch, чтобы ошибка Телеграма не ломала пользователю сайт
       try {
           const { data: latestPost } = await supabase.from('feed_posts').select('id').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1).single();
           if (latestPost) {
@@ -615,6 +616,7 @@ export default function Home() {
     setPreview(URL.createObjectURL(rawFile));
     setAnalysisResult(null); setRecipe(null); setSelectedDish(null); setQuestion(""); setAnswer(null); 
     setIsProcessing(true);
+    setIsHistoryView(false);
     setServings(1); 
 
     try {
@@ -667,6 +669,7 @@ export default function Home() {
   const getRecipeFromPhoto = async (dishName: string) => {
     if (!analysisResult || !userId) return; 
     setSelectedDish(dishName); setLoadingRecipe(true); setRecipe(null);
+    setIsHistoryView(false);
     setServings(1); 
     
     window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
@@ -686,6 +689,7 @@ export default function Home() {
 
   const handleSmartVariant = async () => {
     setLoadingRecipe(true);
+    setIsHistoryView(false);
     setServings(1); 
     try {
       if (analysisResult) {
@@ -723,6 +727,7 @@ export default function Home() {
     setLoadingRecipe(true); 
     setRecipe(null); 
     setAnalysisResult(null);
+    setIsHistoryView(false);
     setServings(1); 
     try {
       const response = await fetch("/api/search-recipe", { 
@@ -769,6 +774,7 @@ export default function Home() {
     setRecipe({ id: item.id, is_favorite: item.is_favorite, title: item.title, description: item.description, time: item.time, calories: item.calories, steps: item.steps || [], missing_ingredients: item.missing_ingredients || [], ingredients: item.ingredients || [], detailed_ingredients: item.detailed_ingredients || [] });
     
     setFromFeed(source === 'feed');
+    setIsHistoryView(source === 'history');
     setIsSharedView(false); 
     window.scrollTo({ top: 0, behavior: 'smooth' }); 
     setActiveView('service'); 
@@ -800,7 +806,8 @@ export default function Home() {
           detailed_ingredients: data.detailed_ingredients || [] 
         });
         setActiveView('service');
-        setFromFeed(false); 
+        setFromFeed(false);
+        setIsHistoryView(false); 
         setIsSharedView(true); 
       }
     } catch (err) {
@@ -810,6 +817,7 @@ export default function Home() {
 
   const handleBackToSource = () => {
     setRecipe(null);
+    setIsHistoryView(false);
     if (fromFeed) {
       setActiveView('feed');
       setFromFeed(false);
@@ -821,15 +829,16 @@ export default function Home() {
   const handleBackToSearch = () => {
     setRecipe(null);
     setIsSharedView(false);
+    setIsHistoryView(false);
     if (typeof window !== 'undefined') {
       window.history.replaceState({}, '', '/');
     }
   };
 
-  // ИСПРАВЛЕНИЕ: Убрали очистку рецепта при перемещении (Пункт 1)
   const switchView = (view: 'service' | 'about' | 'daily' | 'feed' | 'profile') => {
     setActiveView(view);
     setIsMenuOpen(false);
+    setIsHistoryView(false);
     
     if (view === 'service') {
        setIsSharedView(false);
@@ -974,7 +983,7 @@ export default function Home() {
         <Menu size={24} color="#111" />
       </button>
 
-      {/* ИСПРАВЛЕНИЕ: МЕНЮ С АККОРДЕОНОМ ЛЕНТЫ (Пункт 4) */}
+      {/* МЕНЮ */}
       {isMenuOpen && (
         <>
           <div className="menu-overlay" onClick={() => setIsMenuOpen(false)} style={{zIndex: 99}} />
@@ -1029,7 +1038,7 @@ export default function Home() {
               </div>
             )}
 
-            <div className="menu-link" onClick={() => switchView('about')}><CheckCircle size={20} color="#3b82f6"/> О проекте</div>
+            <div className="menu-link" style={{ marginTop: '10px' }} onClick={() => switchView('about')}><CheckCircle size={20} color="#3b82f6"/> О проекте</div>
           </div>
         </>
       )}
@@ -1037,8 +1046,8 @@ export default function Home() {
       {/* === СЕРВИС (ГЛАВНАЯ) === */}
       {activeView === 'service' && (
         <>
-          {/* Скрываем Поиск, только если открыт конкретный рецепт */}
-          {!recipe && !fromFeed && !isSharedView && (
+          {/* Скрываем Поиск, только если открыт конкретный рецепт ИЗ ИСТОРИИ или ЛЕНТЫ */}
+          {!isHistoryView && !fromFeed && !isSharedView && (
             <>
               <div className="hero">
                 <h1 className="brand-name">SmartCook</h1>
@@ -1165,7 +1174,7 @@ export default function Home() {
           )}
 
           {/* Результаты анализа */}
-          {analysisResult && !isSharedView && (
+          {analysisResult && !isSharedView && !isHistoryView && (
             <div className="card">
               <h3 style={{textAlign: 'center', marginBottom: '20px'}}>Я вижу продукты:</h3>
               <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', marginBottom: '25px'}}>
@@ -1204,27 +1213,70 @@ export default function Home() {
 
           {/* === ПРОСМОТР РЕЦЕПТА === */}
           {recipe && (
-            <div className="card" style={{position: 'relative', overflow: 'visible', marginTop: (isSharedView || fromFeed) ? '60px' : '20px'}}>
+            <div className="card" style={{position: 'relative', overflow: 'visible', marginTop: (isSharedView || fromFeed || isHistoryView) ? '60px' : '20px'}}>
               
-              <button 
-                onClick={handleBackToSearch}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '8px',
-                  background: 'white', 
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '100px',
-                  padding: '8px 16px',
-                  color: '#374151', 
-                  fontSize: '14px', fontWeight: 600,
-                  marginBottom: '20px', 
-                  cursor: 'pointer', 
-                  boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
-                  transition: 'all 0.2s'
-                }}
-              >
-                {fromFeed ? <ArrowLeft size={18} /> : <Search size={18} color="#059669" />}
-                {fromFeed ? "Назад в ленту" : "К поиску"}
-              </button>
+              {isSharedView && (
+                <button 
+                  onClick={handleBackToSearch}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    background: 'white', 
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '100px',
+                    padding: '8px 16px',
+                    color: '#374151', 
+                    fontSize: '14px', fontWeight: 600,
+                    marginBottom: '20px', 
+                    cursor: 'pointer', 
+                    boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <Search size={18} color="#059669" /> К поиску
+                </button>
+              )}
+
+              {fromFeed && (
+                <button 
+                  onClick={handleBackToSource}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    background: 'white', 
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '100px',
+                    padding: '8px 16px',
+                    color: '#374151', 
+                    fontSize: '14px', fontWeight: 600,
+                    marginBottom: '20px', 
+                    cursor: 'pointer', 
+                    boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <ArrowLeft size={18} /> Назад в ленту
+                </button>
+              )}
+
+              {isHistoryView && (
+                <button 
+                  onClick={handleBackToSearch}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    background: 'white', 
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '100px',
+                    padding: '8px 16px',
+                    color: '#374151', 
+                    fontSize: '14px', fontWeight: 600,
+                    marginBottom: '20px', 
+                    cursor: 'pointer', 
+                    boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <ArrowLeft size={18} /> Назад к поиску
+                </button>
+              )}
 
               <div className="recipe-header" style={{flexDirection: 'column', alignItems: 'flex-start', gap: '15px'}}>
                 <div style={{display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'flex-start', gap: '10px'}}>
@@ -1249,7 +1301,7 @@ export default function Home() {
                   </p>
                 )}
               
-                {!fromFeed && !isSharedView && (analysisResult || (searchMode === 'text' && recipe)) && (
+                {!fromFeed && !isSharedView && !isHistoryView && (analysisResult || (searchMode === 'text' && recipe)) && (
                   <button 
                     onClick={handleSmartVariant}
                     disabled={loadingRecipe}
@@ -1394,7 +1446,7 @@ export default function Home() {
                 ))}
               </div>
 
-              {/* ЧАТ С ШЕФОМ (ИСПРАВЛЕНИЕ: Перемещен НАД блоком фото - Пункт 2) */}
+              {/* ЧАТ С ШЕФОМ (Перемещен НАД блоком фото) */}
               <div className="chat-box" style={{marginTop: '30px'}}>
                 <div style={{fontWeight: 800, marginBottom: '20px', color: '#1e40af', fontSize: '18px', textAlign: 'center'}}>
                    Задайте вопрос AI шеф-повару!
@@ -1408,7 +1460,7 @@ export default function Home() {
                 {answer && <div style={{marginTop: '20px', lineHeight: 1.5, background: 'white', padding: '15px', borderRadius: '16px'}}><strong>Ответ:</strong> {answer}</div>}
               </div>
 
-              {/* БЛОК ПУБЛИКАЦИИ ФОТО (ИСПРАВЛЕНИЕ: Перемещен ПОД чат - Пункт 2) */}
+              {/* БЛОК ПУБЛИКАЦИИ ФОТО (Перемещен ПОД чат) */}
               <div style={{marginTop: '30px', background: '#f8fafc', padding: '25px 20px', borderRadius: '16px', border: '1px solid #e2e8f0', textAlign: 'center'}}>
                 <h3 style={{fontSize: '18px', fontWeight: 800, marginBottom: '5px', color: '#1f2937'}}>📸 Приготовили? Покажите результат!</h3>
                 <p style={{fontSize: '13px', color: '#64748b', marginBottom: '15px', lineHeight: 1.4}}>
@@ -1456,7 +1508,7 @@ export default function Home() {
           )}
 
           {/* ИСТОРИЯ */}
-          {!recipe && !fromFeed && (
+          {!isHistoryView && !fromFeed && !isSharedView && (
             <>
               <div className="history-bar" style={{marginTop: '40px'}}>
                 <span className="history-title">📜 История рецептов</span>
@@ -1538,7 +1590,7 @@ export default function Home() {
             </>
           )}
 
-          {!recipe && !fromFeed && (
+          {!isHistoryView && !fromFeed && !isSharedView && (
             <section style={{marginTop: '40px', padding: '20px', background: '#f9fafb', borderRadius: '16px', color: '#6b7280', fontSize: '14px', lineHeight: '1.6'}}>
               <h2 style={{fontSize: '18px', color: '#1f2937', marginBottom: '10px', fontWeight: '700'}}>
                 SmartCook: Генератор рецептов по фото
@@ -1552,7 +1604,7 @@ export default function Home() {
         </>
       )}
 
-      {/* === ЛЕНТА (ФИД) БЕЗ ВЕРХНИХ КНОПОК === */}
+      {/* === ЛЕНТА (ФИД) === */}
       {activeView === 'feed' && (
         <div style={{marginTop: '60px'}}>
           <div style={{textAlign: 'center', marginBottom: '25px'}}>
@@ -1865,7 +1917,7 @@ export default function Home() {
                     ))}
                   </div>
 
-                  {/* ЧАТ С ШЕФОМ (Перемещен выше фото) */}
+                  {/* ЧАТ С ШЕФОМ (Перемещен НАД блоком фото) */}
                   <div className="chat-box" style={{marginTop: '30px'}}>
                     <div style={{fontWeight: 800, marginBottom: '20px', color: '#1e40af', fontSize: '18px', textAlign: 'center'}}>
                        Задайте вопрос AI шеф-повару!
@@ -1879,7 +1931,7 @@ export default function Home() {
                     {answer && <div style={{marginTop: '20px', lineHeight: 1.5, background: 'white', padding: '15px', borderRadius: '16px'}}><strong>Ответ:</strong> {answer}</div>}
                   </div>
 
-                  {/* БЛОК ПУБЛИКАЦИИ ФОТО ДЛЯ РЕЦЕПТА ДНЯ (Перемещен под чат) */}
+                  {/* БЛОК ПУБЛИКАЦИИ ФОТО ДЛЯ РЕЦЕПТА ДНЯ (Перемещен ПОД чат) */}
                   <div style={{marginTop: '30px', background: '#fff7ed', padding: '25px 20px', borderRadius: '16px', border: '1px solid #ffedd5', textAlign: 'center'}}>
                     <h3 style={{fontSize: '18px', fontWeight: 800, marginBottom: '5px', color: '#9a3412'}}>📸 Приготовили? Покажите результат!</h3>
                     <p style={{fontSize: '13px', color: '#64748b', marginBottom: '15px', lineHeight: 1.4}}>

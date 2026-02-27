@@ -124,7 +124,7 @@ export default function Home() {
 
   const [dailyFavoriteId, setDailyFavoriteId] = useState<number | null>(null);
 
-  // Стейт для порций (может быть пустой строкой, когда стираем клавиатурой)
+  // Стейт для порций
   const [servings, setServings] = useState<number | "">(1);
 
   // Состояния для авторизации (ЭТАП 3)
@@ -132,6 +132,12 @@ export default function Home() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authEmail, setAuthEmail] = useState("");
   const [isSendingLink, setIsSendingLink] = useState(false);
+
+  // ИСПРАВЛЕНИЕ: Состояния для загрузки фото в ленту (ЭТАП 4)
+  const [userPhotoFile, setUserPhotoFile] = useState<File | null>(null);
+  const [userPhotoPreview, setUserPhotoPreview] = useState<string | null>(null);
+  const [userComment, setUserComment] = useState("");
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
   useEffect(() => {
     if (dailyRecipe && feed.length > 0) {
@@ -144,7 +150,7 @@ export default function Home() {
     }
   }, [dailyRecipe, feed]);
 
-  // Проверка текущей сессии пользователя (ЭТАП 3)
+  // Проверка текущей сессии пользователя
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user || null);
@@ -273,7 +279,6 @@ export default function Home() {
     } catch (e) { console.error("Feed Error:", e); }
   };
 
-  // ИСПРАВЛЕНИЕ: Добавлен as any для обхода строгой типизации TypeScript
   const handleOAuthLogin = async (provider: 'google' | 'yandex' | 'vk') => {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
@@ -390,6 +395,120 @@ export default function Home() {
          setDailyFavoriteId(data[0].id);
          fetchMyRecipes(userId); 
       }
+    }
+  };
+
+  // ИСПРАВЛЕНИЕ: Логика загрузки фото пользователя и отправки на модерацию (ЭТАП 4)
+  const handleUserPhotoChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const rawFile = files[0];
+    setUserPhotoPreview(URL.createObjectURL(rawFile));
+    setIsUploadingPhoto(true);
+
+    try {
+      const imageCompression = (await import('browser-image-compression')).default;
+      const options = { maxSizeMB: 1, maxWidthOrHeight: 1080, useWebWorker: true, fileType: "image/jpeg" };
+      const compressedFile = await imageCompression(rawFile, options);
+      setUserPhotoFile(new File([compressedFile], `post_${Date.now()}.jpg`, { type: "image/jpeg" }));
+    } catch (error) {
+      alert("Не удалось обработать фото.");
+      setUserPhotoFile(null);
+      setUserPhotoPreview(null);
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  };
+
+  // Вспомогательная функция, чтобы убедиться, что рецепт есть в БД перед привязкой фото
+  const ensureRecipeInDB = async (currentRecipe: any) => {
+    if (!currentRecipe) return null;
+    if (currentRecipe.id) return currentRecipe.id;
+
+    // Если это рецепт дня или не сохраненный, сохраняем его
+    const { data } = await supabase.from('recipes').insert({
+      session_id: userId,
+      title: currentRecipe.title,
+      description: currentRecipe.description,
+      time: String(currentRecipe.time),
+      calories: String(currentRecipe.calories),
+      ingredients: currentRecipe.ingredients || currentRecipe.detailed_ingredients?.map((i:any) => `${i.name} - ${i.amount}`) || [],
+      detailed_ingredients: currentRecipe.detailed_ingredients || [],
+      missing_ingredients: currentRecipe.missing_ingredients || [],
+      steps: currentRecipe.steps,
+      is_favorite: false
+    }).select('*');
+
+    if (data && data.length > 0) {
+      if (recipe && recipe.title === currentRecipe.title) setRecipe({...recipe, id: data[0].id});
+      return data[0].id;
+    }
+    return null;
+  };
+
+  const submitFeedPost = async (currentRecipeContext: any) => {
+    if (!user) {
+      setIsAuthModalOpen(true);
+      return;
+    }
+    if (!userPhotoFile) {
+      alert("Сначала выберите фото!");
+      return;
+    }
+
+    setIsUploadingPhoto(true);
+    try {
+      // 1. Убеждаемся, что рецепт есть в БД
+      const dbRecipeId = await ensureRecipeInDB(currentRecipeContext);
+      if (!dbRecipeId) throw new Error("Не удалось привязать рецепт");
+
+      // 2. Грузим фото в Storage
+      const fileName = `${user.id}/${Date.now()}.jpg`;
+      const { error: uploadError } = await supabase.storage
+        .from('recipe_photos')
+        .upload(fileName, userPhotoFile);
+
+      if (uploadError) throw uploadError;
+
+      // 3. Получаем публичную ссылку
+      const { data: publicUrlData } = supabase.storage.from('recipe_photos').getPublicUrl(fileName);
+      const photoUrl = publicUrlData.publicUrl;
+
+      // 4. Сохраняем в таблицу feed_posts (со статусом pending)
+      const userName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Шеф';
+      const { data: postData, error: postError } = await supabase.from('feed_posts').insert({
+        recipe_id: dbRecipeId,
+        user_id: user.id,
+        user_name: userName,
+        photo_url: photoUrl,
+        comment: userComment,
+        status: 'pending'
+      }).select().single();
+
+      if (postError) throw postError;
+
+      // 5. Отправляем сигнал нашему Telegram-боту (API роут создадим на следующем шаге!)
+      await fetch('/api/telegram-mod', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          postId: postData.id,
+          recipeTitle: currentRecipeContext.title,
+          userName: userName,
+          comment: userComment,
+          photoUrl: photoUrl
+        })
+      });
+
+      alert("Ура! 🎉 Ваше фото отправлено на проверку шефу. Скоро оно появится в общей ленте!");
+      setUserPhotoFile(null);
+      setUserPhotoPreview(null);
+      setUserComment("");
+
+    } catch (err: any) {
+      alert("Ошибка отправки: " + err.message);
+    } finally {
+      setIsUploadingPhoto(false);
     }
   };
 
@@ -688,7 +807,7 @@ export default function Home() {
         }
       `}</style>
 
-      {/* МОДАЛЬНОЕ ОКНО АВТОРИЗАЦИИ (ЭТАП 3) */}
+      {/* МОДАЛЬНОЕ ОКНО АВТОРИЗАЦИИ */}
       {isAuthModalOpen && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -711,7 +830,6 @@ export default function Home() {
             </div>
 
             <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
-              {/* Кнопка Google */}
               <button onClick={() => handleOAuthLogin('google')} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', width: '100%', padding: '14px', borderRadius: '12px',
                 background: 'white', border: '1px solid #e5e7eb', fontSize: '15px', fontWeight: 600, color: '#374151', cursor: 'pointer',
@@ -721,7 +839,6 @@ export default function Home() {
                 Войти через Google
               </button>
 
-              {/* Кнопка Яндекс */}
               <button onClick={() => handleOAuthLogin('yandex')} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', width: '100%', padding: '14px', borderRadius: '12px',
                 background: '#fc3f1d', border: 'none', fontSize: '15px', fontWeight: 600, color: 'white', cursor: 'pointer',
@@ -731,7 +848,6 @@ export default function Home() {
                 Войти через Яндекс
               </button>
 
-              {/* Кнопка VK */}
               <button onClick={() => handleOAuthLogin('vk')} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', width: '100%', padding: '14px', borderRadius: '12px',
                 background: '#0077ff', border: 'none', fontSize: '15px', fontWeight: 600, color: 'white', cursor: 'pointer',
@@ -747,7 +863,6 @@ export default function Home() {
                 <div style={{flex: 1, height: '1px', background: '#e5e7eb'}}></div>
               </div>
 
-              {/* Вход по Email (Magic Link) */}
               <div>
                 <input 
                   type="email" 
@@ -1216,7 +1331,49 @@ export default function Home() {
                 ))}
               </div>
 
-              <div className="chat-box">
+              {/* ИСПРАВЛЕНИЕ: БЛОК ПУБЛИКАЦИИ ФОТО (ЭТАП 4) */}
+              <div style={{marginTop: '30px', background: '#f8fafc', padding: '25px 20px', borderRadius: '16px', border: '1px solid #e2e8f0', textAlign: 'center'}}>
+                <h3 style={{fontSize: '18px', fontWeight: 800, marginBottom: '15px', color: '#1f2937'}}>📸 Приготовили? Покажите результат!</h3>
+                {!user ? (
+                   <button className="btn-primary" onClick={() => setIsAuthModalOpen(true)}>Войти, чтобы опубликовать фото</button>
+                ) : (
+                   <div style={{display: 'flex', flexDirection: 'column', gap: '15px'}}>
+                     {!userPhotoFile ? (
+                        <div style={{border: '2px dashed #cbd5e1', borderRadius: '12px', padding: '20px', cursor: 'pointer', background: 'white'}} onClick={() => document.getElementById('user-photo-upload')?.click()}>
+                           <Camera size={32} color="#9ca3af" style={{margin: '0 auto 10px auto'}} />
+                           <div style={{fontSize: '14px', fontWeight: 600, color: '#4b5563'}}>Нажмите, чтобы загрузить фото блюда</div>
+                           <input id="user-photo-upload" type="file" accept="image/*" style={{display: 'none'}} onChange={handleUserPhotoChange} />
+                        </div>
+                     ) : (
+                        <div style={{background: 'white', padding: '15px', borderRadius: '12px', border: '1px solid #e2e8f0'}}>
+                           <img src={userPhotoPreview!} alt="Preview" style={{width: '100%', height: '200px', objectFit: 'cover', borderRadius: '8px', marginBottom: '15px'}} />
+                           <input 
+                             type="text" 
+                             placeholder="Ваш комментарий (например: Получилось бомба!)" 
+                             value={userComment}
+                             onChange={(e) => setUserComment(e.target.value)}
+                             style={{width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '14px', marginBottom: '15px', outline: 'none'}}
+                           />
+                           <div style={{display: 'flex', gap: '10px'}}>
+                             <button 
+                               onClick={() => {setUserPhotoFile(null); setUserPhotoPreview(null); setUserComment("");}}
+                               style={{flex: 1, padding: '12px', borderRadius: '8px', background: '#f3f4f6', border: 'none', color: '#4b5563', fontWeight: 700, cursor: 'pointer'}}
+                             >Отмена</button>
+                             <button 
+                               onClick={() => submitFeedPost(recipe)}
+                               disabled={isUploadingPhoto}
+                               style={{flex: 2, padding: '12px', borderRadius: '8px', background: '#059669', border: 'none', color: 'white', fontWeight: 700, cursor: isUploadingPhoto ? 'default' : 'pointer'}}
+                             >
+                               {isUploadingPhoto ? "Отправка..." : "Отправить в ленту"}
+                             </button>
+                           </div>
+                        </div>
+                     )}
+                   </div>
+                )}
+              </div>
+
+              <div className="chat-box" style={{marginTop: '30px'}}>
                 <div style={{fontWeight: 800, marginBottom: '20px', color: '#1e40af', fontSize: '18px', textAlign: 'center'}}>
                    Задайте вопрос AI шеф-повару!
                 </div>
@@ -1628,6 +1785,48 @@ export default function Home() {
                         <div className="step-text">{cleanText(step)}</div>
                       </div>
                     ))}
+                  </div>
+
+                  {/* ИСПРАВЛЕНИЕ: БЛОК ПУБЛИКАЦИИ ФОТО (ДЛЯ РЕЦЕПТА ДНЯ) */}
+                  <div style={{marginTop: '30px', background: '#fff7ed', padding: '25px 20px', borderRadius: '16px', border: '1px solid #ffedd5', textAlign: 'center'}}>
+                    <h3 style={{fontSize: '18px', fontWeight: 800, marginBottom: '15px', color: '#9a3412'}}>📸 Приготовили? Покажите результат!</h3>
+                    {!user ? (
+                       <button className="btn-primary" onClick={() => setIsAuthModalOpen(true)}>Войти, чтобы опубликовать фото</button>
+                    ) : (
+                       <div style={{display: 'flex', flexDirection: 'column', gap: '15px'}}>
+                         {!userPhotoFile ? (
+                            <div style={{border: '2px dashed #fdba74', borderRadius: '12px', padding: '20px', cursor: 'pointer', background: 'white'}} onClick={() => document.getElementById('daily-photo-upload')?.click()}>
+                               <Camera size={32} color="#f97316" style={{margin: '0 auto 10px auto'}} />
+                               <div style={{fontSize: '14px', fontWeight: 600, color: '#9a3412'}}>Нажмите, чтобы загрузить фото блюда</div>
+                               <input id="daily-photo-upload" type="file" accept="image/*" style={{display: 'none'}} onChange={handleUserPhotoChange} />
+                            </div>
+                         ) : (
+                            <div style={{background: 'white', padding: '15px', borderRadius: '12px', border: '1px solid #ffedd5'}}>
+                               <img src={userPhotoPreview!} alt="Preview" style={{width: '100%', height: '200px', objectFit: 'cover', borderRadius: '8px', marginBottom: '15px'}} />
+                               <input 
+                                 type="text" 
+                                 placeholder="Ваш комментарий (например: Получилось бомба!)" 
+                                 value={userComment}
+                                 onChange={(e) => setUserComment(e.target.value)}
+                                 style={{width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #fdba74', fontSize: '14px', marginBottom: '15px', outline: 'none'}}
+                               />
+                               <div style={{display: 'flex', gap: '10px'}}>
+                                 <button 
+                                   onClick={() => {setUserPhotoFile(null); setUserPhotoPreview(null); setUserComment("");}}
+                                   style={{flex: 1, padding: '12px', borderRadius: '8px', background: '#fffbeb', border: 'none', color: '#b45309', fontWeight: 700, cursor: 'pointer'}}
+                                 >Отмена</button>
+                                 <button 
+                                   onClick={() => submitFeedPost(dailyRecipe)}
+                                   disabled={isUploadingPhoto}
+                                   style={{flex: 2, padding: '12px', borderRadius: '8px', background: '#ea580c', border: 'none', color: 'white', fontWeight: 700, cursor: isUploadingPhoto ? 'default' : 'pointer'}}
+                                 >
+                                   {isUploadingPhoto ? "Отправка..." : "Отправить в ленту"}
+                                 </button>
+                               </div>
+                            </div>
+                         )}
+                       </div>
+                    )}
                   </div>
               </div>
             </div>

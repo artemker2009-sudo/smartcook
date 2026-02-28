@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { 
   Menu, X, Flame, Send, Camera, Search, Clock, Heart, 
   ArrowRight, ArrowLeft, RotateCcw, CheckCircle, Sparkles, Image as ImageIcon, 
-  Wallet, Zap, Leaf, Globe, ChevronRight, ChevronDown, ChevronUp, Shuffle, ShoppingCart, Lock, ShoppingBag, ExternalLink, Info, Share2, User, LogOut, Mail, MessageCircle, PlusCircle, Trash2, Edit3, CornerDownRight
+  Wallet, Zap, Leaf, Globe, ChevronRight, ChevronDown, ChevronUp, Shuffle, ShoppingCart, Lock, ShoppingBag, ExternalLink, Info, ThumbsUp, Share2, User, LogOut, Mail, MessageCircle, PlusCircle, Trash2, Edit3, CornerDownRight
 } from "lucide-react";
 
 /* --- ТИПЫ ДАННЫХ --- */
@@ -43,6 +43,7 @@ interface DBRecipe {
   is_liked?: boolean; 
   custom_title?: string;
   user_id?: string;
+  user_avatar?: string;
 }
 
 interface DailyRecipeType { 
@@ -70,6 +71,7 @@ interface DBComment {
   post_id: number;
   user_id: string;
   user_name: string;
+  user_avatar?: string;
   text: string;
   created_at: string;
   parent_id?: number | null;
@@ -102,7 +104,6 @@ export default function Home() {
   const [isFeedMenuExpanded, setIsFeedMenuExpanded] = useState(false);
 
   const [dailyRecipe, setDailyRecipe] = useState<DailyRecipeType | null>(null);
-  
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [searchMode, setSearchMode] = useState<'photo' | 'text'>('photo');
@@ -120,10 +121,6 @@ export default function Home() {
   const [recipe, setRecipe] = useState<RecipeData | null>(null);
   
   const [feed, setFeed] = useState<DBRecipe[]>([]); 
-  const [publicFeed, setPublicFeed] = useState<DBRecipe[]>([]);
-  const [feedSort, setFeedSort] = useState<'new' | 'top' | 'old'>('new');
-  
-  const [feedTab, setFeedTab] = useState<'photos' | 'recipes'>('photos');
   const [photosFeed, setPhotosFeed] = useState<any[]>([]);
   const [photosSort, setPhotosSort] = useState<'new' | 'top' | 'old'>('new');
 
@@ -135,9 +132,8 @@ export default function Home() {
   const [answer, setAnswer] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
 
-  const [fromFeed, setFromFeed] = useState<'recipes' | 'photos' | 'profile_history' | 'profile_favorites' | false>(false);
+  const [fromFeed, setFromFeed] = useState<'photos' | 'profile_history' | 'profile_favorites' | false>(false);
   const [isHistoryView, setIsHistoryView] = useState(false);
-  
   const [isSharedView, setIsSharedView] = useState(false);
   const [currentHoliday, setCurrentHoliday] = useState<HolidayType | null>(null);
 
@@ -272,7 +268,13 @@ export default function Home() {
 
     const holidays: Record<string, HolidayType> = {
       "14.2": { title: "С Днем святого Валентина! 💖", text: "Пусть ваша жизнь будет наполнена любовью, а ужины — романтикой.", gradient: "linear-gradient(135deg, #ec4899 0%, #be185d 100%)", icon: "💘" },
+      "23.2": { title: "С Днем защитника Отечества!", text: "Силы, мужества и сытных побед на кулинарном фронте!", gradient: "linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)", icon: "⭐" },
       "8.3": { title: "С 8 Марта! 💐", text: "Красоты, нежности и вдохновения! Пусть сегодня готовит кто-то другой.", gradient: "linear-gradient(135deg, #d946ef 0%, #a21caf 100%)", icon: "🌷" },
+      "1.3": { title: "С первым днем весны!", text: "Природа просыпается, и аппетит тоже!", gradient: "linear-gradient(135deg, #84cc16 0%, #4d7c0f 100%)", icon: "🌱" },
+      "1.5": { title: "Мир, Труд, Май!", text: "Отличный повод выбраться на шашлыки!", gradient: "linear-gradient(135deg, #f97316 0%, #ea580c 100%)", icon: "🔥" },
+      "9.5": { title: "С Днем Победы!", text: "Мирного неба над головой и тепла в вашем доме.", gradient: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)", icon: "🎖" },
+      "1.6": { title: "Ура, лето!", text: "Сезон мороженого и окрошки открыт!", gradient: "linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)", icon: "☀" },
+      "1.9": { title: "С Днем знаний!", text: "Учиться никогда не поздно, особенно готовить!", gradient: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)", icon: "🔔" },
       "31.12": { title: "С Наступающим! 🎄", text: "Оливье готов? Мандарины куплены?", gradient: "linear-gradient(135deg, #dc2626 0%, #166534 100%)", icon: "🎅" },
       "1.1": { title: "С Новым 2026 годом! 🎉", text: "Начинаем год вкусно!", gradient: "linear-gradient(135deg, #fbbf24 0%, #b45309 100%)", icon: "🥂" }
     };
@@ -295,25 +297,14 @@ export default function Home() {
 
   useEffect(() => {
     if (activeView === 'feed') {
-      if (feedTab === 'recipes') fetchPublicFeed(feedSort);
-      else fetchPhotosFeed(photosSort);
+      fetchPhotosFeed(photosSort);
     }
-  }, [activeView, feedTab, feedSort, photosSort]);
+  }, [activeView, photosSort]);
 
   const fetchMyRecipes = async (currentId: string) => {
     if (!currentId) return;
     const { data, error } = await supabase.from('recipes').select('*').eq('session_id', currentId).order('created_at', { ascending: false });
     if (!error && data) setFeed(data);
-  };
-
-  const fetchPublicFeed = async (sortType: 'new' | 'top' | 'old') => {
-    setFeedSort(sortType);
-    if (!userId) return;
-    try {
-      const res = await fetch("/api/feed", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sort: sortType, userId: userId }) });
-      const json = await res.json();
-      if (json.feed) setPublicFeed(json.feed);
-    } catch (e) { console.error("Feed Error:", e); }
   };
 
   const fetchPhotosFeed = async (sortType: 'new' | 'top' | 'old') => {
@@ -377,15 +368,6 @@ export default function Home() {
     }
   };
 
-  const handlePublicLike = async (e: any, item: DBRecipe) => {
-    e.stopPropagation();
-    if (!userId) return;
-    const action = item.is_liked ? 'unlike' : 'like';
-    const newCount = item.is_liked ? Math.max(0, (item.likes_count || 0) - 1) : (item.likes_count || 0) + 1;
-    setPublicFeed(publicFeed.map(r => r.id === item.id ? { ...r, is_liked: !item.is_liked, likes_count: newCount } : r));
-    try { await fetch("/api/like", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recipeId: item.id, userId: userId, action }) }); } catch (err) {}
-  };
-
   const handlePhotoLike = async (e: any, item: any) => {
     e.stopPropagation();
     if (!userId) return;
@@ -398,11 +380,12 @@ export default function Home() {
   const handleDeletePost = async (postId: number) => {
     if (!confirm("Вы уверены, что хотите удалить этот пост?")) return;
     try {
-      await supabase.from('feed_posts').delete().eq('id', postId);
+      const { error } = await supabase.from('feed_posts').delete().eq('id', postId);
+      if (error) throw error;
       setPhotosFeed(prev => prev.filter(p => p.id !== postId));
       setUserPhotos(prev => prev.filter(p => p.id !== postId));
-    } catch (e) {
-      alert("Ошибка удаления");
+    } catch (e: any) {
+      alert("Ошибка удаления: " + e.message);
     }
   };
 
@@ -413,7 +396,6 @@ export default function Home() {
     setReplyingTo(null);
     const { data } = await supabase.from('photo_comments').select('*').eq('post_id', postId).order('created_at', { ascending: true });
     
-    // Подгружаем лайки на комменты
     let likedIds = new Set();
     if (userId && data && data.length > 0) {
       const cIds = data.map(c => c.id);
@@ -429,10 +411,13 @@ export default function Home() {
     if (!newCommentText.trim() || !commentsModalPostId) return;
     
     const userName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Шеф';
+    const userAvatar = user.user_metadata?.avatar_url || null;
+
     const { data, error } = await supabase.from('photo_comments').insert({
       post_id: commentsModalPostId,
       user_id: user.id,
       user_name: userName,
+      user_avatar: userAvatar,
       text: newCommentText.trim(),
       parent_id: replyingTo ? replyingTo.id : null
     }).select().single();
@@ -448,10 +433,13 @@ export default function Home() {
   const handleDeleteComment = async (commentId: number) => {
     if (!confirm("Удалить комментарий?")) return;
     try {
-      await supabase.from('photo_comments').delete().eq('id', commentId);
+      const { error } = await supabase.from('photo_comments').delete().eq('id', commentId);
+      if (error) throw error;
       setPostComments(prev => prev.filter(c => c.id !== commentId && c.parent_id !== commentId));
       setPhotosFeed(photosFeed.map(p => p.id === commentsModalPostId ? { ...p, comments_count: Math.max(0, (p.comments_count || 0) - 1) } : p));
-    } catch (e) {}
+    } catch (e: any) {
+       alert("Ошибка удаления: " + e.message);
+    }
   };
 
   const handleCommentLike = async (comment: DBComment) => {
@@ -561,12 +549,14 @@ export default function Home() {
       const { data: publicUrlData } = supabase.storage.from('recipe_photos').getPublicUrl(fileName);
       const photoUrl = publicUrlData.publicUrl;
       const userName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Шеф';
+      const userAvatar = user.user_metadata?.avatar_url || null;
       
       const { error: postError } = await supabase.from('feed_posts').insert({
         recipe_id: dbRecipeId,
         custom_title: isStandaloneUploadOpen ? standaloneTitle : null,
         user_id: user.id,
         user_name: userName,
+        user_avatar: userAvatar,
         photo_url: photoUrl,
         comment: userComment,
         status: 'pending'
@@ -756,26 +746,37 @@ export default function Home() {
   const visibleHistory = historyExpanded ? displayedFeed : displayedFeed?.slice(0, 4);
   const actualServings = typeof servings === 'number' ? servings : 1;
 
-  // Функция для отрисовки комментария (с ответами)
+  // Отрисовка комментария с вложенными ответами
   const renderComment = (c: DBComment, isReply: boolean = false) => (
     <div key={c.id} style={{ background: isReply ? '#f8fafc' : 'white', padding: '12px 15px', borderRadius: '16px', border: '1px solid #e2e8f0', marginBottom: isReply ? '10px' : '0', marginLeft: isReply ? '25px' : '0', position: 'relative' }}>
       {isReply && <div style={{position: 'absolute', left: '-15px', top: '20px', width: '15px', height: '2px', background: '#cbd5e1'}} />}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
-        <div style={{ fontSize: '13px', fontWeight: 800, color: '#111' }}>{c.user_name}</div>
-        {user && user.id === c.user_id && (
-          <button onClick={() => handleDeleteComment(c.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px' }}><Trash2 size={14} /></button>
-        )}
-      </div>
-      <div style={{ fontSize: '14px', color: '#374151', lineHeight: 1.4, marginBottom: '8px' }}>{c.text}</div>
-      <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-        <div onClick={() => handleCommentLike(c)} style={{ fontSize: '12px', color: c.is_liked ? '#ef4444' : '#64748b', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontWeight: 600 }}>
-          <Heart size={14} fill={c.is_liked ? "#ef4444" : "none"} /> {c.likes_count || 0}
-        </div>
-        {!isReply && (
-          <div onClick={() => setReplyingTo({id: c.id, name: c.user_name})} style={{ fontSize: '12px', color: '#0ea5e9', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontWeight: 600 }}>
-            <CornerDownRight size={14} /> Ответить
+      <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+        {c.user_avatar ? (
+          <img src={c.user_avatar} alt="Avatar" style={{width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover'}} />
+        ) : (
+          <div style={{width: '28px', height: '28px', borderRadius: '50%', background: '#e2e8f0', color: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 800, flexShrink: 0}}>
+            {c.user_name?.charAt(0).toUpperCase()}
           </div>
         )}
+        <div style={{flex: 1}}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
+            <div style={{ fontSize: '13px', fontWeight: 800, color: '#111' }}>{c.user_name}</div>
+            {user && user.id === c.user_id && (
+              <button onClick={() => handleDeleteComment(c.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px' }}><Trash2 size={14} /></button>
+            )}
+          </div>
+          <div style={{ fontSize: '14px', color: '#374151', lineHeight: 1.4, marginBottom: '8px' }}>{c.text}</div>
+          <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+            <div onClick={() => handleCommentLike(c)} style={{ fontSize: '12px', color: c.is_liked ? '#ef4444' : '#64748b', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontWeight: 600 }}>
+              <Heart size={14} fill={c.is_liked ? "#ef4444" : "none"} /> {c.likes_count || 0}
+            </div>
+            {!isReply && (
+              <div onClick={() => setReplyingTo({id: c.id, name: c.user_name})} style={{ fontSize: '12px', color: '#0ea5e9', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontWeight: 600 }}>
+                <CornerDownRight size={14} /> Ответить
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -839,9 +840,9 @@ export default function Home() {
         </div>
       )}
 
-      {/* МОДАЛЬНОЕ ОКНО АВТОРИЗАЦИИ */}
+      {/* ИСПРАВЛЕНИЕ 1: МОДАЛЬНОЕ ОКНО АВТОРИЗАЦИИ ПОВЕРХ КОММЕНТАРИЕВ */}
       {isAuthModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', padding: '20px' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', padding: '20px' }}>
           <div className="animate-fade-in" style={{ background: 'white', borderRadius: '24px', width: '100%', maxWidth: '400px', padding: '30px 25px', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
             <button onClick={() => setIsAuthModalOpen(false)} style={{position: 'absolute', top: '15px', right: '15px', background: '#f3f4f6', border: 'none', borderRadius: '50%', padding: '6px', cursor: 'pointer', color: '#6b7280'}}><X size={20} /></button>
             <div style={{textAlign: 'center', marginBottom: '25px'}}>
@@ -909,6 +910,7 @@ export default function Home() {
         <Menu size={24} color="#111" />
       </button>
 
+      {/* ИСПРАВЛЕНИЕ 3: МЕНЮ С ЛЕНТОЙ НА 3 МЕСТЕ */}
       {isMenuOpen && (
         <>
           <div className="menu-overlay" onClick={() => setIsMenuOpen(false)} style={{zIndex: 99}} />
@@ -920,13 +922,8 @@ export default function Home() {
             
             <div className="menu-link" onClick={() => { setProfileView('main'); switchView('profile'); }}><User size={20} color="#0ea5e9"/> Личный кабинет</div>
             <div className="menu-link" onClick={() => switchView('service')}><Search size={20}/> Поиск</div>
+            <div className="menu-link" onClick={() => switchView('feed')}><Globe size={20} color="#8b5cf6"/> Лента</div>
             <div className="menu-link" onClick={() => switchView('daily')}><Flame size={20} color="#f97316"/> Рецепт дня</div>
-            
-            {/* ИСПРАВЛЕНИЕ 1: Прямая ссылка на ленту без меню ИИ */}
-            <div className="menu-link" onClick={() => switchView('feed')}>
-              <Globe size={20} color="#8b5cf6"/> Лента
-            </div>
-
             <div className="menu-link" style={{ marginTop: '10px' }} onClick={() => switchView('about')}><CheckCircle size={20} color="#3b82f6"/> О проекте</div>
           </div>
         </>
@@ -1036,7 +1033,7 @@ export default function Home() {
                 <button onClick={fromFeed ? handleBackToSource : handleBackToSearch} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'white', border: '1px solid #e5e7eb', borderRadius: '100px', padding: '8px 16px', color: '#374151', fontSize: '14px', fontWeight: 600, marginBottom: '20px', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', transition: 'all 0.2s' }}>
                   <ArrowLeft size={18} /> 
                   {fromFeed === 'photos' ? "Назад к ленте" : 
-                   fromFeed === 'profile_history' ? "Назад к истории" : 
+                   fromFeed === 'profile_history' ? "Назад в историю" : 
                    fromFeed === 'profile_favorites' ? "Назад в избранное" : 
                    "Назад к истории"}
                 </button>
@@ -1122,7 +1119,7 @@ export default function Home() {
               {/* ИСПРАВЛЕНИЕ 2: Описание к блюду */}
               <div style={{marginTop: '30px', background: '#f8fafc', padding: '25px 20px', borderRadius: '16px', border: '1px solid #e2e8f0', textAlign: 'center'}}>
                 <h3 style={{fontSize: '18px', fontWeight: 800, marginBottom: '5px', color: '#1f2937'}}>📸 Приготовили? Покажите результат!</h3>
-                <p style={{fontSize: '13px', color: '#64748b', marginBottom: '15px', lineHeight: 1.4}}> Ваше фото появится в разделе <strong>«Лента блюд»</strong>, где его смогут оценить другие пользователи! </p>
+                <p style={{fontSize: '13px', color: '#64748b', marginBottom: '15px', lineHeight: 1.4}}> Ваше фото появится в разделе <strong>«Лента»</strong>, где его смогут оценить другие пользователи! </p>
                 {!user ? (
                    <button className="btn-primary" onClick={() => setIsAuthModalOpen(true)}>Войти, чтобы опубликовать фото</button>
                 ) : (
@@ -1136,10 +1133,7 @@ export default function Home() {
                      ) : (
                         <div style={{background: 'white', padding: '15px', borderRadius: '12px', border: '1px solid #e2e8f0'}}>
                            <img src={userPhotoPreview!} alt="Preview" style={{width: '100%', height: '200px', objectFit: 'cover', borderRadius: '8px', marginBottom: '15px'}} />
-                           
-                           {/* Изменено placeholder */}
                            <input type="text" placeholder="Описание к блюду (как получилось?)" value={userComment} onChange={(e) => setUserComment(e.target.value)} style={{width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '14px', marginBottom: '15px', outline: 'none'}} />
-                           
                            <div style={{display: 'flex', gap: '10px'}}>
                              <button onClick={() => {setUserPhotoFile(null); setUserPhotoPreview(null); setUserComment("");}} style={{flex: 1, padding: '12px', borderRadius: '8px', background: '#f3f4f6', border: 'none', color: '#4b5563', fontWeight: 700, cursor: 'pointer'}}>Отмена</button>
                              <button onClick={() => submitFeedPost(recipe)} disabled={isUploadingPhoto} style={{flex: 2, padding: '12px', borderRadius: '8px', background: '#059669', border: 'none', color: 'white', fontWeight: 700, cursor: isUploadingPhoto ? 'default' : 'pointer'}}> {isUploadingPhoto ? "Отправка..." : "Отправить в ленту"} </button>
@@ -1199,11 +1193,11 @@ export default function Home() {
         </>
       )}
 
-      {/* === ЛЕНТА (ИСПРАВЛЕНИЕ 1: ТОЛЬКО ПОЛЬЗОВАТЕЛЬСКИЕ ФОТО) === */}
+      {/* === ЛЕНТА ФОТО === */}
       {activeView === 'feed' && (
         <div style={{marginTop: '60px'}}>
           <div style={{textAlign: 'center', marginBottom: '25px'}}>
-            <h1 style={{fontSize: '28px', fontWeight: '900', margin: '0 0 10px 0'}}> Лента блюд 📸 </h1>
+            <h1 style={{fontSize: '28px', fontWeight: '900', margin: '0 0 10px 0'}}> Лента 📸 </h1>
             <p style={{color: '#6b7280', margin: 0}}>Вдохновляйтесь кулинарными шедеврами</p>
           </div>
 
@@ -1228,10 +1222,7 @@ export default function Home() {
               <h3 style={{marginTop: 0, marginBottom: '15px'}}>Публикация своего блюда</h3>
               <img src={userPhotoPreview} alt="Preview" style={{width: '100%', height: '200px', objectFit: 'cover', borderRadius: '12px', marginBottom: '15px'}} />
               <input type="text" placeholder="Название блюда (Обязательно)" value={standaloneTitle} onChange={(e) => setStandaloneTitle(e.target.value)} style={{width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #94a3b8', fontSize: '15px', fontWeight: 700, marginBottom: '10px', outline: 'none'}} />
-              
-              {/* ИСПРАВЛЕНИЕ 2: Описание вместо Комментария */}
               <input type="text" placeholder="Описание / Рецепт от вас" value={userComment} onChange={(e) => setUserComment(e.target.value)} style={{width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '14px', marginBottom: '15px', outline: 'none'}} />
-              
               <div style={{display: 'flex', gap: '10px'}}>
                 <button onClick={() => {setUserPhotoFile(null); setUserPhotoPreview(null); setStandaloneTitle(""); setUserComment(""); setIsStandaloneUploadOpen(false);}} style={{flex: 1, padding: '12px', borderRadius: '8px', background: '#f1f5f9', border: 'none', color: '#475569', fontWeight: 700, cursor: 'pointer'}}>Отмена</button>
                 <button onClick={() => submitFeedPost(null)} disabled={isUploadingPhoto} style={{flex: 2, padding: '12px', borderRadius: '8px', background: '#0ea5e9', border: 'none', color: 'white', fontWeight: 700, cursor: isUploadingPhoto ? 'default' : 'pointer'}}> {isUploadingPhoto ? "Загрузка..." : "Отправить в ленту"} </button>
@@ -1243,9 +1234,13 @@ export default function Home() {
             {photosFeed.map((post) => (
               <div key={post.id} className="card" style={{padding: '0', overflow: 'hidden', border: '1px solid #e5e7eb'}}>
                 <div style={{padding: '15px', display: 'flex', alignItems: 'center', gap: '10px', background: 'white'}}>
-                   <div style={{width: '36px', height: '36px', borderRadius: '50%', background: '#0ea5e9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 800, fontSize: '16px'}}>
-                      {post.user_name?.charAt(0).toUpperCase() || 'Ш'}
-                   </div>
+                   {post.user_avatar ? (
+                      <img src={post.user_avatar} alt="Avatar" style={{width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover'}} />
+                   ) : (
+                      <div style={{width: '36px', height: '36px', borderRadius: '50%', background: '#0ea5e9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 800, fontSize: '16px'}}>
+                        {post.user_name?.charAt(0).toUpperCase() || 'Ш'}
+                      </div>
+                   )}
                    <div style={{flex: 1}}>
                       <div style={{fontWeight: 800, fontSize: '14px', color: '#111'}}>{post.user_name || 'Анонимный шеф'}</div>
                       {post.recipe_id ? (
@@ -1264,7 +1259,7 @@ export default function Home() {
                 <img src={post.photo_url} alt="Блюдо" onClick={() => setFullScreenImage(post.photo_url)} style={{width: '100%', maxHeight: '400px', objectFit: 'cover', display: 'block', background: '#f3f4f6', cursor: 'zoom-in'}} />
                 
                 <div style={{padding: '15px', background: 'white'}}>
-                  {post.comment && ( <p style={{margin: '0 0 15px 0', fontSize: '14px', color: '#374151', lineHeight: 1.5}}> <strong>{post.user_name}:</strong> {post.comment} </p> )}
+                  {post.comment && ( <p style={{margin: '0 0 15px 0', fontSize: '14px', color: '#374151', lineHeight: 1.5}}> <strong>Описание:</strong> {post.comment} </p> )}
                   <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
                     <div style={{display: 'flex', gap: '10px'}}>
                       <button onClick={(e) => handlePhotoLike(e, post)} style={{background: post.is_liked ? '#fee2e2' : '#f3f4f6', border: 'none', borderRadius: '100px', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px', color: post.is_liked ? '#ef4444' : '#4b5563', fontWeight: 700, fontSize: '14px', transition: 'all 0.2s', cursor: 'pointer'}}>
@@ -1363,7 +1358,7 @@ export default function Home() {
 
                   <div style={{marginTop: '30px', background: '#fff7ed', padding: '25px 20px', borderRadius: '16px', border: '1px solid #ffedd5', textAlign: 'center'}}>
                     <h3 style={{fontSize: '18px', fontWeight: 800, marginBottom: '5px', color: '#9a3412'}}>📸 Приготовили? Покажите результат!</h3>
-                    <p style={{fontSize: '13px', color: '#64748b', marginBottom: '15px', lineHeight: 1.4}}> Ваше фото появится в разделе <strong>«Лента блюд»</strong>, где его смогут оценить другие пользователи! </p>
+                    <p style={{fontSize: '13px', color: '#64748b', marginBottom: '15px', lineHeight: 1.4}}> Ваше фото появится в разделе <strong>«Лента»</strong>, где его смогут оценить другие пользователи! </p>
                     {!user ? (
                        <button className="btn-primary" onClick={() => setIsAuthModalOpen(true)}>Войти, чтобы опубликовать фото</button>
                     ) : (
@@ -1469,7 +1464,6 @@ export default function Home() {
                   
                   <p style={{color: '#6b7280', fontSize: '14px', marginBottom: '30px'}}>{user.email}</p>
 
-                  {/* ИСПРАВЛЕНИЕ 3: Премиальный дизайн "Bento" для профиля */}
                   <div style={{display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', marginBottom: '30px'}}>
                      <div onClick={() => setProfileView('history')} style={{background: 'white', padding: '20px', borderRadius: '24px', cursor: 'pointer', border: '1px solid #e2e8f0', boxShadow: '0 10px 30px -10px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column'}}>
                        <div style={{background: '#f3e8ff', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px', color: '#8b5cf6'}}><Clock size={20} /></div>
@@ -1497,7 +1491,6 @@ export default function Home() {
                 </>
               )}
 
-              {/* ВНУТРЕННИЕ СТРАНИЦЫ ПРОФИЛЯ */}
               {profileView === 'history' && (
                 <div style={{textAlign: 'left'}}>
                    <button onClick={() => setProfileView('main')} style={{display: 'flex', alignItems: 'center', gap: '8px', background: 'white', border: '1px solid #e5e7eb', borderRadius: '100px', padding: '8px 16px', color: '#374151', fontSize: '14px', fontWeight: 600, marginBottom: '20px', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', transition: 'all 0.2s', width: 'fit-content'}}> <ArrowLeft size={18} /> Назад в профиль </button>

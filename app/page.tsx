@@ -110,7 +110,8 @@ export default function Home() {
   const [publicFeed, setPublicFeed] = useState<DBRecipe[]>([]);
   const [feedSort, setFeedSort] = useState<'new' | 'top'>('new');
   
-  const [feedTab, setFeedTab] = useState<'recipes' | 'photos'>('recipes');
+  // ИСПРАВЛЕНИЕ: По умолчанию открываем фото
+  const [feedTab, setFeedTab] = useState<'photos' | 'recipes'>('photos');
   const [photosFeed, setPhotosFeed] = useState<any[]>([]);
   const [photosSort, setPhotosSort] = useState<'new' | 'top'>('new');
 
@@ -188,7 +189,6 @@ export default function Home() {
     }
   }, [user]);
 
-  // Загрузка фотографий пользователя для раздела Профиль
   useEffect(() => {
     const fetchUserPhotos = async () => {
       if (!user) {
@@ -1064,7 +1064,7 @@ export default function Home() {
             <div className="menu-link" onClick={() => switchView('service')}><Search size={20}/> Поиск</div>
             <div className="menu-link" onClick={() => switchView('daily')}><Flame size={20} color="#f97316"/> Рецепт дня</div>
             
-            {/* Аккордеон Ленты */}
+            {/* ИСПРАВЛЕНИЕ: Аккордеон Ленты (Сначала Фото) */}
             <div 
               className="menu-link" 
               onClick={() => setIsFeedMenuExpanded(!isFeedMenuExpanded)} 
@@ -1079,16 +1079,16 @@ export default function Home() {
                 <div 
                   className="menu-link" 
                   style={{ margin: 0, padding: '12px 15px', fontSize: '14px', borderBottom: '1px solid #e2e8f0', borderRadius: 0 }} 
-                  onClick={() => { setFeedTab('recipes'); switchView('feed'); }}
+                  onClick={() => { setFeedTab('photos'); switchView('feed'); }}
                 >
-                  🍲 Лента рецептов
+                  📸 Лента фото
                 </div>
                 <div 
                   className="menu-link" 
                   style={{ margin: 0, padding: '12px 15px', fontSize: '14px', borderRadius: 0 }} 
-                  onClick={() => { setFeedTab('photos'); switchView('feed'); }}
+                  onClick={() => { setFeedTab('recipes'); switchView('feed'); }}
                 >
-                  📸 Лента фото
+                  🍲 Лента рецептов
                 </div>
               </div>
             )}
@@ -1600,7 +1600,6 @@ export default function Home() {
                           {item.title}
                         </div>
                         
-                        {/* ИСПРАВЛЕНИЕ: flexWrap и whiteSpace для часов и калорий, чтобы не ломались в столбик */}
                         <div style={{display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#6b7280'}}>
                            <div style={{display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap'}}><Clock size={12}/> {formatTime(item.time)}</div>
                            {item.calories && <div style={{display: 'flex', alignItems: 'center', gap: '3px', color: '#f97316', whiteSpace: 'nowrap'}}><Flame size={12}/> {formatCalories(item.calories)}</div>}
@@ -1637,7 +1636,7 @@ export default function Home() {
         </>
       )}
 
-      {/* === ЛЕНТА (ФИД) === */}
+      {/* === ЛЕНТА (ФИД) С ОБНОВЛЕННЫМ ДИЗАЙНОМ ВКЛАДОК === */}
       {activeView === 'feed' && (
         <div style={{marginTop: '60px'}}>
           <div style={{textAlign: 'center', marginBottom: '25px'}}>
@@ -1647,6 +1646,38 @@ export default function Home() {
             <p style={{color: '#6b7280', margin: 0}}>Вдохновляйтесь блюдами других</p>
           </div>
 
+          {/* ИСПРАВЛЕНИЕ: Красивый дизайн переключателя (Сначала Фото) */}
+          <div style={{display: 'flex', background: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)', padding: '6px', borderRadius: '20px', marginBottom: '25px', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)'}}>
+            <button 
+              onClick={() => setFeedTab('photos')}
+              style={{
+                flex: 1, padding: '14px 5px', borderRadius: '16px', border: 'none',
+                background: feedTab === 'photos' ? 'white' : 'transparent',
+                fontWeight: 800, fontSize: '15px',
+                boxShadow: feedTab === 'photos' ? '0 4px 15px rgba(0,0,0,0.05)' : 'none',
+                color: feedTab === 'photos' ? '#0ea5e9' : '#64748b',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer'
+              }}
+            >
+              <ImageIcon size={18} /> Фото от шефов
+            </button>
+            <button 
+              onClick={() => setFeedTab('recipes')}
+              style={{
+                flex: 1, padding: '14px 5px', borderRadius: '16px', border: 'none',
+                background: feedTab === 'recipes' ? 'white' : 'transparent',
+                fontWeight: 800, fontSize: '15px',
+                boxShadow: feedTab === 'recipes' ? '0 4px 15px rgba(0,0,0,0.05)' : 'none',
+                color: feedTab === 'recipes' ? '#059669' : '#64748b',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer'
+              }}
+            >
+              <Globe size={18} /> Идеи от ИИ
+            </button>
+          </div>
+
           <div style={{display: 'flex', gap: '10px', marginBottom: '25px', overflowX: 'auto', paddingBottom: '5px'}}>
              <button 
                 onClick={() => { feedTab === 'recipes' ? fetchPublicFeed('new') : fetchPhotosFeed('new') }}
@@ -1654,7 +1685,7 @@ export default function Home() {
                   padding: '8px 16px', borderRadius: '100px', border: 'none', whiteSpace: 'nowrap',
                   background: (feedTab === 'recipes' ? feedSort : photosSort) === 'new' ? '#111' : '#f3f4f6',
                   color: (feedTab === 'recipes' ? feedSort : photosSort) === 'new' ? 'white' : '#4b5563',
-                  fontWeight: 700, fontSize: '14px', transition: 'all 0.2s'
+                  fontWeight: 700, fontSize: '14px', transition: 'all 0.2s', cursor: 'pointer'
                 }}
              >✨ Новые</button>
              <button 
@@ -1663,49 +1694,12 @@ export default function Home() {
                   padding: '8px 16px', borderRadius: '100px', border: 'none', whiteSpace: 'nowrap',
                   background: (feedTab === 'recipes' ? feedSort : photosSort) === 'top' ? '#111' : '#f3f4f6',
                   color: (feedTab === 'recipes' ? feedSort : photosSort) === 'top' ? 'white' : '#4b5563',
-                  fontWeight: 700, fontSize: '14px', transition: 'all 0.2s'
+                  fontWeight: 700, fontSize: '14px', transition: 'all 0.2s', cursor: 'pointer'
                 }}
              >🔥 Популярные</button>
           </div>
 
-          {/* КОНТЕНТ: РЕЦЕПТЫ */}
-          {feedTab === 'recipes' && (
-            <div style={{display: 'flex', flexDirection: 'column', gap: '20px'}}>
-              {publicFeed.map((item) => (
-                <div key={item.id} className="card" style={{padding: '0', overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.1s'}} onClick={() => loadFromHistory(item, 'recipes')}>
-                  <div style={{height: '100px', background: 'linear-gradient(135deg, #fce7f3 0%, #e0f2fe 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative'}}>
-                     <div style={{fontSize: '40px', opacity: 0.2}}>🍲</div>
-                     <div style={{position: 'absolute', bottom: '10px', left: '15px', display: 'flex', flexWrap: 'wrap', gap: '6px'}}>
-                        <div style={{background: 'rgba(255,255,255,0.9)', padding: '4px 10px', borderRadius: '100px', fontSize: '11px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap'}}>
-                          <Clock size={12}/> {formatTime(item.time)}
-                        </div>
-                        {item.calories && (
-                           <div style={{background: 'rgba(255,255,255,0.9)', padding: '4px 10px', borderRadius: '100px', fontSize: '11px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', color: '#ea580c', whiteSpace: 'nowrap'}}>
-                             <Flame size={12}/> {formatCalories(item.calories)}
-                           </div>
-                        )}
-                     </div>
-                  </div>
-                  <div style={{padding: '20px'}}>
-                    <h3 style={{margin: '0 0 10px 0', fontSize: '18px', fontWeight: 700, lineHeight: 1.3}}>{item.title}</h3>
-                    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px'}}>
-                      <button onClick={(e) => handlePublicLike(e, item)} style={{background: item.is_liked ? '#fee2e2' : '#f3f4f6', border: 'none', borderRadius: '100px', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px', color: item.is_liked ? '#ef4444' : '#4b5563', fontWeight: 700, fontSize: '14px', transition: 'all 0.2s'}}>
-                        <Heart size={18} fill={item.is_liked ? "#ef4444" : "none"} /> {item.likes_count || 0}
-                      </button>
-                      <span style={{fontSize: '13px', fontWeight: 600, color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '4px'}}>
-                        Открыть рецепт <ArrowRight size={14}/>
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              {publicFeed.length === 0 && (
-                <div style={{textAlign: 'center', padding: '40px', color: '#9ca3af'}}>Пока пусто. Станьте первым, кто создаст рецепт! 👨‍🍳</div>
-              )}
-            </div>
-          )}
-
-          {/* КОНТЕНТ: ФОТО ОТ ПОЛЬЗОВАТЕЛЕЙ */}
+          {/* КОНТЕНТ: ФОТО ОТ ПОЛЬЗОВАТЕЛЕЙ (Сначала отображается он) */}
           {feedTab === 'photos' && (
             <div style={{display: 'flex', flexDirection: 'column', gap: '20px'}}>
               {photosFeed.map((post) => (
@@ -1746,6 +1740,43 @@ export default function Home() {
               ))}
               {photosFeed.length === 0 && (
                 <div style={{textAlign: 'center', padding: '40px', color: '#9ca3af'}}>Здесь пока нет фотографий. Поделитесь своим шедевром первым! 📸</div>
+              )}
+            </div>
+          )}
+
+          {/* КОНТЕНТ: РЕЦЕПТЫ */}
+          {feedTab === 'recipes' && (
+            <div style={{display: 'flex', flexDirection: 'column', gap: '20px'}}>
+              {publicFeed.map((item) => (
+                <div key={item.id} className="card" style={{padding: '0', overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.1s'}} onClick={() => loadFromHistory(item, 'recipes')}>
+                  <div style={{height: '100px', background: 'linear-gradient(135deg, #fce7f3 0%, #e0f2fe 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative'}}>
+                     <div style={{fontSize: '40px', opacity: 0.2}}>🍲</div>
+                     <div style={{position: 'absolute', bottom: '10px', left: '15px', display: 'flex', flexWrap: 'wrap', gap: '6px'}}>
+                        <div style={{background: 'rgba(255,255,255,0.9)', padding: '4px 10px', borderRadius: '100px', fontSize: '11px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap'}}>
+                          <Clock size={12}/> {formatTime(item.time)}
+                        </div>
+                        {item.calories && (
+                           <div style={{background: 'rgba(255,255,255,0.9)', padding: '4px 10px', borderRadius: '100px', fontSize: '11px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', color: '#ea580c', whiteSpace: 'nowrap'}}>
+                             <Flame size={12}/> {formatCalories(item.calories)}
+                           </div>
+                        )}
+                     </div>
+                  </div>
+                  <div style={{padding: '20px'}}>
+                    <h3 style={{margin: '0 0 10px 0', fontSize: '18px', fontWeight: 700, lineHeight: 1.3}}>{item.title}</h3>
+                    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px'}}>
+                      <button onClick={(e) => handlePublicLike(e, item)} style={{background: item.is_liked ? '#fee2e2' : '#f3f4f6', border: 'none', borderRadius: '100px', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px', color: item.is_liked ? '#ef4444' : '#4b5563', fontWeight: 700, fontSize: '14px', transition: 'all 0.2s', cursor: 'pointer'}}>
+                        <Heart size={18} fill={item.is_liked ? "#ef4444" : "none"} /> {item.likes_count || 0}
+                      </button>
+                      <span style={{fontSize: '13px', fontWeight: 600, color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '4px'}}>
+                        Открыть рецепт <ArrowRight size={14}/>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {publicFeed.length === 0 && (
+                <div style={{textAlign: 'center', padding: '40px', color: '#9ca3af'}}>Пока пусто. Станьте первым, кто создаст рецепт! 👨‍🍳</div>
               )}
             </div>
           )}
@@ -2176,7 +2207,6 @@ export default function Home() {
                               {item.title}
                             </div>
                             
-                            {/* ИСПРАВЛЕНИЕ: flexWrap и whiteSpace для часов и калорий, чтобы не ломались в столбик */}
                             <div style={{display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#6b7280'}}>
                                <div style={{display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap'}}><Clock size={12}/> {formatTime(item.time)}</div>
                                {item.calories && <div style={{display: 'flex', alignItems: 'center', gap: '3px', color: '#f97316', whiteSpace: 'nowrap'}}><Flame size={12}/> {formatCalories(item.calories)}</div>}
@@ -2213,7 +2243,6 @@ export default function Home() {
                               {item.title}
                             </div>
                             
-                            {/* ИСПРАВЛЕНИЕ: flexWrap и whiteSpace для часов и калорий */}
                             <div style={{display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#6b7280'}}>
                                <div style={{display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap'}}><Clock size={12}/> {formatTime(item.time)}</div>
                                {item.calories && <div style={{display: 'flex', alignItems: 'center', gap: '3px', color: '#f97316', whiteSpace: 'nowrap'}}><Flame size={12}/> {formatCalories(item.calories)}</div>}

@@ -273,7 +273,13 @@ export default function Home() {
 
     const holidays: Record<string, HolidayType> = {
       "14.2": { title: "С Днем святого Валентина! 💖", text: "Пусть ваша жизнь будет наполнена любовью, а ужины — романтикой.", gradient: "linear-gradient(135deg, #ec4899 0%, #be185d 100%)", icon: "💘" },
+      "23.2": { title: "С Днем защитника Отечества!", text: "Силы, мужества и сытных побед на кулинарном фронте!", gradient: "linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)", icon: "⭐" },
       "8.3": { title: "С 8 Марта! 💐", text: "Красоты, нежности и вдохновения! Пусть сегодня готовит кто-то другой.", gradient: "linear-gradient(135deg, #d946ef 0%, #a21caf 100%)", icon: "🌷" },
+      "1.3": { title: "С первым днем весны!", text: "Природа просыпается, и аппетит тоже!", gradient: "linear-gradient(135deg, #84cc16 0%, #4d7c0f 100%)", icon: "🌱" },
+      "1.5": { title: "Мир, Труд, Май!", text: "Отличный повод выбраться на шашлыки!", gradient: "linear-gradient(135deg, #f97316 0%, #ea580c 100%)", icon: "🔥" },
+      "9.5": { title: "С Днем Победы!", text: "Мирного неба над головой и тепла в вашем доме.", gradient: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)", icon: "🎖" },
+      "1.6": { title: "Ура, лето!", text: "Сезон мороженого и окрошки открыт!", gradient: "linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)", icon: "☀" },
+      "1.9": { title: "С Днем знаний!", text: "Учиться никогда не поздно, особенно готовить!", gradient: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)", icon: "🔔" },
       "31.12": { title: "С Наступающим! 🎄", text: "Оливье готов? Мандарины куплены?", gradient: "linear-gradient(135deg, #dc2626 0%, #166534 100%)", icon: "🎅" },
       "1.1": { title: "С Новым 2026 годом! 🎉", text: "Начинаем год вкусно!", gradient: "linear-gradient(135deg, #fbbf24 0%, #b45309 100%)", icon: "🥂" }
     };
@@ -361,7 +367,7 @@ export default function Home() {
       setUser(data.user);
       setIsEditingProfile(false);
 
-      // ИСПРАВЛЕНИЕ: Обновляем имя и аватарку во всех старых постах и комментариях!
+      // Обновляем имя и аватарку во всех старых постах и комментариях
       await supabase.from('feed_posts').update({ user_name: editProfileName, user_avatar: avatarUrl }).eq('user_id', user.id);
       await supabase.from('photo_comments').update({ user_name: editProfileName, user_avatar: avatarUrl }).eq('user_id', user.id);
 
@@ -375,7 +381,6 @@ export default function Home() {
     }
   };
 
-  // ИСПРАВЛЕНИЕ: Прямой запрос в БД для лайков постов (чтобы точно сохранялось)
   const handlePhotoLike = async (e: any, item: any) => {
     e.stopPropagation();
     if (!userId) return;
@@ -393,7 +398,6 @@ export default function Home() {
     } catch (err) {}
   };
 
-  // ИСПРАВЛЕНИЕ: Удаление поста с проверкой ошибок
   const handleDeletePost = async (postId: number) => {
     if (!confirm("Вы уверены, что хотите удалить этот пост?")) return;
     try {
@@ -402,7 +406,7 @@ export default function Home() {
       setPhotosFeed(prev => prev.filter(p => p.id !== postId));
       setUserPhotos(prev => prev.filter(p => p.id !== postId));
     } catch (e: any) {
-      alert("Ошибка удаления: " + e.message + "\nВозможно у вас нет прав на этот пост.");
+      alert("Ошибка удаления. Возможно у вас нет прав на этот пост.");
     }
   };
 
@@ -454,11 +458,10 @@ export default function Home() {
       setPostComments(prev => prev.filter(c => c.id !== commentId && c.parent_id !== commentId));
       setPhotosFeed(photosFeed.map(p => p.id === commentsModalPostId ? { ...p, comments_count: Math.max(0, (p.comments_count || 0) - 1) } : p));
     } catch (e: any) {
-       alert("Ошибка удаления комментария: " + e.message);
+       alert("Ошибка удаления комментария");
     }
   };
 
-  // ИСПРАВЛЕНИЕ: Прямой запрос в БД для лайков комментариев
   const handleCommentLike = async (comment: DBComment) => {
     if (!userId) return;
     const action = comment.is_liked ? 'unlike' : 'like';
@@ -813,10 +816,10 @@ export default function Home() {
         </div>
       )}
 
-      {/* МОДАЛЬНОЕ ОКНО КОММЕНТАРИЕВ */}
+      {/* ИСПРАВЛЕНИЕ 1: МОДАЛЬНОЕ ОКНО КОММЕНТАРИЕВ (height: 85dvh + paddingBottom) */}
       {commentsModalPostId && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-          <div className="animate-fade-in" style={{ background: '#f8fafc', width: '100%', maxWidth: '500px', height: '80vh', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', display: 'flex', flexDirection: 'column', boxShadow: '0 -10px 40px rgba(0,0,0,0.2)' }}>
+          <div className="animate-fade-in" style={{ background: '#f8fafc', width: '100%', maxWidth: '500px', height: '85dvh', paddingBottom: 'env(safe-area-inset-bottom, 15px)', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', display: 'flex', flexDirection: 'column', boxShadow: '0 -10px 40px rgba(0,0,0,0.2)' }}>
             <div style={{ padding: '15px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', borderTopLeftRadius: '24px', borderTopRightRadius: '24px' }}>
               <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800 }}>Комментарии</h3>
               <button onClick={() => setCommentsModalPostId(null)} style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', padding: '6px', cursor: 'pointer', color: '#64748b' }}><X size={20} /></button>
@@ -845,10 +848,11 @@ export default function Home() {
               <div style={{ display: 'flex', gap: '10px' }}>
                 <input 
                   type="text" placeholder="Написать комментарий..." value={newCommentText} onChange={(e) => setNewCommentText(e.target.value)}
-                  style={{ flex: 1, padding: '12px 15px', borderRadius: '100px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none', background: '#f8fafc' }}
+                  onFocus={(e) => setTimeout(() => e.target.scrollIntoView({behavior: 'smooth', block: 'center'}), 300)}
+                  style={{ flex: 1, padding: '12px 15px', borderRadius: '100px', border: '1px solid #cbd5e1', fontSize: '16px', outline: 'none', background: '#f8fafc' }}
                   onKeyPress={(e) => { if (e.key === 'Enter') submitComment(); }}
                 />
-                <button onClick={submitComment} disabled={!newCommentText.trim()} style={{ background: newCommentText.trim() ? '#0ea5e9' : '#e0f2fe', color: 'white', border: 'none', borderRadius: '100px', width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: newCommentText.trim() ? 'pointer' : 'default', transition: 'all 0.2s' }}>
+                <button onClick={submitComment} disabled={!newCommentText.trim()} style={{ background: newCommentText.trim() ? '#0ea5e9' : '#e0f2fe', color: 'white', border: 'none', borderRadius: '100px', width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: newCommentText.trim() ? 'pointer' : 'default', transition: 'all 0.2s', flexShrink: 0 }}>
                   <Send size={18} />
                 </button>
               </div>
@@ -857,7 +861,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* ИСПРАВЛЕНИЕ 1: МОДАЛЬНОЕ ОКНО АВТОРИЗАЦИИ ПОВЕРХ КОММЕНТАРИЕВ (zIndex: 100000) */}
+      {/* МОДАЛЬНОЕ ОКНО АВТОРИЗАЦИИ (zIndex: 100000 - поверх всего) */}
       {isAuthModalOpen && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 100000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', padding: '20px' }}>
           <div className="animate-fade-in" style={{ background: 'white', borderRadius: '24px', width: '100%', maxWidth: '400px', padding: '30px 25px', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
@@ -939,7 +943,6 @@ export default function Home() {
             <div className="menu-link" onClick={() => { setProfileView('main'); switchView('profile'); }}><User size={20} color="#0ea5e9"/> Личный кабинет</div>
             <div className="menu-link" onClick={() => switchView('service')}><Search size={20}/> Поиск</div>
             
-            {/* ИСПРАВЛЕНИЕ 3: ЛЕНТА НА ТРЕТЬЕМ МЕСТЕ */}
             <div className="menu-link" onClick={() => switchView('feed')}> 
               <Globe size={20} color="#8b5cf6"/> Лента 
             </div> 
@@ -1155,8 +1158,8 @@ export default function Home() {
                            <img src={userPhotoPreview!} alt="Preview" style={{width: '100%', height: '200px', objectFit: 'cover', borderRadius: '8px', marginBottom: '15px'}} />
                            <input type="text" placeholder="Описание к блюду (как получилось?)" value={userComment} onChange={(e) => setUserComment(e.target.value)} style={{width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #fdba74', fontSize: '14px', marginBottom: '15px', outline: 'none'}} />
                            <div style={{display: 'flex', gap: '10px'}}>
-                             <button onClick={() => {setUserPhotoFile(null); setUserPhotoPreview(null); setUserComment("");}} style={{flex: 1, padding: '12px', borderRadius: '8px', background: '#fffbeb', border: 'none', color: '#b45309', fontWeight: 700, cursor: 'pointer'}}>Отмена</button>
-                             <button onClick={() => submitFeedPost(recipe)} disabled={isUploadingPhoto} style={{flex: 2, padding: '12px', borderRadius: '8px', background: '#ea580c', border: 'none', color: 'white', fontWeight: 700, cursor: isUploadingPhoto ? 'default' : 'pointer'}}> {isUploadingPhoto ? "Отправка..." : "Отправить в ленту"} </button>
+                             <button onClick={() => {setUserPhotoFile(null); setUserPhotoPreview(null); setUserComment("");}} style={{flex: 1, padding: '12px', borderRadius: '8px', background: '#f3f4f6', border: 'none', color: '#4b5563', fontWeight: 700, cursor: 'pointer'}}>Отмена</button>
+                             <button onClick={() => submitFeedPost(recipe)} disabled={isUploadingPhoto} style={{flex: 2, padding: '12px', borderRadius: '8px', background: '#059669', border: 'none', color: 'white', fontWeight: 700, cursor: isUploadingPhoto ? 'default' : 'pointer'}}> {isUploadingPhoto ? "Отправка..." : "Отправить в ленту"} </button>
                            </div>
                         </div>
                      )}
@@ -1229,7 +1232,8 @@ export default function Home() {
           </div>
 
           <div style={{background: 'linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%)', borderRadius: '20px', padding: '20px', marginBottom: '25px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', boxShadow: '0 4px 15px rgba(14, 165, 233, 0.2)'}}>
-            <div style={{background: 'white', padding: '10px', borderRadius: '50%', marginBottom: '10px', color: '#0ea5e9'}}><PlusCircle size={28} /></div>
+            {/* ИСПРАВЛЕНИЕ 4: Кружок теперь идеально круглый */}
+            <div style={{background: 'white', width: '56px', height: '56px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, borderRadius: '50%', marginBottom: '10px', color: '#0ea5e9'}}><PlusCircle size={28} /></div>
             <h3 style={{margin: '0 0 5px 0', fontSize: '18px', fontWeight: 800, color: '#0369a1'}}>Приготовили по своему рецепту?</h3>
             <p style={{margin: '0 0 15px 0', fontSize: '13px', color: '#0284c7', lineHeight: 1.4}}>Поделитесь кулинарным шедевром со всем сообществом, даже если не использовали ИИ!</p>
             <button onClick={() => { setIsStandaloneUploadOpen(true); document.getElementById('standalone-photo-upload')?.click(); }} style={{background: '#0ea5e9', color: 'white', border: 'none', padding: '12px 24px', borderRadius: '100px', fontWeight: 800, fontSize: '14px', cursor: 'pointer', boxShadow: '0 4px 10px rgba(14, 165, 233, 0.3)'}}>Выложить своё блюдо</button>
@@ -1513,7 +1517,6 @@ export default function Home() {
                 </>
               )}
 
-              {/* ВНУТРЕННИЕ СТРАНИЦЫ ПРОФИЛЯ */}
               {profileView === 'history' && (
                 <div style={{textAlign: 'left'}}>
                    <button onClick={() => setProfileView('main')} style={{display: 'flex', alignItems: 'center', gap: '8px', background: 'white', border: '1px solid #e5e7eb', borderRadius: '100px', padding: '8px 16px', color: '#374151', fontSize: '14px', fontWeight: 600, marginBottom: '20px', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', transition: 'all 0.2s', width: 'fit-content'}}> <ArrowLeft size={18} /> Назад в профиль </button>

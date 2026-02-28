@@ -765,7 +765,6 @@ export default function Home() {
     setAnalyzing(true); setRecipe(null); 
     try { 
       const formData = new FormData(); formData.append("image", file); formData.append("mode", cookingMode); 
-      // Добавляем аллергии и нелюбимые продукты
       formData.append("allergies", allergies.join(', '));
       formData.append("dislikes", dislikes.join(', '));
 
@@ -911,6 +910,8 @@ export default function Home() {
             )} 
           </div> 
           <div style={{ fontSize: '14px', color: '#374151', lineHeight: 1.4, marginBottom: '8px', wordBreak: 'break-word' }}>{c.text}</div> 
+          
+          {/* ИСПРАВЛЕНИЕ 5: Лайк правее кнопки Ответить */}
           <div style={{ display: 'flex', gap: '15px', alignItems: 'center', justifyContent: 'flex-end', marginTop: '5px' }}> 
             {!isReply && ( 
               <div onClick={() => setReplyingTo({id: c.id, name: c.user_name})} style={{ fontSize: '12px', color: '#0ea5e9', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontWeight: 600 }}> 
@@ -943,14 +944,18 @@ export default function Home() {
         .menu-link {
           display: flex;
           align-items: center;
-          gap: 12px;
-          padding: 12px 15px;
+          gap: 14px;
+          padding: 14px 16px;
           font-size: 16px;
           font-weight: 600;
           color: #475569;
-          border-radius: 12px;
+          border-radius: 16px;
           cursor: pointer;
-          transition: all 0.2s;
+          transition: all 0.2s ease;
+          margin-bottom: 4px;
+        }
+        .menu-link:hover {
+          background: #f8fafc;
         }
       `}</style> 
 
@@ -1049,54 +1054,6 @@ export default function Home() {
         </div> 
       )} 
 
-      {/* БЫСТРЫЕ НАСТРОЙКИ (Шестеренка перед поиском) */}
-      {isPreferencesModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
-          <div className="animate-fade-in" style={{ background: 'white', width: '100%', maxWidth: '500px', padding: '25px', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', position: 'relative', boxShadow: '0 -10px 40px rgba(0,0,0,0.2)' }}>
-            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px'}}>
-              <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 900 }}>Фильтры для рецепта ⚙️</h3>
-              <button onClick={() => setIsPreferencesModalOpen(false)} style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', padding: '6px', cursor: 'pointer', color: '#64748b' }}><X size={20} /></button>
-            </div>
-            
-            <p style={{fontSize: '13px', color: '#64748b', marginBottom: '20px', lineHeight: 1.4}}>
-              Если вы авторизованы, эти настройки подтянутся из вашего профиля. Вы также можете настроить их прямо здесь на один раз.
-            </p>
-
-            <div style={{marginBottom: '20px'}}>
-              <div style={{fontSize: '14px', fontWeight: 800, color: '#be123c', marginBottom: '10px'}}>Аллергии (Строго исключить)</div>
-              <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px'}}>
-                {allergies.map((item, idx) => (
-                  <span key={idx} style={{background: '#ffe4e6', color: '#be123c', padding: '6px 12px', borderRadius: '100px', fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '5px'}}>
-                    {item} <X size={14} onClick={() => removeAllergy(idx)} style={{cursor: 'pointer'}}/>
-                  </span>
-                ))}
-              </div>
-              <div style={{display: 'flex', gap: '8px'}}>
-                <input type="text" placeholder="Например: орехи" value={newAllergy} onChange={e => setNewAllergy(e.target.value)} onKeyPress={e => e.key === 'Enter' && addAllergy()} style={{flex: 1, padding: '10px 15px', borderRadius: '12px', border: '1px solid #fecdd3', outline: 'none', fontSize: '14px'}} />
-                <button onClick={addAllergy} style={{background: '#be123c', color: 'white', border: 'none', padding: '0 20px', borderRadius: '12px', fontWeight: 700}}>Добавить</button>
-              </div>
-            </div>
-
-            <div style={{marginBottom: '20px'}}>
-              <div style={{fontSize: '14px', fontWeight: 800, color: '#b45309', marginBottom: '10px'}}>Не люблю (По возможности без этого)</div>
-              <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px'}}>
-                {dislikes.map((item, idx) => (
-                  <span key={idx} style={{background: '#ffedd5', color: '#c2410c', padding: '6px 12px', borderRadius: '100px', fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '5px'}}>
-                    {item} <X size={14} onClick={() => removeDislike(idx)} style={{cursor: 'pointer'}}/>
-                  </span>
-                ))}
-              </div>
-              <div style={{display: 'flex', gap: '8px'}}>
-                <input type="text" placeholder="Например: лук" value={newDislike} onChange={e => setNewDislike(e.target.value)} onKeyPress={e => e.key === 'Enter' && addDislike()} style={{flex: 1, padding: '10px 15px', borderRadius: '12px', border: '1px solid #fed7aa', outline: 'none', fontSize: '14px'}} />
-                <button onClick={addDislike} style={{background: '#ea580c', color: 'white', border: 'none', padding: '0 20px', borderRadius: '12px', fontWeight: 700}}>Добавить</button>
-              </div>
-            </div>
-
-            <button onClick={() => setIsPreferencesModalOpen(false)} style={{width: '100%', padding: '15px', borderRadius: '16px', background: '#111', color: 'white', border: 'none', fontWeight: 800, fontSize: '16px'}}>Готово</button>
-          </div>
-        </div>
-      )}
-
       {/* МОДАЛЬНОЕ ОКНО АВТОРИЗАЦИИ (zIndex: 100000 - поверх всего) */} 
       {isAuthModalOpen && ( 
         <div style={{ position: 'fixed', inset: 0, zIndex: 100000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', padding: '20px' }}> 
@@ -1162,6 +1119,54 @@ export default function Home() {
           </div> 
         </div> 
       )} 
+
+      {/* БЫСТРЫЕ НАСТРОЙКИ (Шестеренка перед поиском) */}
+      {isPreferencesModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+          <div className="animate-fade-in" style={{ background: 'white', width: '100%', maxWidth: '500px', padding: '25px', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', position: 'relative', boxShadow: '0 -10px 40px rgba(0,0,0,0.2)' }}>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px'}}>
+              <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 900 }}>Фильтры для рецепта ⚙️</h3>
+              <button onClick={() => setIsPreferencesModalOpen(false)} style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', padding: '6px', cursor: 'pointer', color: '#64748b' }}><X size={20} /></button>
+            </div>
+            
+            <p style={{fontSize: '13px', color: '#64748b', marginBottom: '20px', lineHeight: 1.4}}>
+              Если вы авторизованы, эти настройки подтянутся из вашего профиля. Вы также можете настроить их прямо здесь на один раз.
+            </p>
+
+            <div style={{marginBottom: '20px'}}>
+              <div style={{fontSize: '14px', fontWeight: 800, color: '#be123c', marginBottom: '10px'}}>Аллергии (Строго исключить)</div>
+              <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px'}}>
+                {allergies.map((item, idx) => (
+                  <span key={idx} style={{background: '#ffe4e6', color: '#be123c', padding: '6px 12px', borderRadius: '100px', fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '5px'}}>
+                    {item} <X size={14} onClick={() => removeAllergy(idx)} style={{cursor: 'pointer'}}/>
+                  </span>
+                ))}
+              </div>
+              <div style={{display: 'flex', gap: '8px'}}>
+                <input type="text" placeholder="Например: орехи" value={newAllergy} onChange={e => setNewAllergy(e.target.value)} onKeyPress={e => e.key === 'Enter' && addAllergy()} style={{flex: 1, padding: '10px 15px', borderRadius: '12px', border: '1px solid #fecdd3', outline: 'none', fontSize: '14px'}} />
+                <button onClick={addAllergy} style={{background: '#be123c', color: 'white', border: 'none', padding: '0 20px', borderRadius: '12px', fontWeight: 700}}><PlusCircle size={20}/></button>
+              </div>
+            </div>
+
+            <div style={{marginBottom: '20px'}}>
+              <div style={{fontSize: '14px', fontWeight: 800, color: '#b45309', marginBottom: '10px'}}>Не люблю (По возможности без этого)</div>
+              <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px'}}>
+                {dislikes.map((item, idx) => (
+                  <span key={idx} style={{background: '#ffedd5', color: '#c2410c', padding: '6px 12px', borderRadius: '100px', fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '5px'}}>
+                    {item} <X size={14} onClick={() => removeDislike(idx)} style={{cursor: 'pointer'}}/>
+                  </span>
+                ))}
+              </div>
+              <div style={{display: 'flex', gap: '8px'}}>
+                <input type="text" placeholder="Например: лук" value={newDislike} onChange={e => setNewDislike(e.target.value)} onKeyPress={e => e.key === 'Enter' && addDislike()} style={{flex: 1, padding: '10px 15px', borderRadius: '12px', border: '1px solid #fed7aa', outline: 'none', fontSize: '14px'}} />
+                <button onClick={addDislike} style={{background: '#ea580c', color: 'white', border: 'none', padding: '0 20px', borderRadius: '12px', fontWeight: 700}}><PlusCircle size={20}/></button>
+              </div>
+            </div>
+
+            <button onClick={() => setIsPreferencesModalOpen(false)} style={{width: '100%', padding: '15px', borderRadius: '16px', background: '#111', color: 'white', border: 'none', fontWeight: 800, fontSize: '16px'}}>Готово</button>
+          </div>
+        </div>
+      )}
        
       <button className="menu-btn" onClick={() => setIsMenuOpen(true)} style={{ position: 'fixed', top: '10px', left: '20px', zIndex: 50, background: 'white', borderRadius: '50%', width: '44px', height: '44px', padding: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', border: 'none', cursor: 'pointer' }}> 
         <Menu size={24} color="#111" /> 
@@ -1176,21 +1181,21 @@ export default function Home() {
                <X size={24} onClick={() => setIsMenuOpen(false)} style={{cursor: 'pointer'}} /> 
             </div> 
              
-            <div className="menu-link" onClick={() => { setProfileView('main'); switchView('profile'); }} style={{ background: activeView === 'profile' ? '#f1f5f9' : 'transparent', fontWeight: activeView === 'profile' ? 800 : 600 }}>
-               <User size={20} color={activeView === 'profile' ? "#0ea5e9" : "#64748b"}/> Личный кабинет
+            <div className="menu-link" onClick={() => { setProfileView('main'); switchView('profile'); }} style={{ background: activeView === 'profile' ? '#f1f5f9' : 'transparent', color: activeView === 'profile' ? '#0f172a' : '#475569', fontWeight: activeView === 'profile' ? 800 : 600 }}>
+               <User size={22} color="#0ea5e9" style={{flexShrink: 0}}/> Личный кабинет
             </div> 
-            <div className="menu-link" onClick={() => switchView('service')} style={{ background: activeView === 'service' ? '#f1f5f9' : 'transparent', fontWeight: activeView === 'service' ? 800 : 600 }}>
-               <Search size={20} color={activeView === 'service' ? "#0ea5e9" : "#64748b"}/> Поиск
+            <div className="menu-link" onClick={() => switchView('service')} style={{ background: activeView === 'service' ? '#f1f5f9' : 'transparent', color: activeView === 'service' ? '#0f172a' : '#475569', fontWeight: activeView === 'service' ? 800 : 600 }}>
+               <Search size={22} color="#10b981" style={{flexShrink: 0}}/> Поиск
             </div> 
-            <div className="menu-link" onClick={() => switchView('feed')} style={{ background: activeView === 'feed' ? '#f1f5f9' : 'transparent', fontWeight: activeView === 'feed' ? 800 : 600 }}> 
-               <Globe size={20} color={activeView === 'feed' ? "#8b5cf6" : "#64748b"}/> Лента 
+            <div className="menu-link" onClick={() => switchView('feed')} style={{ background: activeView === 'feed' ? '#f1f5f9' : 'transparent', color: activeView === 'feed' ? '#0f172a' : '#475569', fontWeight: activeView === 'feed' ? 800 : 600 }}> 
+               <Globe size={22} color="#8b5cf6" style={{flexShrink: 0}}/> Лента 
             </div> 
-            <div className="menu-link" onClick={() => switchView('daily')} style={{ background: activeView === 'daily' ? '#f1f5f9' : 'transparent', fontWeight: activeView === 'daily' ? 800 : 600 }}>
-               <Flame size={20} color={activeView === 'daily' ? "#f97316" : "#64748b"}/> Рецепт дня
+            <div className="menu-link" onClick={() => switchView('daily')} style={{ background: activeView === 'daily' ? '#f1f5f9' : 'transparent', color: activeView === 'daily' ? '#0f172a' : '#475569', fontWeight: activeView === 'daily' ? 800 : 600 }}>
+               <Flame size={22} color="#f97316" style={{flexShrink: 0}}/> Рецепт дня
             </div> 
              
-            <div className="menu-link" style={{ marginTop: '10px', background: activeView === 'about' ? '#f1f5f9' : 'transparent', fontWeight: activeView === 'about' ? 800 : 600 }} onClick={() => switchView('about')}>
-               <CheckCircle size={20} color={activeView === 'about' ? "#3b82f6" : "#64748b"}/> О проекте
+            <div className="menu-link" style={{ marginTop: '10px', background: activeView === 'about' ? '#f1f5f9' : 'transparent', color: activeView === 'about' ? '#0f172a' : '#475569', fontWeight: activeView === 'about' ? 800 : 600 }} onClick={() => switchView('about')}>
+               <CheckCircle size={22} color="#3b82f6" style={{flexShrink: 0}}/> О проекте
             </div> 
           </div> 
         </> 
@@ -1227,7 +1232,6 @@ export default function Home() {
                   <button className={`switch-btn ${searchMode === 'photo' ? 'active' : ''}`} onClick={() => setSearchMode('photo')}>📸 Фото</button> 
                   <button className={`switch-btn ${searchMode === 'text' ? 'active' : ''}`} onClick={() => setSearchMode('text')}>📝 Название</button> 
                 </div>
-                {/* ИСПРАВЛЕНИЕ: КНОПКА НАСТРОЕК */}
                 <button onClick={() => setIsPreferencesModalOpen(true)} style={{background: 'white', border: '1px solid #e2e8f0', borderRadius: '16px', height: '48px', width: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', color: '#475569', flexShrink: 0}}>
                    <Settings size={22} />
                 </button>
@@ -1394,7 +1398,7 @@ export default function Home() {
                     rows={1}
                     style={{ flex: 1, padding: '12px 15px', borderRadius: '24px', border: '1px solid #93c5fd', fontSize: '14px', outline: 'none', background: 'white', resize: 'none', overflowY: 'auto', minHeight: '44px', maxHeight: '120px' }}
                   /> 
-                  <button onClick={handleAskChef} style={{ background: '#3b82f6', color: 'white', border: 'none', borderRadius: '50%', width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s', flexShrink: 0 }}> <Send size={18} style={{marginLeft: '-2px'}}/> </button> 
+                  <button className="chat-btn-center" onClick={handleAskChef} style={{flexShrink: 0, padding: 0, width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%'}}> <Send size={18} style={{marginLeft: '-2px'}}/> </button> 
                 </div> 
                 {answer && <div style={{marginTop: '20px', lineHeight: 1.5, background: 'white', padding: '15px', borderRadius: '16px'}}><strong>Ответ:</strong> {answer}</div>} 
               </div> 
@@ -1408,7 +1412,7 @@ export default function Home() {
                    <div style={{display: 'flex', flexDirection: 'column', gap: '15px'}}> 
                      {!userPhotoFile ? ( 
                         <div style={{border: '2px dashed #cbd5e1', borderRadius: '12px', padding: '20px', cursor: 'pointer', background: 'white'}} onClick={() => {setIsStandaloneUploadOpen(false); document.getElementById('user-photo-upload')?.click();}}> 
-                           <Camera size={32} color="#9ca3af" style={{margin: '0 auto 10px auto'}} /> 
+                           <Camera size={32} color="#f97316" style={{margin: '0 auto 10px auto'}} /> 
                            <div style={{fontSize: '14px', fontWeight: 600, color: '#4b5563'}}>Нажмите, чтобы загрузить фото блюда</div> 
                            <input id="user-photo-upload" type="file" accept="image/*" style={{display: 'none'}} onChange={handleUserPhotoChange} /> 
                         </div> 
@@ -1503,7 +1507,6 @@ export default function Home() {
           </div> 
 
           <div style={{background: 'linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%)', borderRadius: '20px', padding: '20px', marginBottom: '25px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', boxShadow: '0 4px 15px rgba(14, 165, 233, 0.2)'}}> 
-            {/* ИСПРАВЛЕНИЕ 4: Кружок теперь идеально круглый */} 
             <div style={{background: 'white', width: '56px', height: '56px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, borderRadius: '50%', marginBottom: '10px', color: '#0ea5e9'}}><PlusCircle size={28} /></div> 
             <h3 style={{margin: '0 0 5px 0', fontSize: '18px', fontWeight: 800, color: '#0369a1'}}>Приготовили по своему рецепту?</h3> 
             <p style={{margin: '0 0 15px 0', fontSize: '13px', color: '#0284c7', lineHeight: 1.4}}>Поделитесь кулинарным шедевром со всем сообществом, даже если не использовали ИИ!</p> 
@@ -1713,26 +1716,30 @@ export default function Home() {
                     </div>
                   </div>
 
+                  {/* ИСПРАВЛЕНИЕ 2: Премиальный дизайн кнопок профиля */}
                   <div style={{display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', marginBottom: '30px'}}> 
-                     <div onClick={() => setProfileView('history')} style={{background: 'white', padding: '20px', borderRadius: '24px', cursor: 'pointer', border: '1px solid #e2e8f0', boxShadow: '0 10px 30px -10px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column'}}> 
-                       <div style={{background: '#f3e8ff', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px', color: '#8b5cf6'}}><Clock size={20} /></div> 
-                       <div style={{fontSize: '28px', fontWeight: 900, color: '#111', lineHeight: 1}}>{feed?.length || 0}</div> 
-                       <div style={{fontSize: '13px', color: '#64748b', fontWeight: 600, marginTop: '4px'}}>История</div> 
+                     <div onClick={() => setProfileView('history')} style={{background: 'linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%)', padding: '20px', borderRadius: '24px', cursor: 'pointer', border: '1px solid #e9d5ff', boxShadow: '0 10px 20px -5px rgba(139, 92, 246, 0.1)', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden'}}> 
+                       <div style={{position: 'absolute', top: '-10px', right: '-10px', opacity: 0.05, transform: 'scale(2)'}}><Clock size={64} color="#8b5cf6" /></div>
+                       <div style={{background: 'white', width: '40px', height: '40px', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px', color: '#8b5cf6', boxShadow: '0 4px 10px rgba(139, 92, 246, 0.15)'}}><Clock size={20} /></div> 
+                       <div style={{fontSize: '32px', fontWeight: 900, color: '#4c1d95', lineHeight: 1}}>{feed?.length || 0}</div> 
+                       <div style={{fontSize: '14px', color: '#7c3aed', fontWeight: 700, marginTop: '6px'}}>История</div> 
                      </div> 
                       
-                     <div onClick={() => setProfileView('favorites')} style={{background: 'white', padding: '20px', borderRadius: '24px', cursor: 'pointer', border: '1px solid #e2e8f0', boxShadow: '0 10px 30px -10px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column'}}> 
-                       <div style={{background: '#ffe4e6', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px', color: '#e11d48'}}><Heart size={20} /></div> 
-                       <div style={{fontSize: '28px', fontWeight: 900, color: '#111', lineHeight: 1}}>{feed?.filter(r => r.is_favorite).length || 0}</div> 
-                       <div style={{fontSize: '13px', color: '#64748b', fontWeight: 600, marginTop: '4px'}}>Избранное</div> 
+                     <div onClick={() => setProfileView('favorites')} style={{background: 'linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%)', padding: '20px', borderRadius: '24px', cursor: 'pointer', border: '1px solid #fecdd3', boxShadow: '0 10px 20px -5px rgba(244, 63, 94, 0.1)', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden'}}> 
+                       <div style={{position: 'absolute', top: '-10px', right: '-10px', opacity: 0.05, transform: 'scale(2)'}}><Heart size={64} color="#f43f5e" /></div>
+                       <div style={{background: 'white', width: '40px', height: '40px', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px', color: '#f43f5e', boxShadow: '0 4px 10px rgba(244, 63, 94, 0.15)'}}><Heart size={20} /></div> 
+                       <div style={{fontSize: '32px', fontWeight: 900, color: '#be123c', lineHeight: 1}}>{feed?.filter(r => r.is_favorite).length || 0}</div> 
+                       <div style={{fontSize: '14px', color: '#e11d48', fontWeight: 700, marginTop: '6px'}}>Избранное</div> 
                      </div> 
 
-                     <div onClick={() => setProfileView('photos')} style={{background: 'white', padding: '20px', borderRadius: '24px', cursor: 'pointer', border: '1px solid #e2e8f0', boxShadow: '0 10px 30px -10px rgba(0,0,0,0.05)', gridColumn: 'span 2', display: 'flex', alignItems: 'center', textAlign: 'left', gap: '15px'}}> 
-                       <div style={{background: '#e0f2fe', width: '48px', height: '48px', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0ea5e9'}}><Camera size={24} /></div> 
-                       <div style={{flex: 1}}> 
-                         <div style={{fontSize: '24px', fontWeight: 900, color: '#111', lineHeight: 1}}>{userPhotos.length}</div> 
-                         <div style={{fontSize: '13px', color: '#64748b', fontWeight: 600, marginTop: '4px'}}>Мои фото блюд</div> 
+                     <div onClick={() => setProfileView('photos')} style={{background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', padding: '20px', borderRadius: '24px', cursor: 'pointer', border: '1px solid #bae6fd', boxShadow: '0 10px 20px -5px rgba(14, 165, 233, 0.1)', gridColumn: 'span 2', display: 'flex', alignItems: 'center', textAlign: 'left', gap: '15px', position: 'relative', overflow: 'hidden'}}> 
+                       <div style={{position: 'absolute', top: '50%', right: '10px', transform: 'translateY(-50%) scale(1.5)', opacity: 0.05}}><Camera size={64} color="#0ea5e9" /></div>
+                       <div style={{background: 'white', width: '48px', height: '48px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0ea5e9', boxShadow: '0 4px 10px rgba(14, 165, 233, 0.15)'}}><Camera size={24} /></div> 
+                       <div style={{flex: 1, zIndex: 1}}> 
+                         <div style={{fontSize: '28px', fontWeight: 900, color: '#0369a1', lineHeight: 1}}>{userPhotos.length}</div> 
+                         <div style={{fontSize: '14px', color: '#0284c7', fontWeight: 700, marginTop: '4px'}}>Мои фото блюд</div> 
                        </div> 
-                       <ChevronRight size={20} color="#cbd5e1" /> 
+                       <ChevronRight size={20} color="#38bdf8" style={{zIndex: 1}} /> 
                      </div> 
                   </div> 
 
@@ -1812,7 +1819,7 @@ export default function Home() {
                                  <div style={{fontSize: '13px', fontWeight: 700, color: '#0ea5e9', marginBottom: '5px'}}>Свое блюдо: {post.custom_title}</div> 
                                )} 
                                 
-                               {post.comment && ( <p style={{margin: '0 0 10px 0', fontSize: '13px', color: '#4b5563', lineHeight: 1.4, wordBreak: 'break-word'}}> <strong>Описание:</strong> {post.comment} </p> )} 
+                               {post.comment && ( <p style={{margin: '0 0 10px 0', fontSize: '13px', color: '#4b5563', lineHeight: 1.4}}> <strong>Описание:</strong> {post.comment} </p> )} 
 
                                <div style={{display: 'flex', gap: '15px', marginTop: '8px'}}> 
                                   <div style={{fontSize: '12px', color: '#6b7280', display: 'flex', alignItems: 'center', gap: '5px'}}><Heart size={14} fill="#ef4444" color="#ef4444" /> {post.likes_count || 0} лайков</div> 

@@ -459,6 +459,7 @@ export default function Home() {
     if (!error && data) {
       setPostComments([...postComments, data]);
       setNewCommentText("");
+      // Обновляем счетчик локально в ленте
       setPhotosFeed(photosFeed.map(p => p.id === commentsModalPostId ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p));
     }
   };
@@ -571,7 +572,7 @@ export default function Home() {
       alert("Сначала выберите фото!");
       return;
     }
-    
+
     // Если это загрузка своего блюда без рецепта ИИ
     if (isStandaloneUploadOpen && !standaloneTitle.trim()) return alert("Введите название вашего блюда!");
 
@@ -1043,24 +1044,6 @@ export default function Home() {
                 Войти через Google
               </button>
 
-              <button onClick={() => handleOAuthLogin('yandex')} style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', width: '100%', padding: '14px', borderRadius: '12px',
-                background: '#fc3f1d', border: 'none', fontSize: '15px', fontWeight: 600, color: 'white', cursor: 'pointer',
-                boxShadow: '0 4px 10px rgba(252, 63, 29, 0.2)', transition: 'all 0.2s'
-              }}>
-                <span style={{fontWeight: 900, fontSize: '18px', lineHeight: 1}}>Я</span>
-                Войти через Яндекс
-              </button>
-
-              <button onClick={() => handleOAuthLogin('vk')} style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', width: '100%', padding: '14px', borderRadius: '12px',
-                background: '#0077ff', border: 'none', fontSize: '15px', fontWeight: 600, color: 'white', cursor: 'pointer',
-                boxShadow: '0 4px 10px rgba(0, 119, 255, 0.2)', transition: 'all 0.2s'
-              }}>
-                <span style={{fontWeight: 900, fontSize: '18px', lineHeight: 1}}>VK</span>
-                Войти через ВКонтакте
-              </button>
-
               <div style={{display: 'flex', alignItems: 'center', margin: '15px 0', color: '#9ca3af', fontSize: '13px'}}>
                 <div style={{flex: 1, height: '1px', background: '#e5e7eb'}}></div>
                 <span style={{padding: '0 10px'}}>ИЛИ</span>
@@ -1376,6 +1359,7 @@ export default function Home() {
                 </button>
               )}
 
+              {/* ИСПРАВЛЕНИЕ 3: Текст кнопки "Назад" */}
               {(fromFeed !== false || isHistoryView) && !isSharedView && (
                 <button 
                   onClick={fromFeed ? handleBackToSource : handleBackToSearch}
@@ -1389,8 +1373,8 @@ export default function Home() {
                 >
                   <ArrowLeft size={18} /> 
                   {fromFeed === 'recipes' || fromFeed === 'photos' ? "Назад к ленте" : 
-                   fromFeed === 'profile_history' ? "Назад в профиль" : 
-                   fromFeed === 'profile_favorites' ? "Назад в профиль" : 
+                   fromFeed === 'profile_history' ? "Назад к истории" : 
+                   fromFeed === 'profile_favorites' ? "Назад в избранное" : 
                    "Назад к истории"}
                 </button>
               )}
@@ -1589,7 +1573,7 @@ export default function Home() {
                    <div style={{display: 'flex', flexDirection: 'column', gap: '15px'}}>
                      {!userPhotoFile ? (
                         <div style={{border: '2px dashed #cbd5e1', borderRadius: '12px', padding: '20px', cursor: 'pointer', background: 'white'}} onClick={() => {setIsStandaloneUploadOpen(false); document.getElementById('user-photo-upload')?.click();}}>
-                           <Camera size={32} color="#9ca3af" style={{margin: '0 auto 10px auto'}} />
+                           <Camera size={32} color="#f97316" style={{margin: '0 auto 10px auto'}} />
                            <div style={{fontSize: '14px', fontWeight: 600, color: '#4b5563'}}>Нажмите, чтобы загрузить фото блюда</div>
                            <input id="user-photo-upload" type="file" accept="image/*" style={{display: 'none'}} onChange={handleUserPhotoChange} />
                         </div>
@@ -2045,18 +2029,30 @@ export default function Home() {
                   <h2 style={{fontSize: '22px', fontWeight: 800, marginBottom: '5px', color: '#111'}}>{user.user_metadata?.full_name || 'Шеф-повар'}</h2>
                   <p style={{color: '#6b7280', fontSize: '14px', marginBottom: '30px'}}>{user.email}</p>
 
-                  <div style={{display: 'flex', gap: '10px', marginBottom: '30px'}}>
-                    <div onClick={() => setProfileView('history')} style={{flex: 1, background: '#f3f4f6', padding: '15px', borderRadius: '16px', cursor: 'pointer', transition: 'transform 0.1s'}}>
-                      <div style={{fontSize: '24px', fontWeight: 900, color: '#8b5cf6'}}>{feed?.length || 0}</div>
-                      <div style={{fontSize: '12px', color: '#6b7280', fontWeight: 600}}>История</div>
+                  {/* ИСПРАВЛЕНИЕ 2: Премиальный дизайн кнопок профиля */}
+                  <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '30px'}}>
+                    <div onClick={() => setProfileView('history')} style={{background: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)', border: '1px solid #ddd6fe', padding: '15px', borderRadius: '20px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', transition: 'transform 0.2s', boxShadow: '0 4px 10px rgba(139, 92, 246, 0.05)'}}>
+                      <div style={{background: 'white', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '10px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', color: '#8b5cf6'}}>
+                        <Clock size={20} />
+                      </div>
+                      <div style={{fontSize: '24px', fontWeight: 900, color: '#6d28d9', lineHeight: 1}}>{feed?.length || 0}</div>
+                      <div style={{fontSize: '12px', color: '#8b5cf6', fontWeight: 700, marginTop: '5px'}}>История</div>
                     </div>
-                    <div onClick={() => setProfileView('favorites')} style={{flex: 1, background: '#f3f4f6', padding: '15px', borderRadius: '16px', cursor: 'pointer', transition: 'transform 0.1s'}}>
-                      <div style={{fontSize: '24px', fontWeight: 900, color: '#0ea5e9'}}>{feed?.filter(r => r.is_favorite).length || 0}</div>
-                      <div style={{fontSize: '12px', color: '#6b7280', fontWeight: 600}}>Избранное</div>
+                    
+                    <div onClick={() => setProfileView('favorites')} style={{background: 'linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%)', border: '1px solid #fecdd3', padding: '15px', borderRadius: '20px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', transition: 'transform 0.2s', boxShadow: '0 4px 10px rgba(244, 63, 94, 0.05)'}}>
+                      <div style={{background: 'white', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '10px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', color: '#f43f5e'}}>
+                        <Heart size={20} />
+                      </div>
+                      <div style={{fontSize: '24px', fontWeight: 900, color: '#be123c', lineHeight: 1}}>{feed?.filter(r => r.is_favorite).length || 0}</div>
+                      <div style={{fontSize: '12px', color: '#f43f5e', fontWeight: 700, marginTop: '5px'}}>Избранное</div>
                     </div>
-                    <div onClick={() => setProfileView('photos')} style={{flex: 1, background: '#f3f4f6', padding: '15px', borderRadius: '16px', cursor: 'pointer', transition: 'transform 0.1s'}}>
-                      <div style={{fontSize: '24px', fontWeight: 900, color: '#f97316'}}>{userPhotos.length}</div>
-                      <div style={{fontSize: '12px', color: '#6b7280', fontWeight: 600}}>Фото блюд</div>
+                    
+                    <div onClick={() => setProfileView('photos')} style={{background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)', border: '1px solid #fed7aa', padding: '15px', borderRadius: '20px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', transition: 'transform 0.2s', boxShadow: '0 4px 10px rgba(249, 115, 22, 0.05)'}}>
+                      <div style={{background: 'white', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '10px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', color: '#f97316'}}>
+                        <Camera size={20} />
+                      </div>
+                      <div style={{fontSize: '24px', fontWeight: 900, color: '#c2410c', lineHeight: 1}}>{userPhotos.length}</div>
+                      <div style={{fontSize: '12px', color: '#f97316', fontWeight: 700, marginTop: '5px'}}>Фото блюд</div>
                     </div>
                   </div>
 
@@ -2064,6 +2060,7 @@ export default function Home() {
                 </>
               )}
 
+              {/* ВНУТРЕННИЕ СТРАНИЦЫ ПРОФИЛЯ */}
               {profileView === 'history' && (
                 <div style={{textAlign: 'left'}}>
                    <button onClick={() => setProfileView('main')} style={{display: 'flex', alignItems: 'center', gap: '8px', background: 'white', border: '1px solid #e5e7eb', borderRadius: '100px', padding: '8px 16px', color: '#374151', fontSize: '14px', fontWeight: 600, marginBottom: '20px', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', transition: 'all 0.2s', width: 'fit-content'}}> <ArrowLeft size={18} /> Назад в профиль </button>

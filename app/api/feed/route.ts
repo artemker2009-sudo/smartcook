@@ -8,37 +8,24 @@ const supabase = createClient(
 
 export async function POST(req: Request) {
   try {
-    const { sort, userId } = await req.json(); // sort = 'new' | 'top'
+    const { sort, userId } = await req.json();
 
-    let query = supabase
-      .from('recipes')
-      .select(`
-        *,
-        recipe_likes (
-          user_id
-        )
-      `)
-      .limit(50); // Грузим 50 штук, чтобы не грузить базу
+    let query = supabase.from('recipes').select(`*, recipe_likes(user_id)`).limit(50);
 
-    // Сортировка
     if (sort === 'top') {
-      // Сначала самые залайканные
-      query = query.order('likes_count', { ascending: false });
+      query = query.order('likes_count', { ascending: false }).order('created_at', { ascending: false });
+    } else if (sort === 'old') {
+      query = query.order('created_at', { ascending: true });
     } else {
-      // Сначала новые
       query = query.order('created_at', { ascending: false });
     }
 
     const { data, error } = await query;
-
     if (error) throw error;
 
-    // Обрабатываем данные: проверяем, лайкнул ли этот юзер
     const feed = data.map((item: any) => ({
       ...item,
-      // Если в массиве recipe_likes есть мой ID, значит я лайкнул
       is_liked: item.recipe_likes && item.recipe_likes.some((l: any) => l.user_id === userId),
-      // Убираем лишний массив, чтобы не тащить мусор на фронт
       recipe_likes: undefined 
     }));
 

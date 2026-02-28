@@ -1172,6 +1172,7 @@ export default function Home() {
         <Menu size={24} color="#111" /> 
       </button> 
 
+      {/* ИСПРАВЛЕНИЕ: МЕНЮ С СЕРОЙ ПОДСВЕТКОЙ АКТИВНОГО ПУНКТА И ЦВЕТНЫМИ ИКОНКАМИ */}
       {isMenuOpen && ( 
         <> 
           <div className="menu-overlay" onClick={() => setIsMenuOpen(false)} style={{zIndex: 99}} /> 
@@ -1181,20 +1182,20 @@ export default function Home() {
                <X size={24} onClick={() => setIsMenuOpen(false)} style={{cursor: 'pointer'}} /> 
             </div> 
              
-            <div className="menu-link" onClick={() => { setProfileView('main'); switchView('profile'); }} style={{ background: activeView === 'profile' ? '#f1f5f9' : 'transparent', color: activeView === 'profile' ? '#0f172a' : '#475569', fontWeight: activeView === 'profile' ? 800 : 600 }}>
+            <div className="menu-link" onClick={() => { setProfileView('main'); switchView('profile'); }} style={{ background: activeView === 'profile' ? '#f1f5f9' : 'transparent' }}>
                <User size={22} color="#0ea5e9" style={{flexShrink: 0}}/> Личный кабинет
             </div> 
-            <div className="menu-link" onClick={() => switchView('service')} style={{ background: activeView === 'service' ? '#f1f5f9' : 'transparent', color: activeView === 'service' ? '#0f172a' : '#475569', fontWeight: activeView === 'service' ? 800 : 600 }}>
+            <div className="menu-link" onClick={() => switchView('service')} style={{ background: activeView === 'service' ? '#f1f5f9' : 'transparent' }}>
                <Search size={22} color="#10b981" style={{flexShrink: 0}}/> Поиск
             </div> 
-            <div className="menu-link" onClick={() => switchView('feed')} style={{ background: activeView === 'feed' ? '#f1f5f9' : 'transparent', color: activeView === 'feed' ? '#0f172a' : '#475569', fontWeight: activeView === 'feed' ? 800 : 600 }}> 
+            <div className="menu-link" onClick={() => switchView('feed')} style={{ background: activeView === 'feed' ? '#f1f5f9' : 'transparent' }}> 
                <Globe size={22} color="#8b5cf6" style={{flexShrink: 0}}/> Лента 
             </div> 
-            <div className="menu-link" onClick={() => switchView('daily')} style={{ background: activeView === 'daily' ? '#f1f5f9' : 'transparent', color: activeView === 'daily' ? '#0f172a' : '#475569', fontWeight: activeView === 'daily' ? 800 : 600 }}>
+            <div className="menu-link" onClick={() => switchView('daily')} style={{ background: activeView === 'daily' ? '#f1f5f9' : 'transparent' }}>
                <Flame size={22} color="#f97316" style={{flexShrink: 0}}/> Рецепт дня
             </div> 
              
-            <div className="menu-link" style={{ marginTop: '10px', background: activeView === 'about' ? '#f1f5f9' : 'transparent', color: activeView === 'about' ? '#0f172a' : '#475569', fontWeight: activeView === 'about' ? 800 : 600 }} onClick={() => switchView('about')}>
+            <div className="menu-link" style={{ marginTop: '10px', background: activeView === 'about' ? '#f1f5f9' : 'transparent' }} onClick={() => switchView('about')}>
                <CheckCircle size={22} color="#3b82f6" style={{flexShrink: 0}}/> О проекте
             </div> 
           </div> 
@@ -1228,11 +1229,17 @@ export default function Home() {
               </div> 
 
               <div style={{display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px'}}>
-                <div className="switch-box" style={{flex: 1, marginBottom: 0}}> 
-                  <button className={`switch-btn ${searchMode === 'photo' ? 'active' : ''}`} onClick={() => setSearchMode('photo')}>📸 Фото</button> 
-                  <button className={`switch-btn ${searchMode === 'text' ? 'active' : ''}`} onClick={() => setSearchMode('text')}>📝 Название</button> 
+                {/* ИСПРАВЛЕНИЕ: Красивый переключатель "По фото / По названию" */}
+                <div style={{flex: 1, display: 'flex', background: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)', padding: '6px', borderRadius: '20px', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)'}}> 
+                  <button onClick={() => setSearchMode('photo')} style={{ flex: 1, padding: '12px 5px', borderRadius: '16px', border: 'none', background: searchMode === 'photo' ? 'white' : 'transparent', fontWeight: 800, fontSize: '15px', boxShadow: searchMode === 'photo' ? '0 4px 15px rgba(0,0,0,0.05)' : 'none', color: searchMode === 'photo' ? '#059669' : '#64748b', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' }}>
+                    <Camera size={18} /> По фото
+                  </button>
+                  <button onClick={() => setSearchMode('text')} style={{ flex: 1, padding: '12px 5px', borderRadius: '16px', border: 'none', background: searchMode === 'text' ? 'white' : 'transparent', fontWeight: 800, fontSize: '15px', boxShadow: searchMode === 'text' ? '0 4px 15px rgba(0,0,0,0.05)' : 'none', color: searchMode === 'text' ? '#0ea5e9' : '#64748b', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' }}>
+                    <Search size={18} /> По названию
+                  </button>
                 </div>
-                <button onClick={() => setIsPreferencesModalOpen(true)} style={{background: 'white', border: '1px solid #e2e8f0', borderRadius: '16px', height: '48px', width: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', color: '#475569', flexShrink: 0}}>
+                
+                <button onClick={() => setIsPreferencesModalOpen(true)} style={{background: 'white', border: '1px solid #e2e8f0', borderRadius: '20px', height: '52px', width: '52px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', color: '#475569', flexShrink: 0}}>
                    <Settings size={22} />
                 </button>
               </div>
@@ -1272,7 +1279,7 @@ export default function Home() {
                       <input type="text" className="text-search-input" placeholder="Например: Паста Карбонара" value={textQuery} onChange={(e) => setTextQuery(e.target.value)} style={{ paddingRight: textQuery ? '40px' : '15px', marginBottom: 0 }} /> 
                       {textQuery && ( <button onClick={() => setTextQuery("")} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', padding: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af' }}><X size={18} /></button> )} 
                     </div> 
-                    <button className="btn-primary" onClick={handleTextSearch} disabled={loadingRecipe || !textQuery.trim()}> {loadingRecipe ? "🍳 Готовлю..." : "🔍 Найти"} </button> 
+                    <button className="btn-primary" onClick={handleTextSearch} disabled={loadingRecipe || !textQuery.trim()}> {loadingRecipe ? "🍳 Готовлю..." : "🔍 Найти рецепт"} </button> 
                   </> 
                 )} 
               </div> 
@@ -1582,22 +1589,19 @@ export default function Home() {
                 <div style={{padding: '15px', background: 'white'}}> 
                   {post.comment && ( <p style={{margin: '0 0 15px 0', fontSize: '14px', color: '#374151', lineHeight: 1.5, wordBreak: 'break-word'}}> <strong>Описание:</strong> {post.comment} </p> )} 
                   <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}> 
-                    <div>
-                      {post.recipe_id && ( 
-                        <button onClick={() => loadSharedRecipe(post.recipe_id, 'photos')} style={{background: 'transparent', border: 'none', color: '#0ea5e9', fontWeight: 700, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', padding: 0}}> 
-                           К рецепту <ArrowRight size={16} /> 
-                        </button> 
-                      )} 
-                    </div>
-                    {/* ИСПРАВЛЕНИЕ 5: Лайки справа от комментов */}
-                    <div style={{display: 'flex', gap: '10px', justifyContent: 'flex-end'}}> 
-                      <button onClick={() => openComments(post.id)} style={{background: '#f3f4f6', border: 'none', borderRadius: '100px', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px', color: '#4b5563', fontWeight: 700, fontSize: '14px', cursor: 'pointer'}}> 
-                        <MessageCircle size={18} /> {post.comments_count || 0} 
-                      </button> 
+                    <div style={{display: 'flex', gap: '10px'}}> 
                       <button onClick={(e) => handlePhotoLike(e, post)} style={{background: post.is_liked ? '#fee2e2' : '#f3f4f6', border: 'none', borderRadius: '100px', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px', color: post.is_liked ? '#ef4444' : '#4b5563', fontWeight: 700, fontSize: '14px', transition: 'all 0.2s', cursor: 'pointer'}}> 
                         <Heart size={18} fill={post.is_liked ? "#ef4444" : "none"} /> {post.likes_count || 0} 
                       </button> 
+                      <button onClick={() => openComments(post.id)} style={{background: '#f3f4f6', border: 'none', borderRadius: '100px', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px', color: '#4b5563', fontWeight: 700, fontSize: '14px', cursor: 'pointer'}}> 
+                        <MessageCircle size={18} /> {post.comments_count || 0} 
+                      </button> 
                     </div> 
+                    {post.recipe_id && ( 
+                      <button onClick={() => loadSharedRecipe(post.recipe_id, 'photos')} style={{background: 'transparent', border: 'none', color: '#0ea5e9', fontWeight: 700, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', padding: 0}}> 
+                         К рецепту <ArrowRight size={16} /> 
+                      </button> 
+                    )} 
                   </div> 
                 </div> 
               </div> 
@@ -1683,7 +1687,7 @@ export default function Home() {
 
                   {/* НОВЫЙ БЛОК ПРЕДПОЧТЕНИЙ В ЛИЧНОМ КАБИНЕТЕ */}
                   <div style={{background: 'white', padding: '20px', borderRadius: '24px', border: '1px solid #e2e8f0', boxShadow: '0 10px 30px -10px rgba(0,0,0,0.05)', marginBottom: '30px', textAlign: 'left'}}>
-                    <h3 style={{margin: '0 0 15px 0', fontSize: '18px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px'}}>Вкусы и диеты 🥦</h3>
+                    <h3 style={{margin: '0 0 15px 0', fontSize: '18px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px'}}>Вкусы и аллергии 🥦</h3>
                     
                     <div style={{marginBottom: '20px'}}>
                       <div style={{fontSize: '13px', fontWeight: 700, color: '#be123c', marginBottom: '8px'}}>Аллергии (Строго исключить)</div>
@@ -1716,7 +1720,6 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* ИСПРАВЛЕНИЕ 2: Премиальный дизайн кнопок профиля */}
                   <div style={{display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', marginBottom: '30px'}}> 
                      <div onClick={() => setProfileView('history')} style={{background: 'linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%)', padding: '20px', borderRadius: '24px', cursor: 'pointer', border: '1px solid #e9d5ff', boxShadow: '0 10px 20px -5px rgba(139, 92, 246, 0.1)', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden'}}> 
                        <div style={{position: 'absolute', top: '-10px', right: '-10px', opacity: 0.05, transform: 'scale(2)'}}><Clock size={64} color="#8b5cf6" /></div>
@@ -1819,7 +1822,7 @@ export default function Home() {
                                  <div style={{fontSize: '13px', fontWeight: 700, color: '#0ea5e9', marginBottom: '5px'}}>Свое блюдо: {post.custom_title}</div> 
                                )} 
                                 
-                               {post.comment && ( <p style={{margin: '0 0 10px 0', fontSize: '13px', color: '#4b5563', lineHeight: 1.4}}> <strong>Описание:</strong> {post.comment} </p> )} 
+                               {post.comment && ( <p style={{margin: '0 0 10px 0', fontSize: '13px', color: '#4b5563', lineHeight: 1.4, wordBreak: 'break-word'}}> <strong>Описание:</strong> {post.comment} </p> )} 
 
                                <div style={{display: 'flex', gap: '15px', marginTop: '8px'}}> 
                                   <div style={{fontSize: '12px', color: '#6b7280', display: 'flex', alignItems: 'center', gap: '5px'}}><Heart size={14} fill="#ef4444" color="#ef4444" /> {post.likes_count || 0} лайков</div> 

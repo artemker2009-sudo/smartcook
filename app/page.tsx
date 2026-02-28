@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { 
   Menu, X, Flame, Send, Camera, Search, Clock, Heart, 
   ArrowRight, ArrowLeft, RotateCcw, CheckCircle, Sparkles, Image as ImageIcon, 
-  Wallet, Zap, Leaf, Globe, ChevronRight, ChevronDown, ChevronUp, Shuffle, ShoppingCart, Lock, ShoppingBag, ExternalLink, Info, ThumbsUp, Share2, User, LogOut, Mail, MessageCircle, PlusCircle
+  Wallet, Zap, Leaf, Globe, ChevronRight, ChevronDown, ChevronUp, Shuffle, ShoppingCart, Lock, ShoppingBag, ExternalLink, Info, Share2, User, LogOut, Mail, MessageCircle, PlusCircle, Trash2, Edit3, CornerDownRight
 } from "lucide-react";
 
 /* --- ТИПЫ ДАННЫХ --- */
@@ -42,6 +42,7 @@ interface DBRecipe {
   comments_count?: number;
   is_liked?: boolean; 
   custom_title?: string;
+  user_id?: string;
 }
 
 interface DailyRecipeType { 
@@ -64,7 +65,18 @@ interface HolidayType {
   icon: string;
 }
 
-// Умная функция для пересчета граммовок
+interface DBComment {
+  id: number;
+  post_id: number;
+  user_id: string;
+  user_name: string;
+  text: string;
+  created_at: string;
+  parent_id?: number | null;
+  likes_count?: number;
+  is_liked?: boolean;
+}
+
 const scaleAmount = (amount: string, multiplier: number) => {
   if (!amount) return "";
   if (multiplier === 1) return amount;
@@ -87,6 +99,7 @@ const scaleAmount = (amount: string, multiplier: number) => {
 export default function Home() {
   const [activeView, setActiveView] = useState<'service' | 'about' | 'daily' | 'feed' | 'profile'>('service');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isFeedMenuExpanded, setIsFeedMenuExpanded] = useState(false);
 
   const [dailyRecipe, setDailyRecipe] = useState<DailyRecipeType | null>(null);
   
@@ -107,6 +120,10 @@ export default function Home() {
   const [recipe, setRecipe] = useState<RecipeData | null>(null);
   
   const [feed, setFeed] = useState<DBRecipe[]>([]); 
+  const [publicFeed, setPublicFeed] = useState<DBRecipe[]>([]);
+  const [feedSort, setFeedSort] = useState<'new' | 'top' | 'old'>('new');
+  
+  const [feedTab, setFeedTab] = useState<'photos' | 'recipes'>('photos');
   const [photosFeed, setPhotosFeed] = useState<any[]>([]);
   const [photosSort, setPhotosSort] = useState<'new' | 'top' | 'old'>('new');
 
@@ -118,7 +135,7 @@ export default function Home() {
   const [answer, setAnswer] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
 
-  const [fromFeed, setFromFeed] = useState<'photos' | 'profile_history' | 'profile_favorites' | false>(false);
+  const [fromFeed, setFromFeed] = useState<'recipes' | 'photos' | 'profile_history' | 'profile_favorites' | false>(false);
   const [isHistoryView, setIsHistoryView] = useState(false);
   
   const [isSharedView, setIsSharedView] = useState(false);
@@ -146,11 +163,19 @@ export default function Home() {
 
   // Комментарии и Свои блюда
   const [commentsModalPostId, setCommentsModalPostId] = useState<number | null>(null);
-  const [postComments, setPostComments] = useState<any[]>([]);
+  const [postComments, setPostComments] = useState<DBComment[]>([]);
   const [newCommentText, setNewCommentText] = useState("");
+  const [replyingTo, setReplyingTo] = useState<{id: number, name: string} | null>(null);
   
   const [isStandaloneUploadOpen, setIsStandaloneUploadOpen] = useState(false);
   const [standaloneTitle, setStandaloneTitle] = useState("");
+
+  // Редактирование профиля
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editProfileName, setEditProfileName] = useState("");
+  const [editAvatarFile, setEditAvatarFile] = useState<File | null>(null);
+  const [editAvatarPreview, setEditAvatarPreview] = useState<string | null>(null);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   useEffect(() => {
     if (dailyRecipe && feed.length > 0) {
@@ -181,6 +206,8 @@ export default function Home() {
     if (user) {
       currentSessionId = user.id;
       localStorage.setItem("cook_user_id", user.id);
+      setEditProfileName(user.user_metadata?.full_name || "");
+      setEditAvatarPreview(user.user_metadata?.avatar_url || null);
     } else if (!currentSessionId) {
       currentSessionId = "user_" + Math.random().toString(36).substr(2, 9); 
       localStorage.setItem("cook_user_id", currentSessionId); 
@@ -245,13 +272,7 @@ export default function Home() {
 
     const holidays: Record<string, HolidayType> = {
       "14.2": { title: "С Днем святого Валентина! 💖", text: "Пусть ваша жизнь будет наполнена любовью, а ужины — романтикой.", gradient: "linear-gradient(135deg, #ec4899 0%, #be185d 100%)", icon: "💘" },
-      "23.2": { title: "С Днем защитника Отечества!", text: "Силы, мужества и сытных побед на кулинарном фронте!", gradient: "linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)", icon: "⭐" },
       "8.3": { title: "С 8 Марта! 💐", text: "Красоты, нежности и вдохновения! Пусть сегодня готовит кто-то другой.", gradient: "linear-gradient(135deg, #d946ef 0%, #a21caf 100%)", icon: "🌷" },
-      "1.3": { title: "С первым днем весны!", text: "Природа просыпается, и аппетит тоже!", gradient: "linear-gradient(135deg, #84cc16 0%, #4d7c0f 100%)", icon: "🌱" },
-      "1.5": { title: "Мир, Труд, Май!", text: "Отличный повод выбраться на шашлыки!", gradient: "linear-gradient(135deg, #f97316 0%, #ea580c 100%)", icon: "🔥" },
-      "9.5": { title: "С Днем Победы!", text: "Мирного неба над головой и тепла в вашем доме.", gradient: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)", icon: "🎖" },
-      "1.6": { title: "Ура, лето!", text: "Сезон мороженого и окрошки открыт!", gradient: "linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)", icon: "☀" },
-      "1.9": { title: "С Днем знаний!", text: "Учиться никогда не поздно, особенно готовить!", gradient: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)", icon: "🔔" },
       "31.12": { title: "С Наступающим! 🎄", text: "Оливье готов? Мандарины куплены?", gradient: "linear-gradient(135deg, #dc2626 0%, #166534 100%)", icon: "🎅" },
       "1.1": { title: "С Новым 2026 годом! 🎉", text: "Начинаем год вкусно!", gradient: "linear-gradient(135deg, #fbbf24 0%, #b45309 100%)", icon: "🥂" }
     };
@@ -274,14 +295,25 @@ export default function Home() {
 
   useEffect(() => {
     if (activeView === 'feed') {
-      fetchPhotosFeed(photosSort);
+      if (feedTab === 'recipes') fetchPublicFeed(feedSort);
+      else fetchPhotosFeed(photosSort);
     }
-  }, [activeView, photosSort]);
+  }, [activeView, feedTab, feedSort, photosSort]);
 
   const fetchMyRecipes = async (currentId: string) => {
     if (!currentId) return;
     const { data, error } = await supabase.from('recipes').select('*').eq('session_id', currentId).order('created_at', { ascending: false });
     if (!error && data) setFeed(data);
+  };
+
+  const fetchPublicFeed = async (sortType: 'new' | 'top' | 'old') => {
+    setFeedSort(sortType);
+    if (!userId) return;
+    try {
+      const res = await fetch("/api/feed", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sort: sortType, userId: userId }) });
+      const json = await res.json();
+      if (json.feed) setPublicFeed(json.feed);
+    } catch (e) { console.error("Feed Error:", e); }
   };
 
   const fetchPhotosFeed = async (sortType: 'new' | 'top' | 'old') => {
@@ -318,6 +350,42 @@ export default function Home() {
     setProfileView('main');
   };
 
+  const handleProfileSave = async () => {
+    if (!user) return;
+    setIsSavingProfile(true);
+    try {
+      let avatarUrl = user.user_metadata?.avatar_url;
+      if (editAvatarFile) {
+        const fileName = `${user.id}/${Date.now()}.jpg`;
+        const { error: uploadError } = await supabase.storage.from('avatars').upload(fileName, editAvatarFile);
+        if (uploadError) throw uploadError;
+        const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
+        avatarUrl = data.publicUrl;
+      }
+      
+      const { data, error } = await supabase.auth.updateUser({
+        data: { full_name: editProfileName, avatar_url: avatarUrl }
+      });
+      
+      if (error) throw error;
+      setUser(data.user);
+      setIsEditingProfile(false);
+    } catch(e) {
+      alert("Ошибка сохранения профиля");
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const handlePublicLike = async (e: any, item: DBRecipe) => {
+    e.stopPropagation();
+    if (!userId) return;
+    const action = item.is_liked ? 'unlike' : 'like';
+    const newCount = item.is_liked ? Math.max(0, (item.likes_count || 0) - 1) : (item.likes_count || 0) + 1;
+    setPublicFeed(publicFeed.map(r => r.id === item.id ? { ...r, is_liked: !item.is_liked, likes_count: newCount } : r));
+    try { await fetch("/api/like", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recipeId: item.id, userId: userId, action }) }); } catch (err) {}
+  };
+
   const handlePhotoLike = async (e: any, item: any) => {
     e.stopPropagation();
     if (!userId) return;
@@ -327,11 +395,33 @@ export default function Home() {
     try { await fetch("/api/photo-like", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postId: item.id, sessionId: userId, action }) }); } catch (err) {}
   };
 
+  const handleDeletePost = async (postId: number) => {
+    if (!confirm("Вы уверены, что хотите удалить этот пост?")) return;
+    try {
+      await supabase.from('feed_posts').delete().eq('id', postId);
+      setPhotosFeed(prev => prev.filter(p => p.id !== postId));
+      setUserPhotos(prev => prev.filter(p => p.id !== postId));
+    } catch (e) {
+      alert("Ошибка удаления");
+    }
+  };
+
+  // ФУНКЦИИ ДЛЯ КОММЕНТАРИЕВ
   const openComments = async (postId: number) => {
     setCommentsModalPostId(postId);
     setPostComments([]);
+    setReplyingTo(null);
     const { data } = await supabase.from('photo_comments').select('*').eq('post_id', postId).order('created_at', { ascending: true });
-    if (data) setPostComments(data);
+    
+    // Подгружаем лайки на комменты
+    let likedIds = new Set();
+    if (userId && data && data.length > 0) {
+      const cIds = data.map(c => c.id);
+      const { data: likes } = await supabase.from('comment_likes').select('comment_id').in('comment_id', cIds).eq('session_id', userId);
+      if (likes) likes.forEach((l: any) => likedIds.add(l.comment_id));
+    }
+    
+    setPostComments(data?.map(c => ({...c, is_liked: likedIds.has(c.id)})) || []);
   };
 
   const submitComment = async () => {
@@ -343,14 +433,41 @@ export default function Home() {
       post_id: commentsModalPostId,
       user_id: user.id,
       user_name: userName,
-      text: newCommentText.trim()
+      text: newCommentText.trim(),
+      parent_id: replyingTo ? replyingTo.id : null
     }).select().single();
 
     if (!error && data) {
       setPostComments([...postComments, data]);
       setNewCommentText("");
+      setReplyingTo(null);
       setPhotosFeed(photosFeed.map(p => p.id === commentsModalPostId ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p));
     }
+  };
+
+  const handleDeleteComment = async (commentId: number) => {
+    if (!confirm("Удалить комментарий?")) return;
+    try {
+      await supabase.from('photo_comments').delete().eq('id', commentId);
+      setPostComments(prev => prev.filter(c => c.id !== commentId && c.parent_id !== commentId));
+      setPhotosFeed(photosFeed.map(p => p.id === commentsModalPostId ? { ...p, comments_count: Math.max(0, (p.comments_count || 0) - 1) } : p));
+    } catch (e) {}
+  };
+
+  const handleCommentLike = async (comment: DBComment) => {
+    if (!userId) return;
+    const action = comment.is_liked ? 'unlike' : 'like';
+    const newCount = comment.is_liked ? Math.max(0, (comment.likes_count || 0) - 1) : (comment.likes_count || 0) + 1;
+    
+    setPostComments(postComments.map(c => c.id === comment.id ? { ...c, is_liked: !c.is_liked, likes_count: newCount } : c));
+    
+    try {
+      if (action === 'like') {
+        await supabase.from('comment_likes').insert({ comment_id: comment.id, session_id: userId });
+      } else {
+        await supabase.from('comment_likes').delete().match({ comment_id: comment.id, session_id: userId });
+      }
+    } catch (err) {}
   };
 
   const toggleFavorite = async (e: any, targetId: number, currentStatus: boolean = false) => {
@@ -391,6 +508,22 @@ export default function Home() {
       setUserPhotoFile(null);
       setUserPhotoPreview(null);
     } finally { setIsUploadingPhoto(false); }
+  };
+
+  const handleAvatarChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const rawFile = files[0];
+    setEditAvatarPreview(URL.createObjectURL(rawFile));
+    
+    try {
+      const imageCompression = (await import('browser-image-compression')).default;
+      const options = { maxSizeMB: 0.5, maxWidthOrHeight: 500, useWebWorker: true, fileType: "image/jpeg" };
+      const compressedFile = await imageCompression(rawFile, options);
+      setEditAvatarFile(new File([compressedFile], `avatar_${Date.now()}.jpg`, { type: "image/jpeg" }));
+    } catch (error) {
+      alert("Не удалось обработать аватар.");
+    }
   };
 
   const ensureRecipeInDB = async (currentRecipe: any) => {
@@ -623,6 +756,30 @@ export default function Home() {
   const visibleHistory = historyExpanded ? displayedFeed : displayedFeed?.slice(0, 4);
   const actualServings = typeof servings === 'number' ? servings : 1;
 
+  // Функция для отрисовки комментария (с ответами)
+  const renderComment = (c: DBComment, isReply: boolean = false) => (
+    <div key={c.id} style={{ background: isReply ? '#f8fafc' : 'white', padding: '12px 15px', borderRadius: '16px', border: '1px solid #e2e8f0', marginBottom: isReply ? '10px' : '0', marginLeft: isReply ? '25px' : '0', position: 'relative' }}>
+      {isReply && <div style={{position: 'absolute', left: '-15px', top: '20px', width: '15px', height: '2px', background: '#cbd5e1'}} />}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
+        <div style={{ fontSize: '13px', fontWeight: 800, color: '#111' }}>{c.user_name}</div>
+        {user && user.id === c.user_id && (
+          <button onClick={() => handleDeleteComment(c.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px' }}><Trash2 size={14} /></button>
+        )}
+      </div>
+      <div style={{ fontSize: '14px', color: '#374151', lineHeight: 1.4, marginBottom: '8px' }}>{c.text}</div>
+      <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+        <div onClick={() => handleCommentLike(c)} style={{ fontSize: '12px', color: c.is_liked ? '#ef4444' : '#64748b', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontWeight: 600 }}>
+          <Heart size={14} fill={c.is_liked ? "#ef4444" : "none"} /> {c.likes_count || 0}
+        </div>
+        {!isReply && (
+          <div onClick={() => setReplyingTo({id: c.id, name: c.user_name})} style={{ fontSize: '12px', color: '#0ea5e9', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontWeight: 600 }}>
+            <CornerDownRight size={14} /> Ответить
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="container">
       <style>{`
@@ -651,24 +808,32 @@ export default function Home() {
               {postComments.length === 0 ? (
                 <div style={{ textAlign: 'center', color: '#9ca3af', marginTop: '40px' }}>Пока нет комментариев. Будьте первым!</div>
               ) : (
-                postComments.map((c, i) => (
-                  <div key={i} style={{ background: 'white', padding: '12px 15px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#111', marginBottom: '4px' }}>{c.user_name}</div>
-                    <div style={{ fontSize: '14px', color: '#374151', lineHeight: 1.4 }}>{c.text}</div>
+                postComments.filter(c => !c.parent_id).map((c) => (
+                  <div key={c.id} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {renderComment(c)}
+                    {postComments.filter(reply => reply.parent_id === c.id).map(reply => renderComment(reply, true))}
                   </div>
                 ))
               )}
             </div>
 
-            <div style={{ padding: '15px', background: 'white', borderTop: '1px solid #e2e8f0', display: 'flex', gap: '10px' }}>
-              <input 
-                type="text" placeholder="Написать комментарий..." value={newCommentText} onChange={(e) => setNewCommentText(e.target.value)}
-                style={{ flex: 1, padding: '12px 15px', borderRadius: '100px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none', background: '#f8fafc' }}
-                onKeyPress={(e) => { if (e.key === 'Enter') submitComment(); }}
-              />
-              <button onClick={submitComment} disabled={!newCommentText.trim()} style={{ background: newCommentText.trim() ? '#0ea5e9' : '#e0f2fe', color: 'white', border: 'none', borderRadius: '100px', width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: newCommentText.trim() ? 'pointer' : 'default', transition: 'all 0.2s' }}>
-                <Send size={18} />
-              </button>
+            <div style={{ padding: '15px', background: 'white', borderTop: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {replyingTo && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f1f5f9', padding: '6px 12px', borderRadius: '8px', fontSize: '12px', color: '#475569', fontWeight: 600 }}>
+                  <span>Ответ пользователю: {replyingTo.name}</span>
+                  <button onClick={() => setReplyingTo(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><X size={14} /></button>
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <input 
+                  type="text" placeholder="Написать комментарий..." value={newCommentText} onChange={(e) => setNewCommentText(e.target.value)}
+                  style={{ flex: 1, padding: '12px 15px', borderRadius: '100px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none', background: '#f8fafc' }}
+                  onKeyPress={(e) => { if (e.key === 'Enter') submitComment(); }}
+                />
+                <button onClick={submitComment} disabled={!newCommentText.trim()} style={{ background: newCommentText.trim() ? '#0ea5e9' : '#e0f2fe', color: 'white', border: 'none', borderRadius: '100px', width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: newCommentText.trim() ? 'pointer' : 'default', transition: 'all 0.2s' }}>
+                  <Send size={18} />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -706,6 +871,39 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* МОДАЛЬНОЕ ОКНО РЕДАКТИРОВАНИЯ ПРОФИЛЯ */}
+      {isEditingProfile && user && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', padding: '20px' }}>
+          <div className="animate-fade-in" style={{ background: 'white', borderRadius: '24px', width: '100%', maxWidth: '400px', padding: '30px 25px', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', textAlign: 'center' }}>
+            <h2 style={{fontSize: '20px', fontWeight: 900, color: '#111', margin: '0 0 20px 0'}}>Редактировать профиль</h2>
+            
+            <div style={{position: 'relative', width: '100px', height: '100px', margin: '0 auto 20px auto', cursor: 'pointer'}} onClick={() => document.getElementById('avatar-upload')?.click()}>
+              {editAvatarPreview ? (
+                <img src={editAvatarPreview} alt="Avatar" style={{width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', border: '3px solid #059669'}} />
+              ) : (
+                <div style={{background: '#059669', width: '100%', height: '100%', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '30px', fontWeight: 800}}>
+                  {user.email?.charAt(0).toUpperCase() || 'U'}
+                </div>
+              )}
+              <div style={{position: 'absolute', bottom: 0, right: 0, background: '#111', color: 'white', padding: '6px', borderRadius: '50%', border: '2px solid white', display: 'flex', alignItems: 'center', justifyContent: 'center'}}><Camera size={14} /></div>
+              <input id="avatar-upload" type="file" accept="image/*" style={{display: 'none'}} onChange={handleAvatarChange} />
+            </div>
+
+            <div style={{textAlign: 'left', marginBottom: '20px'}}>
+              <label style={{fontSize: '12px', fontWeight: 700, color: '#64748b', marginLeft: '5px'}}>Имя пользователя</label>
+              <input type="text" value={editProfileName} onChange={(e) => setEditProfileName(e.target.value)} style={{width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #d1d5db', fontSize: '15px', marginTop: '5px', outline: 'none'}} />
+            </div>
+
+            <div style={{display: 'flex', gap: '10px'}}>
+               <button onClick={() => {setIsEditingProfile(false); setEditAvatarFile(null);}} style={{flex: 1, padding: '12px', borderRadius: '12px', background: '#f1f5f9', border: 'none', color: '#475569', fontWeight: 700, cursor: 'pointer'}}>Отмена</button>
+               <button onClick={handleProfileSave} disabled={isSavingProfile} style={{flex: 1, padding: '12px', borderRadius: '12px', background: '#059669', border: 'none', color: 'white', fontWeight: 700, cursor: isSavingProfile ? 'default' : 'pointer'}}>
+                 {isSavingProfile ? "Сохранение..." : "Сохранить"}
+               </button>
+            </div>
+          </div>
+        </div>
+      )}
       
       <button className="menu-btn" onClick={() => setIsMenuOpen(true)} style={{ position: 'fixed', top: '10px', left: '20px', zIndex: 50, background: 'white', borderRadius: '50%', width: '44px', height: '44px', padding: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', border: 'none', cursor: 'pointer' }}>
         <Menu size={24} color="#111" />
@@ -724,9 +922,9 @@ export default function Home() {
             <div className="menu-link" onClick={() => switchView('service')}><Search size={20}/> Поиск</div>
             <div className="menu-link" onClick={() => switchView('daily')}><Flame size={20} color="#f97316"/> Рецепт дня</div>
             
-            {/* ИСПРАВЛЕНИЕ 1: Прямая ссылка на ленту фото без подразделов ИИ */}
+            {/* ИСПРАВЛЕНИЕ 1: Прямая ссылка на ленту без меню ИИ */}
             <div className="menu-link" onClick={() => switchView('feed')}>
-              <Globe size={20} color="#8b5cf6"/> Лента блюд
+              <Globe size={20} color="#8b5cf6"/> Лента
             </div>
 
             <div className="menu-link" style={{ marginTop: '10px' }} onClick={() => switchView('about')}><CheckCircle size={20} color="#3b82f6"/> О проекте</div>
@@ -834,12 +1032,11 @@ export default function Home() {
                 </button>
               )}
 
-              {/* ИСПРАВЛЕНИЕ 3: Интеллектуальная кнопка НАЗАД */}
               {(fromFeed !== false || isHistoryView) && !isSharedView && (
                 <button onClick={fromFeed ? handleBackToSource : handleBackToSearch} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'white', border: '1px solid #e5e7eb', borderRadius: '100px', padding: '8px 16px', color: '#374151', fontSize: '14px', fontWeight: 600, marginBottom: '20px', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', transition: 'all 0.2s' }}>
                   <ArrowLeft size={18} /> 
                   {fromFeed === 'photos' ? "Назад к ленте" : 
-                   fromFeed === 'profile_history' ? "Назад в историю" : 
+                   fromFeed === 'profile_history' ? "Назад к истории" : 
                    fromFeed === 'profile_favorites' ? "Назад в избранное" : 
                    "Назад к истории"}
                 </button>
@@ -922,6 +1119,7 @@ export default function Home() {
                 {answer && <div style={{marginTop: '20px', lineHeight: 1.5, background: 'white', padding: '15px', borderRadius: '16px'}}><strong>Ответ:</strong> {answer}</div>}
               </div>
 
+              {/* ИСПРАВЛЕНИЕ 2: Описание к блюду */}
               <div style={{marginTop: '30px', background: '#f8fafc', padding: '25px 20px', borderRadius: '16px', border: '1px solid #e2e8f0', textAlign: 'center'}}>
                 <h3 style={{fontSize: '18px', fontWeight: 800, marginBottom: '5px', color: '#1f2937'}}>📸 Приготовили? Покажите результат!</h3>
                 <p style={{fontSize: '13px', color: '#64748b', marginBottom: '15px', lineHeight: 1.4}}> Ваше фото появится в разделе <strong>«Лента блюд»</strong>, где его смогут оценить другие пользователи! </p>
@@ -939,8 +1137,8 @@ export default function Home() {
                         <div style={{background: 'white', padding: '15px', borderRadius: '12px', border: '1px solid #e2e8f0'}}>
                            <img src={userPhotoPreview!} alt="Preview" style={{width: '100%', height: '200px', objectFit: 'cover', borderRadius: '8px', marginBottom: '15px'}} />
                            
-                           {/* ИСПРАВЛЕНИЕ 2: Описание вместо Комментария */}
-                           <input type="text" placeholder="Описание (например: Получилось бомба!)" value={userComment} onChange={(e) => setUserComment(e.target.value)} style={{width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '14px', marginBottom: '15px', outline: 'none'}} />
+                           {/* Изменено placeholder */}
+                           <input type="text" placeholder="Описание к блюду (как получилось?)" value={userComment} onChange={(e) => setUserComment(e.target.value)} style={{width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '14px', marginBottom: '15px', outline: 'none'}} />
                            
                            <div style={{display: 'flex', gap: '10px'}}>
                              <button onClick={() => {setUserPhotoFile(null); setUserPhotoPreview(null); setUserComment("");}} style={{flex: 1, padding: '12px', borderRadius: '8px', background: '#f3f4f6', border: 'none', color: '#4b5563', fontWeight: 700, cursor: 'pointer'}}>Отмена</button>
@@ -1001,11 +1199,11 @@ export default function Home() {
         </>
       )}
 
-      {/* === ЛЕНТА ФОТО (ИСПРАВЛЕНИЕ 1: ИИ лента удалена) === */}
+      {/* === ЛЕНТА (ИСПРАВЛЕНИЕ 1: ТОЛЬКО ПОЛЬЗОВАТЕЛЬСКИЕ ФОТО) === */}
       {activeView === 'feed' && (
         <div style={{marginTop: '60px'}}>
           <div style={{textAlign: 'center', marginBottom: '25px'}}>
-            <h1 style={{fontSize: '28px', fontWeight: '900', margin: '0 0 10px 0'}}>Лента блюд 📸</h1>
+            <h1 style={{fontSize: '28px', fontWeight: '900', margin: '0 0 10px 0'}}> Лента блюд 📸 </h1>
             <p style={{color: '#6b7280', margin: 0}}>Вдохновляйтесь кулинарными шедеврами</p>
           </div>
 
@@ -1058,6 +1256,9 @@ export default function Home() {
                         <div style={{fontSize: '12px', color: '#0ea5e9', fontWeight: 700}}>По своему рецепту: {post.custom_title}</div>
                       )}
                    </div>
+                   {user && user.id === post.user_id && (
+                      <button onClick={() => handleDeletePost(post.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer' }}><Trash2 size={18} /></button>
+                   )}
                 </div>
                 
                 <img src={post.photo_url} alt="Блюдо" onClick={() => setFullScreenImage(post.photo_url)} style={{width: '100%', maxHeight: '400px', objectFit: 'cover', display: 'block', background: '#f3f4f6', cursor: 'zoom-in'}} />
@@ -1176,7 +1377,7 @@ export default function Home() {
                          ) : (
                             <div style={{background: 'white', padding: '15px', borderRadius: '12px', border: '1px solid #ffedd5'}}>
                                <img src={userPhotoPreview!} alt="Preview" style={{width: '100%', height: '200px', objectFit: 'cover', borderRadius: '8px', marginBottom: '15px'}} />
-                               <input type="text" placeholder="Описание (например: Получилось бомба!)" value={userComment} onChange={(e) => setUserComment(e.target.value)} style={{width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #fdba74', fontSize: '14px', marginBottom: '15px', outline: 'none'}} />
+                               <input type="text" placeholder="Описание к блюду (как получилось?)" value={userComment} onChange={(e) => setUserComment(e.target.value)} style={{width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #fdba74', fontSize: '14px', marginBottom: '15px', outline: 'none'}} />
                                <div style={{display: 'flex', gap: '10px'}}>
                                  <button onClick={() => {setUserPhotoFile(null); setUserPhotoPreview(null); setUserComment("");}} style={{flex: 1, padding: '12px', borderRadius: '8px', background: '#fffbeb', border: 'none', color: '#b45309', fontWeight: 700, cursor: 'pointer'}}>Отмена</button>
                                  <button onClick={() => submitFeedPost(dailyRecipe)} disabled={isUploadingPhoto} style={{flex: 2, padding: '12px', borderRadius: '8px', background: '#ea580c', border: 'none', color: 'white', fontWeight: 700, cursor: isUploadingPhoto ? 'default' : 'pointer'}}> {isUploadingPhoto ? "Отправка..." : "Отправить в ленту"} </button>
@@ -1260,7 +1461,12 @@ export default function Home() {
                     {user.user_metadata?.avatar_url ? ( <img src={user.user_metadata.avatar_url} alt="Avatar" style={{width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', border: '3px solid #059669'}} /> ) : ( <div style={{background: '#059669', width: '100%', height: '100%', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '30px', fontWeight: 800}}>{user.email?.charAt(0).toUpperCase() || 'U'}</div> )}
                     <div style={{position: 'absolute', bottom: 0, right: 0, background: '#10b981', width: '20px', height: '20px', borderRadius: '50%', border: '3px solid white'}}></div>
                   </div>
-                  <h2 style={{fontSize: '22px', fontWeight: 800, marginBottom: '5px', color: '#111'}}>{user.user_metadata?.full_name || 'Шеф-повар'}</h2>
+                  
+                  <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '5px'}}>
+                    <h2 style={{fontSize: '22px', fontWeight: 800, margin: 0, color: '#111'}}>{user.user_metadata?.full_name || 'Шеф-повар'}</h2>
+                    <button onClick={() => setIsEditingProfile(true)} style={{background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px'}}><Edit3 size={18} /></button>
+                  </div>
+                  
                   <p style={{color: '#6b7280', fontSize: '14px', marginBottom: '30px'}}>{user.email}</p>
 
                   {/* ИСПРАВЛЕНИЕ 3: Премиальный дизайн "Bento" для профиля */}
@@ -1347,6 +1553,14 @@ export default function Home() {
                       <div style={{display: 'flex', flexDirection: 'column', gap: '15px'}}>
                         {userPhotos.map((post) => (
                           <div key={post.id} style={{border: '1px solid #e2e8f0', borderRadius: '16px', overflow: 'hidden', background: 'white'}}>
+                             
+                             <div style={{padding: '10px 15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                                <div style={{fontSize: '11px', color: '#9ca3af', fontWeight: 600}}>
+                                   {new Date(post.created_at).toLocaleDateString('ru-RU')}
+                                </div>
+                                <button onClick={() => handleDeletePost(post.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer' }}><Trash2 size={16} /></button>
+                             </div>
+
                              <img src={post.photo_url} alt="Мое фото" onClick={() => setFullScreenImage(post.photo_url)} style={{width: '100%', height: '200px', objectFit: 'cover', display: 'block', cursor: 'zoom-in'}} />
                              <div style={{padding: '12px'}}>
                                {post.recipe_id ? (
@@ -1354,6 +1568,9 @@ export default function Home() {
                                ) : (
                                  <div style={{fontSize: '13px', fontWeight: 700, color: '#0ea5e9', marginBottom: '5px'}}>Свое блюдо: {post.custom_title}</div>
                                )}
+                               
+                               {post.comment && ( <p style={{margin: '0 0 10px 0', fontSize: '13px', color: '#4b5563', lineHeight: 1.4}}> <strong>Описание:</strong> {post.comment} </p> )}
+
                                <div style={{display: 'flex', gap: '15px', marginTop: '8px'}}>
                                   <div style={{fontSize: '12px', color: '#6b7280', display: 'flex', alignItems: 'center', gap: '5px'}}><Heart size={14} fill="#ef4444" color="#ef4444" /> {post.likes_count || 0} лайков</div>
                                   <div style={{fontSize: '12px', color: '#6b7280', display: 'flex', alignItems: 'center', gap: '5px'}}><MessageCircle size={14} /> {post.comments_count || 0} комментов</div>

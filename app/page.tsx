@@ -213,11 +213,12 @@ export default function Home() {
   const [profileView, setProfileView] = useState<'main' | 'favorites' | 'photos' | 'history'>('main');
   const [userPhotos, setUserPhotos] = useState<any[]>([]);
 
-  // Комментарии и Свои блюда
+  // Комментарии, Свои блюда и Скролл
   const [commentsModalPostId, setCommentsModalPostId] = useState<number | null>(null);
   const [postComments, setPostComments] = useState<DBComment[]>([]);
   const [newCommentText, setNewCommentText] = useState("");
   const [replyingTo, setReplyingTo] = useState<{id: number, name: string} | null>(null);
+  const [scrollToPostId, setScrollToPostId] = useState<number | null>(null);
   
   const [isStandaloneUploadOpen, setIsStandaloneUploadOpen] = useState(false);
   const [standaloneTitle, setStandaloneTitle] = useState("");
@@ -235,6 +236,25 @@ export default function Home() {
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+
+  // Логика умного скролла к посту из профиля
+  useEffect(() => {
+    if (activeView === 'feed' && feedTab === 'photos' && scrollToPostId && photosFeed.length > 0) {
+      const timer = setTimeout(() => {
+        const element = document.getElementById(`feed-post-${scrollToPostId}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          element.style.transition = 'box-shadow 0.5s';
+          element.style.boxShadow = '0 0 0 4px #0ea5e9';
+          setTimeout(() => {
+            element.style.boxShadow = '';
+            setScrollToPostId(null);
+          }, 2000);
+        }
+      }, 300); 
+      return () => clearTimeout(timer);
+    }
+  }, [activeView, feedTab, photosFeed, scrollToPostId]);
 
   useEffect(() => {
     if (dailyRecipe && feed.length > 0) {
@@ -911,7 +931,6 @@ export default function Home() {
           </div> 
           <div style={{ fontSize: '14px', color: '#374151', lineHeight: 1.4, marginBottom: '8px', wordBreak: 'break-word' }}>{c.text}</div> 
           
-          {/* ИСПРАВЛЕНИЕ 5: Лайк правее кнопки Ответить */}
           <div style={{ display: 'flex', gap: '15px', alignItems: 'center', justifyContent: 'flex-end', marginTop: '5px' }}> 
             {!isReply && ( 
               <div onClick={() => setReplyingTo({id: c.id, name: c.user_name})} style={{ fontSize: '12px', color: '#0ea5e9', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontWeight: 600 }}> 
@@ -1119,7 +1138,7 @@ export default function Home() {
           </div> 
         </div> 
       )} 
-       
+
       {/* БЫСТРЫЕ НАСТРОЙКИ (Шестеренка перед поиском) */}
       {isPreferencesModalOpen && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
@@ -1167,12 +1186,11 @@ export default function Home() {
           </div>
         </div>
       )}
-
+       
       <button className="menu-btn" onClick={() => setIsMenuOpen(true)} style={{ position: 'fixed', top: '10px', left: '20px', zIndex: 50, background: 'white', borderRadius: '50%', width: '44px', height: '44px', padding: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', border: 'none', cursor: 'pointer' }}> 
         <Menu size={24} color="#111" /> 
       </button> 
 
-      {/* ИСПРАВЛЕНИЕ: МЕНЮ С СЕРОЙ ПОДСВЕТКОЙ АКТИВНОГО ПУНКТА И ЦВЕТНЫМИ ИКОНКАМИ */}
       {isMenuOpen && ( 
         <> 
           <div className="menu-overlay" onClick={() => setIsMenuOpen(false)} style={{zIndex: 99}} /> 
@@ -1229,7 +1247,6 @@ export default function Home() {
               </div> 
 
               <div style={{display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px'}}>
-                {/* ИСПРАВЛЕНИЕ: Красивый переключатель "По фото / По названию" */}
                 <div style={{flex: 1, display: 'flex', background: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)', padding: '6px', borderRadius: '20px', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)'}}> 
                   <button onClick={() => setSearchMode('photo')} style={{ flex: 1, padding: '8px 5px', borderRadius: '16px', border: 'none', background: searchMode === 'photo' ? 'white' : 'transparent', fontWeight: 800, fontSize: '15px', boxShadow: searchMode === 'photo' ? '0 4px 15px rgba(0,0,0,0.05)' : 'none', color: searchMode === 'photo' ? '#111' : '#64748b', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' }}>
                     <div style={{background: searchMode === 'photo' ? '#dcfce7' : '#f1f5f9', color: searchMode === 'photo' ? '#10b981' : '#94a3b8', width: '32px', height: '32px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.3s', flexShrink: 0}}>
@@ -1512,6 +1529,7 @@ export default function Home() {
             <p style={{color: '#6b7280', margin: 0}}>Вдохновляйтесь кулинарными шедеврами</p> 
           </div> 
 
+          {/* ИСПРАВЛЕНИЕ 3: Выложить блюдо теперь выше сортировки */}
           <div style={{background: 'linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%)', borderRadius: '20px', padding: '20px', marginBottom: '25px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', boxShadow: '0 4px 15px rgba(14, 165, 233, 0.2)'}}> 
             <div style={{background: 'white', width: '56px', height: '56px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, borderRadius: '50%', marginBottom: '10px', color: '#0ea5e9'}}><PlusCircle size={28} /></div> 
             <h3 style={{margin: '0 0 5px 0', fontSize: '18px', fontWeight: 800, color: '#0369a1'}}>Приготовили по своему рецепту?</h3> 
@@ -1566,7 +1584,7 @@ export default function Home() {
 
           <div style={{display: 'flex', flexDirection: 'column', gap: '20px'}}> 
             {photosFeed.map((post) => ( 
-              <div key={post.id} className="card" style={{padding: '0', overflow: 'hidden', border: '1px solid #e5e7eb'}}> 
+              <div key={post.id} id={`feed-post-${post.id}`} className="card" style={{padding: '0', overflow: 'hidden', border: '1px solid #e5e7eb'}}> 
                 <div style={{padding: '15px', display: 'flex', alignItems: 'center', gap: '10px', background: 'white'}}> 
                    {post.user_avatar ? ( 
                       <img src={post.user_avatar} alt="Avatar" style={{width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover'}} /> 
@@ -1746,7 +1764,7 @@ export default function Home() {
                        <div style={{background: 'white', width: '48px', height: '48px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0ea5e9', boxShadow: '0 4px 10px rgba(14, 165, 233, 0.15)'}}><Camera size={24} /></div> 
                        <div style={{flex: 1, zIndex: 1}}> 
                          <div style={{fontSize: '28px', fontWeight: 900, color: '#0369a1', lineHeight: 1}}>{userPhotos.length}</div> 
-                         <div style={{fontSize: '14px', color: '#0284c7', fontWeight: 700, marginTop: '4px'}}>Фото моих блюд</div> 
+                         <div style={{fontSize: '14px', color: '#0284c7', fontWeight: 700, marginTop: '4px'}}>Мои фото</div> 
                        </div> 
                        <ChevronRight size={20} color="#38bdf8" style={{zIndex: 1}} /> 
                      </div> 
@@ -1817,7 +1835,10 @@ export default function Home() {
                                 <div style={{fontSize: '11px', color: '#9ca3af', fontWeight: 600}}> 
                                    {new Date(post.created_at).toLocaleDateString('ru-RU')} 
                                 </div> 
-                                <button onClick={() => handleDeletePost(post.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer' }}><Trash2 size={16} /></button> 
+                                <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
+                                  <button onClick={() => { setScrollToPostId(post.id); setPhotosSort('new'); setFeedTab('photos'); switchView('feed'); }} style={{ background: '#f1f5f9', border: 'none', color: '#0ea5e9', padding: '4px 10px', borderRadius: '100px', fontSize: '11px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}><Globe size={12}/> В ленту</button>
+                                  <button onClick={() => handleDeletePost(post.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 0 }}><Trash2 size={16} /></button> 
+                                </div>
                              </div> 
 
                              <img src={post.photo_url} alt="Мое фото" onClick={() => setFullScreenImage(post.photo_url)} style={{width: '100%', height: '200px', objectFit: 'cover', display: 'block', cursor: 'zoom-in'}} /> 

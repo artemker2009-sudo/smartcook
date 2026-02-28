@@ -911,6 +911,7 @@ export default function Home() {
           </div> 
           <div style={{ fontSize: '14px', color: '#374151', lineHeight: 1.4, marginBottom: '8px', wordBreak: 'break-word' }}>{c.text}</div> 
           
+          {/* ИСПРАВЛЕНИЕ 5: Лайк правее кнопки Ответить */}
           <div style={{ display: 'flex', gap: '15px', alignItems: 'center', justifyContent: 'flex-end', marginTop: '5px' }}> 
             {!isReply && ( 
               <div onClick={() => setReplyingTo({id: c.id, name: c.user_name})} style={{ fontSize: '12px', color: '#0ea5e9', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontWeight: 600 }}> 
@@ -1118,7 +1119,7 @@ export default function Home() {
           </div> 
         </div> 
       )} 
-
+       
       {/* БЫСТРЫЕ НАСТРОЙКИ (Шестеренка перед поиском) */}
       {isPreferencesModalOpen && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
@@ -1166,11 +1167,12 @@ export default function Home() {
           </div>
         </div>
       )}
-       
+
       <button className="menu-btn" onClick={() => setIsMenuOpen(true)} style={{ position: 'fixed', top: '10px', left: '20px', zIndex: 50, background: 'white', borderRadius: '50%', width: '44px', height: '44px', padding: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', border: 'none', cursor: 'pointer' }}> 
         <Menu size={24} color="#111" /> 
       </button> 
 
+      {/* ИСПРАВЛЕНИЕ: МЕНЮ С СЕРОЙ ПОДСВЕТКОЙ АКТИВНОГО ПУНКТА И ЦВЕТНЫМИ ИКОНКАМИ */}
       {isMenuOpen && ( 
         <> 
           <div className="menu-overlay" onClick={() => setIsMenuOpen(false)} style={{zIndex: 99}} /> 
@@ -1227,6 +1229,7 @@ export default function Home() {
               </div> 
 
               <div style={{display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px'}}>
+                {/* ИСПРАВЛЕНИЕ: Красивый переключатель "По фото / По названию" */}
                 <div style={{flex: 1, display: 'flex', background: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)', padding: '6px', borderRadius: '20px', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)'}}> 
                   <button onClick={() => setSearchMode('photo')} style={{ flex: 1, padding: '8px 5px', borderRadius: '16px', border: 'none', background: searchMode === 'photo' ? 'white' : 'transparent', fontWeight: 800, fontSize: '15px', boxShadow: searchMode === 'photo' ? '0 4px 15px rgba(0,0,0,0.05)' : 'none', color: searchMode === 'photo' ? '#111' : '#64748b', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' }}>
                     <div style={{background: searchMode === 'photo' ? '#dcfce7' : '#f1f5f9', color: searchMode === 'photo' ? '#10b981' : '#94a3b8', width: '32px', height: '32px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.3s', flexShrink: 0}}>
@@ -1614,132 +1617,6 @@ export default function Home() {
         </div> 
       )} 
 
-      {/* === РЕЦЕПТ ДНЯ === */} 
-      {activeView === 'daily' && ( 
-        <div style={{marginTop: '60px'}}> 
-          {dailyRecipe ? ( 
-            <div className="card" style={{padding: 0, overflow: 'hidden', border: 'none'}}> 
-              <div style={{ background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', padding: '30px 20px', color: 'white', textAlign: 'center', position: 'relative', borderRadius: '24px', margin: '10px', boxShadow: '0 10px 25px -5px rgba(234, 88, 12, 0.5)' }}> 
-                 <div style={{fontSize: '50px', marginBottom: '15px', textShadow: '0 10px 20px rgba(0,0,0,0.2)'}}>🔥</div> 
-                 <div style={{textTransform: 'uppercase', fontSize: '12px', fontWeight: 800, letterSpacing: '2px', opacity: 0.8, marginBottom: '10px'}}>Рецепт дня</div> 
-                 <h1 style={{fontSize: '26px', fontWeight: 900, margin: '0 0 15px 0', lineHeight: 1.2, textShadow: '0 2px 10px rgba(0,0,0,0.1)'}}>{dailyRecipe.title}</h1> 
-                 {dailyRecipe.description && <p style={{opacity: 0.95, fontSize: '15px', margin: 0, fontWeight: 500}}>{dailyRecipe.description}</p>} 
-                 <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginTop: '25px' }}> 
-                   <button onClick={handleShareDaily} style={{ background: 'white', color: '#ea580c', border: 'none', padding: '10px 20px', borderRadius: '100px', fontWeight: 800, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', transition: 'transform 0.2s' }}> <Share2 size={20} color="currentColor" /> Поделиться </button> 
-                   <button onClick={toggleDailyFavorite} style={{ background: 'white', color: dailyFavoriteId ? '#ef4444' : '#ea580c', border: 'none', padding: '10px 20px', borderRadius: '100px', fontWeight: 800, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', transition: 'transform 0.2s' }}> <Heart size={20} fill={dailyFavoriteId ? "#ef4444" : "none"} color={dailyFavoriteId ? "#ef4444" : "currentColor"} /> {dailyFavoriteId ? "В избранном" : "В избранное"} </button> 
-                 </div> 
-              </div> 
-               
-              <div style={{padding: '25px'}}> 
-                  <div className="recipe-tags" style={{justifyContent: 'center', marginBottom: '20px'}}> 
-                    <div className="tag-badge" style={{fontSize: '15px', padding: '8px 16px'}}><Clock size={18}/> {formatTime(String(dailyRecipe.time))}</div> 
-                    {dailyRecipe.calories && <div className="tag-badge orange" style={{fontSize: '15px', padding: '8px 16px'}}><Flame size={18}/> {formatCalories(String(dailyRecipe.calories))}</div>} 
-                  </div> 
-
-                  {dailyRecipe.detailed_ingredients && dailyRecipe.detailed_ingredients.length > 0 && ( 
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginBottom: '30px', background: '#fff7ed', padding: '10px 15px', borderRadius: '12px', width: 'fit-content', margin: '0 auto 30px auto' }}> 
-                      <span style={{fontWeight: 700, color: '#9a3412', fontSize: '15px'}}>🍽 Порции:</span> 
-                      <div style={{display: 'flex', alignItems: 'center', background: 'white', border: '1px solid #ffedd5', borderRadius: '8px', overflow: 'hidden'}}> 
-                        <button onClick={() => setServings(prev => typeof prev === 'number' && prev > 1 ? prev - 1 : 1)} disabled={servings === 1 || servings === ""} style={{padding: '6px 12px', background: 'transparent', border: 'none', fontSize: '18px', color: (servings === 1 || servings === "") ? '#d1d5db' : '#ea580c', cursor: (servings === 1 || servings === "") ? 'default' : 'pointer', fontWeight: 600}}> - </button> 
-                        <input type="number" value={servings} onChange={(e) => { const val = e.target.value; if (val === '') setServings(''); else { const num = parseInt(val); if (!isNaN(num) && num > 0 && num <= 100) setServings(num); } }} onBlur={() => { if (servings === "") setServings(1); }} style={{width: '40px', textAlign: 'center', border: 'none', borderLeft: '1px solid #ffedd5', borderRight: '1px solid #ffedd5', padding: '6px 0', fontSize: '16px', fontWeight: 700, color: '#9a3412', outline: 'none'}} /> 
-                        <button onClick={() => setServings(prev => typeof prev === 'number' ? prev + 1 : 2)} style={{padding: '6px 12px', background: 'transparent', border: 'none', fontSize: '18px', color: '#ea580c', cursor: 'pointer', fontWeight: 600}}> + </button> 
-                      </div> 
-                    </div> 
-                  )} 
-
-                  {(() => { 
-                    const itemsToBuy = dailyRecipe.detailed_ingredients ? dailyRecipe.detailed_ingredients.map(ing => ing.name) : (dailyRecipe.ingredients || []); 
-                    if (itemsToBuy.length === 0) return null; 
-                    return ( 
-                      <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '12px', padding: '15px', margin: '20px 0', color: '#92400e' }}> 
-                        <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontWeight: 800}}> <ShoppingCart size={20} /> Нужно купить: </div> 
-                        <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px'}}> 
-                          {itemsToBuy.map((item, idx) => ( <a key={idx} href={`https://www.ozon.ru/search/?text=${encodeURIComponent(item)}&from_global=true`} target="_blank" rel="noopener noreferrer" style={{ background: '#fef3c7', padding: '6px 12px', borderRadius: '8px', fontSize: '14px', fontWeight: 600, textDecoration: 'none', color: '#92400e', display: 'flex', alignItems: 'center', gap: '6px', border: '1px solid #fcd34d', cursor: 'pointer', transition: 'all 0.2s' }}> {item} <ExternalLink size={12} style={{opacity: 0.6}} /> </a> ))} 
-                        </div> 
-                        <div style={{fontSize: '12px', color: '#b45309', display: 'flex', alignItems: 'center', gap: '5px'}}> <Info size={14} /> Нажмите на ингредиент, чтобы заказать быструю доставку Ozon Fresh до двери </div> 
-                      </div> 
-                    ); 
-                  })()} 
-
-                  {dailyRecipe.detailed_ingredients && ( 
-                    <div className="ing-box" style={{background: '#fff7ed', border: '1px solid #ffedd5'}}> 
-                      <h3 style={{marginTop: 0, marginBottom: '15px', color: '#9a3412'}}>Ингредиенты</h3> 
-                      {dailyRecipe.detailed_ingredients.map((ing, i) => ( 
-                        <div key={i} className="ing-row"> <span style={{fontWeight: 600}}>{ing.name}</span> <span className="ing-val" style={{color: '#ea580c'}}>{scaleAmount(ing.amount, actualServings)}</span> </div> 
-                      ))} 
-                    </div> 
-                  )} 
-
-                  <h3 style={{fontSize: '24px', fontWeight: 900, marginBottom: '20px', marginTop: '30px'}}>👨‍🍳 Как приготовить</h3> 
-                  <div> 
-                    {dailyRecipe.steps.map((step, i) => ( 
-                      <div key={i} className="step-row"> <div className="step-num">{i + 1}</div> <div className="step-text">{cleanText(step)}</div> </div> 
-                    ))} 
-                  </div> 
-
-                  <div className="chat-box" style={{marginTop: '30px'}}> 
-                    <div style={{fontWeight: 800, marginBottom: '20px', color: '#1e40af', fontSize: '18px', textAlign: 'center'}}> Задайте вопрос AI шеф-повару! </div> 
-                    <div style={{display: 'flex', gap: '10px', alignItems: 'flex-end'}}> 
-                      <textarea 
-                        placeholder="Например: чем заменить сливки?" 
-                        value={question} 
-                        onChange={(e) => {
-                          setQuestion(e.target.value);
-                          e.target.style.height = 'auto';
-                          e.target.style.height = (e.target.scrollHeight < 120 ? e.target.scrollHeight : 120) + 'px';
-                        }} 
-                        rows={1}
-                        style={{ flex: 1, padding: '12px 15px', borderRadius: '24px', border: '1px solid #93c5fd', fontSize: '14px', outline: 'none', background: 'white', resize: 'none', overflowY: 'auto', minHeight: '44px', maxHeight: '120px' }}
-                      /> 
-                      <button className="chat-btn-center" onClick={handleAskChef} style={{flexShrink: 0, padding: 0, width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%'}}> <Send size={18} style={{marginLeft: '-2px'}}/> </button> 
-                    </div> 
-                    {answer && <div style={{marginTop: '20px', lineHeight: 1.5, background: 'white', padding: '15px', borderRadius: '16px'}}><strong>Ответ:</strong> {answer}</div>} 
-                  </div> 
-
-                  <div style={{marginTop: '30px', background: '#fff7ed', padding: '25px 20px', borderRadius: '16px', border: '1px solid #ffedd5', textAlign: 'center'}}> 
-                    <h3 style={{fontSize: '18px', fontWeight: 800, marginBottom: '5px', color: '#9a3412'}}>📸 Приготовили? Покажите результат!</h3> 
-                    <p style={{fontSize: '13px', color: '#64748b', marginBottom: '15px', lineHeight: 1.4}}> Ваше фото появится в разделе <strong>«Лента»</strong>, где его смогут оценить другие пользователи! </p> 
-                    {!user ? ( 
-                       <button className="btn-primary" onClick={() => setIsAuthModalOpen(true)}>Войти, чтобы опубликовать фото</button> 
-                    ) : ( 
-                       <div style={{display: 'flex', flexDirection: 'column', gap: '15px'}}> 
-                         {!userPhotoFile ? ( 
-                            <div style={{border: '2px dashed #fdba74', borderRadius: '12px', padding: '20px', cursor: 'pointer', background: 'white'}} onClick={() => {setIsStandaloneUploadOpen(false); document.getElementById('daily-photo-upload')?.click();}}> 
-                               <Camera size={32} color="#f97316" style={{margin: '0 auto 10px auto'}} /> 
-                               <div style={{fontSize: '14px', fontWeight: 600, color: '#9a3412'}}>Нажмите, чтобы загрузить фото блюда</div> 
-                               <input id="daily-photo-upload" type="file" accept="image/*" style={{display: 'none'}} onChange={handleUserPhotoChange} /> 
-                            </div> 
-                         ) : ( 
-                            <div style={{background: 'white', padding: '15px', borderRadius: '12px', border: '1px solid #ffedd5'}}> 
-                               <img src={userPhotoPreview!} alt="Preview" style={{width: '100%', height: '200px', objectFit: 'cover', borderRadius: '8px', marginBottom: '15px'}} /> 
-                               <textarea 
-                                 placeholder="Описание к блюду (как получилось?)" 
-                                 value={userComment} 
-                                 onChange={(e) => {
-                                   setUserComment(e.target.value);
-                                   e.target.style.height = 'auto';
-                                   e.target.style.height = (e.target.scrollHeight) + 'px';
-                                 }} 
-                                 rows={2}
-                                 style={{width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #fdba74', fontSize: '14px', marginBottom: '15px', outline: 'none', resize: 'none', overflow: 'hidden'}} 
-                               /> 
-                               <div style={{display: 'flex', gap: '10px'}}> 
-                                 <button onClick={() => {setUserPhotoFile(null); setUserPhotoPreview(null); setUserComment("");}} style={{flex: 1, padding: '12px', borderRadius: '8px', background: '#fffbeb', border: 'none', color: '#b45309', fontWeight: 700, cursor: 'pointer'}}>Отмена</button> 
-                                 <button onClick={() => submitFeedPost(dailyRecipe)} disabled={isUploadingPhoto} style={{flex: 2, padding: '12px', borderRadius: '8px', background: '#ea580c', border: 'none', color: 'white', fontWeight: 700, cursor: isUploadingPhoto ? 'default' : 'pointer'}}> {isUploadingPhoto ? "Отправка..." : "Отправить в ленту"} </button> 
-                               </div> 
-                            </div> 
-                         )} 
-                       </div> 
-                    )} 
-                  </div> 
-              </div> 
-            </div> 
-          ) : ( 
-            <div style={{textAlign: 'center', padding: '50px', color: '#6b7280'}}> Загружаем рецепт дня... <Sparkles className="animate-spin" style={{display: 'inline', marginLeft: '10px'}} /> </div> 
-          )} 
-        </div> 
-      )} 
-       
       {/* === О ПРОЕКТЕ === */} 
       {activeView === 'about' && ( 
         <div className="card" style={{marginTop: '60px', padding: '0', overflow: 'hidden', border: 'none', boxShadow: '0 20px 60px -10px rgba(0,0,0,0.15)'}}> 
@@ -1869,7 +1746,7 @@ export default function Home() {
                        <div style={{background: 'white', width: '48px', height: '48px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0ea5e9', boxShadow: '0 4px 10px rgba(14, 165, 233, 0.15)'}}><Camera size={24} /></div> 
                        <div style={{flex: 1, zIndex: 1}}> 
                          <div style={{fontSize: '28px', fontWeight: 900, color: '#0369a1', lineHeight: 1}}>{userPhotos.length}</div> 
-                         <div style={{fontSize: '14px', color: '#0284c7', fontWeight: 700, marginTop: '4px'}}>Мои фото блюд</div> 
+                         <div style={{fontSize: '14px', color: '#0284c7', fontWeight: 700, marginTop: '4px'}}>Фото моих блюд</div> 
                        </div> 
                        <ChevronRight size={20} color="#38bdf8" style={{zIndex: 1}} /> 
                      </div> 
@@ -1946,7 +1823,7 @@ export default function Home() {
                              <img src={post.photo_url} alt="Мое фото" onClick={() => setFullScreenImage(post.photo_url)} style={{width: '100%', height: '200px', objectFit: 'cover', display: 'block', cursor: 'zoom-in'}} /> 
                              <div style={{padding: '12px'}}> 
                                {post.recipe_id ? ( 
-                                 <div style={{fontSize: '13px', fontWeight: 700, color: '#374151', marginBottom: '5px'}}>Рецепт: <span style={{color: '#059669', cursor: 'pointer'}} onClick={() => loadSharedRecipe(post.recipe_id, false)}>{post.recipes?.title}</span></div> 
+                                 <div style={{fontSize: '13px', fontWeight: 700, color: '#374151', marginBottom: '5px'}}>Блюдо: <span style={{color: '#059669', cursor: 'pointer'}} onClick={() => loadSharedRecipe(post.recipe_id, false)}>{post.recipes?.title}</span></div> 
                                ) : ( 
                                  <div style={{fontSize: '13px', fontWeight: 700, color: '#0ea5e9', marginBottom: '5px'}}>Свое блюдо: {post.custom_title}</div> 
                                )} 

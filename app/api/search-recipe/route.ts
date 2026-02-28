@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
 
-// ИСПРАВЛЕНИЕ: Добавлен .trim() для защиты от невидимых пробелов и переносов строк в ключах
 const openai = new OpenAI({ 
   apiKey: (process.env.OPENAI_API_KEY || "").trim() 
 });
@@ -14,14 +13,21 @@ const supabase = createClient(
 
 export async function POST(req: Request) {
   try {
-    const { query, sessionId } = await req.json();
+    const { query, sessionId, allergies, dislikes } = await req.json();
 
-    // Базовая проверка на пустоту
     if (!query || query.trim().length < 2) {
        return NextResponse.json({ error: "Введите название блюда" }, { status: 400 });
     }
 
-    // 2. Промпт с "Фейс-контролем" и правилом на 1 персону
+    let dietaryInstructions = "";
+    if ((allergies && allergies.length > 0) || (dislikes && dislikes.length > 0)) {
+      dietaryInstructions = `
+      === ОГРАНИЧЕНИЯ И ПРЕДПОЧТЕНИЯ (КРИТИЧЕСКИ ВАЖНО) ===
+      ${allergies && allergies.length > 0 ? `- АЛЛЕРГИЯ НА: ${allergies.join(", ")}. СТРОГО ИСКЛЮЧИТЬ ИЗ РЕЦЕПТА И ЗАМЕНИТЬ.` : ""}
+      ${dislikes && dislikes.length > 0 ? `- НЕ ЛЮБИТ: ${dislikes.join(", ")}. НЕ ИСПОЛЬЗУЙ ИХ, найди альтернативу.` : ""}
+      `;
+    }
+
     const systemPrompt = `
       Ты — строгий профессиональный шеф-повар и технолог.
       Пользователь просит рецепт: "${query}".
@@ -42,6 +48,8 @@ export async function POST(req: Request) {
       === ЭТАП 2: ЕСЛИ ЭТО РЕАЛЬНАЯ ЕДА — ПИШИ ТЕХКАРТУ ===
       Составь идеальный рецепт, соблюдая правила:
       
+      ${dietaryInstructions}
+
       1. ПОРЦИЯ:
          - Расчет СТРОГО НА 1 (одну) ПЕРСОНУ. Пользователь сам умножит граммовки на сайте.
       
@@ -56,10 +64,10 @@ export async function POST(req: Request) {
       
       4. ОФОРМЛЕНИЕ ШАГОВ (ЧИСТОТА И ПОДРОБНОСТЬ): 
          - НЕ пиши "Шаг 1", "1.". Пиши только чистый текст действия.
-         - Пиши шаги приготовления максимально подробно и сочно. Объясняй, до какого цвета жарить, как правильно нарезать, добавляй секреты от шефа, чтобы даже новичок приготовил ресторанное блюдо.
+         - Пиши шаги приготовления максимально подробно и сочно.
       
       5. ОПЦИИ: 
-         - Ингредиенты для подачи (сметана, хлеб, зелень) помечай: "(по желанию)" или "(для подачи)".
+         - Ингредиенты для подачи (сметана, хлеб, зелень) помечай: "(по желанию)".
 
       Верни JSON (если блюдо реальное):
       {
@@ -79,7 +87,7 @@ export async function POST(req: Request) {
       model: "gpt-4o",
       messages: [{ role: "system", content: systemPrompt }],
       response_format: { type: "json_object" },
-      temperature: 0.3, // Низкая температура, чтобы он не выдумывал несуществующие блюда
+      temperature: 0.3,
     });
 
     const content = completion.choices[0].message.content;
@@ -87,14 +95,12 @@ export async function POST(req: Request) {
 
     const result = JSON.parse(content);
 
-    // 3. Если ИИ сказал, что это бред — возвращаем ошибку клиенту
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: 400 });
     }
 
     const recipe = result;
 
-    // 4. Сохраняем в историю (только если рецепт настоящий)
     if (sessionId) {
       const { error } = await supabase.from('recipes').insert({
         session_id: sessionId,
@@ -108,10 +114,7 @@ export async function POST(req: Request) {
         steps: recipe.steps,
         is_favorite: false
       });
-      
-      if (error) {
-        console.error("History save error:", error);
-      }
+      if (error) console.error("History save error:", error);
     }
 
     return NextResponse.json({ recipe });

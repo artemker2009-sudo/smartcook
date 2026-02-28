@@ -9,8 +9,9 @@ export async function POST(req: Request) {
   try {
     const formData = await req.formData();
     const file = formData.get("image") as File;
-    // Получаем режим готовки от клиента (по умолчанию 'strict')
     const mode = formData.get("mode") as string || 'strict';
+    const allergies = formData.get("allergies") as string || '';
+    const dislikes = formData.get("dislikes") as string || '';
 
     if (!file) {
       return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
@@ -21,11 +22,9 @@ export async function POST(req: Request) {
     const base64Image = buffer.toString("base64");
     const dataUrl = `data:${file.type};base64,${base64Image}`;
 
-    // ДВА РАЗНЫХ ПРОМПТА В ЗАВИСИМОСТИ ОТ РЕЖИМА
     let instructions = "";
 
     if (mode === 'strict') {
-      // СТРОГИЙ РЕЖИМ
       instructions = `
         РЕЖИМ: "ЭКОНОМИЯ / ЧИСТКА ХОЛОДИЛЬНИКА".
         1. Исходи из того, что у пользователя дома есть ТОЛЬКО: Вода, Соль, Перец, Сахар, Растительное масло.
@@ -34,12 +33,20 @@ export async function POST(req: Request) {
         4. Если на фото только макароны -> Предлагай "Жареная вермишель", "Макароны с маслом".
       `;
     } else {
-      // РЕЖИМ "МОГУ ДОКУПИТЬ"
       instructions = `
         РЕЖИМ: "ВКУСНО / ГОТОВ СХОДИТЬ В МАГАЗИН".
         1. Ты можешь предложить блюда, для которых нужно ДОКУПИТЬ 1-2 ингредиента, чтобы было вкуснее.
         2. Например: если видишь макароны, предложи "Паста Карбонара" (надо докупить бекон/сливки) или "Макароны по-флотски" (докупить фарш).
         3. Но основа блюда (80%) всё равно должна быть из того, что на фото.
+      `;
+    }
+
+    let dietaryInstructions = "";
+    if (allergies || dislikes) {
+      dietaryInstructions = `
+      === ОГРАНИЧЕНИЯ И ПРЕДПОЧТЕНИЯ (КРИТИЧЕСКИ ВАЖНО) ===
+      ${allergies ? `- У пользователя АЛЛЕРГИЯ НА: ${allergies}. СТРОГО ИСКЛЮЧИТЬ ЛЮБЫЕ БЛЮДА С ЭТИМИ ИНГРЕДИЕНТАМИ.` : ""}
+      ${dislikes ? `- Пользователь НЕ ЛЮБИТ: ${dislikes}. Постарайся предложить блюда без них.` : ""}
       `;
     }
 
@@ -50,6 +57,7 @@ export async function POST(req: Request) {
       2. Предложить 3-4 названия блюд.
       
       ${instructions}
+      ${dietaryInstructions}
       
       Верни ответ ТОЛЬКО в формате JSON:
       {

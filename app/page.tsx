@@ -6,79 +6,22 @@ import Cropper from 'react-easy-crop';
 import { 
   Menu, X, Flame, Send, Camera, Search, Clock, Heart, 
   ArrowRight, ArrowLeft, RotateCcw, CheckCircle, Sparkles, Image as ImageIcon, 
-  Wallet, Zap, Leaf, Globe, ChevronRight, ChevronDown, ChevronUp, Shuffle, ShoppingCart, Lock, ShoppingBag, ExternalLink, Info, ThumbsUp, Share2, User, LogOut, Mail, MessageCircle, PlusCircle, Trash2, Edit3, CornerDownRight, Settings, Store
+  Wallet, Zap, Leaf, Globe, ChevronRight, ChevronDown, ChevronUp, Shuffle, ShoppingCart, Lock, ShoppingBag, ExternalLink, Info, ThumbsUp, Share2, User, LogOut, Mail, MessageCircle, PlusCircle, Trash2, Edit3, CornerDownRight, Settings, Store, Trophy
 } from "lucide-react";
 
 /* --- ТИПЫ ДАННЫХ --- */
 interface AnalysisData { ingredients: string[]; dishes: string[]; }
 interface DetailedIngredient { name: string; amount: string; }
+interface RecipeData { id?: number; is_favorite?: boolean; title: string; description?: string; time: string; calories?: string; steps: string[]; missing_ingredients?: string[]; ingredients?: string[]; detailed_ingredients?: DetailedIngredient[]; }
+interface DBRecipe { id: number; title: string; time: string; calories?: string; is_favorite: boolean; created_at: string; steps: string[]; ingredients: string[]; detailed_ingredients?: DetailedIngredient[]; missing_ingredients?: string[]; description?: string; session_id: string; likes_count?: number; comments_count?: number; is_liked?: boolean; custom_title?: string; user_id?: string; user_avatar?: string; user_name?: string; }
+interface DailyRecipeType { title: string; description?: string; time: string | number; calories: string | number; ingredients?: string[]; detailed_ingredients?: DetailedIngredient[]; missing_ingredients?: string[]; steps: string[]; date?: string; error?: string; }
+interface HolidayType { title: string; text: string; gradient: string; icon: string; }
+interface DBComment { id: number; post_id: number; user_id: string; user_name: string; user_avatar?: string; text: string; created_at: string; parent_id?: number | null; likes_count?: number; is_liked?: boolean; }
 
-interface RecipeData { 
-  id?: number; 
-  is_favorite?: boolean; 
-  title: string; 
-  description?: string; 
-  time: string; 
-  calories?: string; 
-  steps: string[]; 
-  missing_ingredients?: string[]; 
-  ingredients?: string[]; 
-  detailed_ingredients?: DetailedIngredient[]; 
-}
-
-interface DBRecipe { 
-  id: number; 
-  title: string; 
-  time: string; 
-  calories?: string; 
-  is_favorite: boolean; 
-  created_at: string; 
-  steps: string[]; 
-  ingredients: string[]; 
-  detailed_ingredients?: DetailedIngredient[]; 
-  missing_ingredients?: string[]; 
-  description?: string; 
-  session_id: string; 
-  likes_count?: number;
-  comments_count?: number;
-  is_liked?: boolean; 
-  custom_title?: string;
-  user_id?: string;
-  user_avatar?: string;
-}
-
-interface DailyRecipeType { 
-  title: string; 
-  description?: string; 
-  time: string | number; 
-  calories: string | number; 
-  ingredients?: string[]; 
-  detailed_ingredients?: DetailedIngredient[];
-  missing_ingredients?: string[];
-  steps: string[]; 
-  date?: string; 
-  error?: string; 
-}
-
-interface HolidayType {
-  title: string;
-  text: string;
-  gradient: string;
-  icon: string;
-}
-
-interface DBComment {
-  id: number;
-  post_id: number;
-  user_id: string;
-  user_name: string;
-  user_avatar?: string;
-  text: string;
-  created_at: string;
-  parent_id?: number | null;
-  likes_count?: number;
-  is_liked?: boolean;
-}
+// =========================================================================
+// ВАЖНО: ВСТАВЬ СВОЙ UID ИЗ SUPABASE СЮДА ДЛЯ ПЛАШКИ "РАЗРАБОТЧИК"
+const DEVELOPER_ID = "ТВОЙ_UID_ИЗ_SUPABASE"; 
+// =========================================================================
 
 /* --- ГЛОБАЛЬНЫЕ ФУНКЦИИ --- */
 const scaleAmount = (amount: string, multiplier: number) => {
@@ -87,11 +30,8 @@ const scaleAmount = (amount: string, multiplier: number) => {
   return amount.replace(/(\d+\/\d+|\d+([\.,]\d+)?)/g, (match) => {
     let num = 0;
     if (match.includes('/')) {
-      const parts = match.split('/');
-      num = parseInt(parts[0]) / parseInt(parts[1]);
-    } else {
-      num = parseFloat(match.replace(',', '.'));
-    }
+      const parts = match.split('/'); num = parseInt(parts[0]) / parseInt(parts[1]);
+    } else { num = parseFloat(match.replace(',', '.')); }
     if (isNaN(num)) return match;
     const scaled = num * multiplier;
     return Number.isInteger(scaled) ? String(scaled) : scaled.toFixed(1).replace('.', ',');
@@ -99,8 +39,7 @@ const scaleAmount = (amount: string, multiplier: number) => {
 };
 
 const formatCooks = (num: number) => {
-  const last = num % 10;
-  const last100 = num % 100;
+  const last = num % 10; const last100 = num % 100;
   if (last100 >= 11 && last100 <= 14) return `${num} куков`;
   if (last === 1) return `${num} кук`;
   if (last >= 2 && last <= 4) return `${num} кука`;
@@ -114,54 +53,25 @@ const cleanText = (text: any) => {
 
 const formatTime = (t: string) => {
   if (!t) return "";
-  const digits = t.replace(/\D/g, '');  
-  if (!digits) return t;  
-  return `${digits} мин.`;
+  const digits = t.replace(/\D/g, ''); return digits ? `${digits} мин.` : t;
 };
 
-const formatCalories = (c: string) => {
+const formatCalories = (c?: string) => {
   if (!c) return "";
-  const match = c.match(/\d+/);
-  if (match) {
-    return `${match[0]} ккал`;
-  }
-  return "";  
+  const match = c.match(/\d+/); return match ? `${match[0]} ккал` : "";  
 };
 
 const createImage = (url: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
-    const image = new Image();
-    image.addEventListener('load', () => resolve(image));
-    image.addEventListener('error', (error) => reject(error));
-    image.setAttribute('crossOrigin', 'anonymous');
-    image.src = url;
+    const image = new Image(); image.addEventListener('load', () => resolve(image)); image.addEventListener('error', (error) => reject(error)); image.setAttribute('crossOrigin', 'anonymous'); image.src = url;
   });
 
-async function getCroppedImg(
-  imageSrc: string,
-  pixelCrop: any
-): Promise<File | null> {
+async function getCroppedImg(imageSrc: string, pixelCrop: any): Promise<File | null> {
   const image = await createImage(imageSrc);
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-
+  const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
   if (!ctx) return null;
-
-  canvas.width = pixelCrop.width;
-  canvas.height = pixelCrop.height;
-
-  ctx.drawImage(
-    image,
-    pixelCrop.x,
-    pixelCrop.y,
-    pixelCrop.width,
-    pixelCrop.height,
-    0,
-    0,
-    pixelCrop.width,
-    pixelCrop.height
-  );
-
+  canvas.width = pixelCrop.width; canvas.height = pixelCrop.height;
+  ctx.drawImage(image, pixelCrop.x, pixelCrop.y, pixelCrop.width, pixelCrop.height, 0, 0, pixelCrop.width, pixelCrop.height);
   return new Promise((resolve) => {
     canvas.toBlob((blob) => {
       if (!blob) return resolve(null);
@@ -176,12 +86,10 @@ export default function Home() {
 
   const [dailyRecipe, setDailyRecipe] = useState<DailyRecipeType | null>(null);
   const [dailyError, setDailyError] = useState(false);
-  
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [searchMode, setSearchMode] = useState<'photo' | 'text'>('photo');
   const [textQuery, setTextQuery] = useState(""); 
-  
   const [cookingMode, setCookingMode] = useState<'strict' | 'extended'>('strict');
   
   const [allergies, setAllergies] = useState<string[]>([]);
@@ -194,22 +102,16 @@ export default function Home() {
   const [analyzing, setAnalyzing] = useState(false);
   const [loadingRecipe, setLoadingRecipe] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false); 
-  
   const [analysisResult, setAnalysisResult] = useState<AnalysisData | null>(null);
   const [selectedDish, setSelectedDish] = useState<string | null>(null);
   const [recipe, setRecipe] = useState<RecipeData | null>(null);
   
   const [feed, setFeed] = useState<DBRecipe[]>([]); 
-  const [feedSort, setFeedSort] = useState<'new' | 'top' | 'old'>('new');
-  
   const [feedTab, setFeedTab] = useState<'photos' | 'recipes'>('photos');
   const [photosFeed, setPhotosFeed] = useState<any[]>([]);
   const [photosSort, setPhotosSort] = useState<'new' | 'top' | 'old'>('new');
-  
   const [userLevels, setUserLevels] = useState<Record<string, number>>({});
-
   const [userId, setUserId] = useState<string | null>(null);
-  
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const [filterMode, setFilterMode] = useState<'all' | 'favorites'>('all');
   const [question, setQuestion] = useState("");
@@ -220,7 +122,6 @@ export default function Home() {
   const [isHistoryView, setIsHistoryView] = useState(false);
   const [isSharedView, setIsSharedView] = useState(false);
   const [currentHoliday, setCurrentHoliday] = useState<HolidayType | null>(null);
-
   const [dailyFavoriteId, setDailyFavoriteId] = useState<number | null>(null);
   const [servings, setServings] = useState<number | "">(1);
 
@@ -233,7 +134,6 @@ export default function Home() {
   const [userPhotoPreview, setUserPhotoPreview] = useState<string | null>(null);
   const [userComment, setUserComment] = useState("");
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
-
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
   const [profileView, setProfileView] = useState<'main' | 'favorites' | 'photos' | 'history'>('main');
   const [userPhotos, setUserPhotos] = useState<any[]>([]);
@@ -244,7 +144,6 @@ export default function Home() {
   const [replyingTo, setReplyingTo] = useState<{id: number, name: string} | null>(null);
   const [scrollToPostId, setScrollToPostId] = useState<number | null>(null);
   const [isLoadingComments, setIsLoadingComments] = useState(false);
-  
   const [isStandaloneUploadOpen, setIsStandaloneUploadOpen] = useState(false);
   const [standaloneTitle, setStandaloneTitle] = useState("");
 
@@ -265,105 +164,11 @@ export default function Home() {
   const [clickPower, setClickPower] = useState<number>(1);
   const [passiveIncome, setPassiveIncome] = useState<number>(0);
   const [restaurantLevel, setRestaurantLevel] = useState<number>(1);
-  const [gameTab, setGameTab] = useState<'kitchen' | 'tasks' | 'shop'>('kitchen');
+  const [gameTab, setGameTab] = useState<'kitchen' | 'tasks' | 'shop' | 'leaderboard'>('kitchen');
   const [floatingClicks, setFloatingClicks] = useState<{id: number, x: number, y: number, val: number}[]>([]);
+  const [leaderboard, setLeaderboard] = useState<any[]>([]);
 
-  // Загрузка уровней для авторов постов И авторов комментариев
-  useEffect(() => {
-    const uids = new Set<string>();
-    photosFeed.forEach(p => { if (p.user_id) uids.add(p.user_id); });
-    postComments.forEach(c => { if (c.user_id) uids.add(c.user_id); });
-    
-    if (uids.size > 0) {
-      supabase.from('game_progress')
-        .select('user_id, restaurant_level')
-        .in('user_id', Array.from(uids))
-        .then(({data, error}) => {
-          if (data && !error) {
-            const levels: Record<string, number> = {};
-            data.forEach(d => levels[d.user_id] = d.restaurant_level);
-            setUserLevels(prev => ({...prev, ...levels}));
-          }
-        });
-    }
-  }, [photosFeed, postComments]);
-
-  useEffect(() => {
-    if (user) {
-      supabase.from('game_progress').select('*').eq('user_id', user.id).single()
-      .then(({data}) => {
-        if (data) {
-          setCooks(data.cooks || 0);
-          setClickPower(data.click_power || 1);
-          setPassiveIncome(data.passive_income || 0);
-          setRestaurantLevel(data.restaurant_level || 1);
-          setEnergy(data.energy || 500);
-        } else {
-          const localC = Number(localStorage.getItem('sc_cooks') || 0);
-          const localP = Number(localStorage.getItem('sc_clickPower') || 1);
-          const localPI = Number(localStorage.getItem('sc_passiveIncome') || 0);
-          const localL = Number(localStorage.getItem('sc_restLevel') || 1);
-          
-          setCooks(localC); setClickPower(localP); setPassiveIncome(localPI); setRestaurantLevel(localL);
-          supabase.from('game_progress').insert({
-             user_id: user.id, cooks: localC, click_power: localP, passive_income: localPI, restaurant_level: localL, energy: 500
-          }).then();
-        }
-      });
-    } else {
-      if (typeof window !== 'undefined') {
-        setCooks(Number(localStorage.getItem('sc_cooks') || 0));
-        setClickPower(Number(localStorage.getItem('sc_clickPower') || 1));
-        setPassiveIncome(Number(localStorage.getItem('sc_passiveIncome') || 0));
-        setRestaurantLevel(Number(localStorage.getItem('sc_restLevel') || 1));
-      }
-    }
-  }, [user]);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('sc_cooks', cooks.toString());
-      localStorage.setItem('sc_clickPower', clickPower.toString());
-      localStorage.setItem('sc_passiveIncome', passiveIncome.toString());
-      localStorage.setItem('sc_restLevel', restaurantLevel.toString());
-    }
-    
-    if (user) {
-      const timer = setTimeout(() => {
-        supabase.from('game_progress').upsert({
-          user_id: user.id, cooks, click_power: clickPower, passive_income: passiveIncome, restaurant_level: restaurantLevel, energy, updated_at: new Date().toISOString()
-        }).then();
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [cooks, clickPower, passiveIncome, restaurantLevel, energy, user]);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setEnergy(prev => prev < 500 ? prev + 1 : 500);
-      if (passiveIncome > 0) {
-        setCooks(prev => prev + passiveIncome);
-      }
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [passiveIncome]);
-
-  const handleCookClick = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (energy > 0) {
-      setCooks(prev => prev + clickPower);
-      setEnergy(prev => prev - 1);
-
-      const rect = e.currentTarget.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      const id = Date.now() + Math.random();
-      
-      setFloatingClicks(prev => [...prev, { id, x, y, val: clickPower }]);
-      setTimeout(() => {
-        setFloatingClicks(prev => prev.filter(c => c.id !== id));
-      }, 800);
-    }
-  };
+  // === ВСЕ ВАЖНЫЕ ФУНКЦИИ ИГРЫ И ПРИЛОЖЕНИЯ ТЕПЕРЬ ЗДЕСЬ ===
 
   const buyUpgrade = (type: string) => {
     if (type === 'spatula') {
@@ -387,34 +192,40 @@ export default function Home() {
     }
   };
 
-  useEffect(() => {
-    if (activeView === 'feed' && feedTab === 'photos' && scrollToPostId && photosFeed.length > 0) {
-      const timer = setTimeout(() => {
-        const element = document.getElementById(`feed-post-${scrollToPostId}`);
-        if (element) {
-          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          element.style.transition = 'box-shadow 0.5s';
-          element.style.boxShadow = '0 0 0 4px #0ea5e9';
-          setTimeout(() => {
-            element.style.boxShadow = '';
-            setScrollToPostId(null);
-          }, 2000);
-        }
-      }, 300); 
-      return () => clearTimeout(timer);
+  const handleCookClick = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (energy > 0) {
+      setCooks(prev => prev + clickPower);
+      setEnergy(prev => prev - 1);
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const id = Date.now() + Math.random();
+      setFloatingClicks(prev => [...prev, { id, x, y, val: clickPower }]);
+      setTimeout(() => {
+        setFloatingClicks(prev => prev.filter(c => c.id !== id));
+      }, 800);
     }
-  }, [activeView, feedTab, photosFeed, scrollToPostId]);
+  };
 
-  useEffect(() => {
-    if (dailyRecipe && feed.length > 0) {
-      const alreadySaved = feed.find(r => r.title === dailyRecipe.title && r.is_favorite);
-      if (alreadySaved) {
-        setDailyFavoriteId(alreadySaved.id);
-      } else {
-        setDailyFavoriteId(null);
-      }
+  const renderUserBadge = (uid: string | undefined | null, level?: number) => {
+    if (!uid) return null;
+    if (uid === DEVELOPER_ID) {
+      return (
+        <span style={{fontSize: '10px', background: '#111', color: '#38bdf8', padding: '2px 8px', borderRadius: '100px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px'}}>
+          👨‍💻 Разработчик
+        </span>
+      );
     }
-  }, [dailyRecipe, feed]);
+    if (level) {
+       const titles = ['Ларёк 🌭', 'Закусочная 🍔', 'Кафе ☕️', 'Ресторан 🍽', 'Мишленовский ресторан ⭐️', 'Сеть ресторанов 👑'];
+       return (
+         <span style={{fontSize: '10px', background: '#fef3c7', color: '#d97706', padding: '2px 8px', borderRadius: '100px', fontWeight: 800}}>
+           {titles[Math.min(level - 1, 5)]}
+         </span>
+       );
+    }
+    return null;
+  };
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -424,7 +235,6 @@ export default function Home() {
         setDislikes(session.user.user_metadata.dislikes || []);
       }
     });
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user || null);
       if (session?.user?.user_metadata) {
@@ -432,368 +242,253 @@ export default function Home() {
         setDislikes(session.user.user_metadata.dislikes || []);
       }
     });
-
     return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
     let currentSessionId = localStorage.getItem("cook_user_id");
-    
     if (user) {
-      currentSessionId = user.id;
-      localStorage.setItem("cook_user_id", user.id);
-      setEditProfileName(user.user_metadata?.full_name || "");
-      setEditAvatarPreview(user.user_metadata?.avatar_url || null);
+      currentSessionId = user.id; localStorage.setItem("cook_user_id", user.id);
+      setEditProfileName(user.user_metadata?.full_name || ""); setEditAvatarPreview(user.user_metadata?.avatar_url || null);
     } else if (!currentSessionId) {
-      currentSessionId = "user_" + Math.random().toString(36).substr(2, 9); 
-      localStorage.setItem("cook_user_id", currentSessionId); 
+      currentSessionId = "user_" + Math.random().toString(36).substr(2, 9); localStorage.setItem("cook_user_id", currentSessionId); 
     }
-    
-    setUserId(currentSessionId); 
-    if (currentSessionId) {
-      fetchMyRecipes(currentSessionId); 
-    }
+    setUserId(currentSessionId); if (currentSessionId) fetchMyRecipes(currentSessionId); 
   }, [user]);
 
   useEffect(() => {
-    const fetchUserPhotos = async () => {
-      if (!user) {
-        setUserPhotos([]);
-        return;
-      }
-      const { data, error } = await supabase
-        .from('feed_posts')
-        .select('*, recipes(title)')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-        
-      if (!error && data) {
-        setUserPhotos(data);
-      }
-    };
-
-    if (activeView === 'profile') {
-      fetchUserPhotos();
+    if (activeView === 'profile' && user) {
+      supabase.from('feed_posts').select('*, recipes(title)').eq('user_id', user.id).order('created_at', { ascending: false })
+        .then(({data, error}) => { if (!error && data) setUserPhotos(data); });
     }
   }, [activeView, user]);
 
   const loadDailyRecipe = () => {
     setDailyError(false);
-    fetch('/api/daily')
-      .then(res => res.json())
-      .then(json => {
+    fetch('/api/daily').then(res => res.json()).then(json => {
         const data = json.data || json.recipe || json;
-        if (data && data.title && !data.error && !json.error) {
-          setDailyRecipe(data);
-        } else {
-          setDailyError(true);
-        }
-      })
-      .catch(() => setDailyError(true));
+        if (data && data.title && !data.error && !json.error) setDailyRecipe(data);
+        else setDailyError(true);
+      }).catch(() => setDailyError(true));
   };
 
   useEffect(() => {
     loadDailyRecipe();
-
-    const d = new Date();
-    const day = d.getDate();
-    const month = d.getMonth() + 1;  
-    const key = `${day}.${month}`;
-
+    const d = new Date(); const key = `${d.getDate()}.${d.getMonth() + 1}`;
     const holidays: Record<string, HolidayType> = {
       "14.2": { title: "С Днем святого Валентина! 💖", text: "Пусть ваша жизнь будет наполнена любовью, а ужины — романтикой.", gradient: "linear-gradient(135deg, #ec4899 0%, #be185d 100%)", icon: "💘" },
-      "23.2": { title: "С Днем защитника Отечества!", text: "Силы, мужества и сытных побед на кулинарном фронте!", gradient: "linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)", icon: "⭐" },
       "8.3": { title: "С 8 Марта! 💐", text: "Красоты, нежности и вдохновения! Пусть сегодня готовит кто-то другой.", gradient: "linear-gradient(135deg, #d946ef 0%, #a21caf 100%)", icon: "🌷" },
-      "1.3": { title: "С первым днем весны!", text: "Природа просыпается, и аппетит тоже!", gradient: "linear-gradient(135deg, #84cc16 0%, #4d7c0f 100%)", icon: "🌱" },
-      "1.5": { title: "Мир, Труд, Май!", text: "Отличный повод выбраться на шашлыки!", gradient: "linear-gradient(135deg, #f97316 0%, #ea580c 100%)", icon: "🔥" },
-      "9.5": { title: "С Днем Победы!", text: "Мирного неба над головой и тепла в вашем доме.", gradient: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)", icon: "🎖" },
-      "1.6": { title: "Ура, лето!", text: "Сезон мороженого и окрошки открыт!", gradient: "linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)", icon: "☀" },
-      "1.9": { title: "С Днем знаний!", text: "Учиться никогда не поздно, особенно готовить!", gradient: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)", icon: "🔔" },
       "31.12": { title: "С Наступающим! 🎄", text: "Оливье готов? Мандарины куплены?", gradient: "linear-gradient(135deg, #dc2626 0%, #166534 100%)", icon: "🎅" },
       "1.1": { title: "С Новым 2026 годом! 🎉", text: "Начинаем год вкусно!", gradient: "linear-gradient(135deg, #fbbf24 0%, #b45309 100%)", icon: "🥂" }
     };
-
     if (holidays[key]) setCurrentHoliday(holidays[key]);
 
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      const sharedId = params.get('recipeId');
-      const isDaily = params.get('daily');
-
-      if (sharedId) {
-        loadSharedRecipe(sharedId);
-      } else if (isDaily === 'true') {
-        setActiveView('daily');
-        window.history.replaceState({}, '', '/');
-      }
+      if (params.get('recipeId')) loadSharedRecipe(params.get('recipeId')!);
+      else if (params.get('daily') === 'true') { setActiveView('daily'); window.history.replaceState({}, '', '/'); }
     }
   }, []);
 
+  useEffect(() => { if (activeView === 'feed') fetchPhotosFeed(photosSort); }, [activeView, photosSort]);
+
   useEffect(() => {
-    if (activeView === 'feed') {
-      fetchPhotosFeed(photosSort);
+    const uids = new Set<string>();
+    photosFeed.forEach(p => { if (p.user_id) uids.add(p.user_id); });
+    postComments.forEach(c => { if (c.user_id) uids.add(c.user_id); });
+    if (uids.size > 0) {
+      supabase.from('game_progress').select('user_id, restaurant_level').in('user_id', Array.from(uids))
+        .then(({data, error}) => {
+          if (data && !error) {
+            const levels: Record<string, number> = {}; data.forEach(d => levels[d.user_id] = d.restaurant_level);
+            setUserLevels(prev => ({...prev, ...levels}));
+          }
+        });
     }
-  }, [activeView, photosSort]);
+  }, [photosFeed, postComments]);
+
+  useEffect(() => {
+    if (user) {
+      supabase.from('game_progress').select('*').eq('user_id', user.id).single()
+      .then(({data}) => {
+        if (data) {
+          setCooks(data.cooks || 0); setClickPower(data.click_power || 1); setPassiveIncome(data.passive_income || 0); setRestaurantLevel(data.restaurant_level || 1); setEnergy(data.energy || 500);
+        } else {
+          const localC = Number(localStorage.getItem('sc_cooks') || 0); const localP = Number(localStorage.getItem('sc_clickPower') || 1);
+          const localPI = Number(localStorage.getItem('sc_passiveIncome') || 0); const localL = Number(localStorage.getItem('sc_restLevel') || 1);
+          setCooks(localC); setClickPower(localP); setPassiveIncome(localPI); setRestaurantLevel(localL);
+          supabase.from('game_progress').insert({ user_id: user.id, user_name: user.user_metadata?.full_name || 'Шеф', user_avatar: user.user_metadata?.avatar_url || null, cooks: localC, click_power: localP, passive_income: localPI, restaurant_level: localL, energy: 500 }).then();
+        }
+      });
+    } else if (typeof window !== 'undefined') {
+      setCooks(Number(localStorage.getItem('sc_cooks') || 0)); setClickPower(Number(localStorage.getItem('sc_clickPower') || 1));
+      setPassiveIncome(Number(localStorage.getItem('sc_passiveIncome') || 0)); setRestaurantLevel(Number(localStorage.getItem('sc_restLevel') || 1));
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sc_cooks', cooks.toString()); localStorage.setItem('sc_clickPower', clickPower.toString());
+      localStorage.setItem('sc_passiveIncome', passiveIncome.toString()); localStorage.setItem('sc_restLevel', restaurantLevel.toString());
+    }
+    if (user) {
+      const timer = setTimeout(() => {
+        supabase.from('game_progress').upsert({ user_id: user.id, user_name: user.user_metadata?.full_name || 'Шеф', user_avatar: user.user_metadata?.avatar_url || null, cooks, click_power: clickPower, passive_income: passiveIncome, restaurant_level: restaurantLevel, energy, updated_at: new Date().toISOString() }).then();
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [cooks, clickPower, passiveIncome, restaurantLevel, energy, user]);
+
+  useEffect(() => {
+    const interval = setInterval(() => { setEnergy(prev => prev < 500 ? prev + 1 : 500); if (passiveIncome > 0) setCooks(prev => prev + passiveIncome); }, 1000);
+    return () => clearInterval(interval);
+  }, [passiveIncome]);
+
+  useEffect(() => {
+    if (activeView === 'feed' && feedTab === 'photos' && scrollToPostId && photosFeed.length > 0) {
+      const timer = setTimeout(() => {
+        const element = document.getElementById(`feed-post-${scrollToPostId}`);
+        if (element) { element.scrollIntoView({ behavior: 'smooth', block: 'center' }); element.style.transition = 'box-shadow 0.5s'; element.style.boxShadow = '0 0 0 4px #0ea5e9'; setTimeout(() => { element.style.boxShadow = ''; setScrollToPostId(null); }, 2000); }
+      }, 300); return () => clearTimeout(timer);
+    }
+  }, [activeView, feedTab, photosFeed, scrollToPostId]);
+
+  useEffect(() => {
+    if (dailyRecipe && feed.length > 0) {
+      const alreadySaved = feed.find(r => r.title === dailyRecipe.title && r.is_favorite); setDailyFavoriteId(alreadySaved ? alreadySaved.id : null);
+    }
+  }, [dailyRecipe, feed]);
+
+  useEffect(() => {
+    if (gameTab === 'leaderboard') {
+      supabase.from('game_progress').select('*').order('restaurant_level', { ascending: false }).order('cooks', { ascending: false }).limit(50)
+      .then(({data}) => { if (data) setLeaderboard(data); });
+    }
+  }, [gameTab]);
 
   const fetchMyRecipes = async (currentId: string) => {
-    if (!currentId) return;
     const { data, error } = await supabase.from('recipes').select('*').eq('session_id', currentId).order('created_at', { ascending: false });
     if (!error && data) setFeed(data);
   };
 
   const fetchPhotosFeed = async (sortType: 'new' | 'top' | 'old') => {
-    setPhotosSort(sortType);
-    if (!userId) return;
+    setPhotosSort(sortType); if (!userId) return;
     try {
       const res = await fetch("/api/photo-feed", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sort: sortType, sessionId: userId }) });
-      const json = await res.json();
-      if (json.feed) setPhotosFeed(json.feed);
-    } catch (e) { console.error("Photo Feed Error:", e); }
+      const json = await res.json(); if (json.feed) setPhotosFeed(json.feed);
+    } catch (e) {}
   };
 
   const handleOAuthLogin = async (provider: 'google' | 'yandex' | 'vk') => {
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({ provider: provider as any, options: { redirectTo: window.location.origin } });
-      if (error) throw error;
-    } catch (error: any) { alert("Ошибка входа: " + error.message); }
+    try { const { error } = await supabase.auth.signInWithOAuth({ provider: provider as any, options: { redirectTo: window.location.origin } }); if (error) throw error; } catch (error: any) { alert("Ошибка входа: " + error.message); }
   };
 
   const handleEmailLogin = async () => {
     if (!authEmail.includes('@')) return alert("Пожалуйста, введите корректный email");
     setIsSendingLink(true);
-    try {
-      const { error } = await supabase.auth.signInWithOtp({ email: authEmail, options: { emailRedirectTo: window.location.origin } });
-      if (error) throw error;
-      alert("✨ Магическая ссылка отправлена! Проверьте вашу почту (и папку Спам).");
-      setIsAuthModalOpen(false);
-    } catch (error: any) { alert("Ошибка отправки: " + error.message); } finally { setIsSendingLink(false); }
+    try { const { error } = await supabase.auth.signInWithOtp({ email: authEmail, options: { emailRedirectTo: window.location.origin } }); if (error) throw error; alert("✨ Магическая ссылка отправлена! Проверьте вашу почту."); setIsAuthModalOpen(false); } catch (error: any) { alert("Ошибка отправки: " + error.message); } finally { setIsSendingLink(false); }
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    setActiveView('service');
-    setProfileView('main');
-  };
+  const handleLogout = async () => { await supabase.auth.signOut(); setActiveView('service'); setProfileView('main'); };
 
-  const savePreferencesToDB = async (newAllergies: string[], newDislikes: string[]) => {
-    if (user) {
-      await supabase.auth.updateUser({ 
-        data: { allergies: newAllergies, dislikes: newDislikes } 
-      });
-    }
-  };
+  const savePreferencesToDB = async (newAllergies: string[], newDislikes: string[]) => { if (user) await supabase.auth.updateUser({ data: { allergies: newAllergies, dislikes: newDislikes } }); };
 
-  const addAllergy = () => {
-    if (!newAllergy.trim()) return;
-    const updated = [...allergies, newAllergy.trim().toLowerCase()];
-    setAllergies(updated);
-    setNewAllergy("");
-    savePreferencesToDB(updated, dislikes);
-  };
+  const addAllergy = () => { if (!newAllergy.trim()) return; const updated = [...allergies, newAllergy.trim().toLowerCase()]; setAllergies(updated); setNewAllergy(""); savePreferencesToDB(updated, dislikes); };
+  const addDislike = () => { if (!newDislike.trim()) return; const updated = [...dislikes, newDislike.trim().toLowerCase()]; setDislikes(updated); setNewDislike(""); savePreferencesToDB(allergies, updated); };
+  const removeAllergy = (idx: number) => { const updated = allergies.filter((_, i) => i !== idx); setAllergies(updated); savePreferencesToDB(updated, dislikes); };
+  const removeDislike = (idx: number) => { const updated = dislikes.filter((_, i) => i !== idx); setDislikes(updated); savePreferencesToDB(allergies, updated); };
 
-  const addDislike = () => {
-    if (!newDislike.trim()) return;
-    const updated = [...dislikes, newDislike.trim().toLowerCase()];
-    setDislikes(updated);
-    setNewDislike("");
-    savePreferencesToDB(allergies, updated);
-  };
-
-  const removeAllergy = (idx: number) => {
-    const updated = allergies.filter((_, i) => i !== idx);
-    setAllergies(updated);
-    savePreferencesToDB(updated, dislikes);
-  };
-
-  const removeDislike = (idx: number) => {
-    const updated = dislikes.filter((_, i) => i !== idx);
-    setDislikes(updated);
-    savePreferencesToDB(allergies, updated);
-  };
-
-  const handleAvatarChange = (e: ChangeEvent<HTMLInputElement>) => { 
-    const files = e.target.files; 
-    if (!files || files.length === 0) return; 
-    const rawFile = files[0]; 
-    setCropImageSrc(URL.createObjectURL(rawFile));
-    setIsCropping(true);
-  };
-
-  const onCropComplete = (croppedArea: any, croppedAreaPixels: any) => {
-    setCroppedAreaPixels(croppedAreaPixels);
-  };
-
+  const handleAvatarChange = (e: ChangeEvent<HTMLInputElement>) => { const files = e.target.files; if (!files || files.length === 0) return; setCropImageSrc(URL.createObjectURL(files[0])); setIsCropping(true); };
+  const onCropComplete = (croppedArea: any, croppedAreaPixels: any) => { setCroppedAreaPixels(croppedAreaPixels); };
   const handleCropConfirm = async () => {
     if (!cropImageSrc || !croppedAreaPixels) return;
     try {
       const croppedFile = await getCroppedImg(cropImageSrc, croppedAreaPixels);
       if (croppedFile) {
          const imageCompression = (await import('browser-image-compression')).default; 
-         const options = { maxSizeMB: 0.3, maxWidthOrHeight: 500, useWebWorker: true, fileType: "image/jpeg" }; 
-         const compressedFile = await imageCompression(croppedFile, options); 
+         const compressedFile = await imageCompression(croppedFile, { maxSizeMB: 0.3, maxWidthOrHeight: 500, useWebWorker: true, fileType: "image/jpeg" }); 
          const finalFile = new File([compressedFile], `avatar_${Date.now()}.jpg`, { type: "image/jpeg" });
-         
-         setEditAvatarFile(finalFile);
-         setEditAvatarPreview(URL.createObjectURL(finalFile));
-         setIsCropping(false);
-         setCropImageSrc(null);
+         setEditAvatarFile(finalFile); setEditAvatarPreview(URL.createObjectURL(finalFile)); setIsCropping(false); setCropImageSrc(null);
       }
-    } catch (e) {
-      alert("Не удалось обработать фото");
-    }
+    } catch (e) { alert("Не удалось обработать фото"); }
   };
 
   const handleProfileSave = async () => { 
-    if (!user) return; 
-    setIsSavingProfile(true); 
+    if (!user) return; setIsSavingProfile(true); 
     try { 
       let avatarUrl = user.user_metadata?.avatar_url; 
       if (editAvatarFile) { 
         const fileName = `${user.id}/avatar_${Date.now()}.jpg`; 
         const { error: uploadError } = await supabase.storage.from('avatars').upload(fileName, editAvatarFile, { upsert: true }); 
         if (uploadError) throw uploadError; 
-        const { data } = supabase.storage.from('avatars').getPublicUrl(fileName); 
-        avatarUrl = data.publicUrl + '?t=' + Date.now(); 
+        const { data } = supabase.storage.from('avatars').getPublicUrl(fileName); avatarUrl = data.publicUrl + '?t=' + Date.now(); 
       } 
-      
-      const { data, error } = await supabase.auth.updateUser({ 
-        data: { full_name: editProfileName, avatar_url: avatarUrl } 
-      }); 
-      
-      if (error) throw error; 
-      setUser(data.user); 
-      setIsEditingProfile(false); 
-
+      const { data, error } = await supabase.auth.updateUser({ data: { full_name: editProfileName, avatar_url: avatarUrl } }); 
+      if (error) throw error; setUser(data.user); setIsEditingProfile(false); 
       await supabase.from('feed_posts').update({ user_name: editProfileName, user_avatar: avatarUrl }).eq('user_id', user.id);
       await supabase.from('photo_comments').update({ user_name: editProfileName, user_avatar: avatarUrl }).eq('user_id', user.id);
-
+      await supabase.from('game_progress').update({ user_name: editProfileName, user_avatar: avatarUrl }).eq('user_id', user.id);
       setPhotosFeed(prev => prev.map(p => p.user_id === user.id ? { ...p, user_name: editProfileName, user_avatar: avatarUrl } : p));
       setUserPhotos(prev => prev.map(p => p.user_id === user.id ? { ...p, user_name: editProfileName, user_avatar: avatarUrl } : p));
-
-    } catch(e) { 
-      alert("Ошибка сохранения профиля"); 
-    } finally { 
-      setIsSavingProfile(false); 
-    } 
+    } catch(e) { alert("Ошибка сохранения профиля"); } finally { setIsSavingProfile(false); } 
   }; 
 
   const handlePhotoLike = async (e: any, item: any) => {
-    e.stopPropagation();
-    if (!userId) return;
-    const action = item.is_liked ? 'unlike' : 'like';
-    const newCount = item.is_liked ? Math.max(0, (item.likes_count || 0) - 1) : (item.likes_count || 0) + 1;
-    
+    e.stopPropagation(); if (!userId) return;
+    const action = item.is_liked ? 'unlike' : 'like'; const newCount = item.is_liked ? Math.max(0, (item.likes_count || 0) - 1) : (item.likes_count || 0) + 1;
     setPhotosFeed(photosFeed.map(p => p.id === item.id ? { ...p, is_liked: !item.is_liked, likes_count: newCount } : p));
-    
     try { 
-      if (action === 'like') {
-        await supabase.from('photo_likes').insert({ post_id: item.id, session_id: userId });
-      } else {
-        await supabase.from('photo_likes').delete().match({ post_id: item.id, session_id: userId });
-      }
+      if (action === 'like') await supabase.from('photo_likes').insert({ post_id: item.id, session_id: userId });
+      else await supabase.from('photo_likes').delete().match({ post_id: item.id, session_id: userId });
     } catch (err) {}
   };
 
   const handleDeletePost = async (postId: number) => { 
     if (!confirm("Вы уверены, что хотите удалить этот пост?")) return; 
-    try { 
-      const { error } = await supabase.from('feed_posts').delete().eq('id', postId).eq('user_id', user?.id); 
-      if (error) throw error; 
-      setPhotosFeed(prev => prev.filter(p => p.id !== postId)); 
-      setUserPhotos(prev => prev.filter(p => p.id !== postId)); 
-    } catch (e: any) { 
-      alert("Ошибка удаления. Возможно у вас нет прав на этот пост."); 
-    } 
+    try { const { error } = await supabase.from('feed_posts').delete().eq('id', postId).eq('user_id', user?.id); if (error) throw error; setPhotosFeed(prev => prev.filter(p => p.id !== postId)); setUserPhotos(prev => prev.filter(p => p.id !== postId)); } catch (e: any) { alert("Ошибка удаления."); } 
   }; 
 
   const openComments = async (postId: number) => { 
-    setCommentsModalPostId(postId); 
-    setPostComments([]); 
-    setReplyingTo(null); 
-    setIsLoadingComments(true);
-
+    setCommentsModalPostId(postId); setPostComments([]); setReplyingTo(null); setIsLoadingComments(true);
     const { data } = await supabase.from('photo_comments').select('*').eq('post_id', postId).order('created_at', { ascending: true }); 
-    
     let likedIds = new Set(); 
     if (userId && data && data.length > 0) { 
-      const cIds = data.map(c => c.id); 
-      const { data: likes } = await supabase.from('comment_likes').select('comment_id').in('comment_id', cIds).eq('session_id', userId); 
+      const cIds = data.map(c => c.id); const { data: likes } = await supabase.from('comment_likes').select('comment_id').in('comment_id', cIds).eq('session_id', userId); 
       if (likes) likes.forEach((l: any) => likedIds.add(l.comment_id)); 
     } 
-    
-    setPostComments(data?.map(c => ({...c, is_liked: likedIds.has(c.id)})) || []); 
-    setIsLoadingComments(false);
+    setPostComments(data?.map(c => ({...c, is_liked: likedIds.has(c.id)})) || []); setIsLoadingComments(false);
   }; 
 
   const submitComment = async () => { 
-    if (!user) {
-       setCommentsModalPostId(null);
-       return setIsAuthModalOpen(true); 
-    }
+    if (!user) { setCommentsModalPostId(null); return setIsAuthModalOpen(true); }
     if (!newCommentText.trim() || !commentsModalPostId) return; 
-    
-    const userName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Шеф'; 
-    const userAvatar = user.user_metadata?.avatar_url || null; 
-
-    const { data, error } = await supabase.from('photo_comments').insert({ 
-      post_id: commentsModalPostId, 
-      user_id: user.id, 
-      user_name: userName, 
-      user_avatar: userAvatar, 
-      text: newCommentText.trim(), 
-      parent_id: replyingTo ? replyingTo.id : null 
-    }).select().single(); 
-
-    if (!error && data) { 
-      setPostComments([...postComments, data]); 
-      setNewCommentText(""); 
-      setReplyingTo(null); 
-      setPhotosFeed(photosFeed.map(p => p.id === commentsModalPostId ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p)); 
-    } 
+    const userName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Шеф'; const userAvatar = user.user_metadata?.avatar_url || null; 
+    const { data, error } = await supabase.from('photo_comments').insert({ post_id: commentsModalPostId, user_id: user.id, user_name: userName, user_avatar: userAvatar, text: newCommentText.trim(), parent_id: replyingTo ? replyingTo.id : null }).select().single(); 
+    if (!error && data) { setPostComments([...postComments, data]); setNewCommentText(""); setReplyingTo(null); setPhotosFeed(photosFeed.map(p => p.id === commentsModalPostId ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p)); } 
   }; 
 
   const handleDeleteComment = async (commentId: number) => { 
     if (!confirm("Удалить комментарий?")) return; 
-    try { 
-      const { error } = await supabase.from('photo_comments').delete().eq('id', commentId).eq('user_id', user?.id); 
-      if (error) throw error; 
-      setPostComments(prev => prev.filter(c => c.id !== commentId && c.parent_id !== commentId)); 
-      setPhotosFeed(photosFeed.map(p => p.id === commentsModalPostId ? { ...p, comments_count: Math.max(0, (p.comments_count || 0) - 1) } : p)); 
-    } catch (e: any) { 
-       alert("Ошибка удаления комментария: " + e.message); 
-    } 
+    try { const { error } = await supabase.from('photo_comments').delete().eq('id', commentId).eq('user_id', user?.id); if (error) throw error; setPostComments(prev => prev.filter(c => c.id !== commentId && c.parent_id !== commentId)); setPhotosFeed(photosFeed.map(p => p.id === commentsModalPostId ? { ...p, comments_count: Math.max(0, (p.comments_count || 0) - 1) } : p)); } catch (e: any) { alert("Ошибка удаления комментария"); } 
   }; 
 
   const handleCommentLike = async (comment: DBComment) => {
     if (!userId) return;
-    const action = comment.is_liked ? 'unlike' : 'like';
-    const newCount = comment.is_liked ? Math.max(0, (comment.likes_count || 0) - 1) : (comment.likes_count || 0) + 1;
-    
+    const action = comment.is_liked ? 'unlike' : 'like'; const newCount = comment.is_liked ? Math.max(0, (comment.likes_count || 0) - 1) : (comment.likes_count || 0) + 1;
     setPostComments(postComments.map(c => c.id === comment.id ? { ...c, is_liked: !c.is_liked, likes_count: newCount } : c));
-    
-    try {
-      if (action === 'like') {
-        await supabase.from('comment_likes').insert({ comment_id: comment.id, session_id: userId });
-      } else {
-        await supabase.from('comment_likes').delete().match({ comment_id: comment.id, session_id: userId });
-      }
-    } catch (err) {}
+    try { if (action === 'like') await supabase.from('comment_likes').insert({ comment_id: comment.id, session_id: userId }); else await supabase.from('comment_likes').delete().match({ comment_id: comment.id, session_id: userId }); } catch (err) {}
   };
 
   const toggleFavorite = async (e: any, targetId: number, currentStatus: boolean = false) => { 
-    e.stopPropagation();  
-    if (!targetId) return; 
-    const newStatus = !currentStatus; 
-    setFeed(feed?.map(r => r.id === targetId ? { ...r, is_favorite: newStatus } : r) || []); 
-    if (recipe && recipe.id === targetId) setRecipe({ ...recipe, is_favorite: newStatus }); 
+    e.stopPropagation(); if (!targetId) return; const newStatus = !currentStatus; 
+    setFeed(feed?.map(r => r.id === targetId ? { ...r, is_favorite: newStatus } : r) || []); if (recipe && recipe.id === targetId) setRecipe({ ...recipe, is_favorite: newStatus }); 
     try { await fetch("/api/favorite", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: targetId, isFavorite: newStatus }) }); } catch (err) {} 
   }; 
 
   const toggleDailyFavorite = async () => { 
     if (!dailyRecipe || !userId) return; 
     if (dailyFavoriteId) { 
-      setFeed(feed?.map(r => r.id === dailyFavoriteId ? { ...r, is_favorite: false } : r) || []); 
-      setDailyFavoriteId(null); 
+      setFeed(feed?.map(r => r.id === dailyFavoriteId ? { ...r, is_favorite: false } : r) || []); setDailyFavoriteId(null); 
       try { await fetch("/api/favorite", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: dailyFavoriteId, isFavorite: false }) }); } catch(e) {} 
     } else { 
       const { data } = await supabase.from('recipes').insert({ session_id: userId, title: dailyRecipe.title, description: dailyRecipe.description, time: String(dailyRecipe.time), calories: String(dailyRecipe.calories), ingredients: dailyRecipe.ingredients || dailyRecipe.detailed_ingredients?.map(i => `${i.name} - ${i.amount}`) || [], detailed_ingredients: dailyRecipe.detailed_ingredients || [], missing_ingredients: dailyRecipe.missing_ingredients || [], steps: dailyRecipe.steps, is_favorite: true }).select('*'); 
@@ -802,124 +497,73 @@ export default function Home() {
   }; 
 
   const handleUserPhotoChange = async (e: ChangeEvent<HTMLInputElement>) => { 
-    const files = e.target.files; 
-    if (!files || files.length === 0) return; 
-    const rawFile = files[0]; 
-    setUserPhotoPreview(URL.createObjectURL(rawFile)); 
-    setIsUploadingPhoto(true); 
-
+    const files = e.target.files; if (!files || files.length === 0) return; 
+    setUserPhotoPreview(URL.createObjectURL(files[0])); setIsUploadingPhoto(true); 
     try { 
       const imageCompression = (await import('browser-image-compression')).default; 
-      const options = { maxSizeMB: 1, maxWidthOrHeight: 1080, useWebWorker: true, fileType: "image/jpeg" }; 
-      const compressedFile = await imageCompression(rawFile, options); 
+      const compressedFile = await imageCompression(files[0], { maxSizeMB: 1, maxWidthOrHeight: 1080, useWebWorker: true, fileType: "image/jpeg" }); 
       setUserPhotoFile(new File([compressedFile], `post_${Date.now()}.jpg`, { type: "image/jpeg" })); 
-    } catch (error) { 
-      alert("Не удалось обработать фото."); 
-      setUserPhotoFile(null); 
-      setUserPhotoPreview(null); 
-    } finally { setIsUploadingPhoto(false); } 
+    } catch (error) { alert("Не удалось обработать фото"); setUserPhotoFile(null); setUserPhotoPreview(null); } 
+    finally { setIsUploadingPhoto(false); } 
   }; 
 
   const ensureRecipeInDB = async (currentRecipe: any) => { 
-    if (!currentRecipe) return null; 
-    if (currentRecipe.id) return currentRecipe.id; 
+    if (!currentRecipe) return null; if (currentRecipe.id) return currentRecipe.id; 
     const { data } = await supabase.from('recipes').insert({ session_id: userId, title: currentRecipe.title, description: currentRecipe.description, time: String(currentRecipe.time), calories: String(currentRecipe.calories), ingredients: currentRecipe.ingredients || currentRecipe.detailed_ingredients?.map((i:any) => `${i.name} - ${i.amount}`) || [], detailed_ingredients: currentRecipe.detailed_ingredients || [], missing_ingredients: currentRecipe.missing_ingredients || [], steps: currentRecipe.steps, is_favorite: false }).select('*'); 
-    if (data && data.length > 0) { 
-      if (recipe && recipe.title === currentRecipe.title) setRecipe({...recipe, id: data[0].id}); 
-      return data[0].id; 
-    } 
-    return null; 
+    if (data && data.length > 0) { if (recipe && recipe.title === currentRecipe.title) setRecipe({...recipe, id: data[0].id}); return data[0].id; } return null; 
   }; 
 
   const submitFeedPost = async (currentRecipeContext: any) => { 
     if (!user) return setIsAuthModalOpen(true); 
     if (!userPhotoFile) return alert("Сначала выберите фото!"); 
-    
     if (isStandaloneUploadOpen && !standaloneTitle.trim()) return alert("Введите название вашего блюда!"); 
 
     setIsUploadingPhoto(true); 
     try { 
-      let dbRecipeId = null; 
-      let postTitleContext = standaloneTitle; 
-
+      let dbRecipeId = null; let postTitleContext = standaloneTitle; 
       if (!isStandaloneUploadOpen) { 
          dbRecipeId = await ensureRecipeInDB(currentRecipeContext); 
          if (!dbRecipeId) throw new Error("Не удалось привязать рецепт"); 
          postTitleContext = currentRecipeContext.title; 
       } 
-
       const fileName = `${user.id}/${Date.now()}.jpg`; 
       const { error: uploadError } = await supabase.storage.from('recipe_photos').upload(fileName, userPhotoFile); 
       if (uploadError) throw uploadError; 
 
       const { data: publicUrlData } = supabase.storage.from('recipe_photos').getPublicUrl(fileName); 
-      const photoUrl = publicUrlData.publicUrl; 
       const userName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Шеф'; 
-      const userAvatar = user.user_metadata?.avatar_url || null; 
       
       const { error: postError } = await supabase.from('feed_posts').insert({ 
-        recipe_id: dbRecipeId, 
-        custom_title: isStandaloneUploadOpen ? standaloneTitle : null, 
-        user_id: user.id, 
-        user_name: userName, 
-        user_avatar: userAvatar, 
-        photo_url: photoUrl, 
-        comment: userComment, 
-        status: 'pending' 
+        recipe_id: dbRecipeId, custom_title: isStandaloneUploadOpen ? standaloneTitle : null, user_id: user.id, user_name: userName, user_avatar: user.user_metadata?.avatar_url || null, photo_url: publicUrlData.publicUrl, comment: userComment, status: 'pending' 
       }); 
       if (postError) throw postError; 
 
       try { 
           const { data: latestPost } = await supabase.from('feed_posts').select('id').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1).single(); 
-          if (latestPost) { 
-              await fetch('/api/telegram-mod', { 
-                method: 'POST', 
-                headers: { 'Content-Type': 'application/json' }, 
-                body: JSON.stringify({ 
-                  postId: latestPost.id, 
-                  recipeTitle: postTitleContext, 
-                  userName: userName, 
-                  comment: userComment, 
-                  photoUrl: photoUrl 
-                }) 
-              }); 
-          } 
-      } catch (tgErr) { console.warn("TG error", tgErr); } 
+          if (latestPost) await fetch('/api/telegram-mod', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ postId: latestPost.id, recipeTitle: postTitleContext, userName: userName, comment: userComment, photoUrl: publicUrlData.publicUrl }) }); 
+      } catch (tgErr) {} 
 
-      // Награда 1000 куков за пост
       alert(`Ура! 🎉 Ваше фото отправлено на проверку шефу.\n\n🎁 Вы заработали 1000 куков!`); 
-      setCooks(prev => prev + 1000);
-      setUserPhotoFile(null); setUserPhotoPreview(null); setUserComment(""); setStandaloneTitle(""); setIsStandaloneUploadOpen(false); 
-
-    } catch (err: any) { alert("Ошибка отправки: " + err.message); }  
-    finally { setIsUploadingPhoto(false); } 
+      setCooks(prev => prev + 1000); setUserPhotoFile(null); setUserPhotoPreview(null); setUserComment(""); setStandaloneTitle(""); setIsStandaloneUploadOpen(false); 
+    } catch (err: any) { alert("Ошибка отправки: " + err.message); } finally { setIsUploadingPhoto(false); } 
   }; 
 
   const handleShareDaily = async () => { 
-    if (!dailyRecipe) return; 
-    const recipeUrl = `${window.location.origin}/?daily=true`; 
-    const fullText = `«${dailyRecipe.title}» 🍲\nПриготовлено с помощью SmartCook 👨‍🍳\n\nСмотри рецепт по ссылке:\n${recipeUrl}`; 
+    if (!dailyRecipe) return; const recipeUrl = `${window.location.origin}/?daily=true`; const fullText = `«${dailyRecipe.title}» 🍲\nПриготовлено с помощью SmartCook 👨‍🍳\n\nСмотри рецепт по ссылке:\n${recipeUrl}`; 
     try { if (navigator.share) await navigator.share({ title: dailyRecipe.title, text: fullText }); else { await navigator.clipboard.writeText(fullText); alert("Ссылка на сайт скопирована в буфер обмена!"); } } catch (err) {} 
   }; 
 
   const handleShareRecipe = async () => { 
-    if (!recipe) return; 
-    const recipeUrl = recipe.id ? `${window.location.origin}/?recipeId=${recipe.id}` : window.location.origin; 
-    const fullText = `«${recipe.title}» 🍲\nПриготовлено с помощью SmartCook 👨‍🍳\n\nОткрой рецепт по ссылке:\n${recipeUrl}`; 
+    if (!recipe) return; const recipeUrl = recipe.id ? `${window.location.origin}/?recipeId=${recipe.id}` : window.location.origin; const fullText = `«${recipe.title}» 🍲\nПриготовлено с помощью SmartCook 👨‍🍳\n\nОткрой рецепт по ссылке:\n${recipeUrl}`; 
     try { if (navigator.share) await navigator.share({ title: recipe.title, text: fullText }); else { await navigator.clipboard.writeText(fullText); alert("Ссылка на рецепт скопирована в буфер обмена!"); } } catch (err) {} 
   }; 
 
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => { 
-    const files = e.target.files;  
-    if (!files || files.length === 0) return; 
-    const rawFile = files[0]; 
-    setPreview(URL.createObjectURL(rawFile)); 
-    setAnalysisResult(null); setRecipe(null); setSelectedDish(null); setQuestion(""); setAnswer(null);  
-    setIsProcessing(true); setIsHistoryView(false); setFromFeed(false); setServings(1);  
+    const files = e.target.files; if (!files || files.length === 0) return; 
+    setPreview(URL.createObjectURL(files[0])); setAnalysisResult(null); setRecipe(null); setSelectedDish(null); setQuestion(""); setAnswer(null); setIsProcessing(true); setIsHistoryView(false); setFromFeed(false); setServings(1);  
     try { 
       const imageCompression = (await import('browser-image-compression')).default; 
-      const options = { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true, fileType: "image/jpeg" }; 
-      const compressedFile = await imageCompression(rawFile, options); 
+      const compressedFile = await imageCompression(files[0], { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true, fileType: "image/jpeg" }); 
       const finalFile = new File([compressedFile], "image.jpg", { type: "image/jpeg" }); 
       setFile(finalFile); setPreview(URL.createObjectURL(finalFile));  
     } catch (error) { alert("Не удалось обработать фото."); setFile(null); } finally { setIsProcessing(false); } 
@@ -928,15 +572,10 @@ export default function Home() {
   const triggerFileInput = () => document.getElementById('hidden-file-input')?.click(); 
 
   const handleAnalyze = async () => { 
-    if (!file) return;  
-    setAnalyzing(true); setRecipe(null); 
+    if (!file) return; setAnalyzing(true); setRecipe(null); 
     try { 
-      const formData = new FormData(); formData.append("image", file); formData.append("mode", cookingMode); 
-      formData.append("allergies", allergies.join(', '));
-      formData.append("dislikes", dislikes.join(', '));
-
+      const formData = new FormData(); formData.append("image", file); formData.append("mode", cookingMode); formData.append("allergies", allergies.join(', ')); formData.append("dislikes", dislikes.join(', '));
       const response = await fetch("/api/analyze", { method: "POST", body: formData }); 
-      if (!response.ok) throw new Error(`Error: ${response.status}`); 
       const json = await response.json(); if (json.error) throw new Error(json.error);  
       setAnalysisResult(json.data); 
     } catch (err: any) { alert("Ошибка: " + err.message); } finally { setAnalyzing(false); } 
@@ -946,30 +585,32 @@ export default function Home() {
     if (!analysisResult) return; setIsRegenerating(true); 
     try { 
       const response = await fetch("/api/regenerate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ingredients: analysisResult.ingredients }) }); 
-      const json = await response.json(); if (json.error) throw new Error(json.error); setAnalysisResult({ ...analysisResult, dishes: json.dishes }); 
-    } catch (err: any) { alert("Ошибка: " + err.message); } finally { setIsRegenerating(false); } 
+      const json = await response.json(); if (json.error) throw new Error(json.error); 
+      setAnalysisResult({ ...analysisResult, dishes: json.dishes }); 
+    } catch (err: any) { alert("Ошибка"); } finally { setIsRegenerating(false); } 
   }; 
 
-  // Награда 100 куков за генерацию рецепта (раз в день)
   const handleRewardForRecipe = () => {
     const today = new Date().toLocaleDateString();
     const lastGen = localStorage.getItem('sc_last_gen_date');
     if (lastGen !== today) {
       localStorage.setItem('sc_last_gen_date', today);
       setCooks(prev => prev + 100);
-      setTimeout(() => alert("🎉 Поздравляем! Вы заработали 100 куков за первый сгенерированный рецепт сегодня! Загляните в 'Мой ресторан'."), 1000);
+      setTimeout(() => alert("🎉 Поздравляем! Вы заработали 100 куков за первый сгенерированный рецепт сегодня! Загляните в 'Мой ресторан'."), 1500);
     }
   };
 
   const getRecipeFromPhoto = async (dishName: string) => { 
-    if (!analysisResult || !userId) return;  
-    setSelectedDish(dishName); setLoadingRecipe(true); setRecipe(null); setIsHistoryView(false); setFromFeed(false); setServings(1);  
+    if (!analysisResult || !userId) return; setSelectedDish(dishName); setLoadingRecipe(true); setRecipe(null); setIsHistoryView(false); setFromFeed(false); setServings(1);  
     window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); 
     try { 
       const response = await fetch("/api/recipe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ dish: dishName, ingredients: analysisResult.ingredients, sessionId: userId, allergies, dislikes }) }); 
       const json = await response.json(); if (json.error) throw new Error(json.error);  
       setRecipe({ ...json.recipe, ingredients: analysisResult.ingredients });  
-      updateLatestRecipeId(); 
+      if (userId) {
+         await supabase.from('recipes').insert({ session_id: userId, title: json.recipe.title, description: json.recipe.description, time: String(json.recipe.time), calories: String(json.recipe.calories), ingredients: json.recipe.detailed_ingredients?.map((i:any) => `${i.name} - ${i.amount}`) || [], detailed_ingredients: json.recipe.detailed_ingredients, missing_ingredients: json.recipe.missing_ingredients, steps: json.recipe.steps, is_favorite: false }); 
+         fetchMyRecipes(userId); 
+      }
       handleRewardForRecipe();
     } catch (err: any) { alert("Ошибка: " + err.message); } finally { setLoadingRecipe(false); } 
   }; 
@@ -981,58 +622,42 @@ export default function Home() {
         const response = await fetch("/api/regenerate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ingredients: analysisResult.ingredients }) }); 
         const json = await response.json(); if (json.error) throw new Error(json.error); 
         const newDishes = json.dishes.filter((d: string) => d !== selectedDish); 
-        const freshIdea = newDishes.length > 0 ? newDishes[0] : json.dishes[0]; 
         setAnalysisResult({ ...analysisResult, dishes: json.dishes }); 
-        await getRecipeFromPhoto(freshIdea); 
+        await getRecipeFromPhoto(newDishes.length > 0 ? newDishes[0] : json.dishes[0]); 
       } else if (searchMode === 'text' && textQuery) { 
-        const response = await fetch("/api/search-recipe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query: textQuery, sessionId: userId, isVariant: true, allergies, dislikes }) }); 
-        const json = await response.json(); if (!response.ok) throw new Error(json.error); 
-        setRecipe({ ...json.recipe, missing_ingredients: json.recipe.missing_ingredients || [] });  
-        updateLatestRecipeId(); 
-        handleRewardForRecipe();
+        await handleTextSearch();
       } 
-    } catch (err: any) { alert("Ошибка: " + err.message); } finally { setLoadingRecipe(false); } 
+    } catch (err: any) { alert("Ошибка"); } finally { setLoadingRecipe(false); } 
   }; 
 
   const handleTextSearch = async () => { 
-    if (!textQuery.trim() || !userId) return;  
-    setLoadingRecipe(true); setRecipe(null); setAnalysisResult(null); setIsHistoryView(false); setFromFeed(false); setServings(1);  
+    if (!textQuery.trim() || !userId) return; setLoadingRecipe(true); setRecipe(null); setAnalysisResult(null); setIsHistoryView(false); setFromFeed(false); setServings(1);  
     try { 
       const response = await fetch("/api/search-recipe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query: textQuery, sessionId: userId, allergies, dislikes }) }); 
       const json = await response.json(); if (!response.ok) throw new Error(json.error || "Ошибка поиска"); 
       setRecipe({ ...json.recipe, missing_ingredients: json.recipe.missing_ingredients || [] });  
-      updateLatestRecipeId(); 
+      if (userId) {
+         await supabase.from('recipes').insert({ session_id: userId, title: json.recipe.title, description: json.recipe.description, time: String(json.recipe.time), calories: String(json.recipe.calories), ingredients: json.recipe.detailed_ingredients?.map((i:any) => `${i.name} - ${i.amount}`) || [], detailed_ingredients: json.recipe.detailed_ingredients, missing_ingredients: json.recipe.missing_ingredients, steps: json.recipe.steps, is_favorite: false }); 
+         fetchMyRecipes(userId); 
+      }
       handleRewardForRecipe();
     } catch (err: any) { alert("🛑 " + err.message); } finally { setLoadingRecipe(false); } 
   }; 
 
-  const updateLatestRecipeId = async () => { 
-    if (!userId) return; 
-    const { data } = await supabase.from('recipes').select('*').eq('session_id', userId).order('created_at', { ascending: false }).limit(1); 
-    if (data && data.length > 0) { 
-      setRecipe(prev => prev ? { ...prev, id: data[0].id, is_favorite: data[0].is_favorite } : prev); 
-      fetchMyRecipes(userId); 
-    } 
-  }; 
-
   const handleAskChef = async () => { 
     const currentContext = activeView === 'daily' ? (dailyRecipe as any) : recipe; 
-    if (!question.trim() || !currentContext) return; 
-    setAsking(true); setAnswer(null); 
+    if (!question.trim() || !currentContext) return; setAsking(true); setAnswer(null); 
     try { 
       const response = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: question, recipeContext: currentContext }) }); 
       const json = await response.json(); if (json.error) throw new Error(json.error); setAnswer(json.answer); 
-    } catch (err: any) { alert("Ошибка: " + err.message); } finally { setAsking(false); } 
+    } catch (err: any) { alert("Ошибка"); } finally { setAsking(false); } 
   }; 
 
   const loadFromHistory = (item: DBRecipe, source: 'photos' | 'history' | 'profile_history' | 'profile_favorites' = 'history') => { 
     setAnalysisResult(null); setQuestion(""); setAnswer(null); setServings(1);  
     setRecipe({ id: item.id, is_favorite: item.is_favorite, title: item.title, description: item.description, time: item.time, calories: item.calories, steps: item.steps || [], missing_ingredients: item.missing_ingredients || [], ingredients: item.ingredients || [], detailed_ingredients: item.detailed_ingredients || [] }); 
-    setFromFeed(source === 'history' ? false : source); 
-    setIsHistoryView(source === 'history' || source === 'profile_history' || source === 'profile_favorites'); 
-    setIsSharedView(false);  
-    window.scrollTo({ top: 0, behavior: 'smooth' });  
-    setActiveView('service');  
+    setFromFeed(source === 'history' ? false : source); setIsHistoryView(source === 'history' || source === 'profile_history' || source === 'profile_favorites'); setIsSharedView(false);  
+    window.scrollTo({ top: 0, behavior: 'smooth' }); setActiveView('service');  
   }; 
 
   const loadSharedRecipe = async (id: string, source: 'photos' | false = false) => { 
@@ -1049,10 +674,10 @@ export default function Home() {
 
   const handleBackToSource = () => { 
     setRecipe(null); setIsHistoryView(false); 
-    if (fromFeed === 'photos') { setActiveView('feed'); }  
+    if (fromFeed === 'photos') setActiveView('feed');  
     else if (fromFeed === 'profile_history') { setProfileView('history'); setActiveView('profile'); }  
     else if (fromFeed === 'profile_favorites') { setProfileView('favorites'); setActiveView('profile'); }  
-    else { setActiveView('service'); } 
+    else setActiveView('service'); 
     setFromFeed(false); 
   }; 
 
@@ -1063,15 +688,14 @@ export default function Home() {
 
   const switchView = (view: 'service' | 'about' | 'daily' | 'feed' | 'profile' | 'game') => { 
     setActiveView(view); setIsMenuOpen(false); 
-    if (view === 'service') { setIsSharedView(false); if (typeof window !== 'undefined') window.history.replaceState({}, '', '/'); }  
-    else { if (typeof window !== 'undefined') window.history.replaceState({}, '', '/'); } 
+    if (typeof window !== 'undefined') window.history.replaceState({}, '', '/'); 
   }; 
 
   const displayedFeed = filterMode === 'all' ? feed : feed?.filter(r => r.is_favorite); 
   const visibleHistory = historyExpanded ? displayedFeed : displayedFeed?.slice(0, 4); 
   const actualServings = typeof servings === 'number' ? servings : 1; 
 
-  const renderComment = (c: DBComment, isReply: boolean = false) => ( 
+  const renderCommentUI = (c: DBComment, isReply: boolean = false) => ( 
     <div key={c.id} style={{ background: isReply ? '#f8fafc' : 'white', padding: '12px 15px', borderRadius: '16px', border: '1px solid #e2e8f0', marginBottom: isReply ? '10px' : '0', marginLeft: isReply ? '25px' : '0', position: 'relative' }}> 
       {isReply && <div style={{position: 'absolute', left: '-15px', top: '20px', width: '15px', height: '2px', background: '#cbd5e1'}} />} 
       <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}> 
@@ -1086,16 +710,7 @@ export default function Home() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}> 
             <div style={{ fontSize: '13px', fontWeight: 800, color: '#111', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
               {c.user_name}
-              {userLevels[c.user_id] && (
-                <span style={{fontSize: '10px', background: '#fef3c7', color: '#d97706', padding: '2px 8px', borderRadius: '100px', fontWeight: 800}}>
-                  {userLevels[c.user_id] === 1 ? 'Ларёк 🌭' : 
-                   userLevels[c.user_id] === 2 ? 'Закусочная 🍔' : 
-                   userLevels[c.user_id] === 3 ? 'Кафе ☕️' : 
-                   userLevels[c.user_id] === 4 ? 'Ресторан 🍽' : 
-                   userLevels[c.user_id] === 5 ? 'Мишленовский ресторан ⭐️' : 
-                   'Сеть ресторанов 👑'}
-                </span>
-              )}
+              {renderUserBadge(c.user_id, userLevels[c.user_id])}
             </div> 
             {user && user.id === c.user_id && ( 
               <button onClick={() => handleDeleteComment(c.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px' }}><Trash2 size={14} /></button> 
@@ -1117,67 +732,22 @@ export default function Home() {
       </div> 
     </div> 
   ); 
-
   return ( 
     <div className="container"> 
       <style>{` 
         input[type=number]::-webkit-inner-spin-button,  
-        input[type=number]::-webkit-outer-spin-button {  
-          -webkit-appearance: none;  
-          margin: 0;  
-        } 
-        input[type=number] { 
-          -moz-appearance: textfield; 
-        } 
-        textarea {
-          font-family: inherit;
-        }
-        .menu-link {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-          padding: 14px 16px;
-          font-size: 16px;
-          font-weight: 600;
-          color: #475569;
-          border-radius: 16px;
-          cursor: pointer;
-          transition: all 0.2s ease;
-          margin-bottom: 4px;
-        }
-        .menu-link:hover {
-          background: #f8fafc;
-        }
-        @keyframes floatUp {
-          0% { opacity: 1; transform: translateY(0) scale(1); }
-          100% { opacity: 0; transform: translateY(-60px) scale(1.3); }
-        }
-        .float-coin {
-          position: absolute;
-          animation: floatUp 0.8s ease-out forwards;
-          pointer-events: none;
-          font-size: 24px;
-          font-weight: 900;
-          color: #f59e0b;
-          text-shadow: 0px 2px 4px rgba(0,0,0,0.3);
-          z-index: 10;
-        }
+        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; } 
+        input[type=number] { -moz-appearance: textfield; } 
+        textarea { font-family: inherit; }
+        .menu-link { display: flex; align-items: center; gap: 14px; padding: 14px 16px; font-size: 16px; font-weight: 600; color: #475569; border-radius: 16px; cursor: pointer; transition: all 0.2s ease; margin-bottom: 4px; }
+        .menu-link:hover { background: #f8fafc; }
+        @keyframes floatUp { 0% { opacity: 1; transform: translateY(0) scale(1); } 100% { opacity: 0; transform: translateY(-60px) scale(1.3); } }
+        .float-coin { position: absolute; animation: floatUp 0.8s ease-out forwards; pointer-events: none; font-size: 24px; font-weight: 900; color: #f59e0b; text-shadow: 0px 2px 4px rgba(0,0,0,0.3); z-index: 10; }
       `}</style> 
 
       {fullScreenImage && ( 
-        <div  
-          style={{ 
-            position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.9)',  
-            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' 
-          }}  
-          onClick={() => setFullScreenImage(null)} 
-        > 
-          <button  
-            style={{position: 'absolute', top: '20px', right: '20px', background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', padding: '10px', color: 'white', cursor: 'pointer', backdropFilter: 'blur(5px)'}}  
-            onClick={() => setFullScreenImage(null)} 
-          > 
-            <X size={24} /> 
-          </button> 
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={() => setFullScreenImage(null)}> 
+          <button style={{position: 'absolute', top: '20px', right: '20px', background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', padding: '10px', color: 'white', cursor: 'pointer', backdropFilter: 'blur(5px)'}} onClick={() => setFullScreenImage(null)}> <X size={24} /> </button> 
           <img src={fullScreenImage} style={{maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '12px'}} alt="Fullscreen" /> 
         </div> 
       )} 
@@ -1185,18 +755,7 @@ export default function Home() {
       {isCropping && cropImageSrc && (
         <div style={{position: 'fixed', inset: 0, zIndex: 100001, background: 'black', display: 'flex', flexDirection: 'column'}}>
           <div style={{position: 'absolute', top: 0, left: 0, right: 0, bottom: '80px'}}>
-            <Cropper
-              image={cropImageSrc}
-              crop={crop}
-              zoom={zoom}
-              aspect={1}
-              cropShape="round"
-              showGrid={false}
-              onCropChange={setCrop}
-              onCropComplete={onCropComplete}
-              onZoomChange={setZoom}
-              style={{ containerStyle: { background: 'black' } }}
-            />
+            <Cropper image={cropImageSrc} crop={crop} zoom={zoom} aspect={1} cropShape="round" showGrid={false} onCropChange={setCrop} onCropComplete={onCropComplete} onZoomChange={setZoom} style={{ containerStyle: { background: 'black' } }} />
           </div>
           <div style={{position: 'absolute', bottom: 0, left: 0, right: 0, height: '80px', padding: '15px 20px', background: '#111', display: 'flex', gap: '10px', paddingBottom: 'env(safe-area-inset-bottom, 20px)'}}>
              <button onClick={() => {setIsCropping(false); setCropImageSrc(null);}} style={{flex: 1, padding: '14px', borderRadius: '12px', background: '#333', color: 'white', border: 'none', fontWeight: 700, cursor: 'pointer'}}>Отмена</button>
@@ -1221,8 +780,8 @@ export default function Home() {
               ) : ( 
                 postComments.filter(c => !c.parent_id).map((c) => ( 
                   <div key={c.id} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}> 
-                    {renderComment(c)} 
-                    {postComments.filter(reply => reply.parent_id === c.id).map(reply => renderComment(reply, true))} 
+                    {renderCommentUI(c)} 
+                    {postComments.filter(reply => reply.parent_id === c.id).map(reply => renderCommentUI(reply, true))} 
                   </div> 
                 )) 
               )} 
@@ -1275,7 +834,7 @@ export default function Home() {
                 <div style={{flex: 1, height: '1px', background: '#e5e7eb'}}></div><span style={{padding: '0 10px'}}>ИЛИ</span><div style={{flex: 1, height: '1px', background: '#e5e7eb'}}></div> 
               </div> 
               <div> 
-                <input type="email" placeholder="Ваш Email" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} style={{width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #d1d5db', fontSize: '15px', marginBottom: '10px', outline: 'none'}} /> 
+                <input type="email" placeholder="Ваш Email" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} style={{width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #d1d5db', fontSize: '15px', marginBottom: '10px', outline: 'none', boxSizing: 'border-box'}} /> 
                 <button onClick={handleEmailLogin} disabled={isSendingLink || !authEmail} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', padding: '14px', borderRadius: '12px', background: authEmail ? '#059669' : '#d1fae5', color: authEmail ? 'white' : '#047857', border: 'none', fontSize: '15px', fontWeight: 700, cursor: authEmail ? 'pointer' : 'default', transition: 'all 0.2s' }}> 
                   <Mail size={18} /> {isSendingLink ? "Отправка..." : "Получить ссылку для входа"} 
                 </button> 
@@ -1291,7 +850,7 @@ export default function Home() {
       )} 
 
       {isEditingProfile && user && ( 
-        <div style={{ position: 'fixed', inset: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', padding: '20px' }}> 
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', padding: '20px' }}> 
           <div className="animate-fade-in" style={{ background: 'white', borderRadius: '24px', width: '100%', maxWidth: '400px', padding: '30px 25px', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', textAlign: 'center' }}> 
             <h2 style={{fontSize: '20px', fontWeight: 900, color: '#111', margin: '0 0 20px 0'}}>Редактировать профиль</h2> 
              
@@ -1327,7 +886,7 @@ export default function Home() {
           <div className="animate-fade-in" style={{ background: 'white', width: '100%', maxWidth: '500px', padding: '25px', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', position: 'relative', boxShadow: '0 -10px 40px rgba(0,0,0,0.2)' }}>
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px'}}>
               <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 900 }}>Фильтры для рецепта ⚙️</h3>
-              <button onClick={() => setIsPreferencesModalOpen(false)} style={{ minWidth: '32px', minHeight: '32px', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: '#f1f5f9', border: 'none', borderRadius: '50%', padding: '0', cursor: 'pointer', color: '#64748b' }}><X size={20} /></button>
+              <button onClick={() => setIsPreferencesModalOpen(false)} style={{ width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: '#f1f5f9', border: 'none', borderRadius: '50%', padding: '0', cursor: 'pointer', color: '#64748b' }}><X size={20} /></button>
             </div>
             
             <p style={{fontSize: '13px', color: '#64748b', marginBottom: '20px', lineHeight: 1.4}}>
@@ -1706,6 +1265,210 @@ export default function Home() {
         </> 
       )} 
 
+      {/* === ИГРА (МОЙ РЕСТОРАН) === */}
+      {activeView === 'game' && (
+        <div style={{marginTop: '60px', paddingBottom: '80px'}}>
+          {!user && (
+            <div style={{background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '16px', padding: '15px', marginBottom: '20px', textAlign: 'center'}}>
+               <p style={{fontSize: '13px', color: '#b45309', margin: 0, lineHeight: 1.5}}>
+                 ⚠️ Ваш прогресс сохраняется только в телефоне. <br/>
+                 <span onClick={() => setIsAuthModalOpen(true)} style={{color: '#10b981', textDecoration: 'underline', cursor: 'pointer', fontWeight: 800}}>Войдите в аккаунт</span>, чтобы сохранить его навсегда и <strong>соревноваться в мировом рейтинге!</strong>
+               </p>
+            </div>
+          )}
+
+          <div style={{textAlign: 'center', marginBottom: '20px'}}>
+            <h1 style={{fontSize: '28px', fontWeight: '900', margin: '0 0 5px 0'}}>Мой ресторан 🏪</h1>
+            <div style={{background: '#fef3c7', color: '#d97706', display: 'inline-block', padding: '4px 12px', borderRadius: '100px', fontSize: '12px', fontWeight: 800}}>
+              Уровень {restaurantLevel}: {restaurantLevel === 1 ? 'Уличный ларек 🌭' : restaurantLevel === 2 ? 'Закусочная 🍔' : restaurantLevel === 3 ? 'Уютное кафе ☕️' : restaurantLevel === 4 ? 'Ресторан 🍽' : restaurantLevel === 5 ? 'Мишленовский ресторан ⭐️' : 'Сеть ресторанов 👑'}
+            </div>
+          </div>
+
+          <div style={{display: 'flex', background: '#f1f5f9', padding: '6px', borderRadius: '20px', marginBottom: '25px', overflowX: 'auto', WebkitOverflowScrolling: 'touch'}}>
+            <button onClick={() => setGameTab('kitchen')} style={{ flex: 1, minWidth: '80px', padding: '10px 5px', borderRadius: '16px', border: 'none', background: gameTab === 'kitchen' ? 'white' : 'transparent', fontWeight: 800, fontSize: '13px', boxShadow: gameTab === 'kitchen' ? '0 4px 15px rgba(0,0,0,0.05)' : 'none', color: gameTab === 'kitchen' ? '#f59e0b' : '#64748b', cursor: 'pointer', transition: 'all 0.2s' }}>Кухня</button>
+            <button onClick={() => setGameTab('tasks')} style={{ flex: 1, minWidth: '80px', padding: '10px 5px', borderRadius: '16px', border: 'none', background: gameTab === 'tasks' ? 'white' : 'transparent', fontWeight: 800, fontSize: '13px', boxShadow: gameTab === 'tasks' ? '0 4px 15px rgba(0,0,0,0.05)' : 'none', color: gameTab === 'tasks' ? '#3b82f6' : '#64748b', cursor: 'pointer', transition: 'all 0.2s' }}>Задания</button>
+            <button onClick={() => setGameTab('shop')} style={{ flex: 1, minWidth: '80px', padding: '10px 5px', borderRadius: '16px', border: 'none', background: gameTab === 'shop' ? 'white' : 'transparent', fontWeight: 800, fontSize: '13px', boxShadow: gameTab === 'shop' ? '0 4px 15px rgba(0,0,0,0.05)' : 'none', color: gameTab === 'shop' ? '#10b981' : '#64748b', cursor: 'pointer', transition: 'all 0.2s' }}>Прокачка</button>
+            <button onClick={() => setGameTab('leaderboard')} style={{ flex: 1, minWidth: '80px', padding: '10px 5px', borderRadius: '16px', border: 'none', background: gameTab === 'leaderboard' ? 'white' : 'transparent', fontWeight: 800, fontSize: '13px', boxShadow: gameTab === 'leaderboard' ? '0 4px 15px rgba(0,0,0,0.05)' : 'none', color: gameTab === 'leaderboard' ? '#8b5cf6' : '#64748b', cursor: 'pointer', transition: 'all 0.2s' }}>Рейтинг</button>
+          </div>
+
+          {gameTab === 'kitchen' && (
+            <div className="card animate-fade-in" style={{textAlign: 'center', padding: '30px 20px', position: 'relative', overflow: 'hidden'}}>
+               {floatingClicks.map(click => (
+                  <div key={click.id} className="float-coin" style={{left: click.x, top: click.y}}>
+                    +{click.val}
+                  </div>
+               ))}
+               <div style={{fontSize: '16px', color: '#64748b', fontWeight: 700, marginBottom: '5px'}}>Баланс</div>
+               
+               <div style={{fontSize: '32px', fontWeight: 900, color: '#111', lineHeight: 1, marginBottom: '5px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'}}>
+                 {formatCooks(cooks)} <span style={{fontSize: '28px'}}>🍪</span>
+               </div>
+
+               <div style={{fontSize: '14px', color: '#10b981', fontWeight: 700, marginBottom: '30px'}}>
+                 {passiveIncome > 0 ? `+${passiveIncome} в сек.` : 'Нет пассивного дохода'}
+               </div>
+               
+               <div 
+                 onPointerDown={handleCookClick}
+                 style={{
+                   width: '200px', height: '200px', margin: '0 auto', background: 'radial-gradient(circle, #fef3c7 0%, #fde68a 100%)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '80px', cursor: 'pointer', boxShadow: '0 20px 40px -10px rgba(245, 158, 11, 0.4), inset 0 -10px 20px rgba(217, 119, 6, 0.2)', userSelect: 'none', transition: 'transform 0.05s', WebkitTapHighlightColor: 'transparent'
+                 }}
+               >
+                 🍳
+               </div>
+               
+               <div style={{marginTop: '40px'}}>
+                 <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', fontSize: '13px', color: '#64748b', fontWeight: 700, marginBottom: '8px'}}>
+                    <div style={{textAlign: 'left'}}>
+                      Энергия 
+                      {energy < 500 && (
+                        <div style={{fontSize: '11px', fontWeight: 500, color: '#9ca3af', marginTop: '2px'}}>
+                          (полная через {Math.floor((500 - energy) / 60)}м {(500 - energy) % 60}с)
+                        </div>
+                      )}
+                    </div>
+                    <span>{energy} / 500 ⚡️</span>
+                 </div>
+                 <div style={{width: '100%', height: '12px', background: '#f1f5f9', borderRadius: '10px', overflow: 'hidden'}}>
+                    <div style={{width: `${(energy / 500) * 100}%`, height: '100%', background: '#10b981', transition: 'width 0.2s'}} />
+                 </div>
+               </div>
+            </div>
+          )}
+
+          {gameTab === 'tasks' && (
+            <div className="card animate-fade-in" style={{padding: '20px'}}>
+              <h3 style={{marginTop: 0, marginBottom: '20px'}}>Задания для шефа</h3>
+              
+              <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', padding: '15px', borderRadius: '16px', marginBottom: '10px'}}>
+                <div>
+                  <div style={{fontWeight: 800, fontSize: '15px', color: '#111', marginBottom: '4px'}}>Сгенерировать рецепт</div>
+                  <div style={{fontSize: '12px', color: '#64748b', fontWeight: 600}}>Награда: 100 куков (Раз в день)</div>
+                </div>
+                <button onClick={() => switchView('service')} style={{background: '#3b82f6', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '100px', fontWeight: 700, fontSize: '12px', cursor: 'pointer'}}>Выполнить</button>
+              </div>
+
+              <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', padding: '15px', borderRadius: '16px', marginBottom: '10px'}}>
+                <div>
+                  <div style={{fontWeight: 800, fontSize: '15px', color: '#111', marginBottom: '4px'}}>Оценить коллег (лайки)</div>
+                  <div style={{fontSize: '12px', color: '#64748b', fontWeight: 600}}>Награда: (Скоро)</div>
+                </div>
+                <button onClick={() => switchView('feed')} style={{background: '#3b82f6', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '100px', fontWeight: 700, fontSize: '12px', cursor: 'pointer'}}>В ленту</button>
+              </div>
+
+              <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', padding: '15px', borderRadius: '16px'}}>
+                <div>
+                  <div style={{fontWeight: 800, fontSize: '15px', color: '#111', marginBottom: '4px'}}>Выложить фото блюда</div>
+                  <div style={{fontSize: '12px', color: '#64748b', fontWeight: 600}}>Награда: 1000 куков</div>
+                </div>
+                <button onClick={() => switchView('feed')} style={{background: '#3b82f6', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '100px', fontWeight: 700, fontSize: '12px', cursor: 'pointer'}}>В ленту</button>
+              </div>
+            </div>
+          )}
+
+          {gameTab === 'shop' && (
+            <div className="card animate-fade-in" style={{padding: '20px'}}>
+              <h3 style={{marginTop: 0, marginBottom: '20px'}}>Магазин улучшений</h3>
+              
+              <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fffbeb', padding: '15px', borderRadius: '16px', marginBottom: '10px', border: '1px solid #fef3c7'}}>
+                <div>
+                  <div style={{fontWeight: 800, fontSize: '15px', color: '#b45309', marginBottom: '4px'}}>Новая лопатка</div>
+                  <div style={{fontSize: '12px', color: '#d97706', fontWeight: 600}}>+1 кук за клик</div>
+                </div>
+                <button 
+                  onClick={() => buyUpgrade('spatula')}
+                  disabled={cooks < (clickPower * 500)}
+                  style={{background: cooks >= (clickPower * 500) ? '#f59e0b' : '#fde68a', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '100px', fontWeight: 700, fontSize: '12px', cursor: cooks >= (clickPower * 500) ? 'pointer' : 'not-allowed', transition: 'all 0.2s'}}
+                >
+                  {clickPower * 500} 🍪
+                </button>
+              </div>
+              
+              <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f0fdf4', padding: '15px', borderRadius: '16px', marginBottom: '10px', border: '1px solid #dcfce7'}}>
+                <div>
+                  <div style={{fontWeight: 800, fontSize: '15px', color: '#15803d', marginBottom: '4px'}}>Нанять су-шефа</div>
+                  <div style={{fontSize: '12px', color: '#16a34a', fontWeight: 600}}>+1 кук каждую секунду</div>
+                </div>
+                <button 
+                  onClick={() => buyUpgrade('souschef')}
+                  disabled={cooks < ((passiveIncome + 1) * 2000)}
+                  style={{background: cooks >= ((passiveIncome + 1) * 2000) ? '#22c55e' : '#bbf7d0', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '100px', fontWeight: 700, fontSize: '12px', cursor: cooks >= ((passiveIncome + 1) * 2000) ? 'pointer' : 'not-allowed', transition: 'all 0.2s'}}
+                >
+                  {(passiveIncome + 1) * 2000} 🍪
+                </button>
+              </div>
+
+              <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', padding: '15px', borderRadius: '16px', border: '1px solid #e2e8f0'}}>
+                <div>
+                  <div style={{fontWeight: 800, fontSize: '15px', color: '#1e293b', marginBottom: '4px'}}>Ремонт ресторана</div>
+                  <div style={{fontSize: '12px', color: '#64748b', fontWeight: 600}}>Перейти на Уровень {restaurantLevel + 1}</div>
+                </div>
+                {(() => {
+                  const restCost = restaurantLevel === 5 ? 100000 : restaurantLevel * 10000;
+                  return (
+                    <button 
+                      onClick={() => buyUpgrade('restaurant')}
+                      disabled={cooks < restCost || restaurantLevel >= 6}
+                      style={{background: (cooks >= restCost && restaurantLevel < 6) ? '#3b82f6' : '#cbd5e1', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '100px', fontWeight: 700, fontSize: '12px', cursor: (cooks >= restCost && restaurantLevel < 6) ? 'pointer' : 'not-allowed', transition: 'all 0.2s'}}
+                    >
+                      {restaurantLevel >= 6 ? "МАКС" : `${restCost} 🍪`}
+                    </button>
+                  );
+                })()}
+              </div>
+            </div>
+          )}
+
+          {gameTab === 'leaderboard' && (
+            <div className="card animate-fade-in" style={{padding: '20px'}}>
+              <h3 style={{marginTop: 0, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px'}}>
+                <Trophy size={20} color="#f59e0b" /> Топ шеф-поваров
+              </h3>
+              
+              {!user ? (
+                 <div style={{textAlign: 'center', color: '#9ca3af', padding: '20px'}}>
+                   <Lock size={32} style={{margin: '0 auto 10px auto', opacity: 0.5}} />
+                   Войдите в аккаунт, чтобы видеть мировой рейтинг и участвовать в нем.
+                 </div>
+              ) : leaderboard.length === 0 ? (
+                 <div style={{textAlign: 'center', color: '#9ca3af', padding: '20px'}}>Загрузка рейтинга...</div>
+              ) : (
+                <div style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
+                  {leaderboard.map((lbUser, idx) => (
+                    <div key={idx} style={{display: 'flex', alignItems: 'center', gap: '12px', background: idx === 0 ? '#fffbeb' : idx === 1 ? '#f8fafc' : idx === 2 ? '#fff1f2' : 'white', padding: '12px', borderRadius: '16px', border: idx < 3 ? `1px solid ${idx === 0 ? '#fde68a' : idx === 1 ? '#e2e8f0' : '#fecdd3'}` : '1px solid #f1f5f9'}}>
+                       <div style={{width: '24px', fontWeight: 900, color: idx === 0 ? '#d97706' : idx === 1 ? '#64748b' : idx === 2 ? '#be123c' : '#9ca3af', fontSize: '16px', textAlign: 'center'}}>
+                         {idx + 1}
+                       </div>
+                       
+                       {lbUser.user_avatar ? ( 
+                          <img src={lbUser.user_avatar} alt="Avatar" style={{width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover'}} /> 
+                       ) : ( 
+                          <div style={{width: '36px', height: '36px', borderRadius: '50%', background: '#e2e8f0', color: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 800, flexShrink: 0}}> 
+                            {lbUser.user_name?.charAt(0).toUpperCase() || 'Ш'} 
+                          </div> 
+                       )}
+                       
+                       <div style={{flex: 1, minWidth: 0}}>
+                         <div style={{fontWeight: 800, fontSize: '14px', color: '#111', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
+                           {lbUser.user_name || 'Анонимный шеф'}
+                         </div>
+                         <div style={{display: 'flex', gap: '5px', marginTop: '4px'}}>
+                           {renderUserBadge(lbUser.user_id, lbUser.restaurant_level)}
+                         </div>
+                       </div>
+                       
+                       <div style={{fontWeight: 900, color: '#f59e0b', fontSize: '14px', whiteSpace: 'nowrap'}}>
+                         {lbUser.cooks} 🍪
+                       </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* === ЛЕНТА ФОТО === */} 
       {activeView === 'feed' && ( 
         <div style={{marginTop: '60px'}}> 
@@ -1722,6 +1485,7 @@ export default function Home() {
             <input id="standalone-photo-upload" type="file" accept="image/*" style={{display: 'none'}} onChange={handleUserPhotoChange} /> 
           </div> 
 
+          {/* Форма загрузки своего блюда */} 
           {isStandaloneUploadOpen && userPhotoPreview && ( 
             <div className="card animate-fade-in" style={{border: '2px solid #0ea5e9', marginBottom: '25px'}}> 
               <h3 style={{marginTop: 0, marginBottom: '15px'}}>Публикация своего блюда</h3> 
@@ -1779,16 +1543,7 @@ export default function Home() {
                    <div style={{flex: 1}}> 
                       <div style={{fontWeight: 800, fontSize: '14px', color: '#111', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap'}}>
                         {post.user_name || 'Анонимный шеф'}
-                        {userLevels[post.user_id] && (
-                          <span style={{fontSize: '10px', background: '#fef3c7', color: '#d97706', padding: '2px 8px', borderRadius: '100px', fontWeight: 800}}>
-                            {userLevels[post.user_id] === 1 ? 'Ларёк 🌭' : 
-                             userLevels[post.user_id] === 2 ? 'Закусочная 🍔' : 
-                             userLevels[post.user_id] === 3 ? 'Кафе ☕️' : 
-                             userLevels[post.user_id] === 4 ? 'Ресторан 🍽' : 
-                             userLevels[post.user_id] === 5 ? 'Мишленовский ресторан ⭐️' : 
-                             'Сеть ресторанов 👑'}
-                          </span>
-                        )}
+                        {renderUserBadge(post.user_id, userLevels[post.user_id])}
                       </div> 
                       {post.recipe_id ? ( 
                         <div style={{fontSize: '12px', color: '#6b7280', display: 'flex', alignItems: 'center', gap: '4px'}}> 
@@ -1832,141 +1587,6 @@ export default function Home() {
         </div> 
       )} 
 
-      {/* === РЕЦЕПТ ДНЯ === */} 
-      {activeView === 'daily' && ( 
-        <div style={{marginTop: '60px'}}> 
-          {dailyError ? (
-            <div style={{textAlign: 'center', padding: '50px 20px', color: '#6b7280'}}>
-               <div style={{fontSize: '40px', marginBottom: '15px'}}>👨‍🍳</div>
-               <h3 style={{color: '#111', marginBottom: '10px', fontSize: '20px', fontWeight: 800}}>Шеф готовит меню...</h3>
-               <p style={{fontSize: '14px', marginBottom: '25px'}}>Рецепт дня пока не готов или произошла ошибка связи с кухней.</p>
-               <button onClick={loadDailyRecipe} style={{background: '#f97316', color: 'white', border: 'none', padding: '12px 24px', borderRadius: '100px', fontWeight: 800, cursor: 'pointer', fontSize: '14px', boxShadow: '0 4px 10px rgba(249, 115, 22, 0.3)'}}>
-                 Попробовать снова
-               </button>
-            </div>
-          ) : dailyRecipe ? ( 
-            <div className="card" style={{padding: 0, overflow: 'hidden', border: 'none'}}> 
-              <div style={{ background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', padding: '30px 20px', color: 'white', textAlign: 'center', position: 'relative', borderRadius: '24px', margin: '10px', boxShadow: '0 10px 25px -5px rgba(234, 88, 12, 0.5)' }}> 
-                 <div style={{fontSize: '50px', marginBottom: '15px', textShadow: '0 10px 20px rgba(0,0,0,0.2)'}}>🔥</div> 
-                 <div style={{textTransform: 'uppercase', fontSize: '12px', fontWeight: 800, letterSpacing: '2px', opacity: 0.8, marginBottom: '10px'}}>Рецепт дня</div> 
-                 <h1 style={{fontSize: '26px', fontWeight: 900, margin: '0 0 15px 0', lineHeight: 1.2, textShadow: '0 2px 10px rgba(0,0,0,0.1)'}}>{dailyRecipe.title}</h1> 
-                 {dailyRecipe.description && <p style={{opacity: 0.95, fontSize: '15px', margin: 0, fontWeight: 500}}>{dailyRecipe.description}</p>} 
-                 <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginTop: '25px' }}> 
-                   <button onClick={handleShareDaily} style={{ background: 'white', color: '#ea580c', border: 'none', padding: '10px 20px', borderRadius: '100px', fontWeight: 800, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', transition: 'transform 0.2s' }}> <Share2 size={20} color="currentColor" /> Поделиться </button> 
-                   <button onClick={toggleDailyFavorite} style={{ background: 'white', color: dailyFavoriteId ? '#ef4444' : '#ea580c', border: 'none', padding: '10px 20px', borderRadius: '100px', fontWeight: 800, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', transition: 'transform 0.2s' }}> <Heart size={20} fill={dailyFavoriteId ? "#ef4444" : "none"} color={dailyFavoriteId ? "#ef4444" : "currentColor"} /> {dailyFavoriteId ? "В избранном" : "В избранное"} </button> 
-                 </div> 
-              </div> 
-               
-              <div style={{padding: '25px'}}> 
-                  <div className="recipe-tags" style={{justifyContent: 'center', marginBottom: '20px'}}> 
-                    <div className="tag-badge" style={{fontSize: '15px', padding: '8px 16px'}}><Clock size={18}/> {formatTime(String(dailyRecipe.time))}</div> 
-                    {dailyRecipe.calories && <div className="tag-badge orange" style={{fontSize: '15px', padding: '8px 16px'}}><Flame size={18}/> {formatCalories(String(dailyRecipe.calories))}</div>} 
-                  </div> 
-
-                  {dailyRecipe.detailed_ingredients && dailyRecipe.detailed_ingredients.length > 0 && ( 
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginBottom: '30px', background: '#fff7ed', padding: '10px 15px', borderRadius: '12px', width: 'fit-content', margin: '0 auto 30px auto' }}> 
-                      <span style={{fontWeight: 700, color: '#9a3412', fontSize: '15px'}}>🍽 Порции:</span> 
-                      <div style={{display: 'flex', alignItems: 'center', background: 'white', border: '1px solid #ffedd5', borderRadius: '8px', overflow: 'hidden'}}> 
-                        <button onClick={() => setServings(prev => typeof prev === 'number' && prev > 1 ? prev - 1 : 1)} disabled={servings === 1 || servings === ""} style={{padding: '6px 12px', background: 'transparent', border: 'none', fontSize: '18px', color: (servings === 1 || servings === "") ? '#d1d5db' : '#ea580c', cursor: (servings === 1 || servings === "") ? 'default' : 'pointer', fontWeight: 600}}> - </button> 
-                        <input type="number" value={servings} onChange={(e) => { const val = e.target.value; if (val === '') setServings(''); else { const num = parseInt(val); if (!isNaN(num) && num > 0 && num <= 100) setServings(num); } }} onBlur={() => { if (servings === "") setServings(1); }} style={{width: '40px', textAlign: 'center', border: 'none', borderLeft: '1px solid #ffedd5', borderRight: '1px solid #ffedd5', padding: '6px 0', fontSize: '16px', fontWeight: 700, color: '#9a3412', outline: 'none', boxSizing: 'border-box'}} /> 
-                        <button onClick={() => setServings(prev => typeof prev === 'number' ? prev + 1 : 2)} style={{padding: '6px 12px', background: 'transparent', border: 'none', fontSize: '18px', color: '#ea580c', cursor: 'pointer', fontWeight: 600}}> + </button> 
-                      </div> 
-                    </div> 
-                  )} 
-
-                  {(() => { 
-                    const itemsToBuy = dailyRecipe.detailed_ingredients ? dailyRecipe.detailed_ingredients.map(ing => ing.name) : (dailyRecipe.ingredients || []); 
-                    if (itemsToBuy.length === 0) return null; 
-                    return ( 
-                      <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '12px', padding: '15px', margin: '20px 0', color: '#92400e' }}> 
-                        <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontWeight: 800}}> <ShoppingCart size={20} /> Нужно купить: </div> 
-                        <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px'}}> 
-                          {itemsToBuy.map((item, idx) => ( <a key={idx} href={`https://www.ozon.ru/search/?text=${encodeURIComponent(item)}&from_global=true`} target="_blank" rel="noopener noreferrer" style={{ background: '#fef3c7', padding: '6px 12px', borderRadius: '8px', fontSize: '14px', fontWeight: 600, textDecoration: 'none', color: '#92400e', display: 'flex', alignItems: 'center', gap: '6px', border: '1px solid #fcd34d', cursor: 'pointer', transition: 'all 0.2s' }}> {item} <ExternalLink size={12} style={{opacity: 0.6}} /> </a> ))} 
-                        </div> 
-                        <div style={{fontSize: '12px', color: '#b45309', display: 'flex', alignItems: 'center', gap: '5px'}}> <Info size={14} /> Нажмите на ингредиент, чтобы заказать быструю доставку Ozon Fresh до двери </div> 
-                      </div> 
-                    ); 
-                  })()} 
-
-                  {dailyRecipe.detailed_ingredients && ( 
-                    <div className="ing-box" style={{background: '#fff7ed', border: '1px solid #ffedd5'}}> 
-                      <h3 style={{marginTop: 0, marginBottom: '15px', color: '#9a3412'}}>Ингредиенты</h3> 
-                      {dailyRecipe.detailed_ingredients.map((ing, i) => ( 
-                        <div key={i} className="ing-row"> <span style={{fontWeight: 600}}>{ing.name}</span> <span className="ing-val" style={{color: '#ea580c'}}>{scaleAmount(ing.amount, actualServings)}</span> </div> 
-                      ))} 
-                    </div> 
-                  )} 
-
-                  <h3 style={{fontSize: '24px', fontWeight: 900, marginBottom: '20px', marginTop: '30px'}}>👨‍🍳 Как приготовить</h3> 
-                  <div> 
-                    {dailyRecipe.steps?.map((step, i) => ( 
-                      <div key={i} className="step-row"> <div className="step-num">{i + 1}</div> <div className="step-text">{cleanText(step)}</div> </div> 
-                    ))} 
-                  </div> 
-
-                  <div className="chat-box" style={{marginTop: '30px'}}> 
-                    <div style={{fontWeight: 800, marginBottom: '20px', color: '#1e40af', fontSize: '18px', textAlign: 'center'}}> Задайте вопрос AI шеф-повару! </div> 
-                    <div style={{display: 'flex', gap: '10px', alignItems: 'flex-end', width: '100%'}}> 
-                      <textarea 
-                        placeholder="Например: чем заменить сливки?" 
-                        value={question} 
-                        onChange={(e) => {
-                          setQuestion(e.target.value);
-                          e.target.style.height = '44px';
-                          e.target.style.height = (e.target.scrollHeight < 120 ? e.target.scrollHeight : 120) + 'px';
-                        }} 
-                        rows={1}
-                        style={{ flex: 1, width: '100%', padding: '12px 16px', borderRadius: '22px', border: '1px solid #93c5fd', fontSize: '15px', outline: 'none', background: 'white', resize: 'none', overflowY: 'auto', height: '44px', minHeight: '44px', maxHeight: '120px', boxSizing: 'border-box', lineHeight: '18px', fontFamily: 'inherit' }}
-                      /> 
-                      <button className="chat-btn-center" onClick={handleAskChef} style={{flexShrink: 0, padding: 0, width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: '#3b82f6', color: 'white', border: 'none', cursor: 'pointer'}}> <Send size={18} style={{marginLeft: '-2px'}}/> </button> 
-                    </div> 
-                    {answer && <div style={{marginTop: '20px', lineHeight: 1.5, background: 'white', padding: '15px', borderRadius: '16px'}}><strong>Ответ:</strong> {answer}</div>} 
-                  </div> 
-
-                  <div style={{marginTop: '30px', background: '#fff7ed', padding: '25px 20px', borderRadius: '16px', border: '1px solid #ffedd5', textAlign: 'center'}}> 
-                    <h3 style={{fontSize: '18px', fontWeight: 800, marginBottom: '5px', color: '#9a3412'}}>📸 Приготовили? Покажите результат!</h3> 
-                    <p style={{fontSize: '13px', color: '#64748b', marginBottom: '15px', lineHeight: 1.4}}> Ваше фото появится в разделе <strong>«Лента»</strong>, где его смогут оценить другие пользователи! </p> 
-                    {!user ? ( 
-                       <button className="btn-primary" onClick={() => setIsAuthModalOpen(true)}>Войти, чтобы опубликовать фото</button> 
-                    ) : ( 
-                       <div style={{display: 'flex', flexDirection: 'column', gap: '15px'}}> 
-                         {!userPhotoFile ? ( 
-                            <div style={{border: '2px dashed #fdba74', borderRadius: '12px', padding: '20px', cursor: 'pointer', background: 'white'}} onClick={() => {setIsStandaloneUploadOpen(false); document.getElementById('daily-photo-upload')?.click();}}> 
-                               <Camera size={32} color="#f97316" style={{margin: '0 auto 10px auto'}} /> 
-                               <div style={{fontSize: '14px', fontWeight: 600, color: '#9a3412'}}>Нажмите, чтобы загрузить фото блюда</div> 
-                               <input id="daily-photo-upload" type="file" accept="image/*" style={{display: 'none'}} onChange={handleUserPhotoChange} /> 
-                            </div> 
-                         ) : ( 
-                            <div style={{background: 'white', padding: '15px', borderRadius: '12px', border: '1px solid #ffedd5'}}> 
-                               <img src={userPhotoPreview!} alt="Preview" style={{width: '100%', height: '200px', objectFit: 'cover', borderRadius: '8px', marginBottom: '15px'}} /> 
-                               <textarea 
-                                 placeholder="Описание к блюду (как получилось?)" 
-                                 value={userComment} 
-                                 onChange={(e) => {
-                                   setUserComment(e.target.value);
-                                   e.target.style.height = '44px';
-                                   e.target.style.height = (e.target.scrollHeight) + 'px';
-                                 }} 
-                                 rows={1}
-                                 style={{width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #fdba74', fontSize: '15px', marginBottom: '15px', outline: 'none', resize: 'none', overflow: 'hidden', minHeight: '44px', boxSizing: 'border-box', fontFamily: 'inherit', lineHeight: '18px'}} 
-                               /> 
-                               <div style={{display: 'flex', gap: '10px'}}> 
-                                 <button onClick={() => {setUserPhotoFile(null); setUserPhotoPreview(null); setUserComment("");}} style={{flex: 1, padding: '12px', borderRadius: '8px', background: '#fffbeb', border: 'none', color: '#b45309', fontWeight: 700, cursor: 'pointer'}}>Отмена</button> 
-                                 <button onClick={() => submitFeedPost(dailyRecipe)} disabled={isUploadingPhoto} style={{flex: 2, padding: '12px', borderRadius: '8px', background: '#ea580c', border: 'none', color: 'white', fontWeight: 700, cursor: isUploadingPhoto ? 'default' : 'pointer'}}> {isUploadingPhoto ? "Отправка..." : "Отправить в ленту"} </button> 
-                               </div> 
-                            </div> 
-                         )} 
-                       </div> 
-                    )} 
-                  </div> 
-              </div> 
-            </div> 
-          ) : ( 
-            <div style={{textAlign: 'center', padding: '50px', color: '#6b7280'}}> Загружаем рецепт дня... <Sparkles className="animate-spin" style={{display: 'inline', marginLeft: '10px'}} /> </div> 
-          )} 
-        </div> 
-      )} 
-       
       {/* === О ПРОЕКТЕ === */} 
       {activeView === 'about' && ( 
         <div className="card" style={{marginTop: '60px', padding: '0', overflow: 'hidden', border: 'none', boxShadow: '0 20px 60px -10px rgba(0,0,0,0.15)'}}> 
@@ -2008,200 +1628,6 @@ export default function Home() {
               <a href="https://t.me/smartcook2026" target="_blank" style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', background: 'white', color: '#0284c7', textDecoration: 'none', padding: '16px 20px', borderRadius: '100px', fontWeight: 800, fontSize: '16px', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', transition: 'transform 0.2s'}}> <Send size={20} /> Подписаться</a> 
             </div> 
           </div> 
-        </div> 
-      )} 
-
-      {/* === ЛИЧНЫЙ КАБИНЕТ === */} 
-      {activeView === 'profile' && ( 
-        <div className="card" style={{marginTop: '60px', padding: '30px 20px', textAlign: 'center', minHeight: '60vh'}}> 
-          {!user ? ( 
-            <> 
-              <div style={{background: '#f3f4f6', width: '80px', height: '80px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px auto'}}><User size={40} color="#9ca3af" /></div> 
-              <h2 style={{fontSize: '24px', fontWeight: 800, marginBottom: '10px'}}>Личный кабинет</h2> 
-              <p style={{color: '#6b7280', fontSize: '15px', marginBottom: '25px', lineHeight: 1.5}}>Здесь будут храниться ваши любимые рецепты и фото кулинарных шедевров.</p> 
-              <div style={{background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '16px', padding: '20px', marginBottom: '25px'}}> 
-                 <h3 style={{margin: '0 0 10px 0', fontSize: '18px', color: '#92400e'}}>Требуется авторизация 🔒</h3> 
-                 <p style={{fontSize: '13px', color: '#b45309', marginBottom: '20px', lineHeight: 1.5}}>🛡 Нам не нужны ваши личные данные. Авторизация нужна только для того, чтобы ваши любимые рецепты и фото блюд навсегда сохранились в вашем личном кабинете. Никакого спама, обещаем!</p> 
-                 <button className="btn-primary" style={{marginBottom: '10px'}} onClick={() => setIsAuthModalOpen(true)}> Войти или зарегистрироваться </button> 
-              </div> 
-            </> 
-          ) : ( 
-            <> 
-              {profileView === 'main' && ( 
-                <> 
-                  <div style={{position: 'relative', width: '80px', height: '80px', margin: '0 auto 20px auto'}}> 
-                    {user.user_metadata?.avatar_url ? ( <img src={user.user_metadata.avatar_url} alt="Avatar" style={{width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', border: '3px solid #059669'}} /> ) : ( <div style={{background: '#059669', width: '100%', height: '100%', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '30px', fontWeight: 800}}>{user.email?.charAt(0).toUpperCase() || 'U'}</div> )} 
-                    <div style={{position: 'absolute', bottom: 0, right: 0, background: '#10b981', width: '20px', height: '20px', borderRadius: '50%', border: '3px solid white'}}></div> 
-                  </div> 
-                   
-                  <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '5px'}}> 
-                    <h2 style={{fontSize: '22px', fontWeight: 800, margin: 0, color: '#111'}}>{user.user_metadata?.full_name || 'Шеф-повар'}</h2> 
-                    <button onClick={() => setIsEditingProfile(true)} style={{background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px'}}><Edit3 size={18} /></button> 
-                  </div> 
-                   
-                  <p style={{color: '#6b7280', fontSize: '14px', marginBottom: '30px'}}>{user.email}</p> 
-
-                  {/* НОВЫЙ БЛОК ПРЕДПОЧТЕНИЙ В ЛИЧНОМ КАБИНЕТЕ */}
-                  <div style={{background: 'white', padding: '20px', borderRadius: '24px', border: '1px solid #e2e8f0', boxShadow: '0 10px 30px -10px rgba(0,0,0,0.05)', marginBottom: '30px', textAlign: 'left'}}>
-                    <h3 style={{margin: '0 0 15px 0', fontSize: '18px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px'}}>Вкусы и аллергии 🥦</h3>
-                    
-                    <div style={{marginBottom: '20px'}}>
-                      <div style={{fontSize: '13px', fontWeight: 700, color: '#be123c', marginBottom: '8px'}}>Аллергии (Строго исключить)</div>
-                      <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px'}}>
-                        {allergies.map((item, idx) => (
-                          <span key={idx} style={{background: '#ffe4e6', color: '#be123c', padding: '6px 12px', borderRadius: '100px', fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '5px'}}>
-                            {item} <X size={14} onClick={() => removeAllergy(idx)} style={{cursor: 'pointer'}}/>
-                          </span>
-                        ))}
-                      </div>
-                      <div style={{display: 'flex', gap: '8px'}}>
-                        <input type="text" placeholder="Например: орехи" value={newAllergy} onChange={e => setNewAllergy(e.target.value)} onKeyPress={e => e.key === 'Enter' && addAllergy()} style={{flex: 1, padding: '10px 15px', borderRadius: '12px', border: '1px solid #fecdd3', outline: 'none', fontSize: '14px', boxSizing: 'border-box'}} />
-                        <button onClick={addAllergy} style={{background: '#be123c', color: 'white', border: 'none', padding: '0 15px', borderRadius: '12px', fontWeight: 700}}><PlusCircle size={20}/></button>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div style={{fontSize: '13px', fontWeight: 700, color: '#b45309', marginBottom: '8px'}}>Не люблю (По возможности без этого)</div>
-                      <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px'}}>
-                        {dislikes.map((item, idx) => (
-                          <span key={idx} style={{background: '#ffedd5', color: '#c2410c', padding: '6px 12px', borderRadius: '100px', fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '5px'}}>
-                            {item} <X size={14} onClick={() => removeDislike(idx)} style={{cursor: 'pointer'}}/>
-                          </span>
-                        ))}
-                      </div>
-                      <div style={{display: 'flex', gap: '8px'}}>
-                        <input type="text" placeholder="Например: лук" value={newDislike} onChange={e => setNewDislike(e.target.value)} onKeyPress={e => e.key === 'Enter' && addDislike()} style={{flex: 1, padding: '10px 15px', borderRadius: '12px', border: '1px solid #fed7aa', outline: 'none', fontSize: '14px', boxSizing: 'border-box'}} />
-                        <button onClick={addDislike} style={{background: '#ea580c', color: 'white', border: 'none', padding: '0 15px', borderRadius: '12px', fontWeight: 700}}><PlusCircle size={20}/></button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', marginBottom: '30px'}}> 
-                     <div onClick={() => setProfileView('history')} style={{background: 'linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%)', padding: '20px', borderRadius: '24px', cursor: 'pointer', border: '1px solid #e9d5ff', boxShadow: '0 10px 20px -5px rgba(139, 92, 246, 0.1)', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden'}}> 
-                       <div style={{position: 'absolute', top: '-10px', right: '-10px', opacity: 0.05, transform: 'scale(2)'}}><Clock size={64} color="#8b5cf6" /></div>
-                       <div style={{background: 'white', width: '40px', height: '40px', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px', color: '#8b5cf6', boxShadow: '0 4px 10px rgba(139, 92, 246, 0.15)'}}><Clock size={20} /></div> 
-                       <div style={{fontSize: '32px', fontWeight: 900, color: '#4c1d95', lineHeight: 1}}>{feed?.length || 0}</div> 
-                       <div style={{fontSize: '14px', color: '#7c3aed', fontWeight: 700, marginTop: '6px'}}>История</div> 
-                     </div> 
-                      
-                     <div onClick={() => setProfileView('favorites')} style={{background: 'linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%)', padding: '20px', borderRadius: '24px', cursor: 'pointer', border: '1px solid #fecdd3', boxShadow: '0 10px 20px -5px rgba(244, 63, 94, 0.1)', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden'}}> 
-                       <div style={{position: 'absolute', top: '-10px', right: '-10px', opacity: 0.05, transform: 'scale(2)'}}><Heart size={64} color="#f43f5e" /></div>
-                       <div style={{background: 'white', width: '40px', height: '40px', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px', color: '#f43f5e', boxShadow: '0 4px 10px rgba(244, 63, 94, 0.15)'}}><Heart size={20} /></div> 
-                       <div style={{fontSize: '32px', fontWeight: 900, color: '#be123c', lineHeight: 1}}>{feed?.filter(r => r.is_favorite).length || 0}</div> 
-                       <div style={{fontSize: '14px', color: '#e11d48', fontWeight: 700, marginTop: '6px'}}>Избранное</div> 
-                     </div> 
-
-                     <div onClick={() => setProfileView('photos')} style={{background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', padding: '20px', borderRadius: '24px', cursor: 'pointer', border: '1px solid #bae6fd', boxShadow: '0 10px 20px -5px rgba(14, 165, 233, 0.1)', gridColumn: 'span 2', display: 'flex', alignItems: 'center', textAlign: 'left', gap: '15px', position: 'relative', overflow: 'hidden'}}> 
-                       <div style={{position: 'absolute', top: '50%', right: '10px', transform: 'translateY(-50%) scale(1.5)', opacity: 0.05}}><Camera size={64} color="#0ea5e9" /></div>
-                       <div style={{background: 'white', width: '48px', height: '48px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0ea5e9', boxShadow: '0 4px 10px rgba(14, 165, 233, 0.15)'}}><Camera size={24} /></div> 
-                       <div style={{flex: 1, zIndex: 1}}> 
-                         <div style={{fontSize: '28px', fontWeight: 900, color: '#0369a1', lineHeight: 1}}>{userPhotos?.length || 0}</div> 
-                         <div style={{fontSize: '14px', color: '#0284c7', fontWeight: 700, marginTop: '4px'}}>Мои фото</div> 
-                       </div> 
-                       <ChevronRight size={20} color="#38bdf8" style={{zIndex: 1}} /> 
-                     </div> 
-                  </div> 
-
-                  <button onClick={handleLogout} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', padding: '14px', borderRadius: '12px', background: '#fee2e2', color: '#ef4444', border: 'none', fontSize: '15px', fontWeight: 700, cursor: 'pointer' }}> <LogOut size={18} /> Выйти из аккаунта </button> 
-                </> 
-              )} 
-
-              {/* ВНУТРЕННИЕ СТРАНИЦЫ ПРОФИЛЯ */} 
-              {profileView === 'history' && ( 
-                <div style={{textAlign: 'left'}}> 
-                   <button onClick={() => setProfileView('main')} style={{display: 'flex', alignItems: 'center', gap: '8px', background: 'white', border: '1px solid #e5e7eb', borderRadius: '100px', padding: '8px 16px', color: '#374151', fontSize: '14px', fontWeight: 600, marginBottom: '20px', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', transition: 'all 0.2s', width: 'fit-content'}}> <ArrowLeft size={18} /> Назад в профиль </button> 
-                   <h2 style={{fontSize: '22px', fontWeight: 900, marginBottom: '20px'}}>История рецептов 📜</h2> 
-                   {feed?.length === 0 ? ( 
-                      <div style={{textAlign: 'center', color: '#9ca3af', padding: '20px'}}>Ваша история пуста. Сгенерируйте первый рецепт!</div> 
-                   ) : ( 
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '15px' }}> 
-                        {feed?.map((item) => ( 
-                          <div key={item.id} style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '15px', cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', textAlign: 'left', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }} onClick={() => loadFromHistory(item, 'profile_history')}> 
-                            <div style={{ fontWeight: 700, fontSize: '14px', marginBottom: '8px', lineHeight: 1.3, height: '38px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', wordBreak: 'break-word' }}>{item.title}</div> 
-                            <div style={{display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#6b7280'}}> 
-                               <div style={{display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap'}}><Clock size={12}/> {formatTime(item.time)}</div> 
-                               {item.calories && <div style={{display: 'flex', alignItems: 'center', gap: '3px', color: '#f97316', whiteSpace: 'nowrap'}}><Flame size={12}/> {formatCalories(item.calories)}</div>} 
-                            </div> 
-                          </div> 
-                        ))} 
-                      </div> 
-                   )} 
-                </div> 
-              )} 
-
-              {profileView === 'favorites' && ( 
-                <div style={{textAlign: 'left'}}> 
-                   <button onClick={() => setProfileView('main')} style={{display: 'flex', alignItems: 'center', gap: '8px', background: 'white', border: '1px solid #e5e7eb', borderRadius: '100px', padding: '8px 16px', color: '#374151', fontSize: '14px', fontWeight: 600, marginBottom: '20px', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', transition: 'all 0.2s', width: 'fit-content'}}> <ArrowLeft size={18} /> Назад в профиль </button> 
-                   <h2 style={{fontSize: '22px', fontWeight: 900, marginBottom: '20px'}}>Моё избранное ❤️</h2> 
-                   {feed?.filter(r => r.is_favorite)?.length === 0 ? ( 
-                      <div style={{textAlign: 'center', color: '#9ca3af', padding: '20px'}}>У вас пока нет любимых рецептов.</div> 
-                   ) : ( 
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '15px' }}> 
-                        {feed?.filter(r => r.is_favorite)?.map((item) => ( 
-                          <div key={item.id} style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '15px', cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', textAlign: 'left', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }} onClick={() => loadFromHistory(item, 'profile_favorites')}> 
-                            <div style={{ fontWeight: 700, fontSize: '14px', marginBottom: '8px', lineHeight: 1.3, height: '38px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', wordBreak: 'break-word' }}>{item.title}</div> 
-                            <div style={{display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#6b7280'}}> 
-                               <div style={{display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap'}}><Clock size={12}/> {formatTime(item.time)}</div> 
-                               {item.calories && <div style={{display: 'flex', alignItems: 'center', gap: '3px', color: '#f97316', whiteSpace: 'nowrap'}}><Flame size={12}/> {formatCalories(item.calories)}</div>} 
-                            </div> 
-                          </div> 
-                        ))} 
-                      </div> 
-                   )} 
-                </div> 
-              )} 
-
-              {profileView === 'photos' && ( 
-                <div style={{textAlign: 'left'}}> 
-                   <button onClick={() => setProfileView('main')} style={{display: 'flex', alignItems: 'center', gap: '8px', background: 'white', border: '1px solid #e5e7eb', borderRadius: '100px', padding: '8px 16px', color: '#374151', fontSize: '14px', fontWeight: 600, marginBottom: '20px', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', transition: 'all 0.2s', width: 'fit-content'}}> <ArrowLeft size={18} /> Назад в профиль </button> 
-                   <h2 style={{fontSize: '22px', fontWeight: 900, marginBottom: '20px'}}>Мои фото 📸</h2> 
-
-                   {userPhotos?.length === 0 ? ( 
-                      <div style={{textAlign: 'center', color: '#9ca3af', padding: '20px'}}>Вы еще не выкладывали фотографии блюд.</div> 
-                   ) : ( 
-                      <div style={{display: 'flex', flexDirection: 'column', gap: '15px'}}> 
-                        {userPhotos?.map((post) => ( 
-                          <div key={post.id} style={{border: '1px solid #e2e8f0', borderRadius: '16px', overflow: 'hidden', background: 'white'}}> 
-                              
-                             <div style={{padding: '10px 15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}> 
-                                <div style={{fontSize: '11px', color: '#9ca3af', fontWeight: 600}}> 
-                                   {new Date(post.created_at).toLocaleDateString('ru-RU')} 
-                                </div> 
-                                <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
-                                  <button onClick={() => { setScrollToPostId(post.id); setPhotosSort('new'); setFeedTab('photos'); switchView('feed'); }} style={{ background: '#f1f5f9', border: 'none', color: '#0ea5e9', padding: '4px 10px', borderRadius: '100px', fontSize: '11px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}><Globe size={12}/> В ленту</button>
-                                  <button onClick={() => handleDeletePost(post.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 0 }}><Trash2 size={16} /></button> 
-                                </div>
-                             </div> 
-
-                             <img src={post.photo_url} alt="Мое фото" onClick={() => setFullScreenImage(post.photo_url)} style={{width: '100%', height: '200px', objectFit: 'cover', display: 'block', cursor: 'zoom-in'}} /> 
-                             <div style={{padding: '12px'}}> 
-                               {post.recipe_id ? ( 
-                                 <div style={{fontSize: '13px', fontWeight: 700, color: '#374151', marginBottom: '5px'}}>Блюдо: <span style={{color: '#059669', cursor: 'pointer'}} onClick={() => loadSharedRecipe(post.recipe_id, false)}>{post.recipes?.title}</span></div> 
-                               ) : ( 
-                                 <div style={{fontSize: '13px', fontWeight: 700, color: '#0ea5e9', marginBottom: '5px'}}>Свое блюдо: {post.custom_title}</div> 
-                               )} 
-                                
-                               {post.comment && ( <p style={{margin: '0 0 10px 0', fontSize: '13px', color: '#4b5563', lineHeight: 1.4, wordBreak: 'break-word'}}> <strong>Описание:</strong> {post.comment} </p> )} 
-
-                               <div style={{display: 'flex', gap: '15px', marginTop: '8px'}}> 
-                                  <div style={{fontSize: '12px', color: '#6b7280', display: 'flex', alignItems: 'center', gap: '5px'}}><Heart size={14} fill="#ef4444" color="#ef4444" /> {post.likes_count || 0} лайков</div> 
-                                  <div style={{fontSize: '12px', color: '#6b7280', display: 'flex', alignItems: 'center', gap: '5px'}}><MessageCircle size={14} /> {post.comments_count || 0} комментов</div> 
-                               </div> 
-                                
-                               <div style={{marginTop: '12px'}}> 
-                                  {post.status === 'approved' && <span style={{background: '#dcfce7', color: '#16a34a', padding: '4px 10px', borderRadius: '100px', fontSize: '11px', fontWeight: 700}}>✅ Одобрено</span>} 
-                                  {post.status === 'rejected' && <span style={{background: '#fee2e2', color: '#dc2626', padding: '4px 10px', borderRadius: '100px', fontSize: '11px', fontWeight: 700}}>❌ Отклонено</span>} 
-                                  {post.status === 'pending' && <span style={{background: '#fef3c7', color: '#d97706', padding: '4px 10px', borderRadius: '100px', fontSize: '11px', fontWeight: 700}}>⏳ На проверке</span>} 
-                               </div> 
-                             </div> 
-                          </div> 
-                        ))} 
-                      </div> 
-                   )} 
-                </div> 
-              )} 
-            </> 
-          )} 
         </div> 
       )} 
     </div> 

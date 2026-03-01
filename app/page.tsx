@@ -80,84 +80,95 @@ interface DBComment {
   is_liked?: boolean;
 }
 
-export default function Home() {
-  /* --- ГЛОБАЛЬНЫЕ ФУНКЦИИ ВНУТРИ КОМПОНЕНТА (ДЛЯ ЗАЩИТЫ ОТ ОШИБОК) --- */
-  const scaleAmount = (amount: string, multiplier: number) => {
-    if (!amount) return "";
-    if (multiplier === 1) return amount;
-    return amount.replace(/(\d+\/\d+|\d+([\.,]\d+)?)/g, (match) => {
-      let num = 0;
-      if (match.includes('/')) {
-        const parts = match.split('/');
-        num = parseInt(parts[0]) / parseInt(parts[1]);
-      } else {
-        num = parseFloat(match.replace(',', '.'));
-      }
-      if (isNaN(num)) return match;
-      const scaled = num * multiplier;
-      return Number.isInteger(scaled) ? String(scaled) : scaled.toFixed(1).replace('.', ',');
-    });
-  };
-
-  const formatCooks = (num: number) => {
-    const last = num % 10;
-    const last100 = num % 100;
-    if (last100 >= 11 && last100 <= 14) return `${num} куков`;
-    if (last === 1) return `${num} кук`;
-    if (last >= 2 && last <= 4) return `${num} кука`;
-    return `${num} куков`;
-  };
-
-  const cleanText = (text: any) => {
-    if (!text) return "";
-    return String(text).replace(/^(Шаг \d+|Step \d+|\d+[\.\)])[:\s]*/i, '').trim();
-  };
-
-  const formatTime = (t: string) => {
-    if (!t) return "";
-    const digits = t.replace(/\D/g, '');  
-    if (!digits) return t;  
-    return `${digits} мин.`;
-  };
-
-  const formatCalories = (c: string) => {
-    if (!c) return "";
-    const match = c.match(/\d+/);
-    if (match) {
-      return `${match[0]} ккал`;
+/* --- ГЛОБАЛЬНЫЕ Вспомогательные функции (ВЫНЕСЕНЫ СЮДА, ЧТОБЫ НЕ БЫЛО ОШИБОК) --- */
+const scaleAmount = (amount: string, multiplier: number) => {
+  if (!amount) return "";
+  if (multiplier === 1) return amount;
+  return amount.replace(/(\d+\/\d+|\d+([\.,]\d+)?)/g, (match) => {
+    let num = 0;
+    if (match.includes('/')) {
+      const parts = match.split('/');
+      num = parseInt(parts[0]) / parseInt(parts[1]);
+    } else {
+      num = parseFloat(match.replace(',', '.'));
     }
-    return "";  
-  };
+    if (isNaN(num)) return match;
+    const scaled = num * multiplier;
+    return Number.isInteger(scaled) ? String(scaled) : scaled.toFixed(1).replace('.', ',');
+  });
+};
 
-  const createImage = (url: string): Promise<HTMLImageElement> =>
-    new Promise((resolve, reject) => {
-      const image = new Image();
-      image.addEventListener('load', () => resolve(image));
-      image.addEventListener('error', (error) => reject(error));
-      image.setAttribute('crossOrigin', 'anonymous');
-      image.src = url;
-    });
+const formatCooks = (num: number) => {
+  const last = num % 10;
+  const last100 = num % 100;
+  if (last100 >= 11 && last100 <= 14) return `${num} куков`;
+  if (last === 1) return `${num} кук`;
+  if (last >= 2 && last <= 4) return `${num} кука`;
+  return `${num} куков`;
+};
 
-  async function getCroppedImg(imageSrc: string, pixelCrop: any): Promise<File | null> {
-    const image = await createImage(imageSrc);
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-    canvas.width = pixelCrop.width;
-    canvas.height = pixelCrop.height;
-    ctx.drawImage(image, pixelCrop.x, pixelCrop.y, pixelCrop.width, pixelCrop.height, 0, 0, pixelCrop.width, pixelCrop.height);
-    return new Promise((resolve) => {
-      canvas.toBlob((blob) => {
-        if (!blob) return resolve(null);
-        resolve(new File([blob], `avatar_${Date.now()}.jpg`, { type: 'image/jpeg' }));
-      }, 'image/jpeg');
-    });
+const cleanText = (text: any) => {
+  if (!text) return "";
+  return String(text).replace(/^(Шаг \d+|Step \d+|\d+[\.\)])[:\s]*/i, '').trim();
+};
+
+const formatTime = (t: string) => {
+  if (!t) return "";
+  const digits = t.replace(/\D/g, '');  
+  if (!digits) return t;  
+  return `${digits} мин.`;
+};
+
+const formatCalories = (c?: string) => {
+  if (!c) return "";
+  const match = c.match(/\d+/);
+  if (match) {
+    return `${match[0]} ккал`;
   }
+  return "";  
+};
 
-  // СОСТОЯНИЯ ПРИЛОЖЕНИЯ
+const createImage = (url: string): Promise<HTMLImageElement> =>
+  new Promise((resolve, reject) => {
+    const image = new Image();
+    image.addEventListener('load', () => resolve(image));
+    image.addEventListener('error', (error) => reject(error));
+    image.setAttribute('crossOrigin', 'anonymous');
+    image.src = url;
+  });
+
+async function getCroppedImg(imageSrc: string, pixelCrop: any): Promise<File | null> {
+  const image = await createImage(imageSrc);
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  canvas.width = pixelCrop.width;
+  canvas.height = pixelCrop.height;
+  ctx.drawImage(
+    image,
+    pixelCrop.x,
+    pixelCrop.y,
+    pixelCrop.width,
+    pixelCrop.height,
+    0,
+    0,
+    pixelCrop.width,
+    pixelCrop.height
+  );
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => {
+      if (!blob) return resolve(null);
+      resolve(new File([blob], `avatar_${Date.now()}.jpg`, { type: 'image/jpeg' }));
+    }, 'image/jpeg');
+  });
+}
+
+/* =================================================================================== */
+/* ========================= ГЛАВНЫЙ КОМПОНЕНТ ПРИЛОЖЕНИЯ ============================ */
+/* =================================================================================== */
+export default function Home() {
   const [activeView, setActiveView] = useState<'service' | 'about' | 'daily' | 'feed' | 'profile' | 'game'>('service');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isFeedMenuExpanded, setIsFeedMenuExpanded] = useState(false);
 
   const [dailyRecipe, setDailyRecipe] = useState<DailyRecipeType | null>(null);
   const [dailyError, setDailyError] = useState(false);
@@ -169,6 +180,7 @@ export default function Home() {
   
   const [cookingMode, setCookingMode] = useState<'strict' | 'extended'>('strict');
   
+  // СОСТОЯНИЯ ДЛЯ АЛЛЕРГИЙ И ПРЕДПОЧТЕНИЙ
   const [allergies, setAllergies] = useState<string[]>([]);
   const [dislikes, setDislikes] = useState<string[]>([]);
   const [isPreferencesModalOpen, setIsPreferencesModalOpen] = useState(false);
@@ -185,13 +197,9 @@ export default function Home() {
   const [recipe, setRecipe] = useState<RecipeData | null>(null);
   
   const [feed, setFeed] = useState<DBRecipe[]>([]); 
-  const [publicFeed, setPublicFeed] = useState<DBRecipe[]>([]);
-  const [feedSort, setFeedSort] = useState<'new' | 'top' | 'old'>('new');
-  
   const [feedTab, setFeedTab] = useState<'photos' | 'recipes'>('photos');
   const [photosFeed, setPhotosFeed] = useState<any[]>([]);
   const [photosSort, setPhotosSort] = useState<'new' | 'top' | 'old'>('new');
-  
   const [userLevels, setUserLevels] = useState<Record<string, number>>({});
 
   const [userId, setUserId] = useState<string | null>(null);
@@ -210,20 +218,24 @@ export default function Home() {
   const [dailyFavoriteId, setDailyFavoriteId] = useState<number | null>(null);
   const [servings, setServings] = useState<number | "">(1);
 
+  // Авторизация
   const [user, setUser] = useState<any>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authEmail, setAuthEmail] = useState("");
   const [isSendingLink, setIsSendingLink] = useState(false);
 
+  // Загрузка фото в ленту
   const [userPhotoFile, setUserPhotoFile] = useState<File | null>(null);
   const [userPhotoPreview, setUserPhotoPreview] = useState<string | null>(null);
   const [userComment, setUserComment] = useState("");
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
+  // Фулскрин фото и навигация профиля
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
   const [profileView, setProfileView] = useState<'main' | 'favorites' | 'photos' | 'history'>('main');
   const [userPhotos, setUserPhotos] = useState<any[]>([]);
 
+  // Комментарии и Свои блюда
   const [commentsModalPostId, setCommentsModalPostId] = useState<number | null>(null);
   const [postComments, setPostComments] = useState<DBComment[]>([]);
   const [newCommentText, setNewCommentText] = useState("");
@@ -234,18 +246,21 @@ export default function Home() {
   const [isStandaloneUploadOpen, setIsStandaloneUploadOpen] = useState(false);
   const [standaloneTitle, setStandaloneTitle] = useState("");
 
+  // Редактирование профиля
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editProfileName, setEditProfileName] = useState("");
   const [editAvatarFile, setEditAvatarFile] = useState<File | null>(null);
   const [editAvatarPreview, setEditAvatarPreview] = useState<string | null>(null);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
+  // Состояния для обрезки (Crop)
   const [isCropping, setIsCropping] = useState(false);
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
 
+  // --- СОСТОЯНИЯ ИГРЫ (МОЙ РЕСТОРАН) ---
   const [cooks, setCooks] = useState<number>(0);
   const [energy, setEnergy] = useState<number>(500);
   const [clickPower, setClickPower] = useState<number>(1);
@@ -254,6 +269,7 @@ export default function Home() {
   const [gameTab, setGameTab] = useState<'kitchen' | 'tasks' | 'shop'>('kitchen');
   const [floatingClicks, setFloatingClicks] = useState<{id: number, x: number, y: number, val: number}[]>([]);
 
+  // ЗАГРУЗКА ДАННЫХ ИГРОКОВ (ДЛЯ ЛЕНТЫ)
   useEffect(() => {
     if (photosFeed.length > 0) {
       const uids = Array.from(new Set(photosFeed.map(p => p.user_id).filter(Boolean)));
@@ -272,6 +288,7 @@ export default function Home() {
     }
   }, [photosFeed]);
 
+  // ЗАГРУЗКА ПРОГРЕССА ИГРЫ (ОБЛАКО ИЛИ ЛОКАЛЬНО)
   useEffect(() => {
     if (user) {
       supabase.from('game_progress').select('*').eq('user_id', user.id).single()
@@ -304,6 +321,7 @@ export default function Home() {
     }
   }, [user]);
 
+  // СОХРАНЕНИЕ ПРОГРЕССА ИГРЫ
   useEffect(() => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('sc_cooks', cooks.toString());
@@ -322,6 +340,7 @@ export default function Home() {
     }
   }, [cooks, clickPower, passiveIncome, restaurantLevel, energy, user]);
 
+  // ИГРА: ПАССИВНЫЙ ДОХОД И ЭНЕРГИЯ
   useEffect(() => {
     const interval = setInterval(() => {
       setEnergy(prev => prev < 500 ? prev + 1 : 500);
@@ -371,6 +390,7 @@ export default function Home() {
     }
   };
 
+  // УМНЫЙ СКРОЛЛ К ПОСТУ ИЗ ПРОФИЛЯ
   useEffect(() => {
     if (activeView === 'feed' && feedTab === 'photos' && scrollToPostId && photosFeed.length > 0) {
       const timer = setTimeout(() => {
@@ -400,6 +420,7 @@ export default function Home() {
     }
   }, [dailyRecipe, feed]);
 
+  // АВТОРИЗАЦИЯ
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user || null);
@@ -461,6 +482,7 @@ export default function Home() {
     }
   }, [activeView, user]);
 
+  // РЕЦЕПТ ДНЯ
   const loadDailyRecipe = () => {
     setDailyError(false);
     fetch('/api/daily')
@@ -870,6 +892,7 @@ export default function Home() {
           } 
       } catch (tgErr) { console.warn("TG error", tgErr); } 
 
+      // Награда 1000 куков за пост
       alert(`Ура! 🎉 Ваше фото отправлено на проверку шефу.\n\n🎁 Вы заработали 1000 куков!`); 
       setCooks(prev => prev + 1000);
       setUserPhotoFile(null); setUserPhotoPreview(null); setUserComment(""); setStandaloneTitle(""); setIsStandaloneUploadOpen(false); 
@@ -1333,7 +1356,7 @@ export default function Home() {
           </div>
         </div>
       )}
-       
+
       <button className="menu-btn" onClick={() => setIsMenuOpen(true)} style={{ position: 'fixed', top: '10px', left: '20px', zIndex: 50, background: 'white', borderRadius: '50%', width: '44px', height: '44px', padding: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', border: 'none', cursor: 'pointer' }}> 
         <Menu size={24} color="#111" /> 
       </button> 
@@ -1564,6 +1587,7 @@ export default function Home() {
                 ))} 
               </div> 
 
+              {/* РОВНЫЙ И КРАСИВЫЙ ЧАТ */}
               <div className="chat-box" style={{marginTop: '30px'}}> 
                 <div style={{fontWeight: 800, marginBottom: '20px', color: '#1e40af', fontSize: '18px', textAlign: 'center'}}> Задайте вопрос AI шеф-повару! </div> 
                 <div style={{display: 'flex', gap: '10px', alignItems: 'flex-end'}}> 
@@ -1578,7 +1602,7 @@ export default function Home() {
                     rows={1}
                     style={{ flex: 1, padding: '12px 16px', borderRadius: '22px', border: '1px solid #93c5fd', fontSize: '15px', outline: 'none', background: 'white', resize: 'none', overflowY: 'auto', height: '44px', minHeight: '44px', maxHeight: '120px', boxSizing: 'border-box', lineHeight: '18px', fontFamily: 'inherit' }}
                   /> 
-                  <button className="chat-btn-center" onClick={handleAskChef} style={{flexShrink: 0, padding: 0, width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: '#3b82f6', color: 'white', border: 'none', cursor: 'pointer'}}> <Send size={18} style={{marginLeft: '-2px'}}/> </button> 
+                  <button onClick={handleAskChef} style={{flexShrink: 0, padding: 0, width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: '#3b82f6', color: 'white', border: 'none', cursor: 'pointer'}}> <Send size={18} style={{marginLeft: '-2px'}}/> </button> 
                 </div> 
                 {answer && <div style={{marginTop: '20px', lineHeight: 1.5, background: 'white', padding: '15px', borderRadius: '16px'}}><strong>Ответ:</strong> {answer}</div>} 
               </div> 
@@ -1675,7 +1699,7 @@ export default function Home() {
           {!user && (
             <div style={{background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '16px', padding: '15px', marginBottom: '20px', textAlign: 'center'}}>
                <p style={{fontSize: '13px', color: '#b45309', margin: 0, lineHeight: 1.5}}>
-                 ⚠️ Ваш прогресс сохраняется только в памяти телефона. <br/>
+                 ⚠️ Ваш прогресс сохраняется только в телефоне. <br/>
                  <span onClick={() => setIsAuthModalOpen(true)} style={{color: '#10b981', textDecoration: 'underline', cursor: 'pointer', fontWeight: 800}}>Войдите в аккаунт</span>, чтобы сохранить его навсегда и соревноваться в мировом рейтинге!
                </p>
             </div>

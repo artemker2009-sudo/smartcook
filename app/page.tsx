@@ -80,99 +80,81 @@ interface DBComment {
   is_liked?: boolean;
 }
 
-/* --- ГЛОБАЛЬНЫЕ ФУНКЦИИ --- */
-const scaleAmount = (amount: string, multiplier: number) => {
-  if (!amount) return "";
-  if (multiplier === 1) return amount;
-  
-  return amount.replace(/(\d+\/\d+|\d+([\.,]\d+)?)/g, (match) => {
-    let num = 0;
-    if (match.includes('/')) {
-      const parts = match.split('/');
-      num = parseInt(parts[0]) / parseInt(parts[1]);
-    } else {
-      num = parseFloat(match.replace(',', '.'));
-    }
-    
-    if (isNaN(num)) return match;
-    const scaled = num * multiplier;
-    return Number.isInteger(scaled) ? String(scaled) : scaled.toFixed(1).replace('.', ',');
-  });
-};
-
-const formatCooks = (num: number) => {
-  const last = num % 10;
-  const last100 = num % 100;
-  if (last100 >= 11 && last100 <= 14) return `${num} куков`;
-  if (last === 1) return `${num} кук`;
-  if (last >= 2 && last <= 4) return `${num} кука`;
-  return `${num} куков`;
-};
-
-const cleanText = (text: any) => {
-  if (!text) return "";
-  return String(text).replace(/^(Шаг \d+|Step \d+|\d+[\.\)])[:\s]*/i, '').trim();
-};
-
-const formatTime = (t: string) => {
-  if (!t) return "";
-  const digits = t.replace(/\D/g, '');  
-  if (!digits) return t;  
-  return `${digits} мин.`;
-};
-
-const formatCalories = (c: string) => {
-  if (!c) return "";
-  const match = c.match(/\d+/);
-  if (match) {
-    return `${match[0]} ккал`;
-  }
-  return "";  
-};
-
-const createImage = (url: string): Promise<HTMLImageElement> =>
-  new Promise((resolve, reject) => {
-    const image = new Image();
-    image.addEventListener('load', () => resolve(image));
-    image.addEventListener('error', (error) => reject(error));
-    image.setAttribute('crossOrigin', 'anonymous');
-    image.src = url;
-  });
-
-async function getCroppedImg(
-  imageSrc: string,
-  pixelCrop: any
-): Promise<File | null> {
-  const image = await createImage(imageSrc);
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-
-  if (!ctx) return null;
-
-  canvas.width = pixelCrop.width;
-  canvas.height = pixelCrop.height;
-
-  ctx.drawImage(
-    image,
-    pixelCrop.x,
-    pixelCrop.y,
-    pixelCrop.width,
-    pixelCrop.height,
-    0,
-    0,
-    pixelCrop.width,
-    pixelCrop.height
-  );
-
-  return new Promise((resolve) => {
-    canvas.toBlob((blob) => {
-      if (!blob) return resolve(null);
-      resolve(new File([blob], `avatar_${Date.now()}.jpg`, { type: 'image/jpeg' }));
-    }, 'image/jpeg');
-  });
-}
-
 export default function Home() {
+  /* --- ГЛОБАЛЬНЫЕ ФУНКЦИИ ВНУТРИ КОМПОНЕНТА (ДЛЯ ЗАЩИТЫ ОТ ОШИБОК) --- */
+  const scaleAmount = (amount: string, multiplier: number) => {
+    if (!amount) return "";
+    if (multiplier === 1) return amount;
+    return amount.replace(/(\d+\/\d+|\d+([\.,]\d+)?)/g, (match) => {
+      let num = 0;
+      if (match.includes('/')) {
+        const parts = match.split('/');
+        num = parseInt(parts[0]) / parseInt(parts[1]);
+      } else {
+        num = parseFloat(match.replace(',', '.'));
+      }
+      if (isNaN(num)) return match;
+      const scaled = num * multiplier;
+      return Number.isInteger(scaled) ? String(scaled) : scaled.toFixed(1).replace('.', ',');
+    });
+  };
+
+  const formatCooks = (num: number) => {
+    const last = num % 10;
+    const last100 = num % 100;
+    if (last100 >= 11 && last100 <= 14) return `${num} куков`;
+    if (last === 1) return `${num} кук`;
+    if (last >= 2 && last <= 4) return `${num} кука`;
+    return `${num} куков`;
+  };
+
+  const cleanText = (text: any) => {
+    if (!text) return "";
+    return String(text).replace(/^(Шаг \d+|Step \d+|\d+[\.\)])[:\s]*/i, '').trim();
+  };
+
+  const formatTime = (t: string) => {
+    if (!t) return "";
+    const digits = t.replace(/\D/g, '');  
+    if (!digits) return t;  
+    return `${digits} мин.`;
+  };
+
+  const formatCalories = (c: string) => {
+    if (!c) return "";
+    const match = c.match(/\d+/);
+    if (match) {
+      return `${match[0]} ккал`;
+    }
+    return "";  
+  };
+
+  const createImage = (url: string): Promise<HTMLImageElement> =>
+    new Promise((resolve, reject) => {
+      const image = new Image();
+      image.addEventListener('load', () => resolve(image));
+      image.addEventListener('error', (error) => reject(error));
+      image.setAttribute('crossOrigin', 'anonymous');
+      image.src = url;
+    });
+
+  async function getCroppedImg(imageSrc: string, pixelCrop: any): Promise<File | null> {
+    const image = await createImage(imageSrc);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    canvas.width = pixelCrop.width;
+    canvas.height = pixelCrop.height;
+    ctx.drawImage(image, pixelCrop.x, pixelCrop.y, pixelCrop.width, pixelCrop.height, 0, 0, pixelCrop.width, pixelCrop.height);
+    return new Promise((resolve) => {
+      canvas.toBlob((blob) => {
+        if (!blob) return resolve(null);
+        resolve(new File([blob], `avatar_${Date.now()}.jpg`, { type: 'image/jpeg' }));
+      }, 'image/jpeg');
+    });
+  }
+
+  // СОСТОЯНИЯ ПРИЛОЖЕНИЯ
   const [activeView, setActiveView] = useState<'service' | 'about' | 'daily' | 'feed' | 'profile' | 'game'>('service');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isFeedMenuExpanded, setIsFeedMenuExpanded] = useState(false);
@@ -247,6 +229,7 @@ export default function Home() {
   const [newCommentText, setNewCommentText] = useState("");
   const [replyingTo, setReplyingTo] = useState<{id: number, name: string} | null>(null);
   const [scrollToPostId, setScrollToPostId] = useState<number | null>(null);
+  const [isLoadingComments, setIsLoadingComments] = useState(false);
   
   const [isStandaloneUploadOpen, setIsStandaloneUploadOpen] = useState(false);
   const [standaloneTitle, setStandaloneTitle] = useState("");
@@ -711,6 +694,8 @@ export default function Home() {
     setCommentsModalPostId(postId); 
     setPostComments([]); 
     setReplyingTo(null); 
+    setIsLoadingComments(true);
+
     const { data } = await supabase.from('photo_comments').select('*').eq('post_id', postId).order('created_at', { ascending: true }); 
     
     let likedIds = new Set(); 
@@ -721,6 +706,7 @@ export default function Home() {
     } 
     
     setPostComments(data?.map(c => ({...c, is_liked: likedIds.has(c.id)})) || []); 
+    setIsLoadingComments(false);
   }; 
 
   const submitComment = async () => { 
@@ -884,8 +870,8 @@ export default function Home() {
           } 
       } catch (tgErr) { console.warn("TG error", tgErr); } 
 
-      alert(`Ура! 🎉 Ваше фото отправлено на проверку шефу.\n\n🎁 Вы заработали 300 куков!`); 
-      setCooks(prev => prev + 300);
+      alert(`Ура! 🎉 Ваше фото отправлено на проверку шефу.\n\n🎁 Вы заработали 1000 куков!`); 
+      setCooks(prev => prev + 1000);
       setUserPhotoFile(null); setUserPhotoPreview(null); setUserComment(""); setStandaloneTitle(""); setIsStandaloneUploadOpen(false); 
 
     } catch (err: any) { alert("Ошибка отправки: " + err.message); }  
@@ -1193,7 +1179,9 @@ export default function Home() {
             </div> 
              
             <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}> 
-              {postComments.length === 0 ? ( 
+              {isLoadingComments ? (
+                 <div style={{ textAlign: 'center', color: '#9ca3af', marginTop: '40px' }}><Sparkles className="animate-spin" style={{display: 'inline', marginRight: '8px'}} size={18} /> Загрузка...</div>
+              ) : postComments.length === 0 ? ( 
                 <div style={{ textAlign: 'center', color: '#9ca3af', marginTop: '40px' }}>Пока нет комментариев. Будьте первым!</div> 
               ) : ( 
                 postComments.filter(c => !c.parent_id).map((c) => ( 
@@ -1298,12 +1286,58 @@ export default function Home() {
           </div> 
         </div> 
       )} 
+
+      {isPreferencesModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+          <div className="animate-fade-in" style={{ background: 'white', width: '100%', maxWidth: '500px', padding: '25px', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', position: 'relative', boxShadow: '0 -10px 40px rgba(0,0,0,0.2)' }}>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px'}}>
+              <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 900 }}>Фильтры для рецепта ⚙️</h3>
+              <button onClick={() => setIsPreferencesModalOpen(false)} style={{ width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: '#f1f5f9', border: 'none', borderRadius: '50%', padding: '0', cursor: 'pointer', color: '#64748b' }}><X size={20} /></button>
+            </div>
+            
+            <p style={{fontSize: '13px', color: '#64748b', marginBottom: '20px', lineHeight: 1.4}}>
+              Если вы авторизованы, эти настройки подтянутся из вашего профиля. Вы также можете настроить их прямо здесь на один раз.
+            </p>
+
+            <div style={{marginBottom: '20px'}}>
+              <div style={{fontSize: '14px', fontWeight: 800, color: '#be123c', marginBottom: '10px'}}>Аллергии (Строго исключить)</div>
+              <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px'}}>
+                {allergies.map((item, idx) => (
+                  <span key={idx} style={{background: '#ffe4e6', color: '#be123c', padding: '6px 12px', borderRadius: '100px', fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '5px'}}>
+                    {item} <X size={14} onClick={() => removeAllergy(idx)} style={{cursor: 'pointer'}}/>
+                  </span>
+                ))}
+              </div>
+              <div style={{display: 'flex', gap: '8px'}}>
+                <input type="text" placeholder="Например: орехи" value={newAllergy} onChange={e => setNewAllergy(e.target.value)} onKeyPress={e => e.key === 'Enter' && addAllergy()} style={{flex: 1, padding: '10px 15px', borderRadius: '12px', border: '1px solid #fecdd3', outline: 'none', fontSize: '14px'}} />
+                <button onClick={addAllergy} style={{background: '#be123c', color: 'white', border: 'none', padding: '0 20px', borderRadius: '12px', fontWeight: 700}}><PlusCircle size={20}/></button>
+              </div>
+            </div>
+
+            <div style={{marginBottom: '20px'}}>
+              <div style={{fontSize: '14px', fontWeight: 800, color: '#b45309', marginBottom: '10px'}}>Не люблю (По возможности без этого)</div>
+              <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px'}}>
+                {dislikes.map((item, idx) => (
+                  <span key={idx} style={{background: '#ffedd5', color: '#c2410c', padding: '6px 12px', borderRadius: '100px', fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '5px'}}>
+                    {item} <X size={14} onClick={() => removeDislike(idx)} style={{cursor: 'pointer'}}/>
+                  </span>
+                ))}
+              </div>
+              <div style={{display: 'flex', gap: '8px'}}>
+                <input type="text" placeholder="Например: лук" value={newDislike} onChange={e => setNewDislike(e.target.value)} onKeyPress={e => e.key === 'Enter' && addDislike()} style={{flex: 1, padding: '10px 15px', borderRadius: '12px', border: '1px solid #fed7aa', outline: 'none', fontSize: '14px'}} />
+                <button onClick={addDislike} style={{background: '#ea580c', color: 'white', border: 'none', padding: '0 20px', borderRadius: '12px', fontWeight: 700}}><PlusCircle size={20}/></button>
+              </div>
+            </div>
+
+            <button onClick={() => setIsPreferencesModalOpen(false)} style={{width: '100%', padding: '15px', borderRadius: '16px', background: '#111', color: 'white', border: 'none', fontWeight: 800, fontSize: '16px'}}>Готово</button>
+          </div>
+        </div>
+      )}
        
       <button className="menu-btn" onClick={() => setIsMenuOpen(true)} style={{ position: 'fixed', top: '10px', left: '20px', zIndex: 50, background: 'white', borderRadius: '50%', width: '44px', height: '44px', padding: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', border: 'none', cursor: 'pointer' }}> 
         <Menu size={24} color="#111" /> 
       </button> 
 
-      {/* МЕНЮ */}
       {isMenuOpen && ( 
         <> 
           <div className="menu-overlay" onClick={() => setIsMenuOpen(false)} style={{zIndex: 99}} /> 
@@ -1336,7 +1370,6 @@ export default function Home() {
         </> 
       )} 
 
-      {/* === СЕРВИС === */}
       {activeView === 'service' && ( 
         <> 
           {!isHistoryView && fromFeed === false && !isSharedView && ( 
@@ -1531,7 +1564,6 @@ export default function Home() {
                 ))} 
               </div> 
 
-              {/* ИСПРАВЛЕНИЕ 4: Ровный Чат с ИИ */}
               <div className="chat-box" style={{marginTop: '30px'}}> 
                 <div style={{fontWeight: 800, marginBottom: '20px', color: '#1e40af', fontSize: '18px', textAlign: 'center'}}> Задайте вопрос AI шеф-повару! </div> 
                 <div style={{display: 'flex', gap: '10px', alignItems: 'flex-end'}}> 
@@ -1546,7 +1578,7 @@ export default function Home() {
                     rows={1}
                     style={{ flex: 1, padding: '12px 16px', borderRadius: '22px', border: '1px solid #93c5fd', fontSize: '15px', outline: 'none', background: 'white', resize: 'none', overflowY: 'auto', height: '44px', minHeight: '44px', maxHeight: '120px', boxSizing: 'border-box', lineHeight: '18px', fontFamily: 'inherit' }}
                   /> 
-                  <button onClick={handleAskChef} style={{flexShrink: 0, padding: 0, width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: '#3b82f6', color: 'white', border: 'none', cursor: 'pointer'}}> <Send size={18} style={{marginLeft: '-2px'}}/> </button> 
+                  <button className="chat-btn-center" onClick={handleAskChef} style={{flexShrink: 0, padding: 0, width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: '#3b82f6', color: 'white', border: 'none', cursor: 'pointer'}}> <Send size={18} style={{marginLeft: '-2px'}}/> </button> 
                 </div> 
                 {answer && <div style={{marginTop: '20px', lineHeight: 1.5, background: 'white', padding: '15px', borderRadius: '16px'}}><strong>Ответ:</strong> {answer}</div>} 
               </div> 
@@ -1579,8 +1611,8 @@ export default function Home() {
                              style={{width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #fdba74', fontSize: '15px', marginBottom: '15px', outline: 'none', resize: 'none', overflow: 'hidden', minHeight: '44px', boxSizing: 'border-box', fontFamily: 'inherit', lineHeight: '18px'}} 
                            /> 
                            <div style={{display: 'flex', gap: '10px'}}> 
-                             <button onClick={() => {setUserPhotoFile(null); setUserPhotoPreview(null); setUserComment("");}} style={{flex: 1, padding: '12px', borderRadius: '12px', background: '#f3f4f6', border: 'none', color: '#4b5563', fontWeight: 700, cursor: 'pointer'}}>Отмена</button> 
-                             <button onClick={() => submitFeedPost(recipe)} disabled={isUploadingPhoto} style={{flex: 2, padding: '12px', borderRadius: '12px', background: '#ea580c', border: 'none', color: 'white', fontWeight: 700, cursor: isUploadingPhoto ? 'default' : 'pointer'}}> {isUploadingPhoto ? "Отправка..." : "Отправить в ленту"} </button> 
+                             <button onClick={() => {setUserPhotoFile(null); setUserPhotoPreview(null); setUserComment("");}} style={{flex: 1, padding: '12px', borderRadius: '8px', background: '#f3f4f6', border: 'none', color: '#4b5563', fontWeight: 700, cursor: 'pointer'}}>Отмена</button> 
+                             <button onClick={() => submitFeedPost(recipe)} disabled={isUploadingPhoto} style={{flex: 2, padding: '12px', borderRadius: '8px', background: '#ea580c', border: 'none', color: 'white', fontWeight: 700, cursor: isUploadingPhoto ? 'default' : 'pointer'}}> {isUploadingPhoto ? "Отправка..." : "Отправить в ленту"} </button> 
                            </div> 
                         </div> 
                      )} 
@@ -1640,17 +1672,15 @@ export default function Home() {
       {/* === ИГРА (МОЙ РЕСТОРАН) === */}
       {activeView === 'game' && (
         <div style={{marginTop: '60px', paddingBottom: '80px'}}>
-          {/* ИСПРАВЛЕНИЕ 2: Мотивация войти в аккаунт */}
           {!user && (
             <div style={{background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '16px', padding: '15px', marginBottom: '20px', textAlign: 'center'}}>
                <p style={{fontSize: '13px', color: '#b45309', margin: 0, lineHeight: 1.5}}>
-                 ⚠️ Ваш прогресс сохраняется только в телефоне. <br/>
+                 ⚠️ Ваш прогресс сохраняется только в памяти телефона. <br/>
                  <span onClick={() => setIsAuthModalOpen(true)} style={{color: '#10b981', textDecoration: 'underline', cursor: 'pointer', fontWeight: 800}}>Войдите в аккаунт</span>, чтобы сохранить его навсегда и соревноваться в мировом рейтинге!
                </p>
             </div>
           )}
 
-          {/* ИСПРАВЛЕНИЕ 3 и 5: Уровни ресторана (до 6) */}
           <div style={{textAlign: 'center', marginBottom: '20px'}}>
             <h1 style={{fontSize: '28px', fontWeight: '900', margin: '0 0 5px 0'}}>Мой ресторан 🏪</h1>
             <div style={{background: '#fef3c7', color: '#d97706', display: 'inline-block', padding: '4px 12px', borderRadius: '100px', fontSize: '12px', fontWeight: 800}}>
@@ -1673,7 +1703,6 @@ export default function Home() {
                ))}
                <div style={{fontSize: '16px', color: '#64748b', fontWeight: 700, marginBottom: '5px'}}>Баланс</div>
                
-               {/* ИСПРАВЛЕНИЕ 6: Уменьшен шрифт Куков */}
                <div style={{fontSize: '32px', fontWeight: 900, color: '#111', lineHeight: 1, marginBottom: '5px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'}}>
                  {formatCooks(cooks)} <span style={{fontSize: '28px'}}>🍪</span>
                </div>
@@ -1733,7 +1762,7 @@ export default function Home() {
               <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', padding: '15px', borderRadius: '16px'}}>
                 <div>
                   <div style={{fontWeight: 800, fontSize: '15px', color: '#111', marginBottom: '4px'}}>Выложить фото блюда</div>
-                  <div style={{fontSize: '12px', color: '#64748b', fontWeight: 600}}>Награда: 300 куков</div>
+                  <div style={{fontSize: '12px', color: '#64748b', fontWeight: 600}}>Награда: 1000 куков</div>
                 </div>
                 <button onClick={() => switchView('feed')} style={{background: '#3b82f6', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '100px', fontWeight: 700, fontSize: '12px', cursor: 'pointer'}}>В ленту</button>
               </div>
@@ -1842,8 +1871,8 @@ export default function Home() {
               /> 
                
               <div style={{display: 'flex', gap: '10px'}}> 
-                <button onClick={() => {setUserPhotoFile(null); setUserPhotoPreview(null); setStandaloneTitle(""); setUserComment(""); setIsStandaloneUploadOpen(false);}} style={{flex: 1, padding: '12px', borderRadius: '12px', background: '#f1f5f9', border: 'none', color: '#475569', fontWeight: 700, cursor: 'pointer'}}>Отмена</button> 
-                <button onClick={() => submitFeedPost(null)} disabled={isUploadingPhoto} style={{flex: 2, padding: '12px', borderRadius: '12px', background: '#0ea5e9', border: 'none', color: 'white', fontWeight: 700, cursor: isUploadingPhoto ? 'default' : 'pointer'}}> {isUploadingPhoto ? "Загрузка..." : "Отправить в ленту"} </button> 
+                <button onClick={() => {setUserPhotoFile(null); setUserPhotoPreview(null); setStandaloneTitle(""); setUserComment(""); setIsStandaloneUploadOpen(false);}} style={{flex: 1, padding: '12px', borderRadius: '8px', background: '#f1f5f9', border: 'none', color: '#475569', fontWeight: 700, cursor: 'pointer'}}>Отмена</button> 
+                <button onClick={() => submitFeedPost(null)} disabled={isUploadingPhoto} style={{flex: 2, padding: '12px', borderRadius: '8px', background: '#0ea5e9', border: 'none', color: 'white', fontWeight: 700, cursor: isUploadingPhoto ? 'default' : 'pointer'}}> {isUploadingPhoto ? "Загрузка..." : "Отправить в ленту"} </button> 
               </div> 
             </div> 
           )} 
@@ -1898,7 +1927,6 @@ export default function Home() {
                 <div style={{padding: '15px', background: 'white'}}> 
                   {post.comment && ( <p style={{margin: '0 0 15px 0', fontSize: '14px', color: '#374151', lineHeight: 1.5, wordBreak: 'break-word'}}> <strong>Описание:</strong> {post.comment} </p> )} 
                   <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}> 
-                    {/* Лайки и комменты слева */}
                     <div style={{display: 'flex', gap: '10px'}}> 
                       <button onClick={(e) => handlePhotoLike(e, post)} style={{background: post.is_liked ? '#fee2e2' : '#f3f4f6', border: 'none', borderRadius: '100px', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px', color: post.is_liked ? '#ef4444' : '#4b5563', fontWeight: 700, fontSize: '14px', transition: 'all 0.2s', cursor: 'pointer'}}> 
                         <Heart size={18} fill={post.is_liked ? "#ef4444" : "none"} /> {post.likes_count || 0} 
@@ -1907,7 +1935,6 @@ export default function Home() {
                         <MessageCircle size={18} /> {post.comments_count || 0} 
                       </button> 
                     </div> 
-                    {/* Кнопка К рецепту справа */}
                     <div>
                       {post.recipe_id && ( 
                         <button onClick={() => loadSharedRecipe(post.recipe_id, 'photos')} style={{background: 'transparent', border: 'none', color: '#0ea5e9', fontWeight: 700, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', padding: 0}}> 
@@ -1920,6 +1947,50 @@ export default function Home() {
               </div> 
             ))} 
             {photosFeed.length === 0 && <div style={{textAlign: 'center', padding: '40px', color: '#9ca3af'}}>Здесь пока нет фотографий. Поделитесь своим шедевром первым! 📸</div>} 
+          </div> 
+        </div> 
+      )} 
+
+      {/* === О ПРОЕКТЕ === */} 
+      {activeView === 'about' && ( 
+        <div className="card" style={{marginTop: '60px', padding: '0', overflow: 'hidden', border: 'none', boxShadow: '0 20px 60px -10px rgba(0,0,0,0.15)'}}> 
+          <div style={{background: 'linear-gradient(135deg, #059669 0%, #047857 100%)', padding: '40px 25px', color: 'white', textAlign: 'center'}}> 
+            <div style={{fontSize: '50px', marginBottom: '10px'}}>🚀</div> 
+            <h1 style={{fontSize: '32px', fontWeight: 900, margin: '0 0 10px 0', lineHeight: 1.1}}>Кухонная революция</h1> 
+            <p style={{fontSize: '18px', opacity: 0.9, fontWeight: 500, maxWidth: '400px', margin: '0 auto'}}>Мы превращаем ваше «нечего есть» в гастрономический шедевр.</p> 
+          </div> 
+          <div style={{padding: '30px 25px'}}> 
+            <div style={{background: '#fff1f2', borderRadius: '20px', padding: '20px', marginBottom: '30px', border: '1px solid #fecdd3'}}> 
+              <h3 style={{marginTop: 0, color: '#be123c', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '20px', fontWeight: 800}}><span style={{fontSize: '24px'}}>💸</span> Вы теряете 30.000₽</h3> 
+              <p style={{marginBottom: 0, color: '#881337', lineHeight: 1.5}}>Именно столько средняя семья выбрасывает в мусорку ежегодно в виде испорченных продуктов.</p> 
+            </div> 
+            <h3 style={{textAlign: 'center', fontSize: '22px', fontWeight: 800, marginBottom: '20px'}}>Почему это работает?</h3> 
+            <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '40px'}}> 
+              <div style={{background: '#f8fafc', padding: '20px 15px', borderRadius: '16px', textAlign: 'center', border: '1px solid #e2e8f0'}}><div style={{background: '#dbeafe', color: '#2563eb', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px auto'}}><Wallet size={20} /></div><div style={{fontWeight: 800, fontSize: '15px', marginBottom: '5px'}}>Экономия</div><div style={{fontSize: '12px', color: '#64748b'}}>До 5000₽ в месяц</div></div> 
+              <div style={{background: '#f8fafc', padding: '20px 15px', borderRadius: '16px', textAlign: 'center', border: '1px solid #e2e8f0'}}><div style={{background: '#fef3c7', color: '#d97706', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px auto'}}><Zap size={20} /></div><div style={{fontWeight: 800, fontSize: '15px', marginBottom: '5px'}}>Скорость</div><div style={{fontSize: '12px', color: '#64748b'}}>Мгновенный рецепт</div></div> 
+              <div style={{background: '#f8fafc', padding: '20px 15px', borderRadius: '16px', textAlign: 'center', border: '1px solid #e2e8f0'}}><div style={{background: '#dcfce7', color: '#16a34a', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px auto'}}><Leaf size={20} /></div><div style={{fontWeight: 800, fontSize: '15px', marginBottom: '5px'}}>Zero Waste</div><div style={{fontSize: '12px', color: '#64748b'}}>Спасаем еду</div></div> 
+              <div style={{background: '#f8fafc', padding: '20px 15px', borderRadius: '16px', textAlign: 'center', border: '1px solid #e2e8f0'}}><div style={{background: '#f3e8ff', color: '#9333ea', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px auto'}}><Globe size={20} /></div><div style={{fontWeight: 800, fontSize: '15px', marginBottom: '5px'}}>Разнообразие</div><div style={{fontSize: '12px', color: '#64748b'}}>Новые блюда</div></div> 
+            </div> 
+             
+            <div style={{background: '#f8fafc', borderRadius: '24px', padding: '25px 20px', marginBottom: '40px', border: '1px solid #e2e8f0'}}> 
+              <h3 style={{margin: '0 0 10px 0', fontSize: '20px', fontWeight: 800, textAlign: 'center'}}>Установите SmartCook как приложение 📲</h3> 
+              <p style={{fontSize: '14px', color: '#64748b', textAlign: 'center', marginBottom: '20px', lineHeight: 1.5}}>Быстрый доступ к рецептам в один клик. Не занимает память, не требует скачивания из App Store или Google Play!</p> 
+              <div style={{display: 'flex', flexDirection: 'column', gap: '15px'}}> 
+                <div style={{background: 'white', padding: '15px', borderRadius: '16px', border: '1px solid #f1f5f9'}}> 
+                  <div style={{fontWeight: 800, fontSize: '16px', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px'}}>🍎 Для iPhone (в Safari)</div> 
+                  <ol style={{margin: 0, paddingLeft: '20px', fontSize: '14px', color: '#475569', lineHeight: 1.6}}> <li>Нажмите иконку <strong>«Поделиться»</strong> (квадрат со стрелочкой вверх в самом низу экрана).</li> <li>Пролистайте меню вниз и выберите <strong>«На экран "Домой"»</strong> (со значком ➕).</li> </ol> 
+                </div> 
+                <div style={{background: 'white', padding: '15px', borderRadius: '16px', border: '1px solid #f1f5f9'}}> 
+                  <div style={{fontWeight: 800, fontSize: '16px', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px'}}>🤖 Для Android (в Chrome)</div> 
+                  <ol style={{margin: 0, paddingLeft: '20px', fontSize: '14px', color: '#475569', lineHeight: 1.6}}> <li>Нажмите на <strong>меню</strong> (три точки в правом верхнем углу экрана).</li> <li>Выберите пункт <strong>«Добавить на гл. экран»</strong> или <strong>«Установить приложение»</strong>.</li> </ol> 
+                </div> 
+              </div> 
+            </div> 
+            <div style={{background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', borderRadius: '24px', padding: '30px 20px', textAlign: 'center', color: 'white', boxShadow: '0 10px 25px rgba(2, 132, 199, 0.4)', position: 'relative', overflow: 'hidden'}}> 
+              <h3 style={{margin: '0 0 10px 0', fontSize: '22px', fontWeight: 900}}>Telegram канал проекта</h3> 
+              <p style={{opacity: 0.9, fontSize: '15px', marginBottom: '25px', lineHeight: 1.5}}>Следите за обновлениями, предлагайте идеи и общайтесь напрямую с разработчиком.</p> 
+              <a href="https://t.me/smartcook2026" target="_blank" style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', background: 'white', color: '#0284c7', textDecoration: 'none', padding: '16px 20px', borderRadius: '100px', fontWeight: 800, fontSize: '16px', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', transition: 'transform 0.2s'}}> <Send size={20} /> Подписаться</a> 
+            </div> 
           </div> 
         </div> 
       )} 

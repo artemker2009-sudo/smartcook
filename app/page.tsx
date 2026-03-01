@@ -80,10 +80,10 @@ interface DBComment {
   is_liked?: boolean;
 }
 
+/* --- ГЛОБАЛЬНЫЕ ФУНКЦИИ (ЧТОБЫ НЕ БЫЛО ОШИБОК И БЕЛЫХ ЭКРАНОВ) --- */
 const scaleAmount = (amount: string, multiplier: number) => {
   if (!amount) return "";
   if (multiplier === 1) return amount;
-  
   return amount.replace(/(\d+\/\d+|\d+([\.,]\d+)?)/g, (match) => {
     let num = 0;
     if (match.includes('/')) {
@@ -92,14 +92,12 @@ const scaleAmount = (amount: string, multiplier: number) => {
     } else {
       num = parseFloat(match.replace(',', '.'));
     }
-    
     if (isNaN(num)) return match;
     const scaled = num * multiplier;
     return Number.isInteger(scaled) ? String(scaled) : scaled.toFixed(1).replace('.', ',');
   });
 };
 
-// Функция склонения "Куков"
 const formatCooks = (num: number) => {
   const last = num % 10;
   const last100 = num % 100;
@@ -109,7 +107,27 @@ const formatCooks = (num: number) => {
   return `${num} куков`;
 };
 
-/* --- ФУНКЦИИ ДЛЯ ОБРЕЗКИ АВАТАРОК --- */
+const cleanText = (text: any) => {
+  if (!text) return "";
+  return String(text).replace(/^(Шаг \d+|Step \d+|\d+[\.\)])[:\s]*/i, '').trim();
+};
+
+const formatTime = (t: string) => {
+  if (!t) return "";
+  const digits = t.replace(/\D/g, '');  
+  if (!digits) return t;  
+  return `${digits} мин.`;
+};
+
+const formatCalories = (c: string) => {
+  if (!c) return "";
+  const match = c.match(/\d+/);
+  if (match) {
+    return `${match[0]} ккал`;
+  }
+  return "";  
+};
+
 const createImage = (url: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
     const image = new Image();
@@ -119,19 +137,13 @@ const createImage = (url: string): Promise<HTMLImageElement> =>
     image.src = url;
   });
 
-async function getCroppedImg(
-  imageSrc: string,
-  pixelCrop: any
-): Promise<File | null> {
+async function getCroppedImg(imageSrc: string, pixelCrop: any): Promise<File | null> {
   const image = await createImage(imageSrc);
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
-
   if (!ctx) return null;
-
   canvas.width = pixelCrop.width;
   canvas.height = pixelCrop.height;
-
   ctx.drawImage(
     image,
     pixelCrop.x,
@@ -143,7 +155,6 @@ async function getCroppedImg(
     pixelCrop.width,
     pixelCrop.height
   );
-
   return new Promise((resolve) => {
     canvas.toBlob((blob) => {
       if (!blob) return resolve(null);
@@ -151,6 +162,7 @@ async function getCroppedImg(
     }, 'image/jpeg');
   });
 }
+
 
 export default function Home() {
   const [activeView, setActiveView] = useState<'service' | 'about' | 'daily' | 'feed' | 'profile' | 'game'>('service');
@@ -166,7 +178,6 @@ export default function Home() {
   
   const [cookingMode, setCookingMode] = useState<'strict' | 'extended'>('strict');
   
-  // СОСТОЯНИЯ ДЛЯ АЛЛЕРГИЙ И ПРЕДПОЧТЕНИЙ
   const [allergies, setAllergies] = useState<string[]>([]);
   const [dislikes, setDislikes] = useState<string[]>([]);
   const [isPreferencesModalOpen, setIsPreferencesModalOpen] = useState(false);
@@ -206,24 +217,20 @@ export default function Home() {
   const [dailyFavoriteId, setDailyFavoriteId] = useState<number | null>(null);
   const [servings, setServings] = useState<number | "">(1);
 
-  // Авторизация
   const [user, setUser] = useState<any>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authEmail, setAuthEmail] = useState("");
   const [isSendingLink, setIsSendingLink] = useState(false);
 
-  // Загрузка фото в ленту
   const [userPhotoFile, setUserPhotoFile] = useState<File | null>(null);
   const [userPhotoPreview, setUserPhotoPreview] = useState<string | null>(null);
   const [userComment, setUserComment] = useState("");
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
-  // Фулскрин фото и навигация профиля
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
   const [profileView, setProfileView] = useState<'main' | 'favorites' | 'photos' | 'history'>('main');
   const [userPhotos, setUserPhotos] = useState<any[]>([]);
 
-  // Комментарии и Свои блюда
   const [commentsModalPostId, setCommentsModalPostId] = useState<number | null>(null);
   const [postComments, setPostComments] = useState<DBComment[]>([]);
   const [newCommentText, setNewCommentText] = useState("");
@@ -233,64 +240,126 @@ export default function Home() {
   const [isStandaloneUploadOpen, setIsStandaloneUploadOpen] = useState(false);
   const [standaloneTitle, setStandaloneTitle] = useState("");
 
-  // Редактирование профиля
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editProfileName, setEditProfileName] = useState("");
   const [editAvatarFile, setEditAvatarFile] = useState<File | null>(null);
   const [editAvatarPreview, setEditAvatarPreview] = useState<string | null>(null);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
-  // Состояния для обрезки (Crop)
   const [isCropping, setIsCropping] = useState(false);
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
 
-  // --- СОСТОЯНИЯ ИГРЫ (МОЙ РЕСТОРАН) ---
   const [cooks, setCooks] = useState<number>(0);
   const [energy, setEnergy] = useState<number>(500);
   const [clickPower, setClickPower] = useState<number>(1);
+  const [passiveIncome, setPassiveIncome] = useState<number>(0);
   const [restaurantLevel, setRestaurantLevel] = useState<number>(1);
   const [gameTab, setGameTab] = useState<'kitchen' | 'tasks' | 'shop'>('kitchen');
+  const [floatingClicks, setFloatingClicks] = useState<{id: number, x: number, y: number, val: number}[]>([]);
 
-  // Загрузка сохранений игры
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedCooks = localStorage.getItem('sc_cooks');
-      if (savedCooks) setCooks(Number(savedCooks));
-      const savedClickPower = localStorage.getItem('sc_clickPower');
-      if (savedClickPower) setClickPower(Number(savedClickPower));
-      const savedLevel = localStorage.getItem('sc_restLevel');
-      if (savedLevel) setRestaurantLevel(Number(savedLevel));
+    if (user) {
+      supabase.from('game_progress').select('*').eq('user_id', user.id).single()
+      .then(({data}) => {
+        if (data) {
+          setCooks(data.cooks || 0);
+          setClickPower(data.click_power || 1);
+          setPassiveIncome(data.passive_income || 0);
+          setRestaurantLevel(data.restaurant_level || 1);
+          setEnergy(data.energy || 500);
+        } else {
+          const localC = Number(localStorage.getItem('sc_cooks') || 0);
+          const localP = Number(localStorage.getItem('sc_clickPower') || 1);
+          const localPI = Number(localStorage.getItem('sc_passiveIncome') || 0);
+          const localL = Number(localStorage.getItem('sc_restLevel') || 1);
+          
+          setCooks(localC); setClickPower(localP); setPassiveIncome(localPI); setRestaurantLevel(localL);
+          supabase.from('game_progress').insert({
+             user_id: user.id, cooks: localC, click_power: localP, passive_income: localPI, restaurant_level: localL, energy: 500
+          }).then();
+        }
+      });
+    } else {
+      if (typeof window !== 'undefined') {
+        setCooks(Number(localStorage.getItem('sc_cooks') || 0));
+        setClickPower(Number(localStorage.getItem('sc_clickPower') || 1));
+        setPassiveIncome(Number(localStorage.getItem('sc_passiveIncome') || 0));
+        setRestaurantLevel(Number(localStorage.getItem('sc_restLevel') || 1));
+      }
     }
-  }, []);
+  }, [user]);
 
-  // Сохранение игры
   useEffect(() => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('sc_cooks', cooks.toString());
       localStorage.setItem('sc_clickPower', clickPower.toString());
+      localStorage.setItem('sc_passiveIncome', passiveIncome.toString());
       localStorage.setItem('sc_restLevel', restaurantLevel.toString());
     }
-  }, [cooks, clickPower, restaurantLevel]);
+    
+    if (user) {
+      const timer = setTimeout(() => {
+        supabase.from('game_progress').upsert({
+          user_id: user.id, cooks, click_power: clickPower, passive_income: passiveIncome, restaurant_level: restaurantLevel, energy, updated_at: new Date().toISOString()
+        }).then();
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [cooks, clickPower, passiveIncome, restaurantLevel, energy, user]);
 
-  const handleCookClick = () => {
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setEnergy(prev => prev < 500 ? prev + 1 : 500);
+      if (passiveIncome > 0) {
+        setCooks(prev => prev + passiveIncome);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [passiveIncome]);
+
+  const handleCookClick = (e: React.PointerEvent<HTMLDivElement>) => {
     if (energy > 0) {
       setCooks(prev => prev + clickPower);
       setEnergy(prev => prev - 1);
+
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const id = Date.now() + Math.random();
+      
+      setFloatingClicks(prev => [...prev, { id, x, y, val: clickPower }]);
+      setTimeout(() => {
+        setFloatingClicks(prev => prev.filter(c => c.id !== id));
+      }, 800);
     }
   };
 
   const buyUpgrade = (type: string) => {
-    if (type === 'spatula' && cooks >= 500) {
-      setCooks(prev => prev - 500);
-      setClickPower(prev => prev + 1);
-      alert("🎉 Новая лопатка куплена! Ваш клик стал сильнее.");
+    if (type === 'spatula') {
+      const cost = clickPower * 500;
+      if (cooks >= cost) {
+        setCooks(prev => prev - cost);
+        setClickPower(prev => prev + 1);
+      }
+    } else if (type === 'souschef') {
+      const cost = (passiveIncome + 1) * 2000;
+      if (cooks >= cost) {
+        setCooks(prev => prev - cost);
+        setPassiveIncome(prev => prev + 1);
+      }
+    } else if (type === 'restaurant') {
+      const cost = restaurantLevel * 10000;
+      if (cooks >= cost && restaurantLevel < 5) {
+        setCooks(prev => prev - cost);
+        setRestaurantLevel(prev => prev + 1);
+      }
     }
   };
 
-  // Логика умного скролла к посту из профиля
+
   useEffect(() => {
     if (activeView === 'feed' && feedTab === 'photos' && scrollToPostId && photosFeed.length > 0) {
       const timer = setTimeout(() => {
@@ -381,27 +450,6 @@ export default function Home() {
     }
   }, [activeView, user]);
 
-  const cleanText = (text: any) => {
-    if (!text) return "";
-    return String(text).replace(/^(Шаг \d+|Step \d+|\d+[\.\)])[:\s]*/i, '').trim();
-  };
-
-  const formatTime = (t: string) => {
-    if (!t) return "";
-    const digits = t.replace(/\D/g, '');  
-    if (!digits) return t;  
-    return `${digits} мин.`;
-  };
-
-  const formatCalories = (c: string) => {
-    if (!c) return "";
-    const match = c.match(/\d+/);
-    if (match) {
-      return `${match[0]} ккал`;
-    }
-    return "";  
-  };
-
   useEffect(() => {
     fetch('/api/daily').then(res => res.json()).then(data => { if (data && !data.error) setDailyRecipe(data); }).catch(console.error);
 
@@ -485,7 +533,6 @@ export default function Home() {
     setProfileView('main');
   };
 
-  // СОХРАНЕНИЕ ПРЕДПОЧТЕНИЙ (Аллергии и Не люблю)
   const savePreferencesToDB = async (newAllergies: string[], newDislikes: string[]) => {
     if (user) {
       await supabase.auth.updateUser({ 
@@ -884,7 +931,6 @@ export default function Home() {
         const json = await response.json(); if (!response.ok) throw new Error(json.error); 
         setRecipe({ ...json.recipe, missing_ingredients: json.recipe.missing_ingredients || [] });  
         
-        // Начисляем куки
         setCooks(prev => prev + 75);
         setTimeout(() => alert("🎉 Вы заработали 75 куков за генерацию рецепта! Загляните в 'Мой ресторан'."), 1000);
 
@@ -901,7 +947,6 @@ export default function Home() {
       const json = await response.json(); if (!response.ok) throw new Error(json.error || "Ошибка поиска"); 
       setRecipe({ ...json.recipe, missing_ingredients: json.recipe.missing_ingredients || [] });  
       
-      // Начисляем куки
       setCooks(prev => prev + 75);
       setTimeout(() => alert("🎉 Вы заработали 75 куков за генерацию рецепта! Загляните в 'Мой ресторан'."), 1000);
 
@@ -974,7 +1019,6 @@ export default function Home() {
   const visibleHistory = historyExpanded ? displayedFeed : displayedFeed?.slice(0, 4); 
   const actualServings = typeof servings === 'number' ? servings : 1; 
 
-  // Отрисовка комментария с вложенными ответами 
   const renderComment = (c: DBComment, isReply: boolean = false) => ( 
     <div key={c.id} style={{ background: isReply ? '#f8fafc' : 'white', padding: '12px 15px', borderRadius: '16px', border: '1px solid #e2e8f0', marginBottom: isReply ? '10px' : '0', marginLeft: isReply ? '25px' : '0', position: 'relative' }}> 
       {isReply && <div style={{position: 'absolute', left: '-15px', top: '20px', width: '15px', height: '2px', background: '#cbd5e1'}} />} 
@@ -1040,9 +1084,22 @@ export default function Home() {
         .menu-link:hover {
           background: #f8fafc;
         }
+        @keyframes floatUp {
+          0% { opacity: 1; transform: translateY(0) scale(1); }
+          100% { opacity: 0; transform: translateY(-60px) scale(1.3); }
+        }
+        .float-coin {
+          position: absolute;
+          animation: floatUp 0.8s ease-out forwards;
+          pointer-events: none;
+          font-size: 24px;
+          font-weight: 900;
+          color: #f59e0b;
+          text-shadow: 0px 2px 4px rgba(0,0,0,0.3);
+          z-index: 10;
+        }
       `}</style> 
 
-      {/* Фулскрин для фото */} 
       {fullScreenImage && ( 
         <div  
           style={{ 
@@ -1061,7 +1118,6 @@ export default function Home() {
         </div> 
       )} 
 
-      {/* МОДАЛЬНОЕ ОКНО ОБРЕЗКИ ФОТО */}
       {isCropping && cropImageSrc && (
         <div style={{position: 'fixed', inset: 0, zIndex: 100001, background: 'black', display: 'flex', flexDirection: 'column'}}>
           <div style={{position: 'absolute', top: 0, left: 0, right: 0, bottom: '80px'}}>
@@ -1085,13 +1141,12 @@ export default function Home() {
         </div>
       )}
 
-      {/* МОДАЛЬНОЕ ОКНО КОММЕНТАРИЕВ */} 
       {commentsModalPostId && ( 
         <div style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}> 
           <div className="animate-fade-in" style={{ background: '#f8fafc', width: '100%', maxWidth: '500px', height: '85dvh', paddingBottom: 'env(safe-area-inset-bottom, 15px)', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', display: 'flex', flexDirection: 'column', boxShadow: '0 -10px 40px rgba(0,0,0,0.2)', position: 'relative' }}> 
             <div style={{ padding: '15px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', borderTopLeftRadius: '24px', borderTopRightRadius: '24px' }}> 
               <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800 }}>Комментарии</h3> 
-              <button onClick={() => setCommentsModalPostId(null)} style={{ width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: '#f1f5f9', border: 'none', borderRadius: '50%', padding: '0', cursor: 'pointer', color: '#64748b' }}><X size={20} /></button> 
+              <button onClick={() => setCommentsModalPostId(null)} style={{ minWidth: '32px', minHeight: '32px', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: '#f1f5f9', border: 'none', borderRadius: '50%', padding: '0', cursor: 'pointer', color: '#64748b' }}><X size={20} /></button> 
             </div> 
              
             <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}> 
@@ -1137,7 +1192,6 @@ export default function Home() {
         </div> 
       )} 
 
-      {/* МОДАЛЬНОЕ ОКНО АВТОРИЗАЦИИ */} 
       {isAuthModalOpen && ( 
         <div style={{ position: 'fixed', inset: 0, zIndex: 100000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', padding: '20px' }}> 
           <div className="animate-fade-in" style={{ background: 'white', borderRadius: '24px', width: '100%', maxWidth: '400px', padding: '30px 25px', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}> 
@@ -1170,7 +1224,6 @@ export default function Home() {
         </div> 
       )} 
 
-      {/* МОДАЛЬНОЕ ОКНО РЕДАКТИРОВАНИЯ ПРОФИЛЯ */} 
       {isEditingProfile && user && ( 
         <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', padding: '20px' }}> 
           <div className="animate-fade-in" style={{ background: 'white', borderRadius: '24px', width: '100%', maxWidth: '400px', padding: '30px 25px', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', textAlign: 'center' }}> 
@@ -1202,60 +1255,11 @@ export default function Home() {
           </div> 
         </div> 
       )} 
-
-      {/* БЫСТРЫЕ НАСТРОЙКИ (Шестеренка перед поиском) */}
-      {isPreferencesModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
-          <div className="animate-fade-in" style={{ background: 'white', width: '100%', maxWidth: '500px', padding: '25px', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', position: 'relative', boxShadow: '0 -10px 40px rgba(0,0,0,0.2)' }}>
-            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px'}}>
-              <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 900 }}>Фильтры для рецепта ⚙️</h3>
-              <button onClick={() => setIsPreferencesModalOpen(false)} style={{ width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: '#f1f5f9', border: 'none', borderRadius: '50%', padding: '0', cursor: 'pointer', color: '#64748b' }}><X size={20} /></button>
-            </div>
-            
-            <p style={{fontSize: '13px', color: '#64748b', marginBottom: '20px', lineHeight: 1.4}}>
-              Если вы авторизованы, эти настройки подтянутся из вашего профиля. Вы также можете настроить их прямо здесь на один раз.
-            </p>
-
-            <div style={{marginBottom: '20px'}}>
-              <div style={{fontSize: '14px', fontWeight: 800, color: '#be123c', marginBottom: '10px'}}>Аллергии (Строго исключить)</div>
-              <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px'}}>
-                {allergies.map((item, idx) => (
-                  <span key={idx} style={{background: '#ffe4e6', color: '#be123c', padding: '6px 12px', borderRadius: '100px', fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '5px'}}>
-                    {item} <X size={14} onClick={() => removeAllergy(idx)} style={{cursor: 'pointer'}}/>
-                  </span>
-                ))}
-              </div>
-              <div style={{display: 'flex', gap: '8px'}}>
-                <input type="text" placeholder="Например: орехи" value={newAllergy} onChange={e => setNewAllergy(e.target.value)} onKeyPress={e => e.key === 'Enter' && addAllergy()} style={{flex: 1, padding: '10px 15px', borderRadius: '12px', border: '1px solid #fecdd3', outline: 'none', fontSize: '14px'}} />
-                <button onClick={addAllergy} style={{background: '#be123c', color: 'white', border: 'none', padding: '0 20px', borderRadius: '12px', fontWeight: 700}}><PlusCircle size={20}/></button>
-              </div>
-            </div>
-
-            <div style={{marginBottom: '20px'}}>
-              <div style={{fontSize: '14px', fontWeight: 800, color: '#b45309', marginBottom: '10px'}}>Не люблю (По возможности без этого)</div>
-              <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px'}}>
-                {dislikes.map((item, idx) => (
-                  <span key={idx} style={{background: '#ffedd5', color: '#c2410c', padding: '6px 12px', borderRadius: '100px', fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '5px'}}>
-                    {item} <X size={14} onClick={() => removeDislike(idx)} style={{cursor: 'pointer'}}/>
-                  </span>
-                ))}
-              </div>
-              <div style={{display: 'flex', gap: '8px'}}>
-                <input type="text" placeholder="Например: лук" value={newDislike} onChange={e => setNewDislike(e.target.value)} onKeyPress={e => e.key === 'Enter' && addDislike()} style={{flex: 1, padding: '10px 15px', borderRadius: '12px', border: '1px solid #fed7aa', outline: 'none', fontSize: '14px'}} />
-                <button onClick={addDislike} style={{background: '#ea580c', color: 'white', border: 'none', padding: '0 20px', borderRadius: '12px', fontWeight: 700}}><PlusCircle size={20}/></button>
-              </div>
-            </div>
-
-            <button onClick={() => setIsPreferencesModalOpen(false)} style={{width: '100%', padding: '15px', borderRadius: '16px', background: '#111', color: 'white', border: 'none', fontWeight: 800, fontSize: '16px'}}>Готово</button>
-          </div>
-        </div>
-      )}
        
       <button className="menu-btn" onClick={() => setIsMenuOpen(true)} style={{ position: 'fixed', top: '10px', left: '20px', zIndex: 50, background: 'white', borderRadius: '50%', width: '44px', height: '44px', padding: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', border: 'none', cursor: 'pointer' }}> 
         <Menu size={24} color="#111" /> 
       </button> 
 
-      {/* МЕНЮ */}
       {isMenuOpen && ( 
         <> 
           <div className="menu-overlay" onClick={() => setIsMenuOpen(false)} style={{zIndex: 99}} /> 
@@ -1288,7 +1292,6 @@ export default function Home() {
         </> 
       )} 
 
-      {/* === СЕРВИС === */}
       {activeView === 'service' && ( 
         <> 
           {!isHistoryView && fromFeed === false && !isSharedView && ( 
@@ -1518,7 +1521,6 @@ export default function Home() {
                      ) : ( 
                         <div style={{background: 'white', padding: '15px', borderRadius: '12px', border: '1px solid #e2e8f0'}}> 
                            <img src={userPhotoPreview!} alt="Preview" style={{width: '100%', height: '200px', objectFit: 'cover', borderRadius: '8px', marginBottom: '15px'}} /> 
-                           
                            <textarea 
                              placeholder="Описание (как получилось?)" 
                              value={userComment} 
@@ -1530,7 +1532,6 @@ export default function Home() {
                              rows={2}
                              style={{width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '14px', marginBottom: '15px', outline: 'none', resize: 'none', overflow: 'hidden'}} 
                            /> 
-                           
                            <div style={{display: 'flex', gap: '10px'}}> 
                              <button onClick={() => {setUserPhotoFile(null); setUserPhotoPreview(null); setUserComment("");}} style={{flex: 1, padding: '12px', borderRadius: '8px', background: '#f3f4f6', border: 'none', color: '#4b5563', fontWeight: 700, cursor: 'pointer'}}>Отмена</button> 
                              <button onClick={() => submitFeedPost(recipe)} disabled={isUploadingPhoto} style={{flex: 2, padding: '12px', borderRadius: '8px', background: '#059669', border: 'none', color: 'white', fontWeight: 700, cursor: isUploadingPhoto ? 'default' : 'pointer'}}> {isUploadingPhoto ? "Отправка..." : "Отправить в ленту"} </button> 
@@ -1593,10 +1594,19 @@ export default function Home() {
       {/* === ИГРА (МОЙ РЕСТОРАН) === */}
       {activeView === 'game' && (
         <div style={{marginTop: '60px', paddingBottom: '80px'}}>
+          {!user && (
+            <div style={{background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '16px', padding: '15px', marginBottom: '20px', textAlign: 'center'}}>
+               <p style={{fontSize: '13px', color: '#b45309', margin: 0, lineHeight: 1.5}}>
+                 ⚠️ Ваш прогресс сохраняется только в памяти телефона. <br/>
+                 <span onClick={() => setIsAuthModalOpen(true)} style={{color: '#10b981', textDecoration: 'underline', cursor: 'pointer', fontWeight: 800}}>Войдите в аккаунт</span>, чтобы сохранить его навсегда!
+               </p>
+            </div>
+          )}
+
           <div style={{textAlign: 'center', marginBottom: '20px'}}>
             <h1 style={{fontSize: '28px', fontWeight: '900', margin: '0 0 5px 0'}}>Мой ресторан 🏪</h1>
             <div style={{background: '#fef3c7', color: '#d97706', display: 'inline-block', padding: '4px 12px', borderRadius: '100px', fontSize: '12px', fontWeight: 800}}>
-              Уровень {restaurantLevel}: {restaurantLevel === 1 ? 'Уличный ларек' : restaurantLevel === 2 ? 'Закусочная' : 'Ресторан'}
+              Уровень {restaurantLevel}: {restaurantLevel === 1 ? 'Уличный ларек' : restaurantLevel === 2 ? 'Закусочная' : restaurantLevel === 3 ? 'Уютное кафе' : restaurantLevel === 4 ? 'Ресторан в центре' : 'Мишленовский ресторан'}
             </div>
           </div>
 
@@ -1607,25 +1617,45 @@ export default function Home() {
           </div>
 
           {gameTab === 'kitchen' && (
-            <div className="card animate-fade-in" style={{textAlign: 'center', padding: '30px 20px'}}>
+            <div className="card animate-fade-in" style={{textAlign: 'center', padding: '30px 20px', position: 'relative', overflow: 'hidden'}}>
+               {floatingClicks.map(click => (
+                  <div key={click.id} className="float-coin" style={{left: click.x, top: click.y}}>
+                    +{click.val}
+                  </div>
+               ))}
                <div style={{fontSize: '16px', color: '#64748b', fontWeight: 700, marginBottom: '5px'}}>Баланс</div>
-               <div style={{fontSize: '48px', fontWeight: 900, color: '#111', lineHeight: 1, marginBottom: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px'}}>
+               <div style={{fontSize: '48px', fontWeight: 900, color: '#111', lineHeight: 1, marginBottom: '5px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px'}}>
                  {cooks} <span style={{fontSize: '40px'}}>🍪</span>
+               </div>
+               <div style={{fontSize: '14px', color: '#10b981', fontWeight: 700, marginBottom: '30px'}}>
+                 {passiveIncome > 0 ? `+${passiveIncome} в сек.` : 'Нет пассивного дохода'}
                </div>
                
                <div 
-                 onClick={handleCookClick}
+                 onPointerDown={handleCookClick}
                  style={{
-                   width: '200px', height: '200px', margin: '0 auto', background: 'radial-gradient(circle, #fef3c7 0%, #fde68a 100%)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '80px', cursor: 'pointer', boxShadow: '0 20px 40px -10px rgba(245, 158, 11, 0.4), inset 0 -10px 20px rgba(217, 119, 6, 0.2)', userSelect: 'none', transition: 'transform 0.05s'
+                   width: '200px', height: '200px', margin: '0 auto', background: 'radial-gradient(circle, #fef3c7 0%, #fde68a 100%)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '80px', cursor: 'pointer', boxShadow: '0 20px 40px -10px rgba(245, 158, 11, 0.4), inset 0 -10px 20px rgba(217, 119, 6, 0.2)', userSelect: 'none', transition: 'transform 0.05s', WebkitTapHighlightColor: 'transparent'
                  }}
-                 onPointerDown={(e) => e.currentTarget.style.transform = 'scale(0.95)'}
-                 onPointerUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                 onPointerLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
                >
                  🍳
                </div>
-               <div style={{marginTop: '30px', fontSize: '14px', color: '#9ca3af', fontWeight: 600}}>
-                 Энергия: {energy} / 500 ⚡️
+               
+               <div style={{marginTop: '40px'}}>
+                 {/* ИСПРАВЛЕНИЕ 3: Таймер энергии */}
+                 <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', fontSize: '13px', color: '#64748b', fontWeight: 700, marginBottom: '8px'}}>
+                    <div>
+                      Энергия 
+                      {energy < 500 && (
+                        <div style={{fontSize: '11px', fontWeight: 500, color: '#9ca3af', marginTop: '2px'}}>
+                          (полная через {Math.floor((500 - energy) / 60)}м {(500 - energy) % 60}с)
+                        </div>
+                      )}
+                    </div>
+                    <span>{energy} / 500 ⚡️</span>
+                 </div>
+                 <div style={{width: '100%', height: '12px', background: '#f1f5f9', borderRadius: '10px', overflow: 'hidden'}}>
+                    <div style={{width: `${(energy / 500) * 100}%`, height: '100%', background: '#10b981', transition: 'width 0.2s'}} />
+                 </div>
                </div>
             </div>
           )}
@@ -1671,9 +1701,10 @@ export default function Home() {
                 </div>
                 <button 
                   onClick={() => buyUpgrade('spatula')}
-                  style={{background: cooks >= 500 ? '#f59e0b' : '#fde68a', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '100px', fontWeight: 700, fontSize: '12px', cursor: cooks >= 500 ? 'pointer' : 'not-allowed', transition: 'all 0.2s'}}
+                  disabled={cooks < (clickPower * 500)}
+                  style={{background: cooks >= (clickPower * 500) ? '#f59e0b' : '#fde68a', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '100px', fontWeight: 700, fontSize: '12px', cursor: cooks >= (clickPower * 500) ? 'pointer' : 'not-allowed', transition: 'all 0.2s'}}
                 >
-                  500 🍪
+                  {clickPower * 500} 🍪
                 </button>
               </div>
               
@@ -1683,24 +1714,27 @@ export default function Home() {
                   <div style={{fontSize: '12px', color: '#16a34a', fontWeight: 600}}>+1 кук каждую секунду</div>
                 </div>
                 <button 
-                  style={{background: cooks >= 2000 ? '#22c55e' : '#bbf7d0', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '100px', fontWeight: 700, fontSize: '12px', cursor: 'not-allowed', transition: 'all 0.2s'}}
+                  onClick={() => buyUpgrade('souschef')}
+                  disabled={cooks < ((passiveIncome + 1) * 2000)}
+                  style={{background: cooks >= ((passiveIncome + 1) * 2000) ? '#22c55e' : '#bbf7d0', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '100px', fontWeight: 700, fontSize: '12px', cursor: cooks >= ((passiveIncome + 1) * 2000) ? 'pointer' : 'not-allowed', transition: 'all 0.2s'}}
                 >
-                  2000 🍪
+                  {(passiveIncome + 1) * 2000} 🍪
                 </button>
               </div>
 
               <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', padding: '15px', borderRadius: '16px', border: '1px solid #e2e8f0'}}>
                 <div>
                   <div style={{fontWeight: 800, fontSize: '15px', color: '#1e293b', marginBottom: '4px'}}>Ремонт ресторана</div>
-                  <div style={{fontSize: '12px', color: '#64748b', fontWeight: 600}}>Перейти на Уровень 2</div>
+                  <div style={{fontSize: '12px', color: '#64748b', fontWeight: 600}}>Перейти на Уровень {restaurantLevel + 1}</div>
                 </div>
                 <button 
-                  style={{background: '#cbd5e1', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '100px', fontWeight: 700, fontSize: '12px', cursor: 'not-allowed'}}
+                  onClick={() => buyUpgrade('restaurant')}
+                  disabled={cooks < (restaurantLevel * 10000) || restaurantLevel >= 5}
+                  style={{background: (cooks >= (restaurantLevel * 10000) && restaurantLevel < 5) ? '#3b82f6' : '#cbd5e1', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '100px', fontWeight: 700, fontSize: '12px', cursor: (cooks >= (restaurantLevel * 10000) && restaurantLevel < 5) ? 'pointer' : 'not-allowed', transition: 'all 0.2s'}}
                 >
-                  10 000 🍪
+                  {restaurantLevel >= 5 ? "МАКС" : `${restaurantLevel * 10000} 🍪`}
                 </button>
               </div>
-              <p style={{fontSize: '11px', textAlign: 'center', color: '#9ca3af', marginTop: '15px'}}>Скоро добавим больше улучшений!</p>
             </div>
           )}
         </div>
@@ -1714,6 +1748,7 @@ export default function Home() {
             <p style={{color: '#6b7280', margin: 0}}>Вдохновляйтесь кулинарными шедеврами</p> 
           </div> 
 
+          {/* ИСПРАВЛЕНИЕ 3: Выложить блюдо теперь выше сортировки */}
           <div style={{background: 'linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%)', borderRadius: '20px', padding: '20px', marginBottom: '25px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', boxShadow: '0 4px 15px rgba(14, 165, 233, 0.2)'}}> 
             <div style={{background: 'white', width: '56px', height: '56px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, borderRadius: '50%', marginBottom: '10px', color: '#0ea5e9'}}><PlusCircle size={28} /></div> 
             <h3 style={{margin: '0 0 5px 0', fontSize: '18px', fontWeight: 800, color: '#0369a1'}}>Приготовили по своему рецепту?</h3> 
@@ -1797,6 +1832,15 @@ export default function Home() {
                 <div style={{padding: '15px', background: 'white'}}> 
                   {post.comment && ( <p style={{margin: '0 0 15px 0', fontSize: '14px', color: '#374151', lineHeight: 1.5, wordBreak: 'break-word'}}> <strong>Описание:</strong> {post.comment} </p> )} 
                   <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}> 
+                    {/* ИСПРАВЛЕНИЕ 2: Лайки и комменты слева, К рецепту - справа */}
+                    <div style={{display: 'flex', gap: '10px'}}> 
+                      <button onClick={(e) => handlePhotoLike(e, post)} style={{background: post.is_liked ? '#fee2e2' : '#f3f4f6', border: 'none', borderRadius: '100px', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px', color: post.is_liked ? '#ef4444' : '#4b5563', fontWeight: 700, fontSize: '14px', transition: 'all 0.2s', cursor: 'pointer'}}> 
+                        <Heart size={18} fill={post.is_liked ? "#ef4444" : "none"} /> {post.likes_count || 0} 
+                      </button> 
+                      <button onClick={() => openComments(post.id)} style={{background: '#f3f4f6', border: 'none', borderRadius: '100px', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px', color: '#4b5563', fontWeight: 700, fontSize: '14px', cursor: 'pointer'}}> 
+                        <MessageCircle size={18} /> {post.comments_count || 0} 
+                      </button> 
+                    </div> 
                     <div>
                       {post.recipe_id && ( 
                         <button onClick={() => loadSharedRecipe(post.recipe_id, 'photos')} style={{background: 'transparent', border: 'none', color: '#0ea5e9', fontWeight: 700, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', padding: 0}}> 
@@ -1804,14 +1848,6 @@ export default function Home() {
                         </button> 
                       )} 
                     </div>
-                    <div style={{display: 'flex', gap: '10px', justifyContent: 'flex-end'}}> 
-                      <button onClick={() => openComments(post.id)} style={{background: '#f3f4f6', border: 'none', borderRadius: '100px', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px', color: '#4b5563', fontWeight: 700, fontSize: '14px', cursor: 'pointer'}}> 
-                        <MessageCircle size={18} /> {post.comments_count || 0} 
-                      </button> 
-                      <button onClick={(e) => handlePhotoLike(e, post)} style={{background: post.is_liked ? '#fee2e2' : '#f3f4f6', border: 'none', borderRadius: '100px', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px', color: post.is_liked ? '#ef4444' : '#4b5563', fontWeight: 700, fontSize: '14px', transition: 'all 0.2s', cursor: 'pointer'}}> 
-                        <Heart size={18} fill={post.is_liked ? "#ef4444" : "none"} /> {post.likes_count || 0} 
-                      </button> 
-                    </div> 
                   </div> 
                 </div> 
               </div> 

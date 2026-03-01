@@ -19,7 +19,6 @@ interface HolidayType { title: string; text: string; gradient: string; icon: str
 interface DBComment { id: number; post_id: number; user_id: string; user_name: string; user_avatar?: string; text: string; created_at: string; parent_id?: number | null; likes_count?: number; is_liked?: boolean; }
 
 // =========================================================================
-// ВАЖНО: ВСТАВЬ СВОЙ UID ИЗ SUPABASE СЮДА ДЛЯ ПЛАШКИ "РАЗРАБОТЧИК"
 const DEVELOPER_ID = "ТВОЙ_UID_ИЗ_SUPABASE"; 
 // =========================================================================
 
@@ -168,61 +167,38 @@ export default function Home() {
   const [floatingClicks, setFloatingClicks] = useState<{id: number, x: number, y: number, val: number}[]>([]);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
 
-  // === ВСЕ ВАЖНЫЕ ФУНКЦИИ ИГРЫ И ПРИЛОЖЕНИЯ ТЕПЕРЬ ЗДЕСЬ ===
-
+  // === ВСЕ ВАЖНЫЕ ФУНКЦИИ ИГРЫ ===
   const buyUpgrade = (type: string) => {
     if (type === 'spatula') {
       const cost = clickPower * 500;
-      if (cooks >= cost) {
-        setCooks(prev => prev - cost);
-        setClickPower(prev => prev + 1);
-      }
+      if (cooks >= cost) { setCooks(prev => prev - cost); setClickPower(prev => prev + 1); }
     } else if (type === 'souschef') {
       const cost = (passiveIncome + 1) * 2000;
-      if (cooks >= cost) {
-        setCooks(prev => prev - cost);
-        setPassiveIncome(prev => prev + 1);
-      }
+      if (cooks >= cost) { setCooks(prev => prev - cost); setPassiveIncome(prev => prev + 1); }
     } else if (type === 'restaurant') {
       const cost = restaurantLevel === 5 ? 100000 : restaurantLevel * 10000;
-      if (cooks >= cost && restaurantLevel < 6) {
-        setCooks(prev => prev - cost);
-        setRestaurantLevel(prev => prev + 1);
-      }
+      if (cooks >= cost && restaurantLevel < 6) { setCooks(prev => prev - cost); setRestaurantLevel(prev => prev + 1); }
     }
   };
 
   const handleCookClick = (e: React.PointerEvent<HTMLDivElement>) => {
     if (energy > 0) {
-      setCooks(prev => prev + clickPower);
-      setEnergy(prev => prev - 1);
+      setCooks(prev => prev + clickPower); setEnergy(prev => prev - 1);
       const rect = e.currentTarget.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
       const id = Date.now() + Math.random();
-      setFloatingClicks(prev => [...prev, { id, x, y, val: clickPower }]);
-      setTimeout(() => {
-        setFloatingClicks(prev => prev.filter(c => c.id !== id));
-      }, 800);
+      setFloatingClicks(prev => [...prev, { id, x: e.clientX - rect.left, y: e.clientY - rect.top, val: clickPower }]);
+      setTimeout(() => { setFloatingClicks(prev => prev.filter(c => c.id !== id)); }, 800);
     }
   };
 
   const renderUserBadge = (uid: string | undefined | null, level?: number) => {
     if (!uid) return null;
     if (uid === DEVELOPER_ID) {
-      return (
-        <span style={{fontSize: '10px', background: '#111', color: '#38bdf8', padding: '2px 8px', borderRadius: '100px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px'}}>
-          👨‍💻 Разработчик
-        </span>
-      );
+      return ( <span style={{fontSize: '10px', background: '#111', color: '#38bdf8', padding: '2px 8px', borderRadius: '100px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px'}}>👨‍💻 Разработчик</span> );
     }
     if (level) {
        const titles = ['Ларёк 🌭', 'Закусочная 🍔', 'Кафе ☕️', 'Ресторан 🍽', 'Мишленовский ресторан ⭐️', 'Сеть ресторанов 👑'];
-       return (
-         <span style={{fontSize: '10px', background: '#fef3c7', color: '#d97706', padding: '2px 8px', borderRadius: '100px', fontWeight: 800}}>
-           {titles[Math.min(level - 1, 5)]}
-         </span>
-       );
+       return ( <span style={{fontSize: '10px', background: '#fef3c7', color: '#d97706', padding: '2px 8px', borderRadius: '100px', fontWeight: 800}}>{titles[Math.min(level - 1, 5)]}</span> );
     }
     return null;
   };
@@ -230,17 +206,11 @@ export default function Home() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user || null);
-      if (session?.user?.user_metadata) {
-        setAllergies(session.user.user_metadata.allergies || []);
-        setDislikes(session.user.user_metadata.dislikes || []);
-      }
+      if (session?.user?.user_metadata) { setAllergies(session.user.user_metadata.allergies || []); setDislikes(session.user.user_metadata.dislikes || []); }
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user || null);
-      if (session?.user?.user_metadata) {
-        setAllergies(session.user.user_metadata.allergies || []);
-        setDislikes(session.user.user_metadata.dislikes || []);
-      }
+      if (session?.user?.user_metadata) { setAllergies(session.user.user_metadata.allergies || []); setDislikes(session.user.user_metadata.dislikes || []); }
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -258,8 +228,7 @@ export default function Home() {
 
   useEffect(() => {
     if (activeView === 'profile' && user) {
-      supabase.from('feed_posts').select('*, recipes(title)').eq('user_id', user.id).order('created_at', { ascending: false })
-        .then(({data, error}) => { if (!error && data) setUserPhotos(data); });
+      supabase.from('feed_posts').select('*, recipes(title)').eq('user_id', user.id).order('created_at', { ascending: false }).then(({data, error}) => { if (!error && data) setUserPhotos(data); });
     }
   }, [activeView, user]);
 
@@ -267,8 +236,7 @@ export default function Home() {
     setDailyError(false);
     fetch('/api/daily').then(res => res.json()).then(json => {
         const data = json.data || json.recipe || json;
-        if (data && data.title && !data.error && !json.error) setDailyRecipe(data);
-        else setDailyError(true);
+        if (data && data.title && !data.error && !json.error) setDailyRecipe(data); else setDailyError(true);
       }).catch(() => setDailyError(true));
   };
 
@@ -282,7 +250,6 @@ export default function Home() {
       "1.1": { title: "С Новым 2026 годом! 🎉", text: "Начинаем год вкусно!", gradient: "linear-gradient(135deg, #fbbf24 0%, #b45309 100%)", icon: "🥂" }
     };
     if (holidays[key]) setCurrentHoliday(holidays[key]);
-
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       if (params.get('recipeId')) loadSharedRecipe(params.get('recipeId')!);
@@ -297,12 +264,8 @@ export default function Home() {
     photosFeed.forEach(p => { if (p.user_id) uids.add(p.user_id); });
     postComments.forEach(c => { if (c.user_id) uids.add(c.user_id); });
     if (uids.size > 0) {
-      supabase.from('game_progress').select('user_id, restaurant_level').in('user_id', Array.from(uids))
-        .then(({data, error}) => {
-          if (data && !error) {
-            const levels: Record<string, number> = {}; data.forEach(d => levels[d.user_id] = d.restaurant_level);
-            setUserLevels(prev => ({...prev, ...levels}));
-          }
+      supabase.from('game_progress').select('user_id, restaurant_level').in('user_id', Array.from(uids)).then(({data, error}) => {
+          if (data && !error) { const levels: Record<string, number> = {}; data.forEach(d => levels[d.user_id] = d.restaurant_level); setUserLevels(prev => ({...prev, ...levels})); }
         });
     }
   }, [photosFeed, postComments]);
@@ -361,38 +324,26 @@ export default function Home() {
 
   useEffect(() => {
     if (gameTab === 'leaderboard') {
-      supabase.from('game_progress').select('*').order('restaurant_level', { ascending: false }).order('cooks', { ascending: false }).limit(50)
-      .then(({data}) => { if (data) setLeaderboard(data); });
+      supabase.from('game_progress').select('*').order('restaurant_level', { ascending: false }).order('cooks', { ascending: false }).limit(50).then(({data}) => { if (data) setLeaderboard(data); });
     }
   }, [gameTab]);
 
-  const fetchMyRecipes = async (currentId: string) => {
-    const { data, error } = await supabase.from('recipes').select('*').eq('session_id', currentId).order('created_at', { ascending: false });
-    if (!error && data) setFeed(data);
-  };
-
+  /* --- ФУНКЦИИ ОБРАБОТЧИКИ --- */
+  const fetchMyRecipes = async (currentId: string) => { const { data, error } = await supabase.from('recipes').select('*').eq('session_id', currentId).order('created_at', { ascending: false }); if (!error && data) setFeed(data); };
   const fetchPhotosFeed = async (sortType: 'new' | 'top' | 'old') => {
     setPhotosSort(sortType); if (!userId) return;
-    try {
-      const res = await fetch("/api/photo-feed", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sort: sortType, sessionId: userId }) });
-      const json = await res.json(); if (json.feed) setPhotosFeed(json.feed);
-    } catch (e) {}
+    try { const res = await fetch("/api/photo-feed", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sort: sortType, sessionId: userId }) }); const json = await res.json(); if (json.feed) setPhotosFeed(json.feed); } catch (e) {}
   };
 
-  const handleOAuthLogin = async (provider: 'google' | 'yandex' | 'vk') => {
-    try { const { error } = await supabase.auth.signInWithOAuth({ provider: provider as any, options: { redirectTo: window.location.origin } }); if (error) throw error; } catch (error: any) { alert("Ошибка входа: " + error.message); }
-  };
-
+  const handleOAuthLogin = async (provider: 'google' | 'yandex' | 'vk') => { try { const { error } = await supabase.auth.signInWithOAuth({ provider: provider as any, options: { redirectTo: window.location.origin } }); if (error) throw error; } catch (error: any) { alert("Ошибка входа: " + error.message); } };
   const handleEmailLogin = async () => {
     if (!authEmail.includes('@')) return alert("Пожалуйста, введите корректный email");
     setIsSendingLink(true);
     try { const { error } = await supabase.auth.signInWithOtp({ email: authEmail, options: { emailRedirectTo: window.location.origin } }); if (error) throw error; alert("✨ Магическая ссылка отправлена! Проверьте вашу почту."); setIsAuthModalOpen(false); } catch (error: any) { alert("Ошибка отправки: " + error.message); } finally { setIsSendingLink(false); }
   };
-
   const handleLogout = async () => { await supabase.auth.signOut(); setActiveView('service'); setProfileView('main'); };
 
   const savePreferencesToDB = async (newAllergies: string[], newDislikes: string[]) => { if (user) await supabase.auth.updateUser({ data: { allergies: newAllergies, dislikes: newDislikes } }); };
-
   const addAllergy = () => { if (!newAllergy.trim()) return; const updated = [...allergies, newAllergy.trim().toLowerCase()]; setAllergies(updated); setNewAllergy(""); savePreferencesToDB(updated, dislikes); };
   const addDislike = () => { if (!newDislike.trim()) return; const updated = [...dislikes, newDislike.trim().toLowerCase()]; setDislikes(updated); setNewDislike(""); savePreferencesToDB(allergies, updated); };
   const removeAllergy = (idx: number) => { const updated = allergies.filter((_, i) => i !== idx); setAllergies(updated); savePreferencesToDB(updated, dislikes); };
@@ -418,10 +369,7 @@ export default function Home() {
     try { 
       let avatarUrl = user.user_metadata?.avatar_url; 
       if (editAvatarFile) { 
-        const fileName = `${user.id}/avatar_${Date.now()}.jpg`; 
-        const { error: uploadError } = await supabase.storage.from('avatars').upload(fileName, editAvatarFile, { upsert: true }); 
-        if (uploadError) throw uploadError; 
-        const { data } = supabase.storage.from('avatars').getPublicUrl(fileName); avatarUrl = data.publicUrl + '?t=' + Date.now(); 
+        const fileName = `${user.id}/avatar_${Date.now()}.jpg`; const { error: uploadError } = await supabase.storage.from('avatars').upload(fileName, editAvatarFile, { upsert: true }); if (uploadError) throw uploadError; const { data } = supabase.storage.from('avatars').getPublicUrl(fileName); avatarUrl = data.publicUrl + '?t=' + Date.now(); 
       } 
       const { data, error } = await supabase.auth.updateUser({ data: { full_name: editProfileName, avatar_url: avatarUrl } }); 
       if (error) throw error; setUser(data.user); setIsEditingProfile(false); 
@@ -469,7 +417,7 @@ export default function Home() {
 
   const handleDeleteComment = async (commentId: number) => { 
     if (!confirm("Удалить комментарий?")) return; 
-    try { const { error } = await supabase.from('photo_comments').delete().eq('id', commentId).eq('user_id', user?.id); if (error) throw error; setPostComments(prev => prev.filter(c => c.id !== commentId && c.parent_id !== commentId)); setPhotosFeed(photosFeed.map(p => p.id === commentsModalPostId ? { ...p, comments_count: Math.max(0, (p.comments_count || 0) - 1) } : p)); } catch (e: any) { alert("Ошибка удаления комментария"); } 
+    try { const { error } = await supabase.from('photo_comments').delete().eq('id', commentId).eq('user_id', user?.id); if (error) throw error; setPostComments(prev => prev.filter(c => c.id !== commentId && c.parent_id !== commentId)); setPhotosFeed(photosFeed.map(p => p.id === commentsModalPostId ? { ...p, comments_count: Math.max(0, (p.comments_count || 0) - 1) } : p)); } catch (e: any) { alert("Ошибка удаления"); } 
   }; 
 
   const handleCommentLike = async (comment: DBComment) => {
@@ -691,10 +639,6 @@ export default function Home() {
     if (typeof window !== 'undefined') window.history.replaceState({}, '', '/'); 
   }; 
 
-  const displayedFeed = filterMode === 'all' ? feed : feed?.filter(r => r.is_favorite); 
-  const visibleHistory = historyExpanded ? displayedFeed : displayedFeed?.slice(0, 4); 
-  const actualServings = typeof servings === 'number' ? servings : 1; 
-
   const renderCommentUI = (c: DBComment, isReply: boolean = false) => ( 
     <div key={c.id} style={{ background: isReply ? '#f8fafc' : 'white', padding: '12px 15px', borderRadius: '16px', border: '1px solid #e2e8f0', marginBottom: isReply ? '10px' : '0', marginLeft: isReply ? '25px' : '0', position: 'relative' }}> 
       {isReply && <div style={{position: 'absolute', left: '-15px', top: '20px', width: '15px', height: '2px', background: '#cbd5e1'}} />} 
@@ -732,6 +676,10 @@ export default function Home() {
       </div> 
     </div> 
   ); 
+
+  const displayedFeed = filterMode === 'all' ? feed : feed?.filter(r => r.is_favorite); 
+  const visibleHistory = historyExpanded ? displayedFeed : displayedFeed?.slice(0, 4); 
+  const actualServings = typeof servings === 'number' ? servings : 1;
   return ( 
     <div className="container"> 
       <style>{` 
@@ -766,7 +714,7 @@ export default function Home() {
 
       {commentsModalPostId && ( 
         <div style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}> 
-          <div className="animate-fade-in" style={{ background: '#f8fafc', width: '100%', maxWidth: '500px', height: '85dvh', paddingBottom: 'env(safe-area-inset-bottom, 15px)', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', display: 'flex', flexDirection: 'column', boxShadow: '0 -10px 40px rgba(0,0,0,0.2)', position: 'relative' }}> 
+          <div className="animate-fade-in" style={{ background: '#f8fafc', width: '100%', maxWidth: '500px', height: '85dvh', paddingBottom: 'env(safe-area-inset-bottom, 15px)', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', display: 'flex', flexDirection: 'column', boxShadow: '0 -10px 40px rgba(0,0,0,0.2)' }}> 
             <div style={{ padding: '15px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', borderTopLeftRadius: '24px', borderTopRightRadius: '24px' }}> 
               <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800 }}>Комментарии</h3> 
               <button onClick={() => setCommentsModalPostId(null)} style={{ minWidth: '32px', minHeight: '32px', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: '#f1f5f9', border: 'none', borderRadius: '50%', padding: '0', cursor: 'pointer', color: '#64748b' }}><X size={20} /></button> 
@@ -1563,6 +1511,7 @@ export default function Home() {
                 <div style={{padding: '15px', background: 'white'}}> 
                   {post.comment && ( <p style={{margin: '0 0 15px 0', fontSize: '14px', color: '#374151', lineHeight: 1.5, wordBreak: 'break-word'}}> <strong>Описание:</strong> {post.comment} </p> )} 
                   <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}> 
+                    {/* Лайки и комменты слева */}
                     <div style={{display: 'flex', gap: '10px'}}> 
                       <button onClick={(e) => handlePhotoLike(e, post)} style={{background: post.is_liked ? '#fee2e2' : '#f3f4f6', border: 'none', borderRadius: '100px', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px', color: post.is_liked ? '#ef4444' : '#4b5563', fontWeight: 700, fontSize: '14px', transition: 'all 0.2s', cursor: 'pointer'}}> 
                         <Heart size={18} fill={post.is_liked ? "#ef4444" : "none"} /> {post.likes_count || 0} 
@@ -1571,6 +1520,7 @@ export default function Home() {
                         <MessageCircle size={18} /> {post.comments_count || 0} 
                       </button> 
                     </div> 
+                    {/* Кнопка К рецепту справа */}
                     <div>
                       {post.recipe_id && ( 
                         <button onClick={() => loadSharedRecipe(post.recipe_id, 'photos')} style={{background: 'transparent', border: 'none', color: '#0ea5e9', fontWeight: 700, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', padding: 0}}> 

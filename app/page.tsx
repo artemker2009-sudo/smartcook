@@ -178,10 +178,10 @@ export default function Home() {
   const [floatingClicks, setFloatingClicks] = useState<{id: number, x: number, y: number, val: number}[]>([]);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
 
-  // === ВСЕ ВАЖНЫЕ ФУНКЦИИ ИГРЫ (ОБНОВЛЕНЫ С МНОЖИТЕЛЯМИ) ===
+  // === ВСЕ ВАЖНЫЕ ФУНКЦИИ ИГРЫ ===
   const getRestaurantCost = (lvl: number) => {
-    // Цены: Ларёк(1)->2: 50k, 2->3: 150k, 3->4: 500k, 4->5: 1.5m, 5->6: 5m
-    const costs = [0, 50000, 150000, 500000, 1500000, 5000000];
+    // Новые цены от Артема: 1->2: 10k, 2->3: 50k, 3->4: 200k, 4->5: 600k, 5->6: 1.5m
+    const costs = [0, 10000, 50000, 200000, 600000, 1500000];
     return costs[lvl] || 99999999;
   };
 
@@ -215,29 +215,6 @@ export default function Home() {
       setFloatingClicks(prev => [...prev, { id, x: e.clientX - rect.left, y: e.clientY - rect.top, val: actualClickPower }]);
       setTimeout(() => { setFloatingClicks(prev => prev.filter(c => c.id !== id)); }, 800);
     }
-  };
-
-  // ДВОЙНАЯ ПЛАШКА: Идеальное выравнивание
-  const renderUserBadge = (uid: string | undefined | null, level?: number) => {
-    if (!uid) return null;
-    
-    const safeLevel = level || 1;
-    const titles = ['Ларёк 🌭', 'Закусочная 🍔', 'Кафе ☕️', 'Ресторан 🍽', 'Мишленовский ресторан ⭐️', 'Сеть ресторанов 👑'];
-    const isDev = uid === DEVELOPER_ID;
-    
-    return (
-      <>
-        <span key="rest" style={{fontSize: '11px', background: '#fef3c7', color: '#d97706', padding: '4px 10px', borderRadius: '100px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', lineHeight: 1}}>
-          {titles[Math.min(safeLevel - 1, 5)]}
-        </span>
-        {isDev && <div style={{ flexBasis: '100%', height: 0, margin: 0, padding: 0 }}></div>}
-        {isDev && (
-          <span key="dev" style={{fontSize: '11px', background: '#111', color: '#38bdf8', padding: '4px 10px', borderRadius: '100px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '4px', lineHeight: 1, marginTop: '4px'}}>
-            👨‍💻 Разработчик
-          </span>
-        )}
-      </>
-    );
   };
 
   const getUserBadges = (uid: string | undefined | null, level?: number) => {
@@ -329,15 +306,16 @@ export default function Home() {
         const localPI = Number(localStorage.getItem('sc_passiveIncome') || 0);
         const localL = Number(localStorage.getItem('sc_restLevel') || 1);
 
-       if (data) {
-          // ВРЕМЕННЫЙ КОД ДЛЯ ТЕСТОВ (Берет всё только из базы)
-          setCooks(data.cooks || 0); 
-          setClickPower(data.click_power || 1); 
-          setPassiveIncome(data.passive_income || 0); 
-          setRestaurantLevel(data.restaurant_level || 1); 
-          setEnergy(data.energy || 500);
+        if (data) {
+          // ВОЗВРАЩЕНО: Берем максимальные значения (база vs браузер)
+          setCooks(Math.max(data.cooks || 0, localC)); 
+          setClickPower(Math.max(data.click_power || 1, localP)); 
+          setPassiveIncome(Math.max(data.passive_income || 0, localPI)); 
+          setRestaurantLevel(Math.max(data.restaurant_level || 1, localL)); 
+          setEnergy(data.energy || 500); 
         } else {
           setCooks(localC); setClickPower(localP); setPassiveIncome(localPI); setRestaurantLevel(localL);
+          
           const profileName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Шеф';
           
           supabase.from('game_progress').upsert({ 
@@ -377,7 +355,6 @@ export default function Home() {
     }
   }, [cooks, clickPower, passiveIncome, restaurantLevel, energy, user]);
 
-  // Восстановление энергии с учетом НОВОГО МАКСИМУМА
   useEffect(() => {
     const interval = setInterval(() => { 
       setEnergy(prev => prev < maxEnergy ? prev + 1 : maxEnergy); 
@@ -401,7 +378,7 @@ export default function Home() {
     }
   }, [dailyRecipe, feed]);
 
-  // СОРТИРОВКА ТОЛЬКО ПО КУКАМ!
+  // СОРТИРОВКА ТОЛЬКО ПО КУКАМ
   useEffect(() => {
     if (gameTab === 'leaderboard') {
       supabase.from('game_progress').select('*').order('cooks', { ascending: false }).then(({data}) => { if (data) setLeaderboard(data); });
@@ -779,6 +756,7 @@ export default function Home() {
   }; 
 
   const renderCommentUI = (c: DBComment, isReply: boolean = false) => {
+    const { isDev, restBadge } = getUserBadges(c.user_id, userLevels[c.user_id]);
     return ( 
       <div key={c.id} style={{ background: isReply ? '#f8fafc' : 'white', padding: '12px 15px', borderRadius: '16px', border: '1px solid #e2e8f0', marginBottom: isReply ? '10px' : '0', marginLeft: isReply ? '25px' : '0', position: 'relative' }}> 
         {isReply && <div style={{position: 'absolute', left: '-15px', top: '20px', width: '15px', height: '2px', background: '#cbd5e1'}} />} 
@@ -795,8 +773,9 @@ export default function Home() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                   <span style={{ fontSize: '13px', fontWeight: 800, color: '#111' }}>{c.user_name}</span>
-                  {renderUserBadge(c.user_id, userLevels[c.user_id])}
+                  {restBadge}
                 </div>
+                {isDev && <span style={{fontSize: '10px', background: '#111', color: '#38bdf8', padding: '2px 8px', borderRadius: '100px', fontWeight: 800}}>👨‍💻 Разработчик</span>}
               </div> 
               {user && user.id === c.user_id && ( 
                 <button onClick={() => handleDeleteComment(c.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px' }}><Trash2 size={14} /></button> 
@@ -1061,7 +1040,7 @@ export default function Home() {
         <Menu size={24} color="#111" /> 
       </button> 
 
-      {/* МЕНЮ (МОЙ РЕСТОРАН ТЕПЕРЬ ВЫШЕ) */}
+      {/* МЕНЮ */}
       {isMenuOpen && ( 
         <> 
           <div className="menu-overlay" onClick={() => setIsMenuOpen(false)} style={{zIndex: 99}} /> 
@@ -1127,7 +1106,7 @@ export default function Home() {
         />
       )}
 
-      {/* ИСПОЛЬЗУЕМ ТВОЙ КРАСИВЫЙ DailyRecipe с прокинутыми функциями для Чата с Шефом */}
+      {/* ИСПОЛЬЗУЕМ ТВОЙ КРАСИВЫЙ DailyRecipe */}
       {activeView === 'daily' && (
         <DailyRecipe 
           dailyError={dailyError} dailyRecipe={dailyRecipe} dailyFavoriteId={dailyFavoriteId} 

@@ -126,8 +126,12 @@ export default function Home() {
 
   const [user, setUser] = useState<any>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [authEmail, setAuthEmail] = useState("");
-  const [isSendingLink, setIsSendingLink] = useState(false);
+  
+  // Новые стейты для анонимной регистрации по логину
+  const [authUsername, setAuthUsername] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('register');
+  const [authLoading, setAuthLoading] = useState(false);
 
   const [userPhotoFile, setUserPhotoFile] = useState<File | null>(null);
   const [userPhotoPreview, setUserPhotoPreview] = useState<string | null>(null);
@@ -335,12 +339,44 @@ export default function Home() {
     try { const res = await fetch("/api/photo-feed", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sort: sortType, sessionId: userId }) }); const json = await res.json(); if (json.feed) setPhotosFeed(json.feed); } catch (e) {}
   };
 
-  const handleOAuthLogin = async (provider: 'google' | 'yandex' | 'vk') => { try { const { error } = await supabase.auth.signInWithOAuth({ provider: provider as any, options: { redirectTo: window.location.origin } }); if (error) throw error; } catch (error: any) { alert("Ошибка входа: " + error.message); } };
-  const handleEmailLogin = async () => {
-    if (!authEmail.includes('@')) return alert("Пожалуйста, введите корректный email");
-    setIsSendingLink(true);
-    try { const { error } = await supabase.auth.signInWithOtp({ email: authEmail, options: { emailRedirectTo: window.location.origin } }); if (error) throw error; alert("✨ Магическая ссылка отправлена! Проверьте вашу почту."); setIsAuthModalOpen(false); } catch (error: any) { alert("Ошибка отправки: " + error.message); } finally { setIsSendingLink(false); }
+  // Анонимная регистрация и вход по логину
+  const handleAuth = async () => {
+    if (!authUsername.trim() || authPassword.length < 6) return alert("Введите логин и пароль (минимум 6 символов)");
+    
+    const safeUsername = authUsername.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+    if (!safeUsername) return alert("Логин должен содержать только английские буквы и цифры!");
+
+    setAuthLoading(true);
+    const dummyEmail = `${safeUsername}@smartcook.app`;
+    
+    try {
+      if (authMode === 'register') {
+        const { data, error } = await supabase.auth.signUp({ email: dummyEmail, password: authPassword, options: { data: { full_name: authUsername.trim() } } });
+        if (error) {
+          if (error.message.includes('already registered') || error.message.includes('User already exists')) {
+            alert("Этот логин уже занят! Выберите другой или перейдите во вкладку «Войти».");
+          } else throw error;
+        } else {
+          alert("Успешная регистрация! Добро пожаловать.");
+          setIsAuthModalOpen(false);
+        }
+      } else {
+        const { data, error } = await supabase.auth.signInWithPassword({ email: dummyEmail, password: authPassword });
+        if (error) {
+          if (error.message.includes('Invalid login credentials')) {
+            alert("Неверный логин или пароль!");
+          } else throw error;
+        } else {
+          setIsAuthModalOpen(false);
+        }
+      }
+    } catch (e: any) { 
+      alert("Ошибка: " + e.message); 
+    } finally { 
+      setAuthLoading(false); 
+    }
   };
+
   const handleLogout = async () => { await supabase.auth.signOut(); setActiveView('service'); setProfileView('main'); };
 
   const savePreferencesToDB = async (newAllergies: string[], newDislikes: string[]) => { if (user) await supabase.auth.updateUser({ data: { allergies: newAllergies, dislikes: newDislikes } }); };
@@ -765,32 +801,59 @@ export default function Home() {
         </div> 
       )} 
 
+      {/* Модалка Входа и Регистрации (обновленная) */}
       {isAuthModalOpen && ( 
         <div style={{ position: 'fixed', inset: 0, zIndex: 100000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', padding: '20px' }}> 
           <div className="animate-fade-in" style={{ background: 'white', borderRadius: '24px', width: '100%', maxWidth: '400px', padding: '30px 25px', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}> 
             <button onClick={() => setIsAuthModalOpen(false)} style={{position: 'absolute', top: '15px', right: '15px', background: '#f3f4f6', border: 'none', borderRadius: '50%', padding: '6px', cursor: 'pointer', color: '#6b7280'}}><X size={20} /></button> 
             <div style={{textAlign: 'center', marginBottom: '25px'}}> 
-              <h2 style={{fontSize: '24px', fontWeight: 900, color: '#111', margin: '0 0 5px 0'}}>Вход в систему</h2> 
-              <p style={{color: '#6b7280', fontSize: '14px', margin: 0}}>Сохраняйте рецепты и делитесь фото</p> 
+              <h2 style={{fontSize: '24px', fontWeight: 900, color: '#111', margin: '0 0 5px 0'}}>
+                {authMode === 'register' ? 'Создать аккаунт' : 'Вход'}
+              </h2> 
+              <p style={{color: '#6b7280', fontSize: '13px', margin: 0, lineHeight: 1.4}}>
+                Нам не нужны ваши личные данные! Никаких почт и телефонов — просто придумайте логин.
+              </p> 
             </div> 
+
             <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}> 
-              <button onClick={() => handleOAuthLogin('google')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', width: '100%', padding: '14px', borderRadius: '12px', background: 'white', border: '1px solid #e5e7eb', fontSize: '15px', fontWeight: 600, color: '#374151', cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', transition: 'all 0.2s' }}> 
-                <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" style={{width: '20px', height: '20px'}} /> Войти через Google 
-              </button> 
-                
-              <div style={{display: 'flex', alignItems: 'center', margin: '15px 0', color: '#9ca3af', fontSize: '13px'}}> 
-                <div style={{flex: 1, height: '1px', background: '#e5e7eb'}}></div><span style={{padding: '0 10px'}}>ИЛИ</span><div style={{flex: 1, height: '1px', background: '#e5e7eb'}}></div> 
-              </div> 
               <div> 
-                <input type="email" placeholder="Ваш Email" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} style={{width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #d1d5db', fontSize: '15px', marginBottom: '10px', outline: 'none', boxSizing: 'border-box'}} /> 
-                <button onClick={handleEmailLogin} disabled={isSendingLink || !authEmail} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', padding: '14px', borderRadius: '12px', background: authEmail ? '#059669' : '#d1fae5', color: authEmail ? 'white' : '#047857', border: 'none', fontSize: '15px', fontWeight: 700, cursor: authEmail ? 'pointer' : 'default', transition: 'all 0.2s' }}> 
-                  <Mail size={18} /> {isSendingLink ? "Отправка..." : "Получить ссылку для входа"} 
+                <input 
+                  type="text" 
+                  placeholder="Логин (английскими буквами)" 
+                  value={authUsername} 
+                  onChange={(e) => setAuthUsername(e.target.value)} 
+                  style={{width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #d1d5db', fontSize: '15px', marginBottom: '10px', outline: 'none', boxSizing: 'border-box'}} 
+                /> 
+                <input 
+                  type="password" 
+                  placeholder="Пароль (минимум 6 символов)" 
+                  value={authPassword} 
+                  onChange={(e) => setAuthPassword(e.target.value)} 
+                  style={{width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #d1d5db', fontSize: '15px', marginBottom: '15px', outline: 'none', boxSizing: 'border-box'}} 
+                /> 
+                <button 
+                  onClick={handleAuth} 
+                  disabled={authLoading || !authUsername || authPassword.length < 6} 
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', padding: '14px', borderRadius: '12px', background: (authUsername && authPassword.length >= 6) ? '#059669' : '#d1fae5', color: (authUsername && authPassword.length >= 6) ? 'white' : '#047857', border: 'none', fontSize: '15px', fontWeight: 700, cursor: (authUsername && authPassword.length >= 6) ? 'pointer' : 'default', transition: 'all 0.2s' }}
+                > 
+                  {authLoading ? <Sparkles className="animate-spin" size={18} /> : null} 
+                  {authLoading ? "Загрузка..." : authMode === 'register' ? "Зарегистрироваться" : "Войти"} 
                 </button> 
               </div> 
             </div> 
+
+            <div style={{marginTop: '20px', textAlign: 'center'}}>
+              <span 
+                onClick={() => setAuthMode(authMode === 'register' ? 'login' : 'register')}
+                style={{color: '#0ea5e9', fontSize: '14px', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline'}}
+              >
+                {authMode === 'register' ? 'Уже есть аккаунт? Войти' : 'Нет аккаунта? Создать'}
+              </span>
+            </div>
+            
             <div style={{marginTop: '25px', padding: '15px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0'}}> 
               <p style={{fontSize: '11px', color: '#64748b', margin: 0, lineHeight: 1.5, textAlign: 'center'}}> 
-                🛡 <strong>Нам не нужны ваши личные данные.</strong> Авторизация нужна только для того, чтобы ваши любимые рецепты и фото блюд навсегда сохранились в вашем личном кабинете. Никакого спама, обещаем! 
+                🛡 <strong>100% Анонимность.</strong> Вы сами придумываете логин и пароль. Это нужно только для того, чтобы ваши рецепты, фото и прогресс в ресторане сохранялись в вашем личном кабинете.
               </p> 
             </div> 
           </div> 
@@ -1419,77 +1482,87 @@ export default function Home() {
 
       {/* === РЕЦЕПТ ДНЯ === */}
       {activeView === 'daily' && (
-        <div style={{marginTop: '60px'}}>
-          <h2 style={{textAlign: 'center', fontSize: '28px', fontWeight: 900, marginBottom: '20px'}}>🔥 Рецепт дня</h2>
-          {dailyError ? (
-            <div style={{textAlign: 'center', color: '#ef4444', padding: '20px', background: '#fef2f2', borderRadius: '16px'}}>
-              Не удалось загрузить рецепт дня. Попробуйте позже.
-            </div>
-          ) : !dailyRecipe ? (
-            <div style={{textAlign: 'center', color: '#9ca3af', padding: '40px'}}>
-              <Sparkles className="animate-spin" size={32} style={{margin: '0 auto 10px auto'}} />
-              Загружаем кулинарную магию...
-            </div>
-          ) : (
-            <div className="card" style={{padding: '20px'}}>
-              <h3 style={{fontSize: '24px', fontWeight: 800, margin: '0 0 15px 0', lineHeight: 1.2}}>{dailyRecipe.title}</h3>
-              {dailyRecipe.description && <p style={{color: '#4b5563', fontSize: '15px', lineHeight: 1.5, marginBottom: '15px'}}>{dailyRecipe.description}</p>}
+        <div style={{marginTop: '60px', paddingBottom: '40px'}}>
+          <div style={{background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', borderRadius: '0 0 32px 32px', padding: '40px 20px 60px 20px', margin: '-20px -20px 0 -20px', color: 'white', textAlign: 'center', boxShadow: '0 10px 20px rgba(234, 88, 12, 0.2)'}}>
+             <h2 style={{fontSize: '28px', fontWeight: 900, margin: '0 0 10px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px'}}><Flame size={32}/> Рецепт дня</h2>
+             <p style={{opacity: 0.9, fontSize: '15px', margin: 0}}>Специально для вас от AI Шефа</p>
+          </div>
 
-              <div className="recipe-tags" style={{marginBottom: '20px'}}>
-                <div className="tag-badge"><Clock size={16}/> {formatTime(String(dailyRecipe.time))}</div>
-                {dailyRecipe.calories && <div className="tag-badge orange"><Flame size={16}/> {formatCalories(String(dailyRecipe.calories))}</div>}
+          <div style={{marginTop: '-40px', padding: '0 5px'}}>
+            {dailyError ? (
+              <div className="card" style={{textAlign: 'center', color: '#ef4444', padding: '30px', background: 'white', borderRadius: '24px'}}>
+                Не удалось загрузить рецепт дня. Попробуйте позже.
               </div>
-
-              <div style={{display: 'flex', gap: '10px', marginBottom: '25px'}}>
-                <button onClick={toggleDailyFavorite} style={{flex: 1, padding: '12px', borderRadius: '12px', background: dailyFavoriteId ? '#fee2e2' : '#f1f5f9', color: dailyFavoriteId ? '#ef4444' : '#475569', border: 'none', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.2s'}}>
-                  <Heart size={18} fill={dailyFavoriteId ? "#ef4444" : "none"} />
-                  {dailyFavoriteId ? "В избранном" : "Сохранить"}
-                </button>
-                <button onClick={handleShareDaily} style={{flex: 1, padding: '12px', borderRadius: '12px', background: '#e0f2fe', color: '#0ea5e9', border: 'none', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.2s'}}>
-                  <Share2 size={18} /> Поделиться
-                </button>
+            ) : !dailyRecipe ? (
+              <div className="card" style={{textAlign: 'center', color: '#ea580c', padding: '50px 20px', background: 'white', borderRadius: '24px'}}>
+                <Sparkles className="animate-spin" size={36} style={{margin: '0 auto 15px auto'}} />
+                <div style={{fontWeight: 800, fontSize: '16px'}}>Готовим шедевр...</div>
               </div>
+            ) : (
+              <div className="card" style={{padding: '25px', background: 'white', borderRadius: '24px', boxShadow: '0 10px 30px rgba(0,0,0,0.08)'}}>
+                <h3 style={{fontSize: '24px', fontWeight: 900, margin: '0 0 15px 0', lineHeight: 1.2, color: '#111'}}>{dailyRecipe.title}</h3>
+                {dailyRecipe.description && <p style={{color: '#4b5563', fontSize: '15px', lineHeight: 1.5, marginBottom: '20px'}}>{dailyRecipe.description}</p>}
 
-              {/* Ozon Fresh для Рецепта Дня */}
-              {(() => { 
-                const itemsToBuy = dailyRecipe.detailed_ingredients ? dailyRecipe.detailed_ingredients.map(ing => ing.name) : (dailyRecipe.ingredients || []); 
-                if (itemsToBuy.length === 0) return null; 
-                return ( 
-                  <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '12px', padding: '15px', margin: '0 0 25px 0', color: '#92400e' }}> 
-                    <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontWeight: 800}}> <ShoppingCart size={20} /> Нужно купить: </div> 
-                    <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px'}}> 
-                      {itemsToBuy.map((item, idx) => ( <a key={idx} href={`https://www.ozon.ru/search/?text=${encodeURIComponent(item)}&from_global=true`} target="_blank" rel="noopener noreferrer" style={{ background: '#fef3c7', padding: '6px 12px', borderRadius: '8px', fontSize: '14px', fontWeight: 600, textDecoration: 'none', color: '#92400e', display: 'flex', alignItems: 'center', gap: '6px', border: '1px solid #fcd34d', cursor: 'pointer', transition: 'all 0.2s' }}> {item} <ExternalLink size={12} style={{opacity: 0.6}} /> </a> ))} 
+                <div className="recipe-tags" style={{marginBottom: '20px'}}>
+                  <div className="tag-badge" style={{background: '#f1f5f9', color: '#475569'}}><Clock size={16}/> {formatTime(String(dailyRecipe.time))}</div>
+                  {dailyRecipe.calories && <div className="tag-badge orange" style={{background: '#ffedd5', color: '#c2410c'}}><Flame size={16}/> {formatCalories(String(dailyRecipe.calories))}</div>}
+                </div>
+
+                <div style={{display: 'flex', gap: '10px', marginBottom: '25px'}}>
+                  <button onClick={toggleDailyFavorite} style={{flex: 1, padding: '12px', borderRadius: '12px', background: dailyFavoriteId ? '#fee2e2' : '#f8fafc', color: dailyFavoriteId ? '#ef4444' : '#475569', border: dailyFavoriteId ? '1px solid #fca5a5' : '1px solid #e2e8f0', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.2s'}}>
+                    <Heart size={18} fill={dailyFavoriteId ? "#ef4444" : "none"} />
+                    {dailyFavoriteId ? "В избранном" : "Сохранить"}
+                  </button>
+                  <button onClick={handleShareDaily} style={{flex: 1, padding: '12px', borderRadius: '12px', background: '#e0f2fe', color: '#0ea5e9', border: 'none', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.2s'}}>
+                    <Share2 size={18} /> Поделиться
+                  </button>
+                </div>
+
+                {/* Ozon Fresh для Рецепта Дня */}
+                {(() => { 
+                  const itemsToBuy = dailyRecipe.detailed_ingredients ? dailyRecipe.detailed_ingredients.map(ing => ing.name) : (dailyRecipe.ingredients || []); 
+                  if (itemsToBuy.length === 0) return null; 
+                  return ( 
+                    <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '16px', padding: '15px', margin: '0 0 25px 0', color: '#92400e' }}> 
+                      <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', fontWeight: 800}}> <ShoppingCart size={20} /> Нужно купить: </div> 
+                      <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px'}}> 
+                        {itemsToBuy.map((item, idx) => ( <a key={idx} href={`https://www.ozon.ru/search/?text=${encodeURIComponent(item)}&from_global=true`} target="_blank" rel="noopener noreferrer" style={{ background: '#fef3c7', padding: '6px 12px', borderRadius: '8px', fontSize: '14px', fontWeight: 600, textDecoration: 'none', color: '#92400e', display: 'flex', alignItems: 'center', gap: '6px', border: '1px solid #fcd34d', cursor: 'pointer', transition: 'all 0.2s' }}> {item} <ExternalLink size={12} style={{opacity: 0.6}} /> </a> ))} 
+                      </div> 
+                      <div style={{fontSize: '12px', color: '#b45309', display: 'flex', alignItems: 'center', gap: '5px'}}> <Info size={14} /> Нажмите на ингредиент, чтобы заказать доставку Ozon Fresh </div> 
                     </div> 
-                    <div style={{fontSize: '12px', color: '#b45309', display: 'flex', alignItems: 'center', gap: '5px'}}> <Info size={14} /> Нажмите на ингредиент, чтобы заказать быструю доставку Ozon Fresh до двери </div> 
-                  </div> 
-                ); 
-              })()}
+                  ); 
+                })()}
 
-              <h4 style={{fontSize: '18px', fontWeight: 800, margin: '0 0 15px 0'}}>Ингредиенты:</h4>
-              <div style={{display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '25px'}}>
-                {dailyRecipe.detailed_ingredients ? dailyRecipe.detailed_ingredients.map((ing, i) => (
-                   <div key={i} style={{padding: '12px 15px', background: '#f8fafc', borderRadius: '12px', fontSize: '15px', color: '#374151', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                     <span style={{fontWeight: 600}}>{ing.name}</span>
-                     <span style={{color: '#059669', fontWeight: 800}}>{ing.amount}</span>
-                   </div>
-                )) : dailyRecipe.ingredients?.map((ing, i) => (
-                   <div key={i} style={{padding: '12px 15px', background: '#f8fafc', borderRadius: '12px', fontSize: '15px', color: '#374151', border: '1px solid #e2e8f0', fontWeight: 600}}>
-                     {ing}
-                   </div>
-                ))}
-              </div>
+                <h4 style={{fontSize: '18px', fontWeight: 800, margin: '0 0 15px 0', color: '#111'}}>Ингредиенты:</h4>
+                <div style={{display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '25px'}}>
+                  {dailyRecipe.detailed_ingredients ? dailyRecipe.detailed_ingredients.map((ing, i) => (
+                     <div key={i} style={{padding: '14px 16px', background: '#f8fafc', borderRadius: '12px', fontSize: '15px', color: '#374151', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                       <span style={{fontWeight: 600}}>{ing.name}</span>
+                       <span style={{color: '#ea580c', fontWeight: 800}}>{ing.amount}</span>
+                     </div>
+                  )) : dailyRecipe.ingredients?.map((ing, i) => (
+                     <div key={i} style={{padding: '14px 16px', background: '#f8fafc', borderRadius: '12px', fontSize: '15px', color: '#374151', border: '1px solid #e2e8f0', fontWeight: 600}}>
+                       {ing}
+                     </div>
+                  ))}
+                </div>
 
-              <h4 style={{fontSize: '18px', fontWeight: 800, margin: '0 0 15px 0'}}>Приготовление:</h4>
-              <div style={{display: 'flex', flexDirection: 'column', gap: '15px'}}>
-                {dailyRecipe.steps?.map((step, i) => (
-                  <div key={i} className="step-row" style={{marginBottom: 0}}>
-                    <div className="step-num">{i + 1}</div>
-                    <div className="step-text">{cleanText(step)}</div>
-                  </div>
-                ))}
+                <h4 style={{fontSize: '18px', fontWeight: 800, margin: '0 0 15px 0', color: '#111'}}>Приготовление:</h4>
+                <div style={{display: 'flex', flexDirection: 'column', gap: '15px'}}>
+                  {dailyRecipe.steps?.map((step, i) => (
+                    <div key={i} style={{display: 'flex', gap: '12px', background: '#fff', border: '1px solid #e2e8f0', padding: '15px', borderRadius: '16px'}}>
+                      <div style={{background: '#ffedd5', color: '#ea580c', width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '14px', flexShrink: 0}}>
+                        {i + 1}
+                      </div>
+                      <div style={{fontSize: '15px', color: '#374151', lineHeight: 1.5, paddingTop: '3px'}}>
+                        {cleanText(step)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
 

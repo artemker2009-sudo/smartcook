@@ -178,7 +178,18 @@ export default function Home() {
   const [floatingClicks, setFloatingClicks] = useState<{id: number, x: number, y: number, val: number}[]>([]);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
 
-  // === ВСЕ ВАЖНЫЕ ФУНКЦИИ ИГРЫ ===
+  // === ВСЕ ВАЖНЫЕ ФУНКЦИИ ИГРЫ (ОБНОВЛЕНЫ С МНОЖИТЕЛЯМИ) ===
+  const getRestaurantCost = (lvl: number) => {
+    // Цены: Ларёк(1)->2: 50k, 2->3: 150k, 3->4: 500k, 4->5: 1.5m, 5->6: 5m
+    const costs = [0, 50000, 150000, 500000, 1500000, 5000000];
+    return costs[lvl] || 99999999;
+  };
+
+  // Множитель = Уровень ресторана
+  const maxEnergy = restaurantLevel * 500;
+  const actualClickPower = clickPower * restaurantLevel;
+  const actualPassiveIncome = passiveIncome * restaurantLevel;
+
   const buyUpgrade = (type: string) => {
     if (type === 'spatula') {
       const cost = clickPower * 500;
@@ -187,22 +198,26 @@ export default function Home() {
       const cost = (passiveIncome + 1) * 2000;
       if (cooks >= cost) { setCooks(prev => prev - cost); setPassiveIncome(prev => prev + 1); }
     } else if (type === 'restaurant') {
-      const cost = restaurantLevel === 5 ? 100000 : restaurantLevel * 10000;
-      if (cooks >= cost && restaurantLevel < 6) { setCooks(prev => prev - cost); setRestaurantLevel(prev => prev + 1); }
+      const cost = getRestaurantCost(restaurantLevel);
+      if (cooks >= cost && restaurantLevel < 6) { 
+        setCooks(prev => prev - cost); 
+        setRestaurantLevel(prev => prev + 1); 
+      }
     }
   };
 
   const handleCookClick = (e: React.PointerEvent<HTMLDivElement>) => {
     if (energy > 0) {
-      setCooks(prev => prev + clickPower); setEnergy(prev => prev - 1);
+      setCooks(prev => prev + actualClickPower); 
+      setEnergy(prev => prev - 1);
       const rect = e.currentTarget.getBoundingClientRect();
       const id = Date.now() + Math.random();
-      setFloatingClicks(prev => [...prev, { id, x: e.clientX - rect.left, y: e.clientY - rect.top, val: clickPower }]);
+      setFloatingClicks(prev => [...prev, { id, x: e.clientX - rect.left, y: e.clientY - rect.top, val: actualClickPower }]);
       setTimeout(() => { setFloatingClicks(prev => prev.filter(c => c.id !== id)); }, 800);
     }
   };
 
-  // ДВОЙНАЯ ПЛАШКА: Идеальное выравнивание с переносом строки для разработчика
+  // ДВОЙНАЯ ПЛАШКА: Идеальное выравнивание
   const renderUserBadge = (uid: string | undefined | null, level?: number) => {
     if (!uid) return null;
     
@@ -319,11 +334,9 @@ export default function Home() {
           setClickPower(Math.max(data.click_power || 1, localP)); 
           setPassiveIncome(Math.max(data.passive_income || 0, localPI)); 
           setRestaurantLevel(Math.max(data.restaurant_level || 1, localL)); 
-          setEnergy(data.energy || 500);
+          setEnergy(data.energy || 500); // Берем энергию из базы, лимит отработает сам
         } else {
           setCooks(localC); setClickPower(localP); setPassiveIncome(localPI); setRestaurantLevel(localL);
-          
-          // СОХРАНЯЕМ ИМЯ ПРОФИЛЯ ДЛЯ РЕЙТИНГА
           const profileName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Шеф';
           
           supabase.from('game_progress').upsert({ 
@@ -349,7 +362,6 @@ export default function Home() {
     }
     if (user) {
       const timer = setTimeout(() => {
-        // СОХРАНЯЕМ ИМЯ ПРОФИЛЯ ДЛЯ РЕЙТИНГА В АВТОСОХРАНЕНИИ ТОЖЕ
         const profileName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Шеф';
         supabase.from('game_progress').upsert({ 
           user_id: user.id, 
@@ -364,10 +376,14 @@ export default function Home() {
     }
   }, [cooks, clickPower, passiveIncome, restaurantLevel, energy, user]);
 
+  // Восстановление энергии с учетом НОВОГО МАКСИМУМА
   useEffect(() => {
-    const interval = setInterval(() => { setEnergy(prev => prev < 500 ? prev + 1 : 500); if (passiveIncome > 0) setCooks(prev => prev + passiveIncome); }, 1000);
+    const interval = setInterval(() => { 
+      setEnergy(prev => prev < maxEnergy ? prev + 1 : maxEnergy); 
+      if (actualPassiveIncome > 0) setCooks(prev => prev + actualPassiveIncome); 
+    }, 1000);
     return () => clearInterval(interval);
-  }, [passiveIncome]);
+  }, [actualPassiveIncome, maxEnergy]);
 
   useEffect(() => {
     if (activeView === 'feed' && feedTab === 'photos' && scrollToPostId && photosFeed.length > 0) {
@@ -384,9 +400,10 @@ export default function Home() {
     }
   }, [dailyRecipe, feed]);
 
+  // СОРТИРОВКА ТОЛЬКО ПО КУКАМ!
   useEffect(() => {
     if (gameTab === 'leaderboard') {
-      supabase.from('game_progress').select('*').order('restaurant_level', { ascending: false }).order('cooks', { ascending: false }).then(({data}) => { if (data) setLeaderboard(data); });
+      supabase.from('game_progress').select('*').order('cooks', { ascending: false }).then(({data}) => { if (data) setLeaderboard(data); });
     }
   }, [gameTab]);
 
@@ -761,8 +778,6 @@ export default function Home() {
   }; 
 
   const renderCommentUI = (c: DBComment, isReply: boolean = false) => {
-    // В КОММЕНТАРИЯХ ПЛАШКИ ТАКЖЕ ВЫСТРАИВАЮТСЯ РОВНО!
-    const { isDev, restBadge } = getUserBadges(c.user_id, userLevels[c.user_id]);
     return ( 
       <div key={c.id} style={{ background: isReply ? '#f8fafc' : 'white', padding: '12px 15px', borderRadius: '16px', border: '1px solid #e2e8f0', marginBottom: isReply ? '10px' : '0', marginLeft: isReply ? '25px' : '0', position: 'relative' }}> 
         {isReply && <div style={{position: 'absolute', left: '-15px', top: '20px', width: '15px', height: '2px', background: '#cbd5e1'}} />} 
@@ -779,9 +794,8 @@ export default function Home() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                   <span style={{ fontSize: '13px', fontWeight: 800, color: '#111' }}>{c.user_name}</span>
-                  {restBadge}
+                  {renderUserBadge(c.user_id, userLevels[c.user_id])}
                 </div>
-                {isDev && <span style={{fontSize: '10px', background: '#111', color: '#38bdf8', padding: '2px 8px', borderRadius: '100px', fontWeight: 800}}>👨‍💻 Разработчик</span>}
               </div> 
               {user && user.id === c.user_id && ( 
                 <button onClick={() => handleDeleteComment(c.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px' }}><Trash2 size={14} /></button> 
@@ -1046,7 +1060,7 @@ export default function Home() {
         <Menu size={24} color="#111" /> 
       </button> 
 
-      {/* МЕНЮ */}
+      {/* МЕНЮ (МОЙ РЕСТОРАН ТЕПЕРЬ ВЫШЕ) */}
       {isMenuOpen && ( 
         <> 
           <div className="menu-overlay" onClick={() => setIsMenuOpen(false)} style={{zIndex: 99}} /> 
@@ -1108,9 +1122,11 @@ export default function Home() {
           floatingClicks={floatingClicks} cooks={cooks} formatCooks={formatCooks} passiveIncome={passiveIncome} 
           handleCookClick={handleCookClick} energy={energy} clickPower={clickPower} buyUpgrade={buyUpgrade} 
           leaderboard={leaderboard} getUserBadges={getUserBadges} switchView={switchView}
+          maxEnergy={maxEnergy} actualClickPower={actualClickPower} actualPassiveIncome={actualPassiveIncome} getRestaurantCost={getRestaurantCost}
         />
       )}
 
+      {/* ИСПОЛЬЗУЕМ ТВОЙ КРАСИВЫЙ DailyRecipe с прокинутыми функциями для Чата с Шефом */}
       {activeView === 'daily' && (
         <DailyRecipe 
           dailyError={dailyError} dailyRecipe={dailyRecipe} dailyFavoriteId={dailyFavoriteId} 

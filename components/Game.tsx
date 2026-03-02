@@ -4,8 +4,9 @@ import { Lock, Trophy } from 'lucide-react';
 export default function Game(props: any) {
   const {
     user, setIsAuthModalOpen, restaurantLevel, gameTab, setGameTab,
-    floatingClicks, cooks, formatCooks, passiveIncome, handleCookClick,
-    energy, clickPower, buyUpgrade, leaderboard, getUserBadges, switchView
+    floatingClicks, cooks, formatCooks, handleCookClick,
+    energy, clickPower, passiveIncome, buyUpgrade, leaderboard, getUserBadges, switchView,
+    maxEnergy, actualClickPower, actualPassiveIncome, getRestaurantCost
   } = props;
 
   return (
@@ -46,8 +47,17 @@ export default function Game(props: any) {
              {formatCooks(cooks)} <span style={{fontSize: '28px'}}>🍪</span>
            </div>
 
-           <div style={{fontSize: '14px', color: '#10b981', fontWeight: 700, marginBottom: '30px'}}>
-             {passiveIncome > 0 ? `+${passiveIncome} в сек.` : 'Нет пассивного дохода'}
+           <div style={{display: 'flex', justifyContent: 'center', gap: '15px', marginBottom: '20px'}}>
+             <div style={{fontSize: '13px', color: '#f59e0b', fontWeight: 700, background: '#fffbeb', padding: '6px 12px', borderRadius: '10px'}}>
+               Клик: +{actualClickPower}
+             </div>
+             <div style={{fontSize: '13px', color: '#10b981', fontWeight: 700, background: '#f0fdf4', padding: '6px 12px', borderRadius: '10px'}}>
+               Пассив: {actualPassiveIncome > 0 ? `+${actualPassiveIncome}/с` : '0/с'}
+             </div>
+           </div>
+
+           <div style={{background: '#f8fafc', padding: '12px 15px', borderRadius: '16px', border: '1px dashed #cbd5e1', marginBottom: '30px', color: '#475569', fontSize: '13px', lineHeight: '1.4', maxWidth: '280px', margin: '0 auto 30px auto'}}>
+             👆 <strong>Секрет шефа:</strong> Кликайте по сковороде, зарабатывайте куки и прокачивайте ресторан, чтобы выбиться в топ мирового рейтинга!
            </div>
            
            <div 
@@ -63,16 +73,16 @@ export default function Game(props: any) {
              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', fontSize: '13px', color: '#64748b', fontWeight: 700, marginBottom: '8px'}}>
                 <div style={{textAlign: 'left'}}>
                   Энергия 
-                  {energy < 500 && (
+                  {energy < maxEnergy && (
                     <div style={{fontSize: '11px', fontWeight: 500, color: '#9ca3af', marginTop: '2px'}}>
-                      (полная через {Math.floor((500 - energy) / 60)}м {(500 - energy) % 60}с)
+                      (полная через {Math.floor((maxEnergy - energy) / 60)}м {(maxEnergy - energy) % 60}с)
                     </div>
                   )}
                 </div>
-                <span>{energy} / 500 ⚡️</span>
+                <span>{energy} / {maxEnergy} ⚡️</span>
              </div>
              <div style={{width: '100%', height: '12px', background: '#f1f5f9', borderRadius: '10px', overflow: 'hidden'}}>
-                <div style={{width: `${(energy / 500) * 100}%`, height: '100%', background: '#10b981', transition: 'width 0.2s'}} />
+                <div style={{width: `${(energy / maxEnergy) * 100}%`, height: '100%', background: '#10b981', transition: 'width 0.2s'}} />
              </div>
            </div>
         </div>
@@ -115,7 +125,7 @@ export default function Game(props: any) {
           <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fffbeb', padding: '15px', borderRadius: '16px', marginBottom: '10px', border: '1px solid #fef3c7'}}>
             <div>
               <div style={{fontWeight: 800, fontSize: '15px', color: '#b45309', marginBottom: '4px'}}>Новая лопатка</div>
-              <div style={{fontSize: '12px', color: '#d97706', fontWeight: 600}}>+1 кук за клик</div>
+              <div style={{fontSize: '12px', color: '#d97706', fontWeight: 600}}>+1 к базовой силе клика</div>
             </div>
             <button 
               onClick={() => buyUpgrade('spatula')}
@@ -129,7 +139,7 @@ export default function Game(props: any) {
           <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f0fdf4', padding: '15px', borderRadius: '16px', marginBottom: '10px', border: '1px solid #dcfce7'}}>
             <div>
               <div style={{fontWeight: 800, fontSize: '15px', color: '#15803d', marginBottom: '4px'}}>Нанять су-шефа</div>
-              <div style={{fontSize: '12px', color: '#16a34a', fontWeight: 600}}>+1 кук каждую секунду</div>
+              <div style={{fontSize: '12px', color: '#16a34a', fontWeight: 600}}>+1 к базовому пассиву/сек</div>
             </div>
             <button 
               onClick={() => buyUpgrade('souschef')}
@@ -144,14 +154,19 @@ export default function Game(props: any) {
             <div>
               <div style={{fontWeight: 800, fontSize: '15px', color: '#1e293b', marginBottom: '4px'}}>Ремонт ресторана</div>
               <div style={{fontSize: '12px', color: '#64748b', fontWeight: 600}}>Перейти на Уровень {restaurantLevel + 1}</div>
+              {restaurantLevel < 6 && (
+                <div style={{fontSize: '11px', color: '#3b82f6', fontWeight: 800, marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px'}}>
+                  ✨ Доход x{restaurantLevel + 1} | Энергия { (restaurantLevel + 1) * 500 }
+                </div>
+              )}
             </div>
             {(() => {
-              const restCost = restaurantLevel === 5 ? 100000 : restaurantLevel * 10000;
+              const restCost = getRestaurantCost(restaurantLevel);
               return (
                 <button 
                   onClick={() => buyUpgrade('restaurant')}
                   disabled={cooks < restCost || restaurantLevel >= 6}
-                  style={{background: (cooks >= restCost && restaurantLevel < 6) ? '#3b82f6' : '#cbd5e1', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '100px', fontWeight: 700, fontSize: '12px', cursor: (cooks >= restCost && restaurantLevel < 6) ? 'pointer' : 'not-allowed', transition: 'all 0.2s'}}
+                  style={{background: (cooks >= restCost && restaurantLevel < 6) ? '#3b82f6' : '#cbd5e1', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '100px', fontWeight: 700, fontSize: '12px', cursor: (cooks >= restCost && restaurantLevel < 6) ? 'pointer' : 'not-allowed', transition: 'all 0.2s', flexShrink: 0, marginLeft: '10px'}}
                 >
                   {restaurantLevel >= 6 ? "МАКС" : `${restCost} 🍪`}
                 </button>
@@ -194,10 +209,8 @@ export default function Game(props: any) {
                      
                      <div style={{flex: 1, minWidth: 0}}>
                        <div style={{fontWeight: 800, fontSize: '15px', color: '#111', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
-                         {/* ВЫВОДИМ ИМЯ ПРОФИЛЯ (Как в ленте) */}
                          {lbUser.user_name || 'Анонимный шеф'}
                        </div>
-                       {/* Выстраиваем в столбик: сначала разраб, потом ресторан */}
                        <div style={{display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px', marginTop: '4px'}}>
                          {isDev && devBadge}
                          {restBadge}

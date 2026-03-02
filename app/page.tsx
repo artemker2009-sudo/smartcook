@@ -134,7 +134,6 @@ export default function Home() {
   const [user, setUser] = useState<any>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   
-  // Анонимная авторизация
   const [authUsername, setAuthUsername] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [authMode, setAuthMode] = useState<'login' | 'register'>('register');
@@ -203,7 +202,7 @@ export default function Home() {
     }
   };
 
-  // ДВОЙНАЯ ПЛАШКА: выровнено по центру!
+  // ДВОЙНАЯ ПЛАШКА: исправлено выравнивание (теперь без лишних div)
   const renderUserBadge = (uid: string | undefined | null, level?: number) => {
     if (!uid) return null;
     
@@ -216,8 +215,9 @@ export default function Home() {
        badges.push(<span key="rest" style={{fontSize: '10px', background: '#fef3c7', color: '#d97706', padding: '4px 8px', borderRadius: '100px', fontWeight: 800, display: 'flex', alignItems: 'center', lineHeight: 1}}>{titles[Math.min(level - 1, 5)]}</span>);
     }
     
+    // Возвращаем Фрагмент, чтобы элементы шли в ряд и не ломали flex родителя
     return badges.length > 0 ? (
-      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', marginTop: '4px' }}>{badges}</div>
+      <>{badges}</>
     ) : null;
   };
 
@@ -290,17 +290,30 @@ export default function Home() {
     }
   }, [photosFeed, postComments]);
 
+  // ИСПРАВЛЕННАЯ ЛОГИКА СОХРАНЕНИЯ ПРОГРЕССА ИГРЫ
   useEffect(() => {
     if (user) {
       supabase.from('game_progress').select('*').eq('user_id', user.id).single()
-      .then(({data}) => {
+      .then(({data, error}) => {
         if (data) {
           setCooks(data.cooks || 0); setClickPower(data.click_power || 1); setPassiveIncome(data.passive_income || 0); setRestaurantLevel(data.restaurant_level || 1); setEnergy(data.energy || 500);
         } else {
+          // Если аккаунт новый, создаем строку
           const localC = Number(localStorage.getItem('sc_cooks') || 0); const localP = Number(localStorage.getItem('sc_clickPower') || 1);
           const localPI = Number(localStorage.getItem('sc_passiveIncome') || 0); const localL = Number(localStorage.getItem('sc_restLevel') || 1);
+          
           setCooks(localC); setClickPower(localP); setPassiveIncome(localPI); setRestaurantLevel(localL);
-          supabase.from('game_progress').insert({ user_id: user.id, user_name: user.user_metadata?.full_name || 'Шеф', user_avatar: user.user_metadata?.avatar_url || null, cooks: localC, click_power: localP, passive_income: localPI, restaurant_level: localL, energy: 500 }).then();
+          
+          const safeName = user.user_metadata?.username || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Шеф';
+          
+          supabase.from('game_progress').insert({ 
+            user_id: user.id, 
+            user_name: safeName, 
+            user_avatar: user.user_metadata?.avatar_url || null, 
+            cooks: localC, click_power: localP, passive_income: localPI, restaurant_level: localL, energy: 500 
+          }).then(({error: insError}) => {
+             if(insError) console.error("Ошибка создания прогресса:", insError);
+          });
         }
       });
     } else if (typeof window !== 'undefined') {
@@ -316,7 +329,16 @@ export default function Home() {
     }
     if (user) {
       const timer = setTimeout(() => {
-        supabase.from('game_progress').upsert({ user_id: user.id, user_name: user.user_metadata?.full_name || 'Шеф', user_avatar: user.user_metadata?.avatar_url || null, cooks, click_power: clickPower, passive_income: passiveIncome, restaurant_level: restaurantLevel, energy, updated_at: new Date().toISOString() }).then();
+        const safeName = user.user_metadata?.username || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Шеф';
+        
+        supabase.from('game_progress').upsert({ 
+          user_id: user.id, 
+          user_name: safeName, 
+          user_avatar: user.user_metadata?.avatar_url || null, 
+          cooks, click_power: clickPower, passive_income: passiveIncome, restaurant_level: restaurantLevel, energy, updated_at: new Date().toISOString() 
+        }, { onConflict: 'user_id' }).then(({error}) => {
+          if(error) console.error("Ошибка автосохранения прогресса:", error);
+        });
       }, 5000);
       return () => clearTimeout(timer);
     }
@@ -703,6 +725,44 @@ export default function Home() {
     if (typeof window !== 'undefined') window.history.replaceState({}, '', '/'); 
   }; 
 
+  const renderCommentUI = (c: DBComment, isReply: boolean = false) => ( 
+    <div key={c.id} style={{ background: isReply ? '#f8fafc' : 'white', padding: '12px 15px', borderRadius: '16px', border: '1px solid #e2e8f0', marginBottom: isReply ? '10px' : '0', marginLeft: isReply ? '25px' : '0', position: 'relative' }}> 
+      {isReply && <div style={{position: 'absolute', left: '-15px', top: '20px', width: '15px', height: '2px', background: '#cbd5e1'}} />} 
+      <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}> 
+        {c.user_avatar ? ( 
+          <img src={c.user_avatar} alt="Avatar" style={{width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover'}} /> 
+        ) : ( 
+          <div style={{width: '28px', height: '28px', borderRadius: '50%', background: '#e2e8f0', color: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 800, flexShrink: 0}}> 
+            {c.user_name?.charAt(0).toUpperCase()} 
+          </div> 
+        )} 
+        <div style={{flex: 1}}> 
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}> 
+            <div style={{ fontSize: '13px', fontWeight: 800, color: '#111', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+              {c.user_name}
+              {renderUserBadge(c.user_id, userLevels[c.user_id])}
+            </div> 
+            {user && user.id === c.user_id && ( 
+              <button onClick={() => handleDeleteComment(c.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px' }}><Trash2 size={14} /></button> 
+            )} 
+          </div> 
+          <div style={{ fontSize: '14px', color: '#374151', lineHeight: 1.4, marginBottom: '8px', wordBreak: 'break-word' }}>{c.text}</div> 
+          
+          <div style={{ display: 'flex', gap: '15px', alignItems: 'center', justifyContent: 'flex-end', marginTop: '5px' }}> 
+            {!isReply && ( 
+              <div onClick={() => setReplyingTo({id: c.id, name: c.user_name})} style={{ fontSize: '12px', color: '#0ea5e9', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontWeight: 600 }}> 
+                <CornerDownRight size={14} /> Ответить 
+              </div> 
+            )} 
+            <div onClick={() => handleCommentLike(c)} style={{ fontSize: '12px', color: c.is_liked ? '#ef4444' : '#64748b', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontWeight: 600 }}> 
+              <Heart size={14} fill={c.is_liked ? "#ef4444" : "none"} /> {c.likes_count || 0} 
+            </div> 
+          </div> 
+        </div> 
+      </div> 
+    </div> 
+  ); 
+
   const displayedFeed = filterMode === 'all' ? feed : feed?.filter(r => r.is_favorite); 
   const visibleHistory = historyExpanded ? displayedFeed : displayedFeed?.slice(0, 4); 
   const actualServings = typeof servings === 'number' ? servings : 1;
@@ -955,7 +1015,6 @@ export default function Home() {
         />
       )}
 
-      {/* ИСПОЛЬЗУЕМ ТВОЙ КРАСИВЫЙ DailyRecipe с прокинутыми функциями для Чата с Шефом */}
       {activeView === 'daily' && (
         <DailyRecipe 
           dailyError={dailyError} dailyRecipe={dailyRecipe} dailyFavoriteId={dailyFavoriteId} 
@@ -969,7 +1028,7 @@ export default function Home() {
       {activeView === 'about' && <About />}
 
 
-      {/* === ГЛАВНЫЙ СЕРВИС ПОИСКА === */}
+      {/* === ГЛАВНЫЙ СЕРВИС ПОИСКА (Оставлен внутри page.tsx) === */}
       {activeView === 'service' && ( 
         <> 
           {!isHistoryView && fromFeed === false && !isSharedView && ( 
@@ -1181,6 +1240,7 @@ export default function Home() {
                   /> 
                   <button onClick={handleAskChef} disabled={asking || !question.trim()} style={{flexShrink: 0, padding: 0, width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: (asking || !question.trim()) ? '#bae6fd' : '#3b82f6', color: 'white', border: 'none', cursor: (asking || !question.trim()) ? 'default' : 'pointer'}}> <Send size={18} style={{marginLeft: '-2px'}}/> </button> 
                 </div> 
+                
                 {asking && (
                   <div style={{marginTop: '15px', color: '#0ea5e9', fontSize: '14px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center'}}>
                     <Sparkles className="animate-spin" size={16} /> Шеф-повар думает над ответом...

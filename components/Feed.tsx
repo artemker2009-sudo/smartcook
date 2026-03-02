@@ -1,5 +1,5 @@
-import React from 'react';
-import { PlusCircle, Camera, Trash2, Heart, MessageCircle, ArrowRight } from 'lucide-react';
+import React, { useState } from 'react';
+import { PlusCircle, Camera, Trash2, Heart, MessageCircle, ArrowRight, Sparkles } from 'lucide-react';
 
 export default function Feed(props: any) {
   const {
@@ -10,6 +10,15 @@ export default function Feed(props: any) {
     setUserComment, setUserPhotoFile, setUserPhotoPreview, submitFeedPost,
     isUploadingPhoto, handleUserPhotoChange, renderUserBadge
   } = props;
+
+  // Локальный стейт для индикации открытия комментов
+  const [openingCommentsId, setOpeningCommentsId] = useState<number | null>(null);
+
+  const handleOpenCommentsClick = async (postId: number) => {
+    setOpeningCommentsId(postId);
+    await openComments(postId);
+    setOpeningCommentsId(null);
+  };
 
   return (
     <div style={{marginTop: '60px', paddingBottom: '80px'}}> 
@@ -26,6 +35,7 @@ export default function Feed(props: any) {
         <input id="standalone-photo-upload" type="file" accept="image/*" style={{display: 'none'}} onChange={handleUserPhotoChange} /> 
       </div> 
 
+      {/* Форма загрузки своего блюда */} 
       {isStandaloneUploadOpen && userPhotoPreview && ( 
         <div className="card animate-fade-in" style={{border: '2px solid #0ea5e9', marginBottom: '25px'}}> 
           <h3 style={{marginTop: 0, marginBottom: '15px'}}>Публикация своего блюда</h3> 
@@ -57,7 +67,9 @@ export default function Feed(props: any) {
            
           <div style={{display: 'flex', gap: '10px'}}> 
             <button onClick={() => {setUserPhotoFile(null); setUserPhotoPreview(null); setStandaloneTitle(""); setUserComment(""); setIsStandaloneUploadOpen(false);}} style={{flex: 1, padding: '12px', borderRadius: '8px', background: '#f1f5f9', border: 'none', color: '#475569', fontWeight: 700, cursor: 'pointer'}}>Отмена</button> 
-            <button onClick={() => submitFeedPost(null)} disabled={isUploadingPhoto} style={{flex: 2, padding: '12px', borderRadius: '8px', background: '#0ea5e9', border: 'none', color: 'white', fontWeight: 700, cursor: isUploadingPhoto ? 'default' : 'pointer'}}> {isUploadingPhoto ? "Загрузка..." : "Отправить в ленту"} </button> 
+            <button onClick={() => submitFeedPost(null)} disabled={isUploadingPhoto} style={{flex: 2, padding: '12px', borderRadius: '8px', background: '#0ea5e9', border: 'none', color: 'white', fontWeight: 700, cursor: isUploadingPhoto ? 'default' : 'pointer'}}> 
+              {isUploadingPhoto ? "Загрузка..." : "Отправить в ленту"} 
+            </button> 
           </div> 
         </div> 
       )} 
@@ -108,8 +120,12 @@ export default function Feed(props: any) {
                   <button onClick={(e) => handlePhotoLike(e, post)} style={{background: post.is_liked ? '#fee2e2' : '#f3f4f6', border: 'none', borderRadius: '100px', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px', color: post.is_liked ? '#ef4444' : '#4b5563', fontWeight: 700, fontSize: '14px', transition: 'all 0.2s', cursor: 'pointer'}}> 
                     <Heart size={18} fill={post.is_liked ? "#ef4444" : "none"} /> {post.likes_count || 0} 
                   </button> 
-                  <button onClick={() => openComments(post.id)} style={{background: '#f3f4f6', border: 'none', borderRadius: '100px', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px', color: '#4b5563', fontWeight: 700, fontSize: '14px', cursor: 'pointer'}}> 
-                    <MessageCircle size={18} /> {post.comments_count || 0} 
+                  <button onClick={() => handleOpenCommentsClick(post.id)} disabled={openingCommentsId === post.id} style={{background: '#f3f4f6', border: 'none', borderRadius: '100px', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px', color: '#4b5563', fontWeight: 700, fontSize: '14px', cursor: openingCommentsId === post.id ? 'default' : 'pointer'}}> 
+                    {openingCommentsId === post.id ? (
+                      <><Sparkles className="animate-spin" size={18} /> Загрузка...</>
+                    ) : (
+                      <><MessageCircle size={18} /> {post.comments_count || 0}</>
+                    )}
                   </button> 
                 </div> 
                 {/* Кнопка К рецепту справа */}

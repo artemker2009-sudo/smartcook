@@ -10,8 +10,8 @@ export default function DailyRecipe(props: any) {
   return (
     <div style={{marginTop: '60px', paddingBottom: '40px'}}>
       
-      {/* --- КРАСИВЫЙ ОРАНЖЕВЫЙ БЛОК ШАПКИ --- */}
-      <div style={{background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', borderRadius: '0 0 40px 40px', padding: '40px 20px 80px 20px', margin: '-20px -20px 0 -20px', color: 'white', textAlign: 'center', boxShadow: '0 10px 20px rgba(234, 88, 12, 0.2)', position: 'relative', zIndex: 1}}>
+      {/* --- КРАСИВЫЙ ОРАНЖЕВЫЙ БЛОК ШАПКИ (Теперь закруглен со всех сторон!) --- */}
+      <div style={{background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', borderRadius: '40px', padding: '40px 20px 80px 20px', margin: '0 0 0 0', color: 'white', textAlign: 'center', boxShadow: '0 10px 20px rgba(234, 88, 12, 0.2)', position: 'relative', zIndex: 1}}>
          <div style={{fontSize: '11px', fontWeight: '800', color: '#ffedd5', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'}}>
            <Flame size={14} fill="#ffedd5" /> РЕЦЕПТ ДНЯ {dailyRecipe?.date && `• ${dailyRecipe.date}`}
          </div>
@@ -101,6 +101,7 @@ export default function DailyRecipe(props: any) {
             <div style={{display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '30px'}}>
               {dailyRecipe.steps?.map((step: string, i: number) => (
                 <div key={i} style={{display: 'flex', gap: '15px'}}>
+                  {/* Светлый стильный кружок вместо черного */}
                   <div style={{flexShrink: 0, width: '32px', height: '32px', background: '#ffedd5', color: '#ea580c', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', fontSize: '14px', border: '2px solid #fdba74'}}>
                     {i + 1}
                   </div>

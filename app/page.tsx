@@ -1455,7 +1455,7 @@ export default function Home() {
                 const itemsToBuy = dailyRecipe.detailed_ingredients ? dailyRecipe.detailed_ingredients.map(ing => ing.name) : (dailyRecipe.ingredients || []); 
                 if (itemsToBuy.length === 0) return null; 
                 return ( 
-                  <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '12px', padding: '15px', margin: '20px 0', color: '#92400e' }}> 
+                  <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '12px', padding: '15px', margin: '0 0 25px 0', color: '#92400e' }}> 
                     <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontWeight: 800}}> <ShoppingCart size={20} /> Нужно купить: </div> 
                     <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px'}}> 
                       {itemsToBuy.map((item, idx) => ( <a key={idx} href={`https://www.ozon.ru/search/?text=${encodeURIComponent(item)}&from_global=true`} target="_blank" rel="noopener noreferrer" style={{ background: '#fef3c7', padding: '6px 12px', borderRadius: '8px', fontSize: '14px', fontWeight: 600, textDecoration: 'none', color: '#92400e', display: 'flex', alignItems: 'center', gap: '6px', border: '1px solid #fcd34d', cursor: 'pointer', transition: 'all 0.2s' }}> {item} <ExternalLink size={12} style={{opacity: 0.6}} /> </a> ))} 
@@ -1465,16 +1465,21 @@ export default function Home() {
                 ); 
               })()}
 
-              <div className="ing-box">
-                 <h3 style={{marginTop: 0, marginBottom: '15px'}}>Ингредиенты</h3>
-                 {dailyRecipe.detailed_ingredients ? dailyRecipe.detailed_ingredients.map((ing, i) => (
-                   <div key={i} className="ing-row"> <span>{ing.name}</span> <span className="ing-val">{ing.amount}</span> </div>
-                 )) : dailyRecipe.ingredients?.map((ing, i) => (
-                    <div key={i} className="ing-row"> <span>{ing}</span> </div>
-                 ))}
+              <h4 style={{fontSize: '18px', fontWeight: 800, margin: '0 0 15px 0'}}>Ингредиенты:</h4>
+              <div style={{display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '25px'}}>
+                {dailyRecipe.detailed_ingredients ? dailyRecipe.detailed_ingredients.map((ing, i) => (
+                   <div key={i} style={{padding: '12px 15px', background: '#f8fafc', borderRadius: '12px', fontSize: '15px', color: '#374151', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                     <span style={{fontWeight: 600}}>{ing.name}</span>
+                     <span style={{color: '#059669', fontWeight: 800}}>{ing.amount}</span>
+                   </div>
+                )) : dailyRecipe.ingredients?.map((ing, i) => (
+                   <div key={i} style={{padding: '12px 15px', background: '#f8fafc', borderRadius: '12px', fontSize: '15px', color: '#374151', border: '1px solid #e2e8f0', fontWeight: 600}}>
+                     {ing}
+                   </div>
+                ))}
               </div>
 
-              <h3 style={{fontSize: '22px', fontWeight: 800, marginBottom: '20px', marginTop: '25px'}}>👨‍🍳 Приготовление</h3> 
+              <h4 style={{fontSize: '18px', fontWeight: 800, margin: '0 0 15px 0'}}>Приготовление:</h4>
               <div style={{display: 'flex', flexDirection: 'column', gap: '15px'}}>
                 {dailyRecipe.steps?.map((step, i) => (
                   <div key={i} className="step-row" style={{marginBottom: 0}}>
@@ -1487,286 +1492,6 @@ export default function Home() {
           )}
         </div>
       )}
-
-      {/* === ЛИЧНЫЙ КАБИНЕТ === */}
-      {activeView === 'profile' && (
-        <div style={{marginTop: '60px', paddingBottom: '80px'}}>
-          {!user ? (
-            <div style={{textAlign: 'center', padding: '40px 20px'}}>
-              <div style={{background: '#f1f5f9', width: '80px', height: '80px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px auto'}}>
-                <User size={40} color="#94a3b8" />
-              </div>
-              <h2 style={{fontSize: '24px', fontWeight: 900, marginBottom: '10px'}}>Личный кабинет</h2>
-              <p style={{color: '#64748b', marginBottom: '25px', lineHeight: 1.5}}>Войдите, чтобы сохранять любимые рецепты, историю генераций и управлять своим рестораном.</p>
-              <button onClick={() => setIsAuthModalOpen(true)} className="btn-primary" style={{maxWidth: '250px', margin: '0 auto'}}>Войти / Регистрация</button>
-            </div>
-          ) : (
-            <>
-              {/* Profile Header с красивым градиентом */}
-              <div className="card" style={{padding: '0', textAlign: 'center', marginBottom: '20px', overflow: 'hidden', border: 'none', boxShadow: '0 10px 30px -10px rgba(0,0,0,0.1)'}}>
-                <div style={{background: 'linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%)', height: '100px', width: '100%'}}></div>
-                <div style={{position: 'relative', width: '90px', height: '90px', margin: '-45px auto 15px auto', background: 'white', borderRadius: '50%', padding: '4px'}}>
-                  {user.user_metadata?.avatar_url ? (
-                    <img src={user.user_metadata.avatar_url} alt="Avatar" style={{width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover'}} />
-                  ) : (
-                    <div style={{width: '100%', height: '100%', borderRadius: '50%', background: '#059669', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', fontWeight: 800}}>
-                      {user.email?.charAt(0).toUpperCase() || 'U'}
-                    </div>
-                  )}
-                </div>
-                
-                <div style={{padding: '0 20px 20px 20px'}}>
-                  <h2 style={{margin: '0 0 5px 0', fontSize: '20px', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', flexWrap: 'wrap'}}>
-                    {user.user_metadata?.full_name || 'Шеф'}
-                    {renderUserBadge(user.id, restaurantLevel)}
-                  </h2>
-                  <p style={{margin: '0 0 15px 0', fontSize: '13px', color: '#64748b'}}>{user.email}</p>
-                  
-                  <div style={{display: 'flex', gap: '10px', justifyContent: 'center', marginBottom: '25px'}}>
-                    <button onClick={() => setIsEditingProfile(true)} style={{background: '#f1f5f9', border: 'none', padding: '8px 16px', borderRadius: '100px', fontSize: '13px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', transition: 'all 0.2s'}}>
-                      <Edit3 size={14} /> Изменить
-                    </button>
-                    <button onClick={handleLogout} style={{background: '#fee2e2', border: 'none', padding: '8px 16px', borderRadius: '100px', fontSize: '13px', fontWeight: 700, color: '#ef4444', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', transition: 'all 0.2s'}}>
-                      <LogOut size={14} /> Выйти
-                    </button>
-                  </div>
-
-                  <div style={{display: 'flex', background: '#f8fafc', padding: '15px', borderRadius: '16px', gap: '15px', border: '1px solid #e2e8f0'}}>
-                    <div style={{flex: 1, textAlign: 'center'}}>
-                       <div style={{fontSize: '20px', fontWeight: 900, color: '#f59e0b', marginBottom: '4px'}}>{formatCooks(cooks)} 🍪</div>
-                       <div style={{fontSize: '12px', color: '#64748b', fontWeight: 600}}>Баланс</div>
-                    </div>
-                    <div style={{width: '1px', background: '#e2e8f0'}}></div>
-                    <div style={{flex: 1, textAlign: 'center'}}>
-                       <div style={{fontSize: '20px', fontWeight: 900, color: '#3b82f6', marginBottom: '4px'}}>{restaurantLevel} 🏪</div>
-                       <div style={{fontSize: '12px', color: '#64748b', fontWeight: 600}}>Уровень</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Profile Navigation */}
-              <div style={{display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '10px', marginBottom: '15px'}}>
-                 <button onClick={() => setProfileView('main')} style={{padding: '10px 16px', borderRadius: '12px', border: 'none', whiteSpace: 'nowrap', background: profileView === 'main' ? '#111' : 'white', color: profileView === 'main' ? 'white' : '#475569', fontWeight: 700, fontSize: '14px', boxShadow: profileView === 'main' ? '0 4px 10px rgba(0,0,0,0.1)' : '0 1px 3px rgba(0,0,0,0.05)', cursor: 'pointer', transition: 'all 0.2s'}}>Обзор</button>
-                 <button onClick={() => setProfileView('favorites')} style={{padding: '10px 16px', borderRadius: '12px', border: 'none', whiteSpace: 'nowrap', background: profileView === 'favorites' ? '#111' : 'white', color: profileView === 'favorites' ? 'white' : '#475569', fontWeight: 700, fontSize: '14px', boxShadow: profileView === 'favorites' ? '0 4px 10px rgba(0,0,0,0.1)' : '0 1px 3px rgba(0,0,0,0.05)', cursor: 'pointer', transition: 'all 0.2s'}}>❤️ Избранное ({feed?.filter(r => r.is_favorite).length || 0})</button>
-                 <button onClick={() => setProfileView('history')} style={{padding: '10px 16px', borderRadius: '12px', border: 'none', whiteSpace: 'nowrap', background: profileView === 'history' ? '#111' : 'white', color: profileView === 'history' ? 'white' : '#475569', fontWeight: 700, fontSize: '14px', boxShadow: profileView === 'history' ? '0 4px 10px rgba(0,0,0,0.1)' : '0 1px 3px rgba(0,0,0,0.05)', cursor: 'pointer', transition: 'all 0.2s'}}>📜 История</button>
-                 <button onClick={() => setProfileView('photos')} style={{padding: '10px 16px', borderRadius: '12px', border: 'none', whiteSpace: 'nowrap', background: profileView === 'photos' ? '#111' : 'white', color: profileView === 'photos' ? 'white' : '#475569', fontWeight: 700, fontSize: '14px', boxShadow: profileView === 'photos' ? '0 4px 10px rgba(0,0,0,0.1)' : '0 1px 3px rgba(0,0,0,0.05)', cursor: 'pointer', transition: 'all 0.2s'}}>📸 Мои фото</button>
-              </div>
-
-              {/* Profile Content */}
-              {profileView === 'main' && (
-                <div className="card animate-fade-in" style={{padding: '20px'}}>
-                   <h3 style={{margin: '0 0 15px 0', fontSize: '18px', fontWeight: 800}}>Настройки питания</h3>
-                   <p style={{fontSize: '13px', color: '#64748b', marginBottom: '15px'}}>Укажите свои предпочтения, и AI будет учитывать их при генерации рецептов.</p>
-                   <button onClick={() => setIsPreferencesModalOpen(true)} style={{width: '100%', padding: '14px', borderRadius: '12px', background: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#111', fontWeight: 700, fontSize: '15px', cursor: 'pointer', transition: 'all 0.2s'}}>
-                     <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}><Settings size={18} color="#64748b" /> Фильтры и аллергии</div>
-                     <ChevronRight size={18} color="#94a3b8" />
-                   </button>
-                </div>
-              )}
-
-              {profileView === 'favorites' && (
-                <div className="animate-fade-in">
-                  {feed?.filter(r => r.is_favorite).length === 0 ? (
-                    <div style={{textAlign: 'center', padding: '40px', color: '#9ca3af', background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0'}}>В избранном пока пусто 💔</div>
-                  ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '15px' }}> 
-                      {feed?.filter(r => r.is_favorite).map((item) => ( 
-                        <div key={item.id} className="card" style={{ padding: '15px', cursor: 'pointer', marginBottom: 0, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }} onClick={() => loadFromHistory(item, 'profile_favorites')}> 
-                          <div style={{ fontWeight: 700, fontSize: '14px', marginBottom: '8px', lineHeight: 1.3, height: '38px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', wordBreak: 'break-word' }}> {item.title} </div> 
-                          <div style={{display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#6b7280'}}> 
-                             <div style={{display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap'}}><Clock size={12}/> {formatTime(item.time)}</div> 
-                             {item.calories && <div style={{display: 'flex', alignItems: 'center', gap: '3px', color: '#f97316', whiteSpace: 'nowrap'}}><Flame size={12}/> {formatCalories(item.calories)}</div>} 
-                          </div> 
-                        </div> 
-                      ))} 
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {profileView === 'history' && (
-                <div className="animate-fade-in">
-                  {feed?.length === 0 ? (
-                    <div style={{textAlign: 'center', padding: '40px', color: '#9ca3af', background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0'}}>История генераций пуста 🍳</div>
-                  ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '15px' }}> 
-                      {feed?.map((item) => ( 
-                        <div key={item.id} className="card" style={{ padding: '15px', cursor: 'pointer', marginBottom: 0, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: item.is_favorite ? '1px solid #fca5a5' : '1px solid #e5e7eb' }} onClick={() => loadFromHistory(item, 'profile_history')}> 
-                          <div style={{ fontWeight: 700, fontSize: '14px', marginBottom: '8px', lineHeight: 1.3, height: '38px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', wordBreak: 'break-word' }}> 
-                            {item.title}
-                            {item.is_favorite && <Heart size={12} fill="#ef4444" color="#ef4444" style={{display: 'inline-block', marginLeft: '4px', verticalAlign: 'middle'}}/>}
-                          </div> 
-                          <div style={{display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#6b7280'}}> 
-                             <div style={{display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap'}}><Clock size={12}/> {formatTime(item.time)}</div> 
-                             {item.calories && <div style={{display: 'flex', alignItems: 'center', gap: '3px', color: '#f97316', whiteSpace: 'nowrap'}}><Flame size={12}/> {formatCalories(item.calories)}</div>} 
-                          </div> 
-                        </div> 
-                      ))} 
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {profileView === 'photos' && (
-                <div className="animate-fade-in">
-                  {userPhotos.length === 0 ? (
-                     <div style={{textAlign: 'center', padding: '40px', color: '#9ca3af', background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0'}}>У вас пока нет опубликованных фото 📸</div>
-                  ) : (
-                     <div style={{display: 'flex', flexDirection: 'column', gap: '15px'}}>
-                       {userPhotos.map(post => (
-                          <div key={post.id} className="card" style={{padding: '0', overflow: 'hidden', border: '1px solid #e5e7eb'}}>
-                             <div style={{padding: '12px 15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9'}}>
-                               <div style={{fontSize: '13px', fontWeight: 700, color: '#374151'}}>
-                                  {new Date(post.created_at).toLocaleDateString()}
-                               </div>
-                               <button onClick={() => handleDeletePost(post.id)} style={{background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px', fontWeight: 600}}>
-                                  <Trash2 size={14}/> Удалить
-                               </button>
-                             </div>
-                             <img src={post.photo_url} alt="Мое блюдо" style={{width: '100%', height: '250px', objectFit: 'cover', display: 'block'}} />
-                             <div style={{padding: '15px'}}>
-                                {post.recipe_id ? (
-                                   <div style={{fontSize: '14px', fontWeight: 700, marginBottom: '8px', color: '#111'}}>Рецепт: {post.recipes?.title}</div>
-                                ) : (
-                                   <div style={{fontSize: '14px', fontWeight: 700, marginBottom: '8px', color: '#0ea5e9'}}>Свой рецепт: {post.custom_title}</div>
-                                )}
-                                {post.comment && <p style={{fontSize: '13px', color: '#4b5563', margin: '0 0 10px 0', lineHeight: 1.4}}>{post.comment}</p>}
-                                <div style={{display: 'flex', gap: '15px', fontSize: '13px', color: '#64748b', fontWeight: 600}}>
-                                   <span style={{display: 'flex', alignItems: 'center', gap: '4px'}}><Heart size={14} /> {post.likes_count || 0}</span>
-                                   <span style={{display: 'flex', alignItems: 'center', gap: '4px'}}><MessageCircle size={14} /> {post.comments_count || 0}</span>
-                                </div>
-                             </div>
-                          </div>
-                       ))}
-                     </div>
-                  )}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      )}
-
-      {/* === ЛЕНТА ФОТО === */} 
-      {activeView === 'feed' && ( 
-        <div style={{marginTop: '60px'}}> 
-          <div style={{textAlign: 'center', marginBottom: '25px'}}> 
-            <h1 style={{fontSize: '28px', fontWeight: '900', margin: '0 0 10px 0'}}> Лента 📸 </h1> 
-            <p style={{color: '#6b7280', margin: 0}}>Вдохновляйтесь кулинарными шедеврами</p> 
-          </div> 
-
-          <div style={{background: 'linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%)', borderRadius: '20px', padding: '20px', marginBottom: '25px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', boxShadow: '0 4px 15px rgba(14, 165, 233, 0.2)'}}> 
-            <div style={{background: 'white', width: '56px', height: '56px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, borderRadius: '50%', marginBottom: '10px', color: '#0ea5e9'}}><PlusCircle size={28} /></div> 
-            <h3 style={{margin: '0 0 5px 0', fontSize: '18px', fontWeight: 800, color: '#0369a1'}}>Приготовили по своему рецепту?</h3> 
-            <p style={{margin: '0 0 15px 0', fontSize: '13px', color: '#0284c7', lineHeight: 1.4}}>Поделитесь кулинарным шедевром со всем сообществом, даже если не использовали ИИ!</p> 
-            <button onClick={() => { setIsStandaloneUploadOpen(true); document.getElementById('standalone-photo-upload')?.click(); }} style={{background: '#0ea5e9', color: 'white', border: 'none', padding: '12px 24px', borderRadius: '100px', fontWeight: 800, fontSize: '14px', cursor: 'pointer', boxShadow: '0 4px 10px rgba(14, 165, 233, 0.3)'}}>Выложить своё блюдо</button> 
-            <input id="standalone-photo-upload" type="file" accept="image/*" style={{display: 'none'}} onChange={handleUserPhotoChange} /> 
-          </div> 
-
-          {/* Форма загрузки своего блюда */} 
-          {isStandaloneUploadOpen && userPhotoPreview && ( 
-            <div className="card animate-fade-in" style={{border: '2px solid #0ea5e9', marginBottom: '25px'}}> 
-              <h3 style={{marginTop: 0, marginBottom: '15px'}}>Публикация своего блюда</h3> 
-              <img src={userPhotoPreview} alt="Preview" style={{width: '100%', height: '200px', objectFit: 'cover', borderRadius: '12px', marginBottom: '15px'}} /> 
-               
-              <textarea 
-                placeholder="Название блюда (Обязательно)" 
-                value={standaloneTitle} 
-                onChange={(e) => {
-                  setStandaloneTitle(e.target.value);
-                  e.target.style.height = '44px';
-                  e.target.style.height = (e.target.scrollHeight) + 'px';
-                }} 
-                rows={1}
-                style={{width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #94a3b8', fontSize: '15px', fontWeight: 700, marginBottom: '10px', outline: 'none', resize: 'none', overflow: 'hidden', minHeight: '44px', boxSizing: 'border-box', fontFamily: 'inherit', lineHeight: '18px'}} 
-              /> 
-               
-              <textarea 
-                placeholder="Описание / Рецепт от вас" 
-                value={userComment} 
-                onChange={(e) => {
-                  setUserComment(e.target.value);
-                  e.target.style.height = '44px';
-                  e.target.style.height = (e.target.scrollHeight) + 'px';
-                }} 
-                rows={1}
-                style={{width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #d1d5db', fontSize: '14px', marginBottom: '15px', outline: 'none', resize: 'none', overflow: 'hidden', minHeight: '44px', boxSizing: 'border-box', fontFamily: 'inherit', lineHeight: '18px'}} 
-              /> 
-               
-              <div style={{display: 'flex', gap: '10px'}}> 
-                <button onClick={() => {setUserPhotoFile(null); setUserPhotoPreview(null); setStandaloneTitle(""); setUserComment(""); setIsStandaloneUploadOpen(false);}} style={{flex: 1, padding: '12px', borderRadius: '8px', background: '#f1f5f9', border: 'none', color: '#475569', fontWeight: 700, cursor: 'pointer'}}>Отмена</button> 
-                <button onClick={() => submitFeedPost(null)} disabled={isUploadingPhoto} style={{flex: 2, padding: '12px', borderRadius: '8px', background: '#0ea5e9', border: 'none', color: 'white', fontWeight: 700, cursor: isUploadingPhoto ? 'default' : 'pointer'}}> {isUploadingPhoto ? "Загрузка..." : "Отправить в ленту"} </button> 
-              </div> 
-            </div> 
-          )} 
-
-          <div style={{fontSize: '14px', fontWeight: 600, color: '#6b7280', marginBottom: '8px'}}>Сортировка:</div> 
-          <div style={{display: 'flex', gap: '8px', marginBottom: '25px', overflowX: 'auto', paddingBottom: '5px'}}> 
-             <button onClick={() => fetchPhotosFeed('new')} style={{ padding: '8px 16px', borderRadius: '100px', border: 'none', whiteSpace: 'nowrap', background: photosSort === 'new' ? '#111' : '#f3f4f6', color: photosSort === 'new' ? 'white' : '#4b5563', fontWeight: 700, fontSize: '14px', transition: 'all 0.2s', cursor: 'pointer' }}>✨ Свежее</button> 
-             <button onClick={() => fetchPhotosFeed('top')} style={{ padding: '8px 16px', borderRadius: '100px', border: 'none', whiteSpace: 'nowrap', background: photosSort === 'top' ? '#111' : '#f3f4f6', color: photosSort === 'top' ? 'white' : '#4b5563', fontWeight: 700, fontSize: '14px', transition: 'all 0.2s', cursor: 'pointer' }}>🔥 Популярное</button> 
-             <button onClick={() => fetchPhotosFeed('old')} style={{ padding: '8px 16px', borderRadius: '100px', border: 'none', whiteSpace: 'nowrap', background: photosSort === 'old' ? '#111' : '#f3f4f6', color: photosSort === 'old' ? 'white' : '#4b5563', fontWeight: 700, fontSize: '14px', transition: 'all 0.2s', cursor: 'pointer' }}>🕰 Раннее</button> 
-          </div> 
-
-          <div style={{display: 'flex', flexDirection: 'column', gap: '20px'}}> 
-            {photosFeed?.map((post) => ( 
-              <div key={post.id} id={`feed-post-${post.id}`} className="card" style={{padding: '0', overflow: 'hidden', border: '1px solid #e5e7eb'}}> 
-                <div style={{padding: '15px', display: 'flex', alignItems: 'center', gap: '10px', background: 'white'}}> 
-                   {post.user_avatar ? ( 
-                      <img src={post.user_avatar} alt="Avatar" style={{width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover'}} /> 
-                   ) : ( 
-                      <div style={{width: '36px', height: '36px', borderRadius: '50%', background: '#0ea5e9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 800, fontSize: '16px', flexShrink: 0}}> 
-                        {post.user_name?.charAt(0).toUpperCase() || 'Ш'} 
-                      </div> 
-                   )} 
-                   <div style={{flex: 1}}> 
-                      <div style={{fontWeight: 800, fontSize: '14px', color: '#111', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap'}}>
-                        {post.user_name || 'Анонимный шеф'}
-                        {renderUserBadge(post.user_id, userLevels[post.user_id])}
-                      </div> 
-                      {post.recipe_id ? ( 
-                        <div style={{fontSize: '12px', color: '#6b7280', display: 'flex', alignItems: 'center', gap: '4px'}}> 
-                          Приготовил(а): <span style={{color: '#059669', fontWeight: 600, cursor: 'pointer'}} onClick={() => loadSharedRecipe(post.recipe_id, 'photos')}>{post.recipes?.title || 'Рецепт'}</span> 
-                        </div> 
-                      ) : ( 
-                        <div style={{fontSize: '12px', color: '#0ea5e9', fontWeight: 700}}>По своему рецепту: {post.custom_title}</div> 
-                      )} 
-                   </div> 
-                   {user && user.id === post.user_id && ( 
-                      <button onClick={() => handleDeletePost(post.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer' }}><Trash2 size={18} /></button> 
-                   )} 
-                </div> 
-                 
-                <img src={post.photo_url} alt="Блюдо" onClick={() => setFullScreenImage(post.photo_url)} style={{width: '100%', maxHeight: '400px', objectFit: 'cover', display: 'block', background: '#f3f4f6', cursor: 'zoom-in'}} /> 
-                 
-                <div style={{padding: '15px', background: 'white'}}> 
-                  {post.comment && ( <p style={{margin: '0 0 15px 0', fontSize: '14px', color: '#374151', lineHeight: 1.5, wordBreak: 'break-word'}}> <strong>Описание:</strong> {post.comment} </p> )} 
-                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}> 
-                    {/* Лайки и комменты слева */}
-                    <div style={{display: 'flex', gap: '10px'}}> 
-                      <button onClick={(e) => handlePhotoLike(e, post)} style={{background: post.is_liked ? '#fee2e2' : '#f3f4f6', border: 'none', borderRadius: '100px', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px', color: post.is_liked ? '#ef4444' : '#4b5563', fontWeight: 700, fontSize: '14px', transition: 'all 0.2s', cursor: 'pointer'}}> 
-                        <Heart size={18} fill={post.is_liked ? "#ef4444" : "none"} /> {post.likes_count || 0} 
-                      </button> 
-                      <button onClick={() => openComments(post.id)} style={{background: '#f3f4f6', border: 'none', borderRadius: '100px', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px', color: '#4b5563', fontWeight: 700, fontSize: '14px', cursor: 'pointer'}}> 
-                        <MessageCircle size={18} /> {post.comments_count || 0} 
-                      </button> 
-                    </div> 
-                    {/* Кнопка К рецепту справа */}
-                    <div>
-                      {post.recipe_id && ( 
-                        <button onClick={() => loadSharedRecipe(post.recipe_id, 'photos')} style={{background: 'transparent', border: 'none', color: '#0ea5e9', fontWeight: 700, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', padding: 0}}> 
-                           К рецепту <ArrowRight size={16} /> 
-                        </button> 
-                      )} 
-                    </div>
-                  </div> 
-                </div> 
-              </div> 
-            ))} 
-            {photosFeed.length === 0 && <div style={{textAlign: 'center', padding: '40px', color: '#9ca3af'}}>Здесь пока нет фотографий. Поделитесь своим шедевром первым! 📸</div>} 
-          </div> 
-        </div> 
-      )} 
 
       {/* === О ПРОЕКТЕ === */} 
       {activeView === 'about' && ( 

@@ -19,7 +19,7 @@ interface HolidayType { title: string; text: string; gradient: string; icon: str
 interface DBComment { id: number; post_id: number; user_id: string; user_name: string; user_avatar?: string; text: string; created_at: string; parent_id?: number | null; likes_count?: number; is_liked?: boolean; }
 
 // =========================================================================
-const DEVELOPER_ID = "ТВОЙ_UID_ИЗ_SUPABASE"; 
+const DEVELOPER_ID = "68ff3d0a-2a09-4e22-b39b-3fea14de3f96"; 
 // =========================================================================
 
 /* --- ГЛОБАЛЬНЫЕ ФУНКЦИИ --- */
@@ -1450,16 +1450,31 @@ export default function Home() {
                 </button>
               </div>
 
-              <h4 style={{fontSize: '18px', fontWeight: 800, margin: '0 0 15px 0'}}>Ингредиенты:</h4>
-              <div style={{display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '25px'}}>
-                {dailyRecipe.ingredients?.map((ing, i) => (
-                  <div key={i} style={{padding: '10px 15px', background: '#f8fafc', borderRadius: '8px', fontSize: '15px', color: '#374151', border: '1px solid #e2e8f0'}}>{ing}</div>
-                )) || dailyRecipe.detailed_ingredients?.map((ing, i) => (
+              {/* Ozon Fresh для Рецепта Дня */}
+              {(() => { 
+                const itemsToBuy = dailyRecipe.detailed_ingredients ? dailyRecipe.detailed_ingredients.map(ing => ing.name) : (dailyRecipe.ingredients || []); 
+                if (itemsToBuy.length === 0) return null; 
+                return ( 
+                  <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '12px', padding: '15px', margin: '20px 0', color: '#92400e' }}> 
+                    <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontWeight: 800}}> <ShoppingCart size={20} /> Нужно купить: </div> 
+                    <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px'}}> 
+                      {itemsToBuy.map((item, idx) => ( <a key={idx} href={`https://www.ozon.ru/search/?text=${encodeURIComponent(item)}&from_global=true`} target="_blank" rel="noopener noreferrer" style={{ background: '#fef3c7', padding: '6px 12px', borderRadius: '8px', fontSize: '14px', fontWeight: 600, textDecoration: 'none', color: '#92400e', display: 'flex', alignItems: 'center', gap: '6px', border: '1px solid #fcd34d', cursor: 'pointer', transition: 'all 0.2s' }}> {item} <ExternalLink size={12} style={{opacity: 0.6}} /> </a> ))} 
+                    </div> 
+                    <div style={{fontSize: '12px', color: '#b45309', display: 'flex', alignItems: 'center', gap: '5px'}}> <Info size={14} /> Нажмите на ингредиент, чтобы заказать быструю доставку Ozon Fresh до двери </div> 
+                  </div> 
+                ); 
+              })()}
+
+              <div className="ing-box">
+                 <h3 style={{marginTop: 0, marginBottom: '15px'}}>Ингредиенты</h3>
+                 {dailyRecipe.detailed_ingredients ? dailyRecipe.detailed_ingredients.map((ing, i) => (
                    <div key={i} className="ing-row"> <span>{ing.name}</span> <span className="ing-val">{ing.amount}</span> </div>
-                ))}
+                 )) : dailyRecipe.ingredients?.map((ing, i) => (
+                    <div key={i} className="ing-row"> <span>{ing}</span> </div>
+                 ))}
               </div>
 
-              <h4 style={{fontSize: '18px', fontWeight: 800, margin: '0 0 15px 0'}}>Приготовление:</h4>
+              <h3 style={{fontSize: '22px', fontWeight: 800, marginBottom: '20px', marginTop: '25px'}}>👨‍🍳 Приготовление</h3> 
               <div style={{display: 'flex', flexDirection: 'column', gap: '15px'}}>
                 {dailyRecipe.steps?.map((step, i) => (
                   <div key={i} className="step-row" style={{marginBottom: 0}}>
@@ -1487,41 +1502,45 @@ export default function Home() {
             </div>
           ) : (
             <>
-              {/* Profile Header */}
-              <div className="card" style={{padding: '20px', textAlign: 'center', marginBottom: '20px'}}>
-                <div style={{position: 'relative', width: '80px', height: '80px', margin: '0 auto 15px auto'}}>
+              {/* Profile Header с красивым градиентом */}
+              <div className="card" style={{padding: '0', textAlign: 'center', marginBottom: '20px', overflow: 'hidden', border: 'none', boxShadow: '0 10px 30px -10px rgba(0,0,0,0.1)'}}>
+                <div style={{background: 'linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%)', height: '100px', width: '100%'}}></div>
+                <div style={{position: 'relative', width: '90px', height: '90px', margin: '-45px auto 15px auto', background: 'white', borderRadius: '50%', padding: '4px'}}>
                   {user.user_metadata?.avatar_url ? (
-                    <img src={user.user_metadata.avatar_url} alt="Avatar" style={{width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', border: '2px solid #059669'}} />
+                    <img src={user.user_metadata.avatar_url} alt="Avatar" style={{width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover'}} />
                   ) : (
                     <div style={{width: '100%', height: '100%', borderRadius: '50%', background: '#059669', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', fontWeight: 800}}>
                       {user.email?.charAt(0).toUpperCase() || 'U'}
                     </div>
                   )}
                 </div>
-                <h2 style={{margin: '0 0 5px 0', fontSize: '20px', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'}}>
-                  {user.user_metadata?.full_name || 'Шеф'}
-                  {renderUserBadge(user.id, restaurantLevel)}
-                </h2>
-                <p style={{margin: '0 0 15px 0', fontSize: '13px', color: '#64748b'}}>{user.email}</p>
                 
-                <div style={{display: 'flex', gap: '10px', justifyContent: 'center', marginBottom: '20px'}}>
-                  <button onClick={() => setIsEditingProfile(true)} style={{background: '#f1f5f9', border: 'none', padding: '8px 16px', borderRadius: '100px', fontSize: '13px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer'}}>
-                    <Edit3 size={14} /> Изменить
-                  </button>
-                  <button onClick={handleLogout} style={{background: '#fee2e2', border: 'none', padding: '8px 16px', borderRadius: '100px', fontSize: '13px', fontWeight: 700, color: '#ef4444', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer'}}>
-                    <LogOut size={14} /> Выйти
-                  </button>
-                </div>
-
-                <div style={{display: 'flex', background: '#f8fafc', padding: '15px', borderRadius: '16px', gap: '15px'}}>
-                  <div style={{flex: 1, textAlign: 'center'}}>
-                     <div style={{fontSize: '20px', fontWeight: 900, color: '#f59e0b', marginBottom: '4px'}}>{formatCooks(cooks)} 🍪</div>
-                     <div style={{fontSize: '12px', color: '#64748b', fontWeight: 600}}>Баланс</div>
+                <div style={{padding: '0 20px 20px 20px'}}>
+                  <h2 style={{margin: '0 0 5px 0', fontSize: '20px', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', flexWrap: 'wrap'}}>
+                    {user.user_metadata?.full_name || 'Шеф'}
+                    {renderUserBadge(user.id, restaurantLevel)}
+                  </h2>
+                  <p style={{margin: '0 0 15px 0', fontSize: '13px', color: '#64748b'}}>{user.email}</p>
+                  
+                  <div style={{display: 'flex', gap: '10px', justifyContent: 'center', marginBottom: '25px'}}>
+                    <button onClick={() => setIsEditingProfile(true)} style={{background: '#f1f5f9', border: 'none', padding: '8px 16px', borderRadius: '100px', fontSize: '13px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', transition: 'all 0.2s'}}>
+                      <Edit3 size={14} /> Изменить
+                    </button>
+                    <button onClick={handleLogout} style={{background: '#fee2e2', border: 'none', padding: '8px 16px', borderRadius: '100px', fontSize: '13px', fontWeight: 700, color: '#ef4444', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', transition: 'all 0.2s'}}>
+                      <LogOut size={14} /> Выйти
+                    </button>
                   </div>
-                  <div style={{width: '1px', background: '#e2e8f0'}}></div>
-                  <div style={{flex: 1, textAlign: 'center'}}>
-                     <div style={{fontSize: '20px', fontWeight: 900, color: '#3b82f6', marginBottom: '4px'}}>{restaurantLevel} 🏪</div>
-                     <div style={{fontSize: '12px', color: '#64748b', fontWeight: 600}}>Уровень</div>
+
+                  <div style={{display: 'flex', background: '#f8fafc', padding: '15px', borderRadius: '16px', gap: '15px', border: '1px solid #e2e8f0'}}>
+                    <div style={{flex: 1, textAlign: 'center'}}>
+                       <div style={{fontSize: '20px', fontWeight: 900, color: '#f59e0b', marginBottom: '4px'}}>{formatCooks(cooks)} 🍪</div>
+                       <div style={{fontSize: '12px', color: '#64748b', fontWeight: 600}}>Баланс</div>
+                    </div>
+                    <div style={{width: '1px', background: '#e2e8f0'}}></div>
+                    <div style={{flex: 1, textAlign: 'center'}}>
+                       <div style={{fontSize: '20px', fontWeight: 900, color: '#3b82f6', marginBottom: '4px'}}>{restaurantLevel} 🏪</div>
+                       <div style={{fontSize: '12px', color: '#64748b', fontWeight: 600}}>Уровень</div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1539,7 +1558,7 @@ export default function Home() {
                 <div className="card animate-fade-in" style={{padding: '20px'}}>
                    <h3 style={{margin: '0 0 15px 0', fontSize: '18px', fontWeight: 800}}>Настройки питания</h3>
                    <p style={{fontSize: '13px', color: '#64748b', marginBottom: '15px'}}>Укажите свои предпочтения, и AI будет учитывать их при генерации рецептов.</p>
-                   <button onClick={() => setIsPreferencesModalOpen(true)} style={{width: '100%', padding: '14px', borderRadius: '12px', background: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#111', fontWeight: 700, fontSize: '15px', cursor: 'pointer'}}>
+                   <button onClick={() => setIsPreferencesModalOpen(true)} style={{width: '100%', padding: '14px', borderRadius: '12px', background: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#111', fontWeight: 700, fontSize: '15px', cursor: 'pointer', transition: 'all 0.2s'}}>
                      <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}><Settings size={18} color="#64748b" /> Фильтры и аллергии</div>
                      <ChevronRight size={18} color="#94a3b8" />
                    </button>

@@ -58,6 +58,16 @@ export default function DailyRecipe(props: any) {
         ) : (
           <div className="card" style={{padding: '25px', background: 'white', borderRadius: '24px', boxShadow: '0 10px 30px rgba(0,0,0,0.08)'}}>
 
+            <div style={{display: 'flex', gap: '10px', marginBottom: '25px'}}>
+              <button onClick={toggleDailyFavorite} style={{flex: 1, padding: '12px', borderRadius: '12px', background: dailyFavoriteId ? '#fee2e2' : '#f8fafc', color: dailyFavoriteId ? '#ef4444' : '#475569', border: dailyFavoriteId ? '1px solid #fca5a5' : '1px solid #e2e8f0', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.2s'}}>
+                <Heart size={18} fill={dailyFavoriteId ? "#ef4444" : "none"} />
+                {dailyFavoriteId ? "В избранном" : "Сохранить"}
+              </button>
+              <button onClick={handleShareDaily} style={{flex: 1, padding: '12px', borderRadius: '12px', background: '#e0f2fe', color: '#0ea5e9', border: 'none', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.2s'}}>
+                <Share2 size={18} /> Поделиться
+              </button>
+            </div>
+
             {/* Ozon Fresh */}
             {(() => { 
               const itemsToBuy = dailyRecipe.detailed_ingredients ? dailyRecipe.detailed_ingredients.map((ing: any) => ing.name) : (dailyRecipe.ingredients || []); 
@@ -91,7 +101,8 @@ export default function DailyRecipe(props: any) {
             <div style={{display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '30px'}}>
               {dailyRecipe.steps?.map((step: string, i: number) => (
                 <div key={i} style={{display: 'flex', gap: '15px'}}>
-                  <div style={{flexShrink: 0, width: '32px', height: '32px', background: '#ffedd5', color: '#ea580c', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '14px', boxShadow: '0 4px 10px rgba(234, 88, 12, 0.15)'}}>
+                  {/* Светлый стильный кружок вместо черного */}
+                  <div style={{flexShrink: 0, width: '32px', height: '32px', background: '#ffedd5', color: '#ea580c', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', fontSize: '14px', border: '2px solid #fdba74'}}>
                     {i + 1}
                   </div>
                   <div style={{flex: 1, paddingTop: '4px', fontSize: '15px', lineHeight: '1.6', color: '#374151'}}>

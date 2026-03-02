@@ -9,7 +9,6 @@ import {
   Wallet, Zap, Leaf, Globe, ChevronRight, ChevronDown, ChevronUp, Shuffle, ShoppingCart, Lock, ShoppingBag, ExternalLink, Info, ThumbsUp, Share2, User, LogOut, Mail, MessageCircle, PlusCircle, Trash2, Edit3, CornerDownRight, Settings, Store, Trophy
 } from "lucide-react";
 
-// Импортируем наши внешние компоненты
 import Profile from "@/components/Profile";
 import DailyRecipe from "@/components/DailyRecipe";
 import Feed from "@/components/Feed";
@@ -134,7 +133,6 @@ export default function Home() {
   const [user, setUser] = useState<any>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   
-  // Анонимная авторизация
   const [authUsername, setAuthUsername] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [authMode, setAuthMode] = useState<'login' | 'register'>('register');
@@ -414,7 +412,6 @@ export default function Home() {
          const imageCompression = (await import('browser-image-compression')).default; 
          const compressedFile = await imageCompression(croppedFile, { maxSizeMB: 0.3, maxWidthOrHeight: 500, useWebWorker: true, fileType: "image/jpeg" }); 
          const finalFile = new File([compressedFile], `avatar_${Date.now()}.jpg`, { type: "image/jpeg" });
-         // Внимание! Здесь исправлена скобка
          setUserPhotoFile(finalFile); setEditAvatarPreview(URL.createObjectURL(finalFile)); setIsCropping(false); setCropImageSrc(null);
       }
     } catch (e) { alert("Не удалось обработать фото"); setUserPhotoFile(null); setUserPhotoPreview(null); }
@@ -431,6 +428,7 @@ export default function Home() {
       const newUsername = editUsername.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
       if (newUsername.length < 4) throw new Error("Username должен быть от 4 символов (только буквы, цифры и _)");
 
+      // Обновляем только публичные метаданные, чтобы логин (email) не сломался
       let updates: any = { data: { full_name: editProfileName, avatar_url: avatarUrl, username: newUsername } };
       
       const { data, error } = await supabase.auth.updateUser(updates); 
@@ -957,47 +955,12 @@ export default function Home() {
 
       {/* ИСПОЛЬЗУЕМ ТВОЙ КРАСИВЫЙ DailyRecipe с прокинутыми функциями для Чата с Шефом */}
       {activeView === 'daily' && (
-        <div style={{marginTop: '60px'}}>
-          <DailyRecipe 
-            data={dailyError ? { error: "Не удалось загрузить рецепт дня. Попробуйте позже." } : dailyRecipe} 
-          />
-          
-          {dailyRecipe && !dailyError && (
-            <div style={{padding: '0 5px'}}>
-              <div style={{display: 'flex', gap: '10px', marginBottom: '25px'}}>
-                <button onClick={toggleDailyFavorite} style={{flex: 1, padding: '12px', borderRadius: '12px', background: dailyFavoriteId ? '#fee2e2' : '#f8fafc', color: dailyFavoriteId ? '#ef4444' : '#475569', border: dailyFavoriteId ? '1px solid #fca5a5' : '1px solid #e2e8f0', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.2s'}}>
-                  <Heart size={18} fill={dailyFavoriteId ? "#ef4444" : "none"} />
-                  {dailyFavoriteId ? "В избранном" : "Сохранить"}
-                </button>
-                <button onClick={handleShareDaily} style={{flex: 1, padding: '12px', borderRadius: '12px', background: '#e0f2fe', color: '#0ea5e9', border: 'none', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.2s'}}>
-                  <Share2 size={18} /> Поделиться
-                </button>
-              </div>
-
-              {/* Блок: Вопрос Шефу (добавлен под рецептом) */}
-              <div style={{background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '20px', padding: '20px', marginBottom: '30px'}}> 
-                <div style={{fontWeight: 800, marginBottom: '15px', color: '#0369a1', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '6px'}}> 
-                  <Sparkles size={18} /> Спросить AI Шефа: 
-                </div> 
-                <div style={{display: 'flex', gap: '10px', alignItems: 'flex-end', width: '100%'}}> 
-                  <textarea 
-                    placeholder="Чем заменить сливки?" 
-                    value={question} 
-                    onChange={(e) => {
-                      setQuestion(e.target.value);
-                      e.target.style.height = '44px';
-                      e.target.style.height = (e.target.scrollHeight < 120 ? e.target.scrollHeight : 120) + 'px';
-                    }} 
-                    rows={1}
-                    style={{ flex: 1, width: '100%', padding: '12px 16px', borderRadius: '22px', border: '1px solid #93c5fd', fontSize: '15px', outline: 'none', background: 'white', resize: 'none', overflowY: 'auto', height: '44px', minHeight: '44px', maxHeight: '120px', boxSizing: 'border-box', lineHeight: '18px', fontFamily: 'inherit' }}
-                  /> 
-                  <button onClick={handleAskChef} style={{flexShrink: 0, padding: 0, width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: '#0ea5e9', color: 'white', border: 'none', cursor: 'pointer', boxShadow: '0 4px 10px rgba(14, 165, 233, 0.3)'}}> <Send size={18} style={{marginLeft: '-2px'}}/> </button> 
-                </div> 
-                {answer && <div style={{marginTop: '15px', lineHeight: 1.5, background: 'white', padding: '15px', borderRadius: '16px', border: '1px solid #e0f2fe', fontSize: '14px', color: '#0f172a'}}><strong>Ответ:</strong> {answer}</div>} 
-              </div>
-            </div>
-          )}
-        </div>
+        <DailyRecipe 
+          dailyError={dailyError} dailyRecipe={dailyRecipe} dailyFavoriteId={dailyFavoriteId} 
+          toggleDailyFavorite={toggleDailyFavorite} handleShareDaily={handleShareDaily} 
+          formatTime={formatTime} formatCalories={formatCalories} cleanText={cleanText} 
+          question={question} setQuestion={setQuestion} handleAskChef={handleAskChef} answer={answer}
+        />
       )}
 
       {activeView === 'about' && <About />}

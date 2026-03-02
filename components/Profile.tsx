@@ -5,8 +5,10 @@ export default function Profile(props: any) {
   const {
     user, cooks, restaurantLevel, profileView, setProfileView, feed, userPhotos,
     handleLogout, setIsEditingProfile, setIsPreferencesModalOpen, setIsAuthModalOpen,
-    loadFromHistory, handleDeletePost, formatCooks, formatTime, formatCalories, renderUserBadge
+    loadFromHistory, handleDeletePost, formatCooks, formatTime, formatCalories, getUserBadges
   } = props;
+
+  const { isDev, devBadge, restBadge } = getUserBadges(user?.id, restaurantLevel);
 
   return (
     <div style={{marginTop: '60px', paddingBottom: '80px'}}>
@@ -21,7 +23,6 @@ export default function Profile(props: any) {
         </div>
       ) : (
         <>
-          {/* Шапка Профиля */}
           <div className="card" style={{padding: '0', textAlign: 'center', marginBottom: '20px', overflow: 'hidden', border: 'none', boxShadow: '0 10px 30px -10px rgba(0,0,0,0.1)'}}>
             <div style={{background: 'linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%)', height: '100px', width: '100%'}}></div>
             <div style={{position: 'relative', width: '90px', height: '90px', margin: '-45px auto 15px auto', background: 'white', borderRadius: '50%', padding: '4px'}}>
@@ -35,11 +36,15 @@ export default function Profile(props: any) {
             </div>
             
             <div style={{padding: '0 20px 20px 20px'}}>
-              <h2 style={{margin: '0 0 2px 0', fontSize: '20px', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', flexWrap: 'wrap'}}>
-                {user.user_metadata?.full_name || 'Шеф'}
-                {renderUserBadge(user.id, restaurantLevel)}
-              </h2>
-              {/* Выводим Username */}
+              {/* Исправленное выравнивание профиля */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                <h2 style={{margin: '0', fontSize: '20px', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', flexWrap: 'wrap'}}>
+                  {user.user_metadata?.full_name || 'Шеф'}
+                  {isDev ? devBadge : restBadge}
+                </h2>
+                {isDev && <div>{restBadge}</div>}
+              </div>
+
               <p style={{margin: '0 0 15px 0', fontSize: '14px', color: '#0ea5e9', fontWeight: 700}}>
                 @{user.user_metadata?.username || user.email?.split('@')[0]}
               </p>
@@ -67,7 +72,6 @@ export default function Profile(props: any) {
             </div>
           </div>
 
-          {/* Настройки питания - ТЕПЕРЬ СВЕРХУ */}
           <div className="card" style={{padding: '20px', marginBottom: '20px'}}>
              <h3 style={{margin: '0 0 10px 0', fontSize: '18px', fontWeight: 800}}>Настройки питания</h3>
              <p style={{fontSize: '13px', color: '#64748b', marginBottom: '15px'}}>AI будет учитывать их при создании рецептов.</p>
@@ -77,14 +81,12 @@ export default function Profile(props: any) {
              </button>
           </div>
 
-          {/* Навигация по контенту */}
           <div style={{display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '10px', marginBottom: '15px'}}>
              <button onClick={() => setProfileView('main')} style={{padding: '10px 16px', borderRadius: '12px', border: 'none', whiteSpace: 'nowrap', background: profileView === 'main' ? '#111' : 'white', color: profileView === 'main' ? 'white' : '#475569', fontWeight: 700, fontSize: '14px', boxShadow: profileView === 'main' ? '0 4px 10px rgba(0,0,0,0.1)' : '0 1px 3px rgba(0,0,0,0.05)', cursor: 'pointer', transition: 'all 0.2s'}}>📜 История</button>
              <button onClick={() => setProfileView('favorites')} style={{padding: '10px 16px', borderRadius: '12px', border: 'none', whiteSpace: 'nowrap', background: profileView === 'favorites' ? '#111' : 'white', color: profileView === 'favorites' ? 'white' : '#475569', fontWeight: 700, fontSize: '14px', boxShadow: profileView === 'favorites' ? '0 4px 10px rgba(0,0,0,0.1)' : '0 1px 3px rgba(0,0,0,0.05)', cursor: 'pointer', transition: 'all 0.2s'}}>❤️ Избранное ({feed?.filter((r: any) => r.is_favorite).length || 0})</button>
              <button onClick={() => setProfileView('photos')} style={{padding: '10px 16px', borderRadius: '12px', border: 'none', whiteSpace: 'nowrap', background: profileView === 'photos' ? '#111' : 'white', color: profileView === 'photos' ? 'white' : '#475569', fontWeight: 700, fontSize: '14px', boxShadow: profileView === 'photos' ? '0 4px 10px rgba(0,0,0,0.1)' : '0 1px 3px rgba(0,0,0,0.05)', cursor: 'pointer', transition: 'all 0.2s'}}>📸 Мои фото</button>
           </div>
 
-          {/* История генераций */}
           {profileView === 'main' && (
             <div className="animate-fade-in">
               {feed?.length === 0 ? (
@@ -108,7 +110,6 @@ export default function Profile(props: any) {
             </div>
           )}
 
-          {/* Избранное */}
           {profileView === 'favorites' && (
             <div className="animate-fade-in">
               {feed?.filter((r: any) => r.is_favorite).length === 0 ? (
@@ -131,7 +132,6 @@ export default function Profile(props: any) {
             </div>
           )}
 
-          {/* Мои Фотографии */}
           {profileView === 'photos' && (
             <div className="animate-fade-in">
               {userPhotos.length === 0 ? (

@@ -8,10 +8,9 @@ export default function Feed(props: any) {
     loadSharedRecipe, isStandaloneUploadOpen, setIsStandaloneUploadOpen,
     userPhotoPreview, standaloneTitle, setStandaloneTitle, userComment,
     setUserComment, setUserPhotoFile, setUserPhotoPreview, submitFeedPost,
-    isUploadingPhoto, handleUserPhotoChange, renderUserBadge
+    isUploadingPhoto, handleUserPhotoChange, getUserBadges
   } = props;
 
-  // Локальный стейт для индикации открытия комментов
   const [openingCommentsId, setOpeningCommentsId] = useState<number | null>(null);
 
   const handleOpenCommentsClick = async (postId: number) => {
@@ -35,7 +34,6 @@ export default function Feed(props: any) {
         <input id="standalone-photo-upload" type="file" accept="image/*" style={{display: 'none'}} onChange={handleUserPhotoChange} /> 
       </div> 
 
-      {/* Форма загрузки своего блюда */} 
       {isStandaloneUploadOpen && userPhotoPreview && ( 
         <div className="card animate-fade-in" style={{border: '2px solid #0ea5e9', marginBottom: '25px'}}> 
           <h3 style={{marginTop: 0, marginBottom: '15px'}}>Публикация своего блюда</h3> 
@@ -82,64 +80,74 @@ export default function Feed(props: any) {
       </div> 
 
       <div style={{display: 'flex', flexDirection: 'column', gap: '20px'}}> 
-        {photosFeed?.map((post: any) => ( 
-          <div key={post.id} id={`feed-post-${post.id}`} className="card" style={{padding: '0', overflow: 'hidden', border: '1px solid #e5e7eb'}}> 
-            <div style={{padding: '15px', display: 'flex', alignItems: 'center', gap: '10px', background: 'white'}}> 
-               {post.user_avatar ? ( 
-                  <img src={post.user_avatar} alt="Avatar" style={{width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover'}} /> 
-               ) : ( 
-                  <div style={{width: '36px', height: '36px', borderRadius: '50%', background: '#0ea5e9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 800, fontSize: '16px', flexShrink: 0}}> 
-                    {post.user_name?.charAt(0).toUpperCase() || 'Ш'} 
-                  </div> 
-               )} 
-               <div style={{flex: 1}}> 
-                  <div style={{fontWeight: 800, fontSize: '14px', color: '#111', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap'}}>
-                    {post.user_name || 'Анонимный шеф'}
-                    {renderUserBadge(post.user_id, userLevels[post.user_id])}
-                  </div> 
-                  {post.recipe_id ? ( 
-                    <div style={{fontSize: '12px', color: '#6b7280', display: 'flex', alignItems: 'center', gap: '4px'}}> 
-                      Приготовил(а): <span style={{color: '#059669', fontWeight: 600, cursor: 'pointer'}} onClick={() => loadSharedRecipe(post.recipe_id, 'photos')}>{post.recipes?.title || 'Рецепт'}</span> 
+        {photosFeed?.map((post: any) => {
+          const { isDev, devBadge, restBadge } = getUserBadges(post.user_id, userLevels[post.user_id]);
+
+          return (
+            <div key={post.id} id={`feed-post-${post.id}`} className="card" style={{padding: '0', overflow: 'hidden', border: '1px solid #e5e7eb'}}> 
+              <div style={{padding: '15px', display: 'flex', alignItems: 'flex-start', gap: '10px', background: 'white'}}> 
+                 {post.user_avatar ? ( 
+                    <img src={post.user_avatar} alt="Avatar" style={{width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover'}} /> 
+                 ) : ( 
+                    <div style={{width: '36px', height: '36px', borderRadius: '50%', background: '#0ea5e9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 800, fontSize: '16px', flexShrink: 0}}> 
+                      {post.user_name?.charAt(0).toUpperCase() || 'Ш'} 
                     </div> 
-                  ) : ( 
-                    <div style={{fontSize: '12px', color: '#0ea5e9', fontWeight: 700}}>По своему рецепту: {post.custom_title}</div> 
-                  )} 
-               </div> 
-               {user && user.id === post.user_id && ( 
-                  <button onClick={() => handleDeletePost(post.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer' }}><Trash2 size={18} /></button> 
-               )} 
-            </div> 
-             
-            <img src={post.photo_url} alt="Блюдо" onClick={() => setFullScreenImage(post.photo_url)} style={{width: '100%', maxHeight: '400px', objectFit: 'cover', display: 'block', background: '#f3f4f6', cursor: 'zoom-in'}} /> 
-             
-            <div style={{padding: '15px', background: 'white'}}> 
-              {post.comment && ( <p style={{margin: '0 0 15px 0', fontSize: '14px', color: '#374151', lineHeight: 1.5, wordBreak: 'break-word'}}> <strong>Описание:</strong> {post.comment} </p> )} 
-              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}> 
-                {/* Лайки и комменты слева */}
-                <div style={{display: 'flex', gap: '10px'}}> 
-                  <button onClick={(e) => handlePhotoLike(e, post)} style={{background: post.is_liked ? '#fee2e2' : '#f3f4f6', border: 'none', borderRadius: '100px', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px', color: post.is_liked ? '#ef4444' : '#4b5563', fontWeight: 700, fontSize: '14px', transition: 'all 0.2s', cursor: 'pointer'}}> 
-                    <Heart size={18} fill={post.is_liked ? "#ef4444" : "none"} /> {post.likes_count || 0} 
-                  </button> 
-                  <button onClick={() => handleOpenCommentsClick(post.id)} disabled={openingCommentsId === post.id} style={{background: '#f3f4f6', border: 'none', borderRadius: '100px', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px', color: '#4b5563', fontWeight: 700, fontSize: '14px', cursor: openingCommentsId === post.id ? 'default' : 'pointer'}}> 
-                    {openingCommentsId === post.id ? (
-                      <><Sparkles className="animate-spin" size={18} /> Загрузка...</>
-                    ) : (
-                      <><MessageCircle size={18} /> {post.comments_count || 0}</>
-                    )}
-                  </button> 
-                </div> 
-                {/* Кнопка К рецепту справа */}
-                <div>
-                  {post.recipe_id && ( 
-                    <button onClick={() => loadSharedRecipe(post.recipe_id, 'photos')} style={{background: 'transparent', border: 'none', color: '#0ea5e9', fontWeight: 700, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', padding: 0}}> 
-                       К рецепту <ArrowRight size={16} /> 
+                 )} 
+                 <div style={{flex: 1, display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start'}}> 
+                    {/* Линия 1: Имя + Разработчик (или Ресторан для обычных) */}
+                    <div style={{display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap'}}>
+                      <span style={{fontWeight: 900, fontSize: '15px', color: '#111'}}>
+                        {post.user_name || 'Анонимный шеф'}
+                      </span>
+                      {isDev ? devBadge : restBadge}
+                    </div> 
+                    {/* Линия 2: Ресторан (только для разработчика) */}
+                    {isDev && <div>{restBadge}</div>}
+
+                    {post.recipe_id ? ( 
+                      <div style={{fontSize: '12px', color: '#6b7280', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px'}}> 
+                        Приготовил(а): <span style={{color: '#059669', fontWeight: 600, cursor: 'pointer'}} onClick={() => loadSharedRecipe(post.recipe_id, 'photos')}>{post.recipes?.title || 'Рецепт'}</span> 
+                      </div> 
+                    ) : ( 
+                      <div style={{fontSize: '12px', color: '#0ea5e9', fontWeight: 700, marginTop: '2px'}}>По своему рецепту: {post.custom_title}</div> 
+                    )} 
+                 </div> 
+                 {user && user.id === post.user_id && ( 
+                    <button onClick={() => handleDeletePost(post.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 0 }}><Trash2 size={18} /></button> 
+                 )} 
+              </div> 
+               
+              <img src={post.photo_url} alt="Блюдо" onClick={() => setFullScreenImage(post.photo_url)} style={{width: '100%', maxHeight: '400px', objectFit: 'cover', display: 'block', background: '#f3f4f6', cursor: 'zoom-in'}} /> 
+               
+              <div style={{padding: '15px', background: 'white'}}> 
+                {post.comment && ( <p style={{margin: '0 0 15px 0', fontSize: '14px', color: '#374151', lineHeight: 1.5, wordBreak: 'break-word'}}> <strong>Описание:</strong> {post.comment} </p> )} 
+                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}> 
+                  {/* Лайки и комменты слева */}
+                  <div style={{display: 'flex', gap: '10px'}}> 
+                    <button onClick={(e) => handlePhotoLike(e, post)} style={{background: post.is_liked ? '#fee2e2' : '#f3f4f6', border: 'none', borderRadius: '100px', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px', color: post.is_liked ? '#ef4444' : '#4b5563', fontWeight: 700, fontSize: '14px', transition: 'all 0.2s', cursor: 'pointer'}}> 
+                      <Heart size={18} fill={post.is_liked ? "#ef4444" : "none"} /> {post.likes_count || 0} 
                     </button> 
-                  )} 
-                </div>
+                    <button onClick={() => handleOpenCommentsClick(post.id)} disabled={openingCommentsId === post.id} style={{background: '#f3f4f6', border: 'none', borderRadius: '100px', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px', color: '#4b5563', fontWeight: 700, fontSize: '14px', cursor: openingCommentsId === post.id ? 'default' : 'pointer'}}> 
+                      {openingCommentsId === post.id ? (
+                        <><Sparkles className="animate-spin" size={18} /> Загрузка...</>
+                      ) : (
+                        <><MessageCircle size={18} /> {post.comments_count || 0}</>
+                      )}
+                    </button> 
+                  </div> 
+                  {/* Кнопка К рецепту справа */}
+                  <div>
+                    {post.recipe_id && ( 
+                      <button onClick={() => loadSharedRecipe(post.recipe_id, 'photos')} style={{background: 'transparent', border: 'none', color: '#0ea5e9', fontWeight: 700, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', padding: 0}}> 
+                         К рецепту <ArrowRight size={16} /> 
+                      </button> 
+                    )} 
+                  </div>
+                </div> 
               </div> 
             </div> 
-          </div> 
-        ))} 
+          );
+        })} 
         {photosFeed.length === 0 && <div style={{textAlign: 'center', padding: '40px', color: '#9ca3af'}}>Здесь пока нет фотографий. Поделитесь своим шедевром первым! 📸</div>} 
       </div> 
     </div> 

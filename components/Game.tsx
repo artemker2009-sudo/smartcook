@@ -5,7 +5,7 @@ export default function Game(props: any) {
   const {
     user, setIsAuthModalOpen, restaurantLevel, gameTab, setGameTab,
     floatingClicks, cooks, formatCooks, passiveIncome, handleCookClick,
-    energy, clickPower, buyUpgrade, leaderboard, renderUserBadge, switchView
+    energy, clickPower, buyUpgrade, leaderboard, getUserBadges, switchView
   } = props;
 
   return (
@@ -176,34 +176,39 @@ export default function Game(props: any) {
              <div style={{textAlign: 'center', color: '#9ca3af', padding: '20px'}}>Загрузка рейтинга...</div>
           ) : (
             <div style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
-              {leaderboard.map((lbUser: any, idx: number) => (
-                <div key={idx} style={{display: 'flex', alignItems: 'center', gap: '12px', background: idx === 0 ? '#fffbeb' : idx === 1 ? '#f8fafc' : idx === 2 ? '#fff1f2' : 'white', padding: '12px', borderRadius: '16px', border: idx < 3 ? `1px solid ${idx === 0 ? '#fde68a' : idx === 1 ? '#e2e8f0' : '#fecdd3'}` : '1px solid #f1f5f9'}}>
-                   <div style={{width: '24px', fontWeight: 900, color: idx === 0 ? '#d97706' : idx === 1 ? '#64748b' : idx === 2 ? '#be123c' : '#9ca3af', fontSize: '16px', textAlign: 'center'}}>
-                     {idx + 1}
-                   </div>
-                   
-                   {lbUser.user_avatar ? ( 
-                      <img src={lbUser.user_avatar} alt="Avatar" style={{width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover'}} /> 
-                   ) : ( 
-                      <div style={{width: '36px', height: '36px', borderRadius: '50%', background: '#e2e8f0', color: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 800, flexShrink: 0}}> 
-                        {lbUser.user_name?.charAt(0).toUpperCase() || 'Ш'} 
-                      </div> 
-                   )}
-                   
-                   <div style={{flex: 1, minWidth: 0}}>
-                     <div style={{fontWeight: 800, fontSize: '14px', color: '#111', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
-                       {lbUser.user_name || 'Анонимный шеф'}
+              {leaderboard.map((lbUser: any, idx: number) => {
+                const { isDev, devBadge, restBadge } = getUserBadges(lbUser.user_id, lbUser.restaurant_level);
+                return (
+                  <div key={idx} style={{display: 'flex', alignItems: 'center', gap: '12px', background: idx === 0 ? '#fffbeb' : idx === 1 ? '#f8fafc' : idx === 2 ? '#fff1f2' : 'white', padding: '12px', borderRadius: '16px', border: idx < 3 ? `1px solid ${idx === 0 ? '#fde68a' : idx === 1 ? '#e2e8f0' : '#fecdd3'}` : '1px solid #f1f5f9'}}>
+                     <div style={{width: '24px', fontWeight: 900, color: idx === 0 ? '#d97706' : idx === 1 ? '#64748b' : idx === 2 ? '#be123c' : '#9ca3af', fontSize: '16px', textAlign: 'center', flexShrink: 0}}>
+                       {idx + 1}
                      </div>
-                     <div style={{display: 'flex', gap: '5px', marginTop: '4px'}}>
-                       {renderUserBadge(lbUser.user_id, lbUser.restaurant_level)}
+                     
+                     {lbUser.user_avatar ? ( 
+                        <img src={lbUser.user_avatar} alt="Avatar" style={{width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0}} /> 
+                     ) : ( 
+                        <div style={{width: '36px', height: '36px', borderRadius: '50%', background: '#e2e8f0', color: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 800, flexShrink: 0}}> 
+                          {lbUser.user_name?.charAt(0).toUpperCase() || 'Ш'} 
+                        </div> 
+                     )}
+                     
+                     <div style={{flex: 1, minWidth: 0}}>
+                       <div style={{fontWeight: 800, fontSize: '14px', color: '#111', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
+                         {lbUser.user_name || 'Анонимный шеф'}
+                       </div>
+                       {/* Выстраиваем в столбик: сначала разраб, потом ресторан */}
+                       <div style={{display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px', marginTop: '4px'}}>
+                         {isDev && devBadge}
+                         {restBadge}
+                       </div>
                      </div>
-                   </div>
-                   
-                   <div style={{fontWeight: 900, color: '#f59e0b', fontSize: '14px', whiteSpace: 'nowrap'}}>
-                     {lbUser.cooks} 🍪
-                   </div>
-                </div>
-              ))}
+                     
+                     <div style={{fontWeight: 900, color: '#f59e0b', fontSize: '14px', whiteSpace: 'nowrap', flexShrink: 0}}>
+                       {lbUser.cooks} 🍪
+                     </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

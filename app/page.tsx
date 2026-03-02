@@ -9,6 +9,7 @@ import {
   Wallet, Zap, Leaf, Globe, ChevronRight, ChevronDown, ChevronUp, Shuffle, ShoppingCart, Lock, ShoppingBag, ExternalLink, Info, ThumbsUp, Share2, User, LogOut, Mail, MessageCircle, PlusCircle, Trash2, Edit3, CornerDownRight, Settings, Store, Trophy
 } from "lucide-react";
 
+// Импортируем компоненты
 import Profile from "@/components/Profile";
 import DailyRecipe from "@/components/DailyRecipe";
 import Feed from "@/components/Feed";
@@ -133,6 +134,7 @@ export default function Home() {
   const [user, setUser] = useState<any>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   
+  // Анонимная авторизация
   const [authUsername, setAuthUsername] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [authMode, setAuthMode] = useState<'login' | 'register'>('register');
@@ -201,21 +203,21 @@ export default function Home() {
     }
   };
 
-  // ДВОЙНАЯ ПЛАШКА
+  // ДВОЙНАЯ ПЛАШКА: выровнено по центру!
   const renderUserBadge = (uid: string | undefined | null, level?: number) => {
     if (!uid) return null;
     
     const badges = [];
     if (uid === DEVELOPER_ID) {
-      badges.push(<span key="dev" style={{fontSize: '10px', background: '#111', color: '#38bdf8', padding: '2px 8px', borderRadius: '100px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px'}}>👨‍💻 Разработчик</span>);
+      badges.push(<span key="dev" style={{fontSize: '10px', background: '#111', color: '#38bdf8', padding: '4px 8px', borderRadius: '100px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px', lineHeight: 1}}>👨‍💻 Разработчик</span>);
     }
     if (level) {
        const titles = ['Ларёк 🌭', 'Закусочная 🍔', 'Кафе ☕️', 'Ресторан 🍽', 'Мишленовский ресторан ⭐️', 'Сеть ресторанов 👑'];
-       badges.push(<span key="rest" style={{fontSize: '10px', background: '#fef3c7', color: '#d97706', padding: '2px 8px', borderRadius: '100px', fontWeight: 800}}>{titles[Math.min(level - 1, 5)]}</span>);
+       badges.push(<span key="rest" style={{fontSize: '10px', background: '#fef3c7', color: '#d97706', padding: '4px 8px', borderRadius: '100px', fontWeight: 800, display: 'flex', alignItems: 'center', lineHeight: 1}}>{titles[Math.min(level - 1, 5)]}</span>);
     }
     
     return badges.length > 0 ? (
-      <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexWrap: 'wrap', marginTop: '2px' }}>{badges}</div>
+      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', marginTop: '4px' }}>{badges}</div>
     ) : null;
   };
 
@@ -960,13 +962,14 @@ export default function Home() {
           toggleDailyFavorite={toggleDailyFavorite} handleShareDaily={handleShareDaily} 
           formatTime={formatTime} formatCalories={formatCalories} cleanText={cleanText} 
           question={question} setQuestion={setQuestion} handleAskChef={handleAskChef} answer={answer}
+          asking={asking}
         />
       )}
 
       {activeView === 'about' && <About />}
 
 
-      {/* === ГЛАВНЫЙ СЕРВИС ПОИСКА (Оставлен внутри page.tsx) === */}
+      {/* === ГЛАВНЫЙ СЕРВИС ПОИСКА === */}
       {activeView === 'service' && ( 
         <> 
           {!isHistoryView && fromFeed === false && !isSharedView && ( 
@@ -1173,11 +1176,17 @@ export default function Home() {
                       e.target.style.height = (e.target.scrollHeight < 120 ? e.target.scrollHeight : 120) + 'px';
                     }} 
                     rows={1}
-                    style={{ flex: 1, width: '100%', padding: '12px 16px', borderRadius: '22px', border: '1px solid #93c5fd', fontSize: '15px', outline: 'none', background: 'white', resize: 'none', overflowY: 'auto', height: '44px', minHeight: '44px', maxHeight: '120px', boxSizing: 'border-box', lineHeight: '18px', fontFamily: 'inherit' }}
+                    disabled={asking}
+                    style={{ flex: 1, width: '100%', padding: '12px 16px', borderRadius: '22px', border: '1px solid #93c5fd', fontSize: '15px', outline: 'none', background: asking ? '#f8fafc' : 'white', resize: 'none', overflowY: 'auto', height: '44px', minHeight: '44px', maxHeight: '120px', boxSizing: 'border-box', lineHeight: '18px', fontFamily: 'inherit' }}
                   /> 
-                  <button onClick={handleAskChef} style={{flexShrink: 0, padding: 0, width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: '#3b82f6', color: 'white', border: 'none', cursor: 'pointer'}}> <Send size={18} style={{marginLeft: '-2px'}}/> </button> 
+                  <button onClick={handleAskChef} disabled={asking || !question.trim()} style={{flexShrink: 0, padding: 0, width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: (asking || !question.trim()) ? '#bae6fd' : '#3b82f6', color: 'white', border: 'none', cursor: (asking || !question.trim()) ? 'default' : 'pointer'}}> <Send size={18} style={{marginLeft: '-2px'}}/> </button> 
                 </div> 
-                {answer && <div style={{marginTop: '20px', lineHeight: 1.5, background: 'white', padding: '15px', borderRadius: '16px'}}><strong>Ответ:</strong> {answer}</div>} 
+                {asking && (
+                  <div style={{marginTop: '15px', color: '#0ea5e9', fontSize: '14px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center'}}>
+                    <Sparkles className="animate-spin" size={16} /> Шеф-повар думает над ответом...
+                  </div>
+                )}
+                {answer && !asking && <div style={{marginTop: '20px', lineHeight: 1.5, background: 'white', padding: '15px', borderRadius: '16px'}}><strong>Ответ:</strong> {answer}</div>} 
               </div> 
 
               <div style={{marginTop: '30px', background: '#f8fafc', padding: '25px 20px', borderRadius: '16px', border: '1px solid #e2e8f0', textAlign: 'center'}}> 

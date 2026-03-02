@@ -202,23 +202,25 @@ export default function Home() {
     }
   };
 
-  // ДВОЙНАЯ ПЛАШКА: исправлено выравнивание (теперь без лишних div)
+  // ДВОЙНАЯ ПЛАШКА
   const renderUserBadge = (uid: string | undefined | null, level?: number) => {
     if (!uid) return null;
     
     const badges = [];
     if (uid === DEVELOPER_ID) {
-      badges.push(<span key="dev" style={{fontSize: '10px', background: '#111', color: '#38bdf8', padding: '4px 8px', borderRadius: '100px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px', lineHeight: 1}}>👨‍💻 Разработчик</span>);
-    }
-    if (level) {
-       const titles = ['Ларёк 🌭', 'Закусочная 🍔', 'Кафе ☕️', 'Ресторан 🍽', 'Мишленовский ресторан ⭐️', 'Сеть ресторанов 👑'];
-       badges.push(<span key="rest" style={{fontSize: '10px', background: '#fef3c7', color: '#d97706', padding: '4px 8px', borderRadius: '100px', fontWeight: 800, display: 'flex', alignItems: 'center', lineHeight: 1}}>{titles[Math.min(level - 1, 5)]}</span>);
+      badges.push(<span key="dev" style={{fontSize: '11px', background: '#111', color: '#38bdf8', padding: '4px 10px', borderRadius: '100px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '4px', lineHeight: 1}}>👨‍💻 Разработчик</span>);
     }
     
-    // Возвращаем Фрагмент, чтобы элементы шли в ряд и не ломали flex родителя
-    return badges.length > 0 ? (
-      <>{badges}</>
-    ) : null;
+    const safeLevel = level || 1;
+    const titles = ['Ларёк 🌭', 'Закусочная 🍔', 'Кафе ☕️', 'Ресторан 🍽', 'Мишленовский ресторан ⭐️', 'Сеть ресторанов 👑'];
+    badges.push(<span key="rest" style={{fontSize: '11px', background: '#fef3c7', color: '#d97706', padding: '4px 10px', borderRadius: '100px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', lineHeight: 1}}>{titles[Math.min(safeLevel - 1, 5)]}</span>);
+    
+    // Обернуто в div с display: flex для жесткой фиксации в строку
+    return (
+      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+        {badges}
+      </div>
+    );
   };
 
   useEffect(() => {
@@ -290,7 +292,6 @@ export default function Home() {
     }
   }, [photosFeed, postComments]);
 
-  // --- ИСПРАВЛЕННАЯ ЛОГИКА СОХРАНЕНИЯ ПРОГРЕССА ИГРЫ ---
   useEffect(() => {
     if (user) {
       supabase.from('game_progress').select('*').eq('user_id', user.id).single()
@@ -301,23 +302,21 @@ export default function Home() {
         const localL = Number(localStorage.getItem('sc_restLevel') || 1);
 
         if (data) {
-          // БЕРЕМ МАКСИМАЛЬНОЕ ЗНАЧЕНИЕ (чтобы локальный прогресс не затерся старой базой)
           setCooks(Math.max(data.cooks || 0, localC)); 
           setClickPower(Math.max(data.click_power || 1, localP)); 
           setPassiveIncome(Math.max(data.passive_income || 0, localPI)); 
           setRestaurantLevel(Math.max(data.restaurant_level || 1, localL)); 
           setEnergy(data.energy || 500);
         } else {
-          // Если аккаунт новый, создаем строку
           setCooks(localC); setClickPower(localP); setPassiveIncome(localPI); setRestaurantLevel(localL);
           const safeName = user.user_metadata?.username || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Шеф';
           
-          supabase.from('game_progress').insert({ 
+          supabase.from('game_progress').upsert({ 
             user_id: user.id, 
             user_name: safeName, 
             user_avatar: user.user_metadata?.avatar_url || null, 
             cooks: localC, click_power: localP, passive_income: localPI, restaurant_level: localL, energy: 500 
-          }).then(({error: insError}) => {
+          }, { onConflict: 'user_id' }).then(({error: insError}) => {
              if(insError) console.error("Ошибка создания прогресса:", insError);
           });
         }
@@ -369,9 +368,10 @@ export default function Home() {
     }
   }, [dailyRecipe, feed]);
 
+  // ИСПРАВЛЕН ЗАПРОС ЛИДЕРБОРДА: Убран .limit(50), теперь загружает всех!
   useEffect(() => {
     if (gameTab === 'leaderboard') {
-      supabase.from('game_progress').select('*').order('restaurant_level', { ascending: false }).order('cooks', { ascending: false }).limit(50).then(({data}) => { if (data) setLeaderboard(data); });
+      supabase.from('game_progress').select('*').order('restaurant_level', { ascending: false }).order('cooks', { ascending: false }).then(({data}) => { if (data) setLeaderboard(data); });
     }
   }, [gameTab]);
 
@@ -487,14 +487,28 @@ export default function Home() {
   }; 
 
   const openComments = async (postId: number) => { 
-    setCommentsModalPostId(postId); setPostComments([]); setReplyingTo(null); setIsLoadingComments(true);
-    const { data } = await supabase.from('photo_comments').select('*').eq('post_id', postId).order('created_at', { ascending: true }); 
-    let likedIds = new Set(); 
-    if (userId && data && data.length > 0) { 
-      const cIds = data.map(c => c.id); const { data: likes } = await supabase.from('comment_likes').select('comment_id').in('comment_id', cIds).eq('session_id', userId); 
-      if (likes) likes.forEach((l: any) => likedIds.add(l.comment_id)); 
-    } 
-    setPostComments(data?.map(c => ({...c, is_liked: likedIds.has(c.id)})) || []); setIsLoadingComments(false);
+    try {
+      setCommentsModalPostId(postId); 
+      setPostComments([]); 
+      setReplyingTo(null); 
+      setIsLoadingComments(true); 
+      
+      const { data, error } = await supabase.from('photo_comments').select('*').eq('post_id', postId).order('created_at', { ascending: true }); 
+      if (error) throw error;
+
+      let likedIds = new Set(); 
+      if (userId && data && data.length > 0) { 
+        const cIds = data.map(c => c.id); 
+        const { data: likes } = await supabase.from('comment_likes').select('comment_id').in('comment_id', cIds).eq('session_id', userId); 
+        if (likes) likes.forEach((l: any) => likedIds.add(l.comment_id)); 
+      } 
+      setPostComments(data?.map(c => ({...c, is_liked: likedIds.has(c.id)})) || []); 
+    } catch (e) {
+      console.error(e);
+      alert("Не удалось загрузить комментарии");
+    } finally {
+      setIsLoadingComments(false);
+    }
   }; 
 
   const submitComment = async () => { 
@@ -784,7 +798,7 @@ export default function Home() {
         .float-coin { position: absolute; animation: floatUp 0.8s ease-out forwards; pointer-events: none; font-size: 24px; font-weight: 900; color: #f59e0b; text-shadow: 0px 2px 4px rgba(0,0,0,0.3); z-index: 10; }
       `}</style> 
 
-      {/* --- МОДАЛКИ (ФУЛСКРИН, ОБРЕЗКА ФОТО, КОММЕНТАРИИ) --- */}
+      {/* --- МОДАЛКИ --- */}
       {fullScreenImage && ( 
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={() => setFullScreenImage(null)}> 
           <button style={{position: 'absolute', top: '20px', right: '20px', background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', padding: '10px', color: 'white', cursor: 'pointer', backdropFilter: 'blur(5px)'}} onClick={() => setFullScreenImage(null)}> <X size={24} /> </button> 
@@ -804,7 +818,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* --- МОДАЛКА КОММЕНТАРИЕВ (ВЕРНУЛАСЬ!) --- */}
+      {/* --- МОДАЛКА КОММЕНТАРИЕВ --- */}
       {commentsModalPostId && ( 
         <div style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}> 
           <div className="animate-fade-in" style={{ background: '#f8fafc', width: '100%', maxWidth: '500px', height: '85dvh', paddingBottom: 'env(safe-area-inset-bottom, 15px)', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', display: 'flex', flexDirection: 'column', boxShadow: '0 -10px 40px rgba(0,0,0,0.2)' }}> 
@@ -1027,11 +1041,11 @@ export default function Home() {
             <div className="menu-link" onClick={() => switchView('feed')} style={{ background: activeView === 'feed' ? '#f1f5f9' : 'transparent', color: activeView === 'feed' ? '#0f172a' : '#475569', fontWeight: activeView === 'feed' ? 800 : 600 }}> 
                <Globe size={22} color="#8b5cf6" style={{flexShrink: 0}}/> Лента 
             </div> 
-            <div className="menu-link" onClick={() => switchView('daily')} style={{ background: activeView === 'daily' ? '#f1f5f9' : 'transparent', color: activeView === 'daily' ? '#0f172a' : '#475569', fontWeight: activeView === 'daily' ? 800 : 600 }}>
-               <Flame size={22} color="#f97316" style={{flexShrink: 0}}/> Рецепт дня
-            </div> 
             <div className="menu-link" onClick={() => switchView('game')} style={{ background: activeView === 'game' ? '#f1f5f9' : 'transparent', color: activeView === 'game' ? '#0f172a' : '#475569', fontWeight: activeView === 'game' ? 800 : 600 }}>
                <Store size={22} color="#f59e0b" style={{flexShrink: 0}}/> Мой ресторан
+            </div> 
+            <div className="menu-link" onClick={() => switchView('daily')} style={{ background: activeView === 'daily' ? '#f1f5f9' : 'transparent', color: activeView === 'daily' ? '#0f172a' : '#475569', fontWeight: activeView === 'daily' ? 800 : 600 }}>
+               <Flame size={22} color="#f97316" style={{flexShrink: 0}}/> Рецепт дня
             </div> 
              
             <div className="menu-link" style={{ marginTop: '10px', background: activeView === 'about' ? '#f1f5f9' : 'transparent', color: activeView === 'about' ? '#0f172a' : '#475569', fontWeight: activeView === 'about' ? 800 : 600 }} onClick={() => switchView('about')}>
@@ -1073,6 +1087,7 @@ export default function Home() {
         />
       )}
 
+      {/* ИСПОЛЬЗУЕМ ТВОЙ КРАСИВЫЙ DailyRecipe с прокинутыми функциями для Чата с Шефом */}
       {activeView === 'daily' && (
         <DailyRecipe 
           dailyError={dailyError} dailyRecipe={dailyRecipe} dailyFavoriteId={dailyFavoriteId} 
@@ -1365,7 +1380,7 @@ export default function Home() {
                 <> 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '15px', marginBottom: '10px' }}> 
                     {visibleHistory?.map((item) => ( 
-                      <div key={item.id} className="card" style={{ padding: '15px', cursor: 'pointer', marginBottom: 0, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }} onClick={() => loadFromHistory(item, 'history')}> 
+                      <div key={item.id} className="card" style={{ padding: '15px', cursor: 'pointer', marginBottom: 0, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: item.is_favorite ? '2px solid #ef4444' : '1px solid #e5e7eb' }} onClick={() => loadFromHistory(item, 'history')}> 
                         <div style={{ fontWeight: 700, fontSize: '14px', marginBottom: '8px', lineHeight: 1.3, height: '38px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', wordBreak: 'break-word' }}> {item.title} </div> 
                         <div style={{display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#6b7280'}}> 
                            <div style={{display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap'}}><Clock size={12}/> {formatTime(item.time)}</div> 

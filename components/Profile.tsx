@@ -2,7 +2,6 @@ import React from "react";
 import { User, Edit3, LogOut, Settings, ChevronRight, Heart, Clock, Flame, Trash2, MessageCircle, Camera } from "lucide-react";
 
 export default function Profile(props: any) {
-  // Вытаскиваем все необходимые данные и функции из пропсов, которые передаст page.tsx
   const {
     user, cooks, restaurantLevel, profileView, setProfileView, feed, userPhotos,
     handleLogout, setIsEditingProfile, setIsPreferencesModalOpen, setIsAuthModalOpen,
@@ -36,11 +35,14 @@ export default function Profile(props: any) {
             </div>
             
             <div style={{padding: '0 20px 20px 20px'}}>
-              <h2 style={{margin: '0 0 5px 0', fontSize: '20px', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', flexWrap: 'wrap'}}>
+              <h2 style={{margin: '0 0 2px 0', fontSize: '20px', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', flexWrap: 'wrap'}}>
                 {user.user_metadata?.full_name || 'Шеф'}
                 {renderUserBadge(user.id, restaurantLevel)}
               </h2>
-              <p style={{margin: '0 0 15px 0', fontSize: '13px', color: '#64748b'}}>Анонимный профиль</p>
+              {/* Выводим Username как в Телеграме */}
+              <p style={{margin: '0 0 15px 0', fontSize: '14px', color: '#0ea5e9', fontWeight: 700}}>
+                @{user.email?.split('@')[0]}
+              </p>
               
               <div style={{display: 'flex', gap: '10px', justifyContent: 'center', marginBottom: '25px'}}>
                 <button onClick={() => setIsEditingProfile(true)} style={{background: '#f1f5f9', border: 'none', padding: '8px 16px', borderRadius: '100px', fontSize: '13px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', transition: 'all 0.2s'}}>

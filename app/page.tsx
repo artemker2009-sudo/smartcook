@@ -9,9 +9,9 @@ import {
   Wallet, Zap, Leaf, Globe, ChevronRight, ChevronDown, ChevronUp, Shuffle, ShoppingCart, Lock, ShoppingBag, ExternalLink, Info, ThumbsUp, Share2, User, LogOut, Mail, MessageCircle, PlusCircle, Trash2, Edit3, CornerDownRight, Settings, Store, Trophy
 } from "lucide-react";
 
-// Импортируем наши новые компоненты!
+// Импортируем компоненты
 import Profile from "@/components/Profile";
-import DailyRecipe from "@/components/DailyRecipe";
+import DailyRecipe from "@/components/DailyRecipe"; // ТВОЙ КРАСИВЫЙ ФАЙЛ
 import Feed from "@/components/Feed";
 import Game from "@/components/Game";
 import About from "@/components/About";
@@ -134,6 +134,7 @@ export default function Home() {
   const [user, setUser] = useState<any>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   
+  // Анонимная авторизация
   const [authUsername, setAuthUsername] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [authMode, setAuthMode] = useState<'login' | 'register'>('register');
@@ -158,6 +159,7 @@ export default function Home() {
 
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editProfileName, setEditProfileName] = useState("");
+  const [editUsername, setEditUsername] = useState(""); 
   const [editAvatarFile, setEditAvatarFile] = useState<File | null>(null);
   const [editAvatarPreview, setEditAvatarPreview] = useState<string | null>(null);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -201,16 +203,22 @@ export default function Home() {
     }
   };
 
+  // ДВОЙНАЯ ПЛАШКА
   const renderUserBadge = (uid: string | undefined | null, level?: number) => {
     if (!uid) return null;
+    
+    const badges = [];
     if (uid === DEVELOPER_ID) {
-      return ( <span style={{fontSize: '10px', background: '#111', color: '#38bdf8', padding: '2px 8px', borderRadius: '100px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px'}}>👨‍💻 Разработчик</span> );
+      badges.push(<span key="dev" style={{fontSize: '10px', background: '#111', color: '#38bdf8', padding: '2px 8px', borderRadius: '100px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px'}}>👨‍💻 Разработчик</span>);
     }
     if (level) {
        const titles = ['Ларёк 🌭', 'Закусочная 🍔', 'Кафе ☕️', 'Ресторан 🍽', 'Мишленовский ресторан ⭐️', 'Сеть ресторанов 👑'];
-       return ( <span style={{fontSize: '10px', background: '#fef3c7', color: '#d97706', padding: '2px 8px', borderRadius: '100px', fontWeight: 800}}>{titles[Math.min(level - 1, 5)]}</span> );
+       badges.push(<span key="rest" style={{fontSize: '10px', background: '#fef3c7', color: '#d97706', padding: '2px 8px', borderRadius: '100px', fontWeight: 800}}>{titles[Math.min(level - 1, 5)]}</span>);
     }
-    return null;
+    
+    return badges.length > 0 ? (
+      <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexWrap: 'wrap' }}>{badges}</div>
+    ) : null;
   };
 
   useEffect(() => {
@@ -229,7 +237,9 @@ export default function Home() {
     let currentSessionId = localStorage.getItem("cook_user_id");
     if (user) {
       currentSessionId = user.id; localStorage.setItem("cook_user_id", user.id);
-      setEditProfileName(user.user_metadata?.full_name || ""); setEditAvatarPreview(user.user_metadata?.avatar_url || null);
+      setEditProfileName(user.user_metadata?.full_name || ""); 
+      setEditAvatarPreview(user.user_metadata?.avatar_url || null);
+      setEditUsername(user.email?.split('@')[0] || ""); 
     } else if (!currentSessionId) {
       currentSessionId = "user_" + Math.random().toString(36).substr(2, 9); localStorage.setItem("cook_user_id", currentSessionId); 
     }
@@ -359,17 +369,17 @@ export default function Home() {
         const { data, error } = await supabase.auth.signUp({ email: dummyEmail, password: authPassword, options: { data: { full_name: authUsername.trim() } } });
         if (error) {
           if (error.message.includes('already registered') || error.message.includes('User already exists')) {
-            alert("Этот логин уже занят! Выберите другой или перейдите во вкладку «Войти».");
+            alert("Этот Username уже занят! Выберите другой или перейдите во вкладку «Войти».");
           } else throw error;
         } else {
-          alert("Успешная регистрация! Добро пожаловать.");
+          alert("Успешная регистрация! Добро пожаловать, шеф.");
           setIsAuthModalOpen(false);
         }
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({ email: dummyEmail, password: authPassword });
         if (error) {
           if (error.message.includes('Invalid login credentials')) {
-            alert("Неверный логин или пароль!");
+            alert("Неверный Username или пароль!");
           } else throw error;
         } else {
           setIsAuthModalOpen(false);
@@ -412,14 +422,31 @@ export default function Home() {
       if (editAvatarFile) { 
         const fileName = `${user.id}/avatar_${Date.now()}.jpg`; const { error: uploadError } = await supabase.storage.from('avatars').upload(fileName, editAvatarFile, { upsert: true }); if (uploadError) throw uploadError; const { data } = supabase.storage.from('avatars').getPublicUrl(fileName); avatarUrl = data.publicUrl + '?t=' + Date.now(); 
       } 
-      const { data, error } = await supabase.auth.updateUser({ data: { full_name: editProfileName, avatar_url: avatarUrl } }); 
-      if (error) throw error; setUser(data.user); setIsEditingProfile(false); 
+
+      const newUsername = editUsername.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+      if (!newUsername) throw new Error("Username не может быть пустым");
+
+      let updates: any = { data: { full_name: editProfileName, avatar_url: avatarUrl } };
+      
+      if (newUsername !== user.email?.split('@')[0]) {
+         updates.email = `${newUsername}@smartcook.app`;
+      }
+
+      const { data, error } = await supabase.auth.updateUser(updates); 
+      if (error) {
+         if (error.message.includes('already registered') || error.message.includes('already exists')) {
+            throw new Error("К сожалению, этот Username уже занят другим шефом!");
+         }
+         throw error;
+      }
+
+      setUser(data.user); setIsEditingProfile(false); 
       await supabase.from('feed_posts').update({ user_name: editProfileName, user_avatar: avatarUrl }).eq('user_id', user.id);
       await supabase.from('photo_comments').update({ user_name: editProfileName, user_avatar: avatarUrl }).eq('user_id', user.id);
       await supabase.from('game_progress').update({ user_name: editProfileName, user_avatar: avatarUrl }).eq('user_id', user.id);
       setPhotosFeed(prev => prev.map(p => p.user_id === user.id ? { ...p, user_name: editProfileName, user_avatar: avatarUrl } : p));
       setUserPhotos(prev => prev.map(p => p.user_id === user.id ? { ...p, user_name: editProfileName, user_avatar: avatarUrl } : p));
-    } catch(e) { alert("Ошибка сохранения профиля"); } finally { setIsSavingProfile(false); } 
+    } catch(e: any) { alert(e.message || "Ошибка сохранения профиля"); } finally { setIsSavingProfile(false); } 
   }; 
 
   const handlePhotoLike = async (e: any, item: any) => {
@@ -680,7 +707,6 @@ export default function Home() {
     if (typeof window !== 'undefined') window.history.replaceState({}, '', '/'); 
   }; 
 
-  // --- КОМПОНЕНТ ОТОБРАЖЕНИЯ КОММЕНТАРИЕВ ---
   const renderCommentUI = (c: DBComment, isReply: boolean = false) => ( 
     <div key={c.id} style={{ background: isReply ? '#f8fafc' : 'white', padding: '12px 15px', borderRadius: '16px', border: '1px solid #e2e8f0', marginBottom: isReply ? '10px' : '0', marginLeft: isReply ? '25px' : '0', position: 'relative' }}> 
       {isReply && <div style={{position: 'absolute', left: '-15px', top: '20px', width: '15px', height: '2px', background: '#cbd5e1'}} />} 
@@ -736,7 +762,7 @@ export default function Home() {
         .float-coin { position: absolute; animation: floatUp 0.8s ease-out forwards; pointer-events: none; font-size: 24px; font-weight: 900; color: #f59e0b; text-shadow: 0px 2px 4px rgba(0,0,0,0.3); z-index: 10; }
       `}</style> 
 
-      {/* --- МОДАЛКИ (ФУЛСКРИН, ОБРЕЗКА ФОТО, КОММЕНТАРИИ) --- */}
+      {/* --- МОДАЛКИ --- */}
       {fullScreenImage && ( 
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={() => setFullScreenImage(null)}> 
           <button style={{position: 'absolute', top: '20px', right: '20px', background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', padding: '10px', color: 'white', cursor: 'pointer', backdropFilter: 'blur(5px)'}} onClick={() => setFullScreenImage(null)}> <X size={24} /> </button> 
@@ -756,59 +782,6 @@ export default function Home() {
         </div>
       )}
 
-      {commentsModalPostId && ( 
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}> 
-          <div className="animate-fade-in" style={{ background: '#f8fafc', width: '100%', maxWidth: '500px', height: '85dvh', paddingBottom: 'env(safe-area-inset-bottom, 15px)', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', display: 'flex', flexDirection: 'column', boxShadow: '0 -10px 40px rgba(0,0,0,0.2)' }}> 
-            <div style={{ padding: '15px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', borderTopLeftRadius: '24px', borderTopRightRadius: '24px' }}> 
-              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800 }}>Комментарии</h3> 
-              <button onClick={() => setCommentsModalPostId(null)} style={{ minWidth: '32px', minHeight: '32px', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: '#f1f5f9', border: 'none', borderRadius: '50%', padding: '0', cursor: 'pointer', color: '#64748b' }}><X size={20} /></button> 
-            </div> 
-             
-            <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}> 
-              {isLoadingComments ? (
-                 <div style={{ textAlign: 'center', color: '#9ca3af', marginTop: '40px' }}><Sparkles className="animate-spin" style={{display: 'inline', marginRight: '8px'}} size={18} /> Загрузка...</div>
-              ) : postComments.length === 0 ? ( 
-                <div style={{ textAlign: 'center', color: '#9ca3af', marginTop: '40px' }}>Пока нет комментариев. Будьте первым!</div> 
-              ) : ( 
-                postComments.filter(c => !c.parent_id).map((c) => ( 
-                  <div key={c.id} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}> 
-                    {renderCommentUI(c)} 
-                    {postComments.filter(reply => reply.parent_id === c.id).map(reply => renderCommentUI(reply, true))} 
-                  </div> 
-                )) 
-              )} 
-            </div> 
-
-            <div style={{ padding: '15px', background: 'white', borderTop: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '10px' }}> 
-              {replyingTo && ( 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f1f5f9', padding: '6px 12px', borderRadius: '8px', fontSize: '12px', color: '#475569', fontWeight: 600 }}> 
-                  <span>Ответ пользователю: {replyingTo.name}</span> 
-                  <button onClick={() => setReplyingTo(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><X size={14} /></button> 
-                </div> 
-              )} 
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', width: '100%' }}> 
-                <textarea  
-                  placeholder="Написать комментарий..." 
-                  value={newCommentText} 
-                  onChange={(e) => {
-                    setNewCommentText(e.target.value);
-                    e.target.style.height = '44px';
-                    e.target.style.height = (e.target.scrollHeight < 120 ? e.target.scrollHeight : 120) + 'px';
-                  }}
-                  onFocus={(e) => setTimeout(() => e.target.scrollIntoView({behavior: 'smooth', block: 'center'}), 300)}
-                  rows={1}
-                  style={{ flex: 1, width: '100%', padding: '12px 16px', borderRadius: '24px', border: '1px solid #cbd5e1', fontSize: '16px', outline: 'none', background: '#f8fafc', resize: 'none', overflowY: 'auto', height: '44px', minHeight: '44px', maxHeight: '120px', boxSizing: 'border-box', lineHeight: '18px', fontFamily: 'inherit' }} 
-                  onKeyPress={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitComment(); } }} 
-                /> 
-                <button onClick={submitComment} disabled={!newCommentText.trim()} style={{ background: newCommentText.trim() ? '#0ea5e9' : '#e0f2fe', color: 'white', border: 'none', borderRadius: '50%', width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: newCommentText.trim() ? 'pointer' : 'default', transition: 'all 0.2s', flexShrink: 0 }}> 
-                  <Send size={18} style={{marginLeft: '-2px'}}/> 
-                </button> 
-              </div> 
-            </div> 
-          </div> 
-        </div> 
-      )} 
-
       {/* --- АВТОРИЗАЦИЯ И РЕГИСТРАЦИЯ ПО ЛОГИНУ --- */}
       {isAuthModalOpen && ( 
         <div style={{ position: 'fixed', inset: 0, zIndex: 100000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', padding: '20px' }}> 
@@ -819,7 +792,7 @@ export default function Home() {
                 {authMode === 'register' ? 'Создать аккаунт' : 'Вход'}
               </h2> 
               <p style={{color: '#6b7280', fontSize: '13px', margin: 0, lineHeight: 1.4}}>
-                Нам не нужны ваши личные данные! Никаких почт и телефонов — просто придумайте логин.
+                Нам не нужны ваши личные данные! Никаких почт и телефонов — просто придумайте уникальный логин.
               </p> 
             </div> 
 
@@ -827,7 +800,7 @@ export default function Home() {
               <div> 
                 <input 
                   type="text" 
-                  placeholder="Логин (английскими буквами)" 
+                  placeholder="Username (как в Telegram, без @)" 
                   value={authUsername} 
                   onChange={(e) => setAuthUsername(e.target.value)} 
                   style={{width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #d1d5db', fontSize: '15px', marginBottom: '10px', outline: 'none', boxSizing: 'border-box'}} 
@@ -868,6 +841,7 @@ export default function Home() {
         </div> 
       )} 
 
+      {/* Редактирование профиля с Username */}
       {isEditingProfile && user && ( 
         <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', padding: '20px' }}> 
           <div className="animate-fade-in" style={{ background: 'white', borderRadius: '24px', width: '100%', maxWidth: '400px', padding: '30px 25px', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', textAlign: 'center' }}> 
@@ -885,13 +859,18 @@ export default function Home() {
               <input id="avatar-upload" type="file" accept="image/*" style={{display: 'none'}} onChange={handleAvatarChange} /> 
             </div> 
 
-            <div style={{textAlign: 'left', marginBottom: '20px'}}> 
-              <label style={{fontSize: '12px', fontWeight: 700, color: '#64748b', marginLeft: '5px'}}>Имя пользователя</label> 
+            <div style={{textAlign: 'left', marginBottom: '15px'}}> 
+              <label style={{fontSize: '12px', fontWeight: 700, color: '#64748b', marginLeft: '5px'}}>Имя профиля (Отображается всем)</label> 
               <input type="text" value={editProfileName} onChange={(e) => setEditProfileName(e.target.value)} style={{width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #d1d5db', fontSize: '15px', marginTop: '5px', outline: 'none', boxSizing: 'border-box'}} /> 
             </div> 
 
+            <div style={{textAlign: 'left', marginBottom: '20px'}}> 
+              <label style={{fontSize: '12px', fontWeight: 700, color: '#64748b', marginLeft: '5px'}}>Username (Уникальный логин, без @)</label> 
+              <input type="text" value={editUsername} onChange={(e) => setEditUsername(e.target.value)} style={{width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #d1d5db', fontSize: '15px', marginTop: '5px', outline: 'none', boxSizing: 'border-box'}} /> 
+            </div> 
+
             <div style={{display: 'flex', gap: '10px'}}> 
-               <button onClick={() => {setIsEditingProfile(false); setEditAvatarFile(null);}} style={{flex: 1, padding: '12px', borderRadius: '12px', background: '#f1f5f9', border: 'none', color: '#475569', fontWeight: 700, cursor: 'pointer'}}>Отмена</button> 
+               <button onClick={() => {setIsEditingProfile(false); setEditAvatarFile(null); setEditUsername(user.email?.split('@')[0] || "");}} style={{flex: 1, padding: '12px', borderRadius: '12px', background: '#f1f5f9', border: 'none', color: '#475569', fontWeight: 700, cursor: 'pointer'}}>Отмена</button> 
                <button onClick={handleProfileSave} disabled={isSavingProfile} style={{flex: 1, padding: '12px', borderRadius: '12px', background: '#059669', border: 'none', color: 'white', fontWeight: 700, cursor: isSavingProfile ? 'default' : 'pointer'}}> 
                  {isSavingProfile ? "Сохранение..." : "Сохранить"} 
                </button> 
@@ -900,6 +879,7 @@ export default function Home() {
         </div> 
       )} 
 
+      {/* Окно фильтров */}
       {isPreferencesModalOpen && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
           <div className="animate-fade-in" style={{ background: 'white', width: '100%', maxWidth: '500px', padding: '25px', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', position: 'relative', boxShadow: '0 -10px 40px rgba(0,0,0,0.2)' }}>
@@ -1017,9 +997,11 @@ export default function Home() {
         />
       )}
 
+      {/* ИСПОЛЬЗУЕМ ТВОЙ КРАСИВЫЙ DailyRecipe */}
       {activeView === 'daily' && (
         <div style={{marginTop: '60px'}}>
           <DailyRecipe data={dailyError ? { error: "Не удалось загрузить рецепт дня. Попробуйте позже." } : dailyRecipe} />
+          
           {dailyRecipe && !dailyError && (
             <div style={{display: 'flex', gap: '10px', marginBottom: '25px', padding: '0 5px'}}>
               <button onClick={toggleDailyFavorite} style={{flex: 1, padding: '12px', borderRadius: '12px', background: dailyFavoriteId ? '#fee2e2' : '#f8fafc', color: dailyFavoriteId ? '#ef4444' : '#475569', border: dailyFavoriteId ? '1px solid #fca5a5' : '1px solid #e2e8f0', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.2s'}}>

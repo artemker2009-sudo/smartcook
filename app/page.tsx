@@ -329,12 +329,13 @@ export default function Home() {
         const localPI = Number(localStorage.getItem('sc_passiveIncome') || 0);
         const localL = Number(localStorage.getItem('sc_restLevel') || 1);
 
-        if (data) {
-          setCooks(Math.max(data.cooks || 0, localC)); 
-          setClickPower(Math.max(data.click_power || 1, localP)); 
-          setPassiveIncome(Math.max(data.passive_income || 0, localPI)); 
-          setRestaurantLevel(Math.max(data.restaurant_level || 1, localL)); 
-          setEnergy(data.energy || 500); // Берем энергию из базы, лимит отработает сам
+       if (data) {
+          // ВРЕМЕННЫЙ КОД ДЛЯ ТЕСТОВ (Берет всё только из базы)
+          setCooks(data.cooks || 0); 
+          setClickPower(data.click_power || 1); 
+          setPassiveIncome(data.passive_income || 0); 
+          setRestaurantLevel(data.restaurant_level || 1); 
+          setEnergy(data.energy || 500);
         } else {
           setCooks(localC); setClickPower(localP); setPassiveIncome(localPI); setRestaurantLevel(localL);
           const profileName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Шеф';

@@ -193,7 +193,8 @@ export default function Game(props: any) {
                      )}
                      
                      <div style={{flex: 1, minWidth: 0}}>
-                       <div style={{fontWeight: 800, fontSize: '14px', color: '#111', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
+                       <div style={{fontWeight: 800, fontSize: '15px', color: '#111', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
+                         {/* ВЫВОДИМ ИМЯ ПРОФИЛЯ (Как в ленте) */}
                          {lbUser.user_name || 'Анонимный шеф'}
                        </div>
                        {/* Выстраиваем в столбик: сначала разраб, потом ресторан */}

@@ -202,7 +202,29 @@ export default function Home() {
     }
   };
 
-  // НОВАЯ ЛОГИКА ПЛАШЕК: Выдаем их отдельно, чтобы собирать из них идеальный лейаут
+  // ДВОЙНАЯ ПЛАШКА: Идеальное выравнивание с переносом строки для разработчика
+  const renderUserBadge = (uid: string | undefined | null, level?: number) => {
+    if (!uid) return null;
+    
+    const safeLevel = level || 1;
+    const titles = ['Ларёк 🌭', 'Закусочная 🍔', 'Кафе ☕️', 'Ресторан 🍽', 'Мишленовский ресторан ⭐️', 'Сеть ресторанов 👑'];
+    const isDev = uid === DEVELOPER_ID;
+    
+    return (
+      <>
+        <span key="rest" style={{fontSize: '11px', background: '#fef3c7', color: '#d97706', padding: '4px 10px', borderRadius: '100px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', lineHeight: 1}}>
+          {titles[Math.min(safeLevel - 1, 5)]}
+        </span>
+        {isDev && <div style={{ flexBasis: '100%', height: 0, margin: 0, padding: 0 }}></div>}
+        {isDev && (
+          <span key="dev" style={{fontSize: '11px', background: '#111', color: '#38bdf8', padding: '4px 10px', borderRadius: '100px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '4px', lineHeight: 1, marginTop: '4px'}}>
+            👨‍💻 Разработчик
+          </span>
+        )}
+      </>
+    );
+  };
+
   const getUserBadges = (uid: string | undefined | null, level?: number) => {
     const isDev = uid === DEVELOPER_ID;
     const safeLevel = level || 1;
@@ -300,11 +322,13 @@ export default function Home() {
           setEnergy(data.energy || 500);
         } else {
           setCooks(localC); setClickPower(localP); setPassiveIncome(localPI); setRestaurantLevel(localL);
-          const safeName = user.user_metadata?.username || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Шеф';
+          
+          // СОХРАНЯЕМ ИМЯ ПРОФИЛЯ ДЛЯ РЕЙТИНГА
+          const profileName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Шеф';
           
           supabase.from('game_progress').upsert({ 
             user_id: user.id, 
-            user_name: safeName, 
+            user_name: profileName, 
             user_avatar: user.user_metadata?.avatar_url || null, 
             cooks: localC, click_power: localP, passive_income: localPI, restaurant_level: localL, energy: 500 
           }, { onConflict: 'user_id' }).then(({error: insError}) => {
@@ -325,10 +349,11 @@ export default function Home() {
     }
     if (user) {
       const timer = setTimeout(() => {
-        const safeName = user.user_metadata?.username || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Шеф';
+        // СОХРАНЯЕМ ИМЯ ПРОФИЛЯ ДЛЯ РЕЙТИНГА В АВТОСОХРАНЕНИИ ТОЖЕ
+        const profileName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Шеф';
         supabase.from('game_progress').upsert({ 
           user_id: user.id, 
-          user_name: safeName, 
+          user_name: profileName, 
           user_avatar: user.user_metadata?.avatar_url || null, 
           cooks, click_power: clickPower, passive_income: passiveIncome, restaurant_level: restaurantLevel, energy, updated_at: new Date().toISOString() 
         }, { onConflict: 'user_id' }).then(({error}) => {
@@ -453,9 +478,11 @@ export default function Home() {
       if (error) throw error;
 
       setUser(data.user); setIsEditingProfile(false); 
+      
       await supabase.from('feed_posts').update({ user_name: editProfileName, user_avatar: avatarUrl }).eq('user_id', user.id);
       await supabase.from('photo_comments').update({ user_name: editProfileName, user_avatar: avatarUrl }).eq('user_id', user.id);
       await supabase.from('game_progress').update({ user_name: editProfileName, user_avatar: avatarUrl }).eq('user_id', user.id);
+      
       setPhotosFeed(prev => prev.map(p => p.user_id === user.id ? { ...p, user_name: editProfileName, user_avatar: avatarUrl } : p));
       setUserPhotos(prev => prev.map(p => p.user_id === user.id ? { ...p, user_name: editProfileName, user_avatar: avatarUrl } : p));
     } catch(e: any) { alert(e.message || "Ошибка сохранения профиля"); } finally { setIsSavingProfile(false); } 
@@ -555,7 +582,6 @@ export default function Home() {
     if (data && data.length > 0) { if (recipe && recipe.title === currentRecipe.title) setRecipe({...recipe, id: data[0].id}); return data[0].id; } return null; 
   }; 
 
-  // ТУТ ИСПРАВЛЕНА ОШИБКА С headers: {}
   const submitFeedPost = async (currentRecipeContext: any) => { 
     if (!user) return setIsAuthModalOpen(true); 
     if (!userPhotoFile) return alert("Сначала выберите фото!"); 
@@ -735,7 +761,8 @@ export default function Home() {
   }; 
 
   const renderCommentUI = (c: DBComment, isReply: boolean = false) => {
-    const { isDev, devBadge, restBadge } = getUserBadges(c.user_id, userLevels[c.user_id]);
+    // В КОММЕНТАРИЯХ ПЛАШКИ ТАКЖЕ ВЫСТРАИВАЮТСЯ РОВНО!
+    const { isDev, restBadge } = getUserBadges(c.user_id, userLevels[c.user_id]);
     return ( 
       <div key={c.id} style={{ background: isReply ? '#f8fafc' : 'white', padding: '12px 15px', borderRadius: '16px', border: '1px solid #e2e8f0', marginBottom: isReply ? '10px' : '0', marginLeft: isReply ? '25px' : '0', position: 'relative' }}> 
         {isReply && <div style={{position: 'absolute', left: '-15px', top: '20px', width: '15px', height: '2px', background: '#cbd5e1'}} />} 
@@ -749,13 +776,12 @@ export default function Home() {
           )} 
           <div style={{flex: 1, display: 'flex', flexDirection: 'column'}}> 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}> 
-              {/* ПОЛЬЗОВАТЕЛЬ В КОММЕНТАРИЯХ - Идеальное выравнивание */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                   <span style={{ fontSize: '13px', fontWeight: 800, color: '#111' }}>{c.user_name}</span>
-                  {isDev ? devBadge : restBadge}
+                  {restBadge}
                 </div>
-                {isDev && <div>{restBadge}</div>}
+                {isDev && <span style={{fontSize: '10px', background: '#111', color: '#38bdf8', padding: '2px 8px', borderRadius: '100px', fontWeight: 800}}>👨‍💻 Разработчик</span>}
               </div> 
               {user && user.id === c.user_id && ( 
                 <button onClick={() => handleDeleteComment(c.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px' }}><Trash2 size={14} /></button> 
@@ -1020,7 +1046,7 @@ export default function Home() {
         <Menu size={24} color="#111" /> 
       </button> 
 
-      {/* МЕНЮ (МОЙ РЕСТОРАН ТЕПЕРЬ ВЫШЕ) */}
+      {/* МЕНЮ */}
       {isMenuOpen && ( 
         <> 
           <div className="menu-overlay" onClick={() => setIsMenuOpen(false)} style={{zIndex: 99}} /> 

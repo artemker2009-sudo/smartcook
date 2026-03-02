@@ -9,9 +9,9 @@ import {
   Wallet, Zap, Leaf, Globe, ChevronRight, ChevronDown, ChevronUp, Shuffle, ShoppingCart, Lock, ShoppingBag, ExternalLink, Info, ThumbsUp, Share2, User, LogOut, Mail, MessageCircle, PlusCircle, Trash2, Edit3, CornerDownRight, Settings, Store, Trophy
 } from "lucide-react";
 
-// Импортируем компоненты
+// Импортируем наши внешние компоненты
 import Profile from "@/components/Profile";
-import DailyRecipe from "@/components/DailyRecipe"; // ТВОЙ КРАСИВЫЙ ФАЙЛ
+import DailyRecipe from "@/components/DailyRecipe";
 import Feed from "@/components/Feed";
 import Game from "@/components/Game";
 import About from "@/components/About";
@@ -217,7 +217,7 @@ export default function Home() {
     }
     
     return badges.length > 0 ? (
-      <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexWrap: 'wrap' }}>{badges}</div>
+      <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexWrap: 'wrap', marginTop: '2px' }}>{badges}</div>
     ) : null;
   };
 
@@ -239,7 +239,7 @@ export default function Home() {
       currentSessionId = user.id; localStorage.setItem("cook_user_id", user.id);
       setEditProfileName(user.user_metadata?.full_name || ""); 
       setEditAvatarPreview(user.user_metadata?.avatar_url || null);
-      setEditUsername(user.email?.split('@')[0] || ""); 
+      setEditUsername(user.user_metadata?.username || user.email?.split('@')[0] || ""); 
     } else if (!currentSessionId) {
       currentSessionId = "user_" + Math.random().toString(36).substr(2, 9); localStorage.setItem("cook_user_id", currentSessionId); 
     }
@@ -359,14 +359,18 @@ export default function Home() {
     if (!authUsername.trim() || authPassword.length < 6) return alert("Введите логин и пароль (минимум 6 символов)");
     
     const safeUsername = authUsername.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
-    if (!safeUsername) return alert("Логин должен содержать только английские буквы и цифры!");
+    if (safeUsername.length < 4) return alert("Логин должен содержать только английские буквы, цифры и _ (минимум 4 символа)!");
 
     setAuthLoading(true);
     const dummyEmail = `${safeUsername}@smartcook.app`;
     
     try {
       if (authMode === 'register') {
-        const { data, error } = await supabase.auth.signUp({ email: dummyEmail, password: authPassword, options: { data: { full_name: authUsername.trim() } } });
+        const { data, error } = await supabase.auth.signUp({ 
+          email: dummyEmail, 
+          password: authPassword, 
+          options: { data: { full_name: authUsername.trim(), username: safeUsername } } 
+        });
         if (error) {
           if (error.message.includes('already registered') || error.message.includes('User already exists')) {
             alert("Этот Username уже занят! Выберите другой или перейдите во вкладку «Войти».");
@@ -410,9 +414,10 @@ export default function Home() {
          const imageCompression = (await import('browser-image-compression')).default; 
          const compressedFile = await imageCompression(croppedFile, { maxSizeMB: 0.3, maxWidthOrHeight: 500, useWebWorker: true, fileType: "image/jpeg" }); 
          const finalFile = new File([compressedFile], `avatar_${Date.now()}.jpg`, { type: "image/jpeg" });
-         setEditAvatarFile(finalFile); setEditAvatarPreview(URL.createObjectURL(finalFile)); setIsCropping(false); setCropImageSrc(null);
+         // Внимание! Здесь исправлена скобка
+         setUserPhotoFile(finalFile); setEditAvatarPreview(URL.createObjectURL(finalFile)); setIsCropping(false); setCropImageSrc(null);
       }
-    } catch (e) { alert("Не удалось обработать фото"); }
+    } catch (e) { alert("Не удалось обработать фото"); setUserPhotoFile(null); setUserPhotoPreview(null); }
   };
 
   const handleProfileSave = async () => { 
@@ -424,21 +429,12 @@ export default function Home() {
       } 
 
       const newUsername = editUsername.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
-      if (!newUsername) throw new Error("Username не может быть пустым");
+      if (newUsername.length < 4) throw new Error("Username должен быть от 4 символов (только буквы, цифры и _)");
 
-      let updates: any = { data: { full_name: editProfileName, avatar_url: avatarUrl } };
+      let updates: any = { data: { full_name: editProfileName, avatar_url: avatarUrl, username: newUsername } };
       
-      if (newUsername !== user.email?.split('@')[0]) {
-         updates.email = `${newUsername}@smartcook.app`;
-      }
-
       const { data, error } = await supabase.auth.updateUser(updates); 
-      if (error) {
-         if (error.message.includes('already registered') || error.message.includes('already exists')) {
-            throw new Error("К сожалению, этот Username уже занят другим шефом!");
-         }
-         throw error;
-      }
+      if (error) throw error;
 
       setUser(data.user); setIsEditingProfile(false); 
       await supabase.from('feed_posts').update({ user_name: editProfileName, user_avatar: avatarUrl }).eq('user_id', user.id);
@@ -707,44 +703,6 @@ export default function Home() {
     if (typeof window !== 'undefined') window.history.replaceState({}, '', '/'); 
   }; 
 
-  const renderCommentUI = (c: DBComment, isReply: boolean = false) => ( 
-    <div key={c.id} style={{ background: isReply ? '#f8fafc' : 'white', padding: '12px 15px', borderRadius: '16px', border: '1px solid #e2e8f0', marginBottom: isReply ? '10px' : '0', marginLeft: isReply ? '25px' : '0', position: 'relative' }}> 
-      {isReply && <div style={{position: 'absolute', left: '-15px', top: '20px', width: '15px', height: '2px', background: '#cbd5e1'}} />} 
-      <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}> 
-        {c.user_avatar ? ( 
-          <img src={c.user_avatar} alt="Avatar" style={{width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover'}} /> 
-        ) : ( 
-          <div style={{width: '28px', height: '28px', borderRadius: '50%', background: '#e2e8f0', color: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 800, flexShrink: 0}}> 
-            {c.user_name?.charAt(0).toUpperCase()} 
-          </div> 
-        )} 
-        <div style={{flex: 1}}> 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}> 
-            <div style={{ fontSize: '13px', fontWeight: 800, color: '#111', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-              {c.user_name}
-              {renderUserBadge(c.user_id, userLevels[c.user_id])}
-            </div> 
-            {user && user.id === c.user_id && ( 
-              <button onClick={() => handleDeleteComment(c.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px' }}><Trash2 size={14} /></button> 
-            )} 
-          </div> 
-          <div style={{ fontSize: '14px', color: '#374151', lineHeight: 1.4, marginBottom: '8px', wordBreak: 'break-word' }}>{c.text}</div> 
-          
-          <div style={{ display: 'flex', gap: '15px', alignItems: 'center', justifyContent: 'flex-end', marginTop: '5px' }}> 
-            {!isReply && ( 
-              <div onClick={() => setReplyingTo({id: c.id, name: c.user_name})} style={{ fontSize: '12px', color: '#0ea5e9', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontWeight: 600 }}> 
-                <CornerDownRight size={14} /> Ответить 
-              </div> 
-            )} 
-            <div onClick={() => handleCommentLike(c)} style={{ fontSize: '12px', color: c.is_liked ? '#ef4444' : '#64748b', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontWeight: 600 }}> 
-              <Heart size={14} fill={c.is_liked ? "#ef4444" : "none"} /> {c.likes_count || 0} 
-            </div> 
-          </div> 
-        </div> 
-      </div> 
-    </div> 
-  ); 
-
   const displayedFeed = filterMode === 'all' ? feed : feed?.filter(r => r.is_favorite); 
   const visibleHistory = historyExpanded ? displayedFeed : displayedFeed?.slice(0, 4); 
   const actualServings = typeof servings === 'number' ? servings : 1;
@@ -800,7 +758,7 @@ export default function Home() {
               <div> 
                 <input 
                   type="text" 
-                  placeholder="Username (как в Telegram, без @)" 
+                  placeholder="Username (как в Telegram, от 4 симв.)" 
                   value={authUsername} 
                   onChange={(e) => setAuthUsername(e.target.value)} 
                   style={{width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #d1d5db', fontSize: '15px', marginBottom: '10px', outline: 'none', boxSizing: 'border-box'}} 
@@ -814,8 +772,8 @@ export default function Home() {
                 /> 
                 <button 
                   onClick={handleAuth} 
-                  disabled={authLoading || !authUsername || authPassword.length < 6} 
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', padding: '14px', borderRadius: '12px', background: (authUsername && authPassword.length >= 6) ? '#059669' : '#d1fae5', color: (authUsername && authPassword.length >= 6) ? 'white' : '#047857', border: 'none', fontSize: '15px', fontWeight: 700, cursor: (authUsername && authPassword.length >= 6) ? 'pointer' : 'default', transition: 'all 0.2s' }}
+                  disabled={authLoading || authUsername.length < 4 || authPassword.length < 6} 
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', padding: '14px', borderRadius: '12px', background: (authUsername.length >= 4 && authPassword.length >= 6) ? '#059669' : '#d1fae5', color: (authUsername.length >= 4 && authPassword.length >= 6) ? 'white' : '#047857', border: 'none', fontSize: '15px', fontWeight: 700, cursor: (authUsername.length >= 4 && authPassword.length >= 6) ? 'pointer' : 'default', transition: 'all 0.2s' }}
                 > 
                   {authLoading ? <Sparkles className="animate-spin" size={18} /> : null} 
                   {authLoading ? "Загрузка..." : authMode === 'register' ? "Зарегистрироваться" : "Войти"} 
@@ -852,7 +810,7 @@ export default function Home() {
                 <img src={editAvatarPreview} alt="Avatar" style={{width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', border: '3px solid #059669'}} /> 
               ) : ( 
                 <div style={{background: '#059669', width: '100%', height: '100%', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '30px', fontWeight: 800}}> 
-                  {user.email?.charAt(0).toUpperCase() || 'U'} 
+                  {user.user_metadata?.full_name?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase() || 'U'} 
                 </div> 
               )} 
               <div style={{position: 'absolute', bottom: 0, right: 0, background: '#111', color: 'white', padding: '6px', borderRadius: '50%', border: '2px solid white', display: 'flex', alignItems: 'center', justifyContent: 'center'}}><Camera size={14} /></div> 
@@ -865,12 +823,12 @@ export default function Home() {
             </div> 
 
             <div style={{textAlign: 'left', marginBottom: '20px'}}> 
-              <label style={{fontSize: '12px', fontWeight: 700, color: '#64748b', marginLeft: '5px'}}>Username (Уникальный логин, без @)</label> 
+              <label style={{fontSize: '12px', fontWeight: 700, color: '#64748b', marginLeft: '5px'}}>Username (от 4 символов, без @)</label> 
               <input type="text" value={editUsername} onChange={(e) => setEditUsername(e.target.value)} style={{width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #d1d5db', fontSize: '15px', marginTop: '5px', outline: 'none', boxSizing: 'border-box'}} /> 
             </div> 
 
             <div style={{display: 'flex', gap: '10px'}}> 
-               <button onClick={() => {setIsEditingProfile(false); setEditAvatarFile(null); setEditUsername(user.email?.split('@')[0] || "");}} style={{flex: 1, padding: '12px', borderRadius: '12px', background: '#f1f5f9', border: 'none', color: '#475569', fontWeight: 700, cursor: 'pointer'}}>Отмена</button> 
+               <button onClick={() => {setIsEditingProfile(false); setEditAvatarFile(null); setEditUsername(user.user_metadata?.username || user.email?.split('@')[0] || "");}} style={{flex: 1, padding: '12px', borderRadius: '12px', background: '#f1f5f9', border: 'none', color: '#475569', fontWeight: 700, cursor: 'pointer'}}>Отмена</button> 
                <button onClick={handleProfileSave} disabled={isSavingProfile} style={{flex: 1, padding: '12px', borderRadius: '12px', background: '#059669', border: 'none', color: 'white', fontWeight: 700, cursor: isSavingProfile ? 'default' : 'pointer'}}> 
                  {isSavingProfile ? "Сохранение..." : "Сохранить"} 
                </button> 
@@ -997,20 +955,46 @@ export default function Home() {
         />
       )}
 
-      {/* ИСПОЛЬЗУЕМ ТВОЙ КРАСИВЫЙ DailyRecipe */}
+      {/* ИСПОЛЬЗУЕМ ТВОЙ КРАСИВЫЙ DailyRecipe с прокинутыми функциями для Чата с Шефом */}
       {activeView === 'daily' && (
         <div style={{marginTop: '60px'}}>
-          <DailyRecipe data={dailyError ? { error: "Не удалось загрузить рецепт дня. Попробуйте позже." } : dailyRecipe} />
+          <DailyRecipe 
+            data={dailyError ? { error: "Не удалось загрузить рецепт дня. Попробуйте позже." } : dailyRecipe} 
+          />
           
           {dailyRecipe && !dailyError && (
-            <div style={{display: 'flex', gap: '10px', marginBottom: '25px', padding: '0 5px'}}>
-              <button onClick={toggleDailyFavorite} style={{flex: 1, padding: '12px', borderRadius: '12px', background: dailyFavoriteId ? '#fee2e2' : '#f8fafc', color: dailyFavoriteId ? '#ef4444' : '#475569', border: dailyFavoriteId ? '1px solid #fca5a5' : '1px solid #e2e8f0', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.2s'}}>
-                <Heart size={18} fill={dailyFavoriteId ? "#ef4444" : "none"} />
-                {dailyFavoriteId ? "В избранном" : "Сохранить"}
-              </button>
-              <button onClick={handleShareDaily} style={{flex: 1, padding: '12px', borderRadius: '12px', background: '#e0f2fe', color: '#0ea5e9', border: 'none', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.2s'}}>
-                <Share2 size={18} /> Поделиться
-              </button>
+            <div style={{padding: '0 5px'}}>
+              <div style={{display: 'flex', gap: '10px', marginBottom: '25px'}}>
+                <button onClick={toggleDailyFavorite} style={{flex: 1, padding: '12px', borderRadius: '12px', background: dailyFavoriteId ? '#fee2e2' : '#f8fafc', color: dailyFavoriteId ? '#ef4444' : '#475569', border: dailyFavoriteId ? '1px solid #fca5a5' : '1px solid #e2e8f0', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.2s'}}>
+                  <Heart size={18} fill={dailyFavoriteId ? "#ef4444" : "none"} />
+                  {dailyFavoriteId ? "В избранном" : "Сохранить"}
+                </button>
+                <button onClick={handleShareDaily} style={{flex: 1, padding: '12px', borderRadius: '12px', background: '#e0f2fe', color: '#0ea5e9', border: 'none', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.2s'}}>
+                  <Share2 size={18} /> Поделиться
+                </button>
+              </div>
+
+              {/* Блок: Вопрос Шефу (добавлен под рецептом) */}
+              <div style={{background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '20px', padding: '20px', marginBottom: '30px'}}> 
+                <div style={{fontWeight: 800, marginBottom: '15px', color: '#0369a1', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '6px'}}> 
+                  <Sparkles size={18} /> Спросить AI Шефа: 
+                </div> 
+                <div style={{display: 'flex', gap: '10px', alignItems: 'flex-end', width: '100%'}}> 
+                  <textarea 
+                    placeholder="Чем заменить сливки?" 
+                    value={question} 
+                    onChange={(e) => {
+                      setQuestion(e.target.value);
+                      e.target.style.height = '44px';
+                      e.target.style.height = (e.target.scrollHeight < 120 ? e.target.scrollHeight : 120) + 'px';
+                    }} 
+                    rows={1}
+                    style={{ flex: 1, width: '100%', padding: '12px 16px', borderRadius: '22px', border: '1px solid #93c5fd', fontSize: '15px', outline: 'none', background: 'white', resize: 'none', overflowY: 'auto', height: '44px', minHeight: '44px', maxHeight: '120px', boxSizing: 'border-box', lineHeight: '18px', fontFamily: 'inherit' }}
+                  /> 
+                  <button onClick={handleAskChef} style={{flexShrink: 0, padding: 0, width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: '#0ea5e9', color: 'white', border: 'none', cursor: 'pointer', boxShadow: '0 4px 10px rgba(14, 165, 233, 0.3)'}}> <Send size={18} style={{marginLeft: '-2px'}}/> </button> 
+                </div> 
+                {answer && <div style={{marginTop: '15px', lineHeight: 1.5, background: 'white', padding: '15px', borderRadius: '16px', border: '1px solid #e0f2fe', fontSize: '14px', color: '#0f172a'}}><strong>Ответ:</strong> {answer}</div>} 
+              </div>
             </div>
           )}
         </div>

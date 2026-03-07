@@ -1,90 +1,25 @@
 "use client";
 
 import { useState, useEffect, ChangeEvent } from "react";
-import { supabase } from "@/lib/supabase"; 
-import Cropper from 'react-easy-crop';
-import { 
-  Menu, X, Flame, Send, Camera, Search, Clock, Heart, 
-  ArrowRight, ArrowLeft, RotateCcw, CheckCircle, Sparkles, Image as ImageIcon, 
-  Wallet, Zap, Leaf, Globe, ChevronRight, ChevronDown, ChevronUp, Shuffle, ShoppingCart, Lock, ShoppingBag, ExternalLink, Info, ThumbsUp, Share2, User, LogOut, Mail, MessageCircle, PlusCircle, Trash2, Edit3, CornerDownRight, Settings, Store, Trophy
-} from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { Menu, X, Flame, Search, CheckCircle, Sparkles, Globe, User, Store, Settings } from "lucide-react";
 
-// Импортируем компоненты
+import type { AnalysisData, RecipeData, DBRecipe, DailyRecipeType, HolidayType, DBComment } from "@/lib/types";
+import { DEVELOPER_ID, scaleAmount, formatCooks, cleanText, formatTime, formatCalories, getCroppedImg } from "@/lib/utils";
+
 import Profile from "@/components/Profile";
 import DailyRecipe from "@/components/DailyRecipe";
 import Feed from "@/components/Feed";
 import Game from "@/components/Game";
 import About from "@/components/About";
+import ServiceView from "@/components/ServiceView";
 
-/* --- ТИПЫ ДАННЫХ --- */
-interface AnalysisData { ingredients: string[]; dishes: string[]; }
-interface DetailedIngredient { name: string; amount: string; }
-interface RecipeData { id?: number; is_favorite?: boolean; title: string; description?: string; time: string; calories?: string; steps: string[]; missing_ingredients?: string[]; ingredients?: string[]; detailed_ingredients?: DetailedIngredient[]; }
-interface DBRecipe { id: number; title: string; time: string; calories?: string; is_favorite: boolean; created_at: string; steps: string[]; ingredients: string[]; detailed_ingredients?: DetailedIngredient[]; missing_ingredients?: string[]; description?: string; session_id: string; likes_count?: number; comments_count?: number; is_liked?: boolean; custom_title?: string; user_id?: string; user_avatar?: string; user_name?: string; }
-interface DailyRecipeType { title: string; description?: string; time: string | number; calories: string | number; ingredients?: string[]; detailed_ingredients?: DetailedIngredient[]; missing_ingredients?: string[]; steps: string[]; date?: string; error?: string; }
-interface HolidayType { title: string; text: string; gradient: string; icon: string; }
-interface DBComment { id: number; post_id: number; user_id: string; user_name: string; user_avatar?: string; text: string; created_at: string; parent_id?: number | null; likes_count?: number; is_liked?: boolean; }
-
-// =========================================================================
-const DEVELOPER_ID = "68ff3d0a-2a09-4e22-b39b-3fea14de3f96"; 
-// =========================================================================
-
-/* --- ГЛОБАЛЬНЫЕ ФУНКЦИИ --- */
-const scaleAmount = (amount: string, multiplier: number) => {
-  if (!amount) return "";
-  if (multiplier === 1) return amount;
-  return amount.replace(/(\d+\/\d+|\d+([\.,]\d+)?)/g, (match) => {
-    let num = 0;
-    if (match.includes('/')) {
-      const parts = match.split('/'); num = parseInt(parts[0]) / parseInt(parts[1]);
-    } else { num = parseFloat(match.replace(',', '.')); }
-    if (isNaN(num)) return match;
-    const scaled = num * multiplier;
-    return Number.isInteger(scaled) ? String(scaled) : scaled.toFixed(1).replace('.', ',');
-  });
-};
-
-const formatCooks = (num: number) => {
-  const last = num % 10; const last100 = num % 100;
-  if (last100 >= 11 && last100 <= 14) return `${num} куков`;
-  if (last === 1) return `${num} кук`;
-  if (last >= 2 && last <= 4) return `${num} кука`;
-  return `${num} куков`;
-};
-
-const cleanText = (text: any) => {
-  if (!text) return "";
-  return String(text).replace(/^(Шаг \d+|Step \d+|\d+[\.\)])[:\s]*/i, '').trim();
-};
-
-const formatTime = (t: string) => {
-  if (!t) return "";
-  const digits = t.replace(/\D/g, ''); return digits ? `${digits} мин.` : t;
-};
-
-const formatCalories = (c?: string) => {
-  if (!c) return "";
-  const match = c.match(/\d+/); return match ? `${match[0]} ккал` : "";  
-};
-
-const createImage = (url: string): Promise<HTMLImageElement> =>
-  new Promise((resolve, reject) => {
-    const image = new Image(); image.addEventListener('load', () => resolve(image)); image.addEventListener('error', (error) => reject(error)); image.setAttribute('crossOrigin', 'anonymous'); image.src = url;
-  });
-
-async function getCroppedImg(imageSrc: string, pixelCrop: any): Promise<File | null> {
-  const image = await createImage(imageSrc);
-  const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
-  if (!ctx) return null;
-  canvas.width = pixelCrop.width; canvas.height = pixelCrop.height;
-  ctx.drawImage(image, pixelCrop.x, pixelCrop.y, pixelCrop.width, pixelCrop.height, 0, 0, pixelCrop.width, pixelCrop.height);
-  return new Promise((resolve) => {
-    canvas.toBlob((blob) => {
-      if (!blob) return resolve(null);
-      resolve(new File([blob], `avatar_${Date.now()}.jpg`, { type: 'image/jpeg' }));
-    }, 'image/jpeg');
-  });
-}
+import FullScreenImage from "@/components/modals/FullScreenImage";
+import CropperModal from "@/components/modals/CropperModal";
+import CommentsModal from "@/components/modals/CommentsModal";
+import AuthModal from "@/components/modals/AuthModal";
+import EditProfileModal from "@/components/modals/EditProfileModal";
+import PreferencesModal from "@/components/modals/PreferencesModal";
 
 export default function Home() {
   const [activeView, setActiveView] = useState<'service' | 'about' | 'daily' | 'feed' | 'profile' | 'game'>('service');
@@ -755,50 +690,6 @@ export default function Home() {
     if (typeof window !== 'undefined') window.history.replaceState({}, '', '/'); 
   }; 
 
-  const renderCommentUI = (c: DBComment, isReply: boolean = false) => {
-    const { isDev, restBadge } = getUserBadges(c.user_id, userLevels[c.user_id]);
-    return ( 
-      <div key={c.id} style={{ background: isReply ? '#f8fafc' : 'white', padding: '12px 15px', borderRadius: '16px', border: '1px solid #e2e8f0', marginBottom: isReply ? '10px' : '0', marginLeft: isReply ? '25px' : '0', position: 'relative' }}> 
-        {isReply && <div style={{position: 'absolute', left: '-15px', top: '20px', width: '15px', height: '2px', background: '#cbd5e1'}} />} 
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}> 
-          {c.user_avatar ? ( 
-            <img src={c.user_avatar} alt="Avatar" style={{width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover'}} /> 
-          ) : ( 
-            <div style={{width: '28px', height: '28px', borderRadius: '50%', background: '#e2e8f0', color: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 800, flexShrink: 0}}> 
-              {c.user_name?.charAt(0).toUpperCase()} 
-            </div> 
-          )} 
-          <div style={{flex: 1, display: 'flex', flexDirection: 'column'}}> 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}> 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '13px', fontWeight: 800, color: '#111' }}>{c.user_name}</span>
-                  {restBadge}
-                </div>
-                {isDev && <span style={{fontSize: '10px', background: '#111', color: '#38bdf8', padding: '2px 8px', borderRadius: '100px', fontWeight: 800}}>👨‍💻 Разработчик</span>}
-              </div> 
-              {user && user.id === c.user_id && ( 
-                <button onClick={() => handleDeleteComment(c.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px' }}><Trash2 size={14} /></button> 
-              )} 
-            </div> 
-            <div style={{ fontSize: '14px', color: '#374151', lineHeight: 1.4, marginBottom: '8px', wordBreak: 'break-word' }}>{c.text}</div> 
-            
-            <div style={{ display: 'flex', gap: '15px', alignItems: 'center', justifyContent: 'flex-end', marginTop: '5px' }}> 
-              {!isReply && ( 
-                <div onClick={() => setReplyingTo({id: c.id, name: c.user_name})} style={{ fontSize: '12px', color: '#0ea5e9', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontWeight: 600 }}> 
-                  <CornerDownRight size={14} /> Ответить 
-                </div> 
-              )} 
-              <div onClick={() => handleCommentLike(c)} style={{ fontSize: '12px', color: c.is_liked ? '#ef4444' : '#64748b', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontWeight: 600 }}> 
-                <Heart size={14} fill={c.is_liked ? "#ef4444" : "none"} /> {c.likes_count || 0} 
-              </div> 
-            </div> 
-          </div> 
-        </div> 
-      </div> 
-    );
-  }; 
-
   const displayedFeed = filterMode === 'all' ? feed : feed?.filter(r => r.is_favorite); 
   const visibleHistory = historyExpanded ? displayedFeed : displayedFeed?.slice(0, 4); 
   const actualServings = typeof servings === 'number' ? servings : 1;
@@ -816,224 +707,78 @@ export default function Home() {
         .float-coin { position: absolute; animation: floatUp 0.8s ease-out forwards; pointer-events: none; font-size: 24px; font-weight: 900; color: #f59e0b; text-shadow: 0px 2px 4px rgba(0,0,0,0.3); z-index: 10; }
       `}</style> 
 
-      {/* --- МОДАЛКИ --- */}
-      {fullScreenImage && ( 
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={() => setFullScreenImage(null)}> 
-          <button style={{position: 'absolute', top: '20px', right: '20px', background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', padding: '10px', color: 'white', cursor: 'pointer', backdropFilter: 'blur(5px)'}} onClick={() => setFullScreenImage(null)}> <X size={24} /> </button> 
-          <img src={fullScreenImage} style={{maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '12px'}} alt="Fullscreen" /> 
-        </div> 
-      )} 
+      <FullScreenImage imageUrl={fullScreenImage} onClose={() => setFullScreenImage(null)} />
 
-      {isCropping && cropImageSrc && (
-        <div style={{position: 'fixed', inset: 0, zIndex: 100001, background: 'black', display: 'flex', flexDirection: 'column'}}>
-          <div style={{position: 'absolute', top: 0, left: 0, right: 0, bottom: '80px'}}>
-            <Cropper image={cropImageSrc} crop={crop} zoom={zoom} aspect={1} cropShape="round" showGrid={false} onCropChange={setCrop} onCropComplete={onCropComplete} onZoomChange={setZoom} style={{ containerStyle: { background: 'black' } }} />
-          </div>
-          <div style={{position: 'absolute', bottom: 0, left: 0, right: 0, height: '80px', padding: '15px 20px', background: '#111', display: 'flex', gap: '10px', paddingBottom: 'env(safe-area-inset-bottom, 20px)'}}>
-             <button onClick={() => {setIsCropping(false); setCropImageSrc(null);}} style={{flex: 1, padding: '14px', borderRadius: '12px', background: '#333', color: 'white', border: 'none', fontWeight: 700, cursor: 'pointer'}}>Отмена</button>
-             <button onClick={handleCropConfirm} style={{flex: 2, padding: '14px', borderRadius: '12px', background: '#0ea5e9', color: 'white', border: 'none', fontWeight: 700, cursor: 'pointer'}}>Выбрать</button>
-          </div>
-        </div>
-      )}
+      <CropperModal
+        isCropping={isCropping}
+        cropImageSrc={cropImageSrc}
+        crop={crop}
+        setCrop={setCrop}
+        zoom={zoom}
+        setZoom={setZoom}
+        onCropComplete={onCropComplete}
+        onCancel={() => { setIsCropping(false); setCropImageSrc(null); }}
+        onConfirm={handleCropConfirm}
+      />
 
-      {/* --- МОДАЛКА КОММЕНТАРИЕВ --- */}
-      {commentsModalPostId && ( 
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}> 
-          <div className="animate-fade-in" style={{ background: '#f8fafc', width: '100%', maxWidth: '500px', height: '85dvh', paddingBottom: 'env(safe-area-inset-bottom, 15px)', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', display: 'flex', flexDirection: 'column', boxShadow: '0 -10px 40px rgba(0,0,0,0.2)' }}> 
-            <div style={{ padding: '15px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', borderTopLeftRadius: '24px', borderTopRightRadius: '24px' }}> 
-              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800 }}>Комментарии</h3> 
-              <button onClick={() => setCommentsModalPostId(null)} style={{ minWidth: '32px', minHeight: '32px', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: '#f1f5f9', border: 'none', borderRadius: '50%', padding: '0', cursor: 'pointer', color: '#64748b' }}><X size={20} /></button> 
-            </div> 
-             
-            <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}> 
-              {isLoadingComments ? (
-                 <div style={{ textAlign: 'center', color: '#0ea5e9', marginTop: '40px', fontWeight: 600 }}><Sparkles className="animate-spin" style={{display: 'inline', marginRight: '8px'}} size={18} /> Загрузка комментариев...</div>
-              ) : postComments.length === 0 ? ( 
-                <div style={{ textAlign: 'center', color: '#9ca3af', marginTop: '40px' }}>Пока нет комментариев. Будьте первым!</div> 
-              ) : ( 
-                postComments.filter(c => !c.parent_id).map((c) => ( 
-                  <div key={c.id} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}> 
-                    {renderCommentUI(c)} 
-                    {postComments.filter(reply => reply.parent_id === c.id).map(reply => renderCommentUI(reply, true))} 
-                  </div> 
-                )) 
-              )} 
-            </div> 
+      <CommentsModal
+        commentsModalPostId={commentsModalPostId}
+        onClose={() => setCommentsModalPostId(null)}
+        isLoadingComments={isLoadingComments}
+        postComments={postComments}
+        newCommentText={newCommentText}
+        setNewCommentText={setNewCommentText}
+        replyingTo={replyingTo}
+        setReplyingTo={setReplyingTo}
+        submitComment={submitComment}
+        handleDeleteComment={handleDeleteComment}
+        handleCommentLike={handleCommentLike}
+        user={user}
+        userLevels={userLevels}
+        getUserBadges={getUserBadges}
+      />
 
-            <div style={{ padding: '15px', background: 'white', borderTop: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '10px' }}> 
-              {replyingTo && ( 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f1f5f9', padding: '6px 12px', borderRadius: '8px', fontSize: '12px', color: '#475569', fontWeight: 600 }}> 
-                  <span>Ответ пользователю: {replyingTo.name}</span> 
-                  <button onClick={() => setReplyingTo(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><X size={14} /></button> 
-                </div> 
-              )} 
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', width: '100%' }}> 
-                <textarea  
-                  placeholder="Написать комментарий..." 
-                  value={newCommentText} 
-                  onChange={(e) => {
-                    setNewCommentText(e.target.value);
-                    e.target.style.height = '44px';
-                    e.target.style.height = (e.target.scrollHeight < 120 ? e.target.scrollHeight : 120) + 'px';
-                  }}
-                  onFocus={(e) => setTimeout(() => e.target.scrollIntoView({behavior: 'smooth', block: 'center'}), 300)}
-                  rows={1}
-                  style={{ flex: 1, width: '100%', padding: '12px 16px', borderRadius: '24px', border: '1px solid #cbd5e1', fontSize: '16px', outline: 'none', background: '#f8fafc', resize: 'none', overflowY: 'auto', height: '44px', minHeight: '44px', maxHeight: '120px', boxSizing: 'border-box', lineHeight: '18px', fontFamily: 'inherit' }} 
-                  onKeyPress={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitComment(); } }} 
-                /> 
-                <button onClick={submitComment} disabled={!newCommentText.trim()} style={{ background: newCommentText.trim() ? '#0ea5e9' : '#e0f2fe', color: 'white', border: 'none', borderRadius: '50%', width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: newCommentText.trim() ? 'pointer' : 'default', transition: 'all 0.2s', flexShrink: 0 }}> 
-                  <Send size={18} style={{marginLeft: '-2px'}}/> 
-                </button> 
-              </div> 
-            </div> 
-          </div> 
-        </div> 
-      )} 
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        authMode={authMode}
+        setAuthMode={setAuthMode}
+        authUsername={authUsername}
+        setAuthUsername={setAuthUsername}
+        authPassword={authPassword}
+        setAuthPassword={setAuthPassword}
+        authLoading={authLoading}
+        handleAuth={handleAuth}
+      />
 
-      {/* --- АВТОРИЗАЦИЯ И РЕГИСТРАЦИЯ ПО ЛОГИНУ --- */}
-      {isAuthModalOpen && ( 
-        <div style={{ position: 'fixed', inset: 0, zIndex: 100000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', padding: '20px' }}> 
-          <div className="animate-fade-in" style={{ background: 'white', borderRadius: '24px', width: '100%', maxWidth: '400px', padding: '30px 25px', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}> 
-            <button onClick={() => setIsAuthModalOpen(false)} style={{position: 'absolute', top: '15px', right: '15px', background: '#f3f4f6', border: 'none', borderRadius: '50%', padding: '6px', cursor: 'pointer', color: '#6b7280'}}><X size={20} /></button> 
-            <div style={{textAlign: 'center', marginBottom: '25px'}}> 
-              <h2 style={{fontSize: '24px', fontWeight: 900, color: '#111', margin: '0 0 5px 0'}}>
-                {authMode === 'register' ? 'Создать аккаунт' : 'Вход'}
-              </h2> 
-              <p style={{color: '#6b7280', fontSize: '13px', margin: 0, lineHeight: 1.4}}>
-                Нам не нужны ваши личные данные! Никаких почт и телефонов — просто придумайте уникальный логин.
-              </p> 
-            </div> 
+      <EditProfileModal
+        isOpen={isEditingProfile}
+        user={user}
+        editAvatarPreview={editAvatarPreview}
+        editProfileName={editProfileName}
+        setEditProfileName={setEditProfileName}
+        editUsername={editUsername}
+        setEditUsername={setEditUsername}
+        handleAvatarChange={handleAvatarChange}
+        handleProfileSave={handleProfileSave}
+        isSavingProfile={isSavingProfile}
+        onCancel={() => { setIsEditingProfile(false); setEditAvatarFile(null); setEditUsername(user?.user_metadata?.username || user?.email?.split('@')[0] || ""); }}
+      />
 
-            <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}> 
-              <div> 
-                <input 
-                  type="text" 
-                  placeholder="Username (как в Telegram, от 4 симв.)" 
-                  value={authUsername} 
-                  onChange={(e) => setAuthUsername(e.target.value)} 
-                  style={{width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #d1d5db', fontSize: '15px', marginBottom: '10px', outline: 'none', boxSizing: 'border-box'}} 
-                /> 
-                <input 
-                  type="password" 
-                  placeholder="Пароль (минимум 6 символов)" 
-                  value={authPassword} 
-                  onChange={(e) => setAuthPassword(e.target.value)} 
-                  style={{width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #d1d5db', fontSize: '15px', marginBottom: '15px', outline: 'none', boxSizing: 'border-box'}} 
-                /> 
-                <button 
-                  onClick={handleAuth} 
-                  disabled={authLoading || authUsername.length < 4 || authPassword.length < 6} 
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', padding: '14px', borderRadius: '12px', background: (authUsername.length >= 4 && authPassword.length >= 6) ? '#059669' : '#d1fae5', color: (authUsername.length >= 4 && authPassword.length >= 6) ? 'white' : '#047857', border: 'none', fontSize: '15px', fontWeight: 700, cursor: (authUsername.length >= 4 && authPassword.length >= 6) ? 'pointer' : 'default', transition: 'all 0.2s' }}
-                > 
-                  {authLoading ? <Sparkles className="animate-spin" size={18} /> : null} 
-                  {authLoading ? "Загрузка..." : authMode === 'register' ? "Зарегистрироваться" : "Войти"} 
-                </button> 
-              </div> 
-            </div> 
-
-            <div style={{marginTop: '20px', textAlign: 'center'}}>
-              <span 
-                onClick={() => setAuthMode(authMode === 'register' ? 'login' : 'register')}
-                style={{color: '#0ea5e9', fontSize: '14px', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline'}}
-              >
-                {authMode === 'register' ? 'Уже есть аккаунт? Войти' : 'Нет аккаунта? Создать'}
-              </span>
-            </div>
-            
-            <div style={{marginTop: '25px', padding: '15px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0'}}> 
-              <p style={{fontSize: '11px', color: '#64748b', margin: 0, lineHeight: 1.5, textAlign: 'center'}}> 
-                🛡 <strong>100% Анонимность.</strong> Вы сами придумываете логин и пароль. Это нужно только для того, чтобы ваши рецепты, фото и прогресс в ресторане сохранялись в вашем личном кабинете.
-              </p> 
-            </div> 
-          </div> 
-        </div> 
-      )} 
-
-      {/* Редактирование профиля с Username */}
-      {isEditingProfile && user && ( 
-        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', padding: '20px' }}> 
-          <div className="animate-fade-in" style={{ background: 'white', borderRadius: '24px', width: '100%', maxWidth: '400px', padding: '30px 25px', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', textAlign: 'center' }}> 
-            <h2 style={{fontSize: '20px', fontWeight: 900, color: '#111', margin: '0 0 20px 0'}}>Редактировать профиль</h2> 
-             
-            <div style={{position: 'relative', width: '100px', height: '100px', margin: '0 auto 20px auto', cursor: 'pointer'}} onClick={() => document.getElementById('avatar-upload')?.click()}> 
-              {editAvatarPreview ? ( 
-                <img src={editAvatarPreview} alt="Avatar" style={{width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', border: '3px solid #059669'}} /> 
-              ) : ( 
-                <div style={{background: '#059669', width: '100%', height: '100%', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '30px', fontWeight: 800}}> 
-                  {user.user_metadata?.full_name?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase() || 'U'} 
-                </div> 
-              )} 
-              <div style={{position: 'absolute', bottom: 0, right: 0, background: '#111', color: 'white', padding: '6px', borderRadius: '50%', border: '2px solid white', display: 'flex', alignItems: 'center', justifyContent: 'center'}}><Camera size={14} /></div> 
-              <input id="avatar-upload" type="file" accept="image/*" style={{display: 'none'}} onChange={handleAvatarChange} /> 
-            </div> 
-
-            <div style={{textAlign: 'left', marginBottom: '15px'}}> 
-              <label style={{fontSize: '12px', fontWeight: 700, color: '#64748b', marginLeft: '5px'}}>Имя профиля (Отображается всем)</label> 
-              <input type="text" value={editProfileName} onChange={(e) => setEditProfileName(e.target.value)} style={{width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #d1d5db', fontSize: '15px', marginTop: '5px', outline: 'none', boxSizing: 'border-box'}} /> 
-            </div> 
-
-            <div style={{textAlign: 'left', marginBottom: '20px'}}> 
-              <label style={{fontSize: '12px', fontWeight: 700, color: '#64748b', marginLeft: '5px'}}>Username (от 4 символов, без @)</label> 
-              <input type="text" value={editUsername} onChange={(e) => setEditUsername(e.target.value)} style={{width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #d1d5db', fontSize: '15px', marginTop: '5px', outline: 'none', boxSizing: 'border-box'}} /> 
-            </div> 
-
-            <div style={{display: 'flex', gap: '10px'}}> 
-               <button onClick={() => {setIsEditingProfile(false); setEditAvatarFile(null); setEditUsername(user.user_metadata?.username || user.email?.split('@')[0] || "");}} style={{flex: 1, padding: '12px', borderRadius: '12px', background: '#f1f5f9', border: 'none', color: '#475569', fontWeight: 700, cursor: 'pointer'}}>Отмена</button> 
-               <button onClick={handleProfileSave} disabled={isSavingProfile} style={{flex: 1, padding: '12px', borderRadius: '12px', background: '#059669', border: 'none', color: 'white', fontWeight: 700, cursor: isSavingProfile ? 'default' : 'pointer'}}> 
-                 {isSavingProfile ? "Сохранение..." : "Сохранить"} 
-               </button> 
-            </div> 
-          </div> 
-        </div> 
-      )} 
-
-      {/* Окно фильтров */}
-      {isPreferencesModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
-          <div className="animate-fade-in" style={{ background: 'white', width: '100%', maxWidth: '500px', padding: '25px', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', position: 'relative', boxShadow: '0 -10px 40px rgba(0,0,0,0.2)' }}>
-            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px'}}>
-              <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 900 }}>Фильтры для рецепта ⚙️</h3>
-              <button onClick={() => setIsPreferencesModalOpen(false)} style={{ width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: '#f1f5f9', border: 'none', borderRadius: '50%', padding: '0', cursor: 'pointer', color: '#64748b' }}><X size={20} /></button>
-            </div>
-            
-            <p style={{fontSize: '13px', color: '#64748b', marginBottom: '20px', lineHeight: 1.4}}>
-              Если вы авторизованы, эти настройки подтянутся из вашего профиля. Вы также можете настроить их прямо здесь на один раз.
-            </p>
-
-            <div style={{marginBottom: '20px'}}>
-              <div style={{fontSize: '14px', fontWeight: 800, color: '#be123c', marginBottom: '10px'}}>Аллергии (Строго исключить)</div>
-              <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px'}}>
-                {allergies.map((item, idx) => (
-                  <span key={idx} style={{background: '#ffe4e6', color: '#be123c', padding: '6px 12px', borderRadius: '100px', fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '5px'}}>
-                    {item} <X size={14} onClick={() => removeAllergy(idx)} style={{cursor: 'pointer'}}/>
-                  </span>
-                ))}
-              </div>
-              <div style={{display: 'flex', gap: '8px'}}>
-                <input type="text" placeholder="Например: орехи" value={newAllergy} onChange={e => setNewAllergy(e.target.value)} onKeyPress={e => e.key === 'Enter' && addAllergy()} style={{flex: 1, padding: '10px 15px', borderRadius: '12px', border: '1px solid #fecdd3', outline: 'none', fontSize: '14px', boxSizing: 'border-box'}} />
-                <button onClick={addAllergy} style={{background: '#be123c', color: 'white', border: 'none', padding: '0 20px', borderRadius: '12px', fontWeight: 700}}><PlusCircle size={20}/></button>
-              </div>
-            </div>
-
-            <div style={{marginBottom: '20px'}}>
-              <div style={{fontSize: '14px', fontWeight: 800, color: '#b45309', marginBottom: '10px'}}>Не люблю (По возможности без этого)</div>
-              <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px'}}>
-                {dislikes.map((item, idx) => (
-                  <span key={idx} style={{background: '#ffedd5', color: '#c2410c', padding: '6px 12px', borderRadius: '100px', fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '5px'}}>
-                    {item} <X size={14} onClick={() => removeDislike(idx)} style={{cursor: 'pointer'}}/>
-                  </span>
-                ))}
-              </div>
-              <div style={{display: 'flex', gap: '8px'}}>
-                <input type="text" placeholder="Например: лук" value={newDislike} onChange={e => setNewDislike(e.target.value)} onKeyPress={e => e.key === 'Enter' && addDislike()} style={{flex: 1, padding: '10px 15px', borderRadius: '12px', border: '1px solid #fed7aa', outline: 'none', fontSize: '14px', boxSizing: 'border-box'}} />
-                <button onClick={addDislike} style={{background: '#ea580c', color: 'white', border: 'none', padding: '0 20px', borderRadius: '12px', fontWeight: 700}}><PlusCircle size={20}/></button>
-              </div>
-            </div>
-
-            <button onClick={() => setIsPreferencesModalOpen(false)} style={{width: '100%', padding: '15px', borderRadius: '16px', background: '#111', color: 'white', border: 'none', fontWeight: 800, fontSize: '16px'}}>Готово</button>
-          </div>
-        </div>
-      )}
+      <PreferencesModal
+        isOpen={isPreferencesModalOpen}
+        onClose={() => setIsPreferencesModalOpen(false)}
+        allergies={allergies}
+        dislikes={dislikes}
+        newAllergy={newAllergy}
+        setNewAllergy={setNewAllergy}
+        newDislike={newDislike}
+        setNewDislike={setNewDislike}
+        addAllergy={addAllergy}
+        addDislike={addDislike}
+        removeAllergy={removeAllergy}
+        removeDislike={removeDislike}
+      />
        
       {/* КНОПКА МЕНЮ */}
       <button className="menu-btn" onClick={() => setIsMenuOpen(true)} style={{ position: 'fixed', top: '10px', left: '20px', zIndex: 50, background: 'white', borderRadius: '50%', width: '44px', height: '44px', padding: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', border: 'none', cursor: 'pointer' }}> 
@@ -1121,317 +866,73 @@ export default function Home() {
 
 
       {/* === ГЛАВНЫЙ СЕРВИС ПОИСКА === */}
-      {activeView === 'service' && ( 
-        <> 
-          {!isHistoryView && fromFeed === false && !isSharedView && ( 
-            <> 
-              <div className="hero"> 
-                <h1 className="brand-name">SmartCook</h1> 
-                <div className="brand-sub">Ваш личный AI Шеф-повар</div> 
-                {currentHoliday && ( 
-                  <div className="animate-fade-in" style={{ background: currentHoliday.gradient, color: 'white', padding: '20px', borderRadius: '20px', marginTop: '25px', textAlign: 'center', boxShadow: '0 10px 30px -10px rgba(0,0,0,0.3)', position: 'relative', overflow: 'hidden' }}> 
-                     <div style={{position: 'absolute', top: '-10px', right: '-10px', width: '60px', height: '60px', background: 'white', opacity: 0.1, borderRadius: '50%'}}></div> 
-                     <div style={{position: 'absolute', bottom: '-20px', left: '-10px', width: '80px', height: '80px', background: 'white', opacity: 0.1, borderRadius: '50%'}}></div> 
-                     <div style={{fontSize: '22px', marginBottom: '8px', fontWeight: '700', fontFamily: '"Times New Roman", serif', fontStyle: 'italic'}}> {currentHoliday.icon} {currentHoliday.title} </div> 
-                     <div style={{fontSize: '15px', lineHeight: '1.5', opacity: 0.95, fontWeight: '500'}}> {currentHoliday.text} </div> 
-                  </div> 
-                )} 
-              </div> 
-
-              <div className="daily-teaser" onClick={() => switchView('daily')}> 
-                <div style={{background: '#fff7ed', padding: '12px', borderRadius: '12px'}}><Flame color="#f97316" size={24} /></div> 
-                <div style={{flex: 1}}> 
-                   <div style={{fontSize: '12px', fontWeight: 'bold', color: '#f97316', textTransform: 'uppercase', letterSpacing: '0.5px'}}>🔥 Рецепт дня</div> 
-                   <div style={{fontWeight: '800', fontSize: '18px'}}>{dailyRecipe ? dailyRecipe.title : "Секрет от шефа..."}</div> 
-                </div> 
-                <ArrowRight size={20} color="#cbd5e1"/> 
-              </div> 
-
-              <div style={{display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px'}}>
-                <div style={{flex: 1, display: 'flex', background: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)', padding: '6px', borderRadius: '20px', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)'}}> 
-                  <button onClick={() => setSearchMode('photo')} style={{ flex: 1, padding: '8px 5px', borderRadius: '16px', border: 'none', background: searchMode === 'photo' ? 'white' : 'transparent', fontWeight: 800, fontSize: '15px', boxShadow: searchMode === 'photo' ? '0 4px 15px rgba(0,0,0,0.05)' : 'none', color: searchMode === 'photo' ? '#111' : '#64748b', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' }}>
-                    <div style={{background: searchMode === 'photo' ? '#dcfce7' : '#f1f5f9', color: searchMode === 'photo' ? '#10b981' : '#94a3b8', width: '32px', height: '32px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.3s', flexShrink: 0}}>
-                       <Camera size={18} /> 
-                    </div>
-                    По фото
-                  </button>
-                  <button onClick={() => setSearchMode('text')} style={{ flex: 1, padding: '8px 5px', borderRadius: '16px', border: 'none', background: searchMode === 'text' ? 'white' : 'transparent', fontWeight: 800, fontSize: '15px', boxShadow: searchMode === 'text' ? '0 4px 15px rgba(0,0,0,0.05)' : 'none', color: searchMode === 'text' ? '#111' : '#64748b', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' }}>
-                    <div style={{background: searchMode === 'text' ? '#e0f2fe' : '#f1f5f9', color: searchMode === 'text' ? '#0ea5e9' : '#94a3b8', width: '32px', height: '32px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.3s', flexShrink: 0}}>
-                       <Search size={18} /> 
-                    </div>
-                    По названию
-                  </button>
-                </div>
-                
-                <button onClick={() => setIsPreferencesModalOpen(true)} style={{background: 'white', border: '1px solid #e2e8f0', borderRadius: '20px', height: '52px', width: '52px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', color: '#475569', flexShrink: 0}}>
-                   <Settings size={22} />
-                </button>
-              </div>
-
-              <div className="card"> 
-                {searchMode === 'photo' ? ( 
-                  <> 
-                    {!file ? ( 
-                      <div className="upload-zone"> 
-                        <input id="hidden-file-input" type="file" accept="image/png, image/jpeg, image/jpg, .heic, .HEIC" className="upload-input" onChange={handleFileChange} /> 
-                        <Camera size={48} color="#059669" style={{marginBottom: '15px'}} /> 
-                        <div style={{fontWeight: '700', fontSize: '18px', color: '#374151', marginBottom: '5px'}}>Выберите фото</div> 
-                        <div style={{fontSize: '14px', color: '#9ca3af'}}>HEIC, JPG, PNG</div> 
-                      </div> 
-                    ) : ( 
-                      <div className="upload-compact"> 
-                        {preview && <img src={preview} className="preview-img" alt="Preview" />} 
-                        <input id="hidden-file-input" type="file" accept="image/png, image/jpeg, image/jpg, .heic, .HEIC" style={{display: 'none'}} onChange={handleFileChange} /> 
-                        <button className="btn-replace" onClick={triggerFileInput}> <RotateCcw size={16} /> Заменить фото </button> 
-                      </div> 
-                    )} 
-
-                    {file && ( 
-                       <div className="mode-toggle-container"> 
-                          <button className={`mode-btn ${cookingMode === 'strict' ? 'active' : ''}`} onClick={() => setCookingMode('strict')}><Lock size={16} /> Строго из этого</button> 
-                          <button className={`mode-btn ${cookingMode === 'extended' ? 'active' : ''}`} onClick={() => setCookingMode('extended')}><ShoppingBag size={16} /> Могу докупить</button> 
-                       </div> 
-                    )} 
-
-                    <button className="btn-primary" onClick={handleAnalyze} disabled={!file || analyzing || isProcessing}> 
-                      {isProcessing ? "🔄 Обработка фото..." : analyzing ? "🔍 Изучаю продукты..." : "✨ Найти рецепт"} 
-                    </button> 
-                  </> 
-                ) : ( 
-                  <> 
-                    <div style={{ position: 'relative', width: '100%', marginBottom: '15px' }}> 
-                      <input type="text" className="text-search-input" placeholder="Например: Паста Карбонара" value={textQuery} onChange={(e) => setTextQuery(e.target.value)} style={{ paddingRight: textQuery ? '40px' : '15px', marginBottom: 0, boxSizing: 'border-box' }} /> 
-                      {textQuery && ( <button onClick={() => setTextQuery("")} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', padding: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af' }}><X size={18} /></button> )} 
-                    </div> 
-                    <button className="btn-primary" onClick={handleTextSearch} disabled={loadingRecipe || !textQuery.trim()}> {loadingRecipe ? "🍳 Готовлю..." : "🔍 Найти рецепт"} </button> 
-                  </> 
-                )} 
-              </div> 
-            </> 
-          )} 
-
-          {analysisResult && !isSharedView && !isHistoryView && ( 
-            <div className="card"> 
-              <h3 style={{textAlign: 'center', marginBottom: '20px'}}>Я вижу продукты:</h3> 
-              <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', marginBottom: '25px'}}> 
-                {analysisResult.ingredients?.map((ing, i) => <span key={i} style={{background: '#d1fae5', color: '#065f46', padding: '6px 12px', borderRadius: '100px', fontSize: '14px', fontWeight: 600}}>{ing}</span>)} 
-              </div> 
-              <div style={{display: 'flex', flexDirection: 'column', gap: '10px'}}> 
-                {analysisResult.dishes?.map((dish, i) => ( 
-                  <button key={i} onClick={() => getRecipeFromPhoto(dish)} className="btn-secondary" disabled={loadingRecipe} style={{ opacity: loadingRecipe && selectedDish !== dish ? 0.5 : 1, borderColor: selectedDish === dish ? '#f97316' : '#e5e7eb', background: selectedDish === dish ? '#fff7ed' : 'white' }}> 
-                    <span>{dish}</span> {loadingRecipe && selectedDish === dish ? ( <Sparkles className="animate-spin" size={24} color="#f97316" /> ) : ( <ChevronRight color="#d1d5db" /> )} 
-                  </button> 
-                ))} 
-              </div> 
-              <button className="btn-magic" onClick={handleRegenerate} disabled={isRegenerating || loadingRecipe}> 
-                 <Sparkles size={20} /> {isRegenerating ? "Включаю фантазию..." : "✨ Хочу что-то необычное"} 
-              </button> 
-            </div> 
-          )} 
-
-          {recipe && ( 
-            <div className="card" style={{position: 'relative', overflow: 'visible', marginTop: (isSharedView || fromFeed || isHistoryView) ? '60px' : '20px'}}> 
-              {isSharedView && ( 
-                <button onClick={handleBackToSearch} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'white', border: '1px solid #e5e7eb', borderRadius: '100px', padding: '8px 16px', color: '#374151', fontSize: '14px', fontWeight: 600, marginBottom: '20px', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', transition: 'all 0.2s' }}> 
-                  <Search size={18} color="#059669" /> К поиску 
-                </button> 
-              )} 
-
-              {(fromFeed !== false || isHistoryView) && !isSharedView && ( 
-                <button onClick={fromFeed ? handleBackToSource : handleBackToSearch} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'white', border: '1px solid #e5e7eb', borderRadius: '100px', padding: '8px 16px', color: '#374151', fontSize: '14px', fontWeight: 600, marginBottom: '20px', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', transition: 'all 0.2s' }}> 
-                  <ArrowLeft size={18} />  
-                  {fromFeed === 'photos' ? "Назад к ленте" :  
-                   fromFeed === 'profile_history' ? "Назад в историю" :  
-                   fromFeed === 'profile_favorites' ? "Назад в избранное" :  
-                   "Назад к истории"} 
-                </button> 
-              )} 
-
-              <div className="recipe-header" style={{flexDirection: 'column', alignItems: 'flex-start', gap: '15px'}}> 
-                <div style={{display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'flex-start', gap: '10px'}}> 
-                  <h2 className="recipe-title" style={{marginBottom: 0, fontSize: '24px', flex: 1, wordBreak: 'break-word', lineHeight: 1.2}}>{recipe.title}</h2> 
-                  <div style={{display: 'flex', gap: '15px', alignItems: 'center', flexShrink: 0, marginTop: '2px'}}> 
-                    <div onClick={handleShareRecipe} style={{cursor: 'pointer', display: 'flex'}}> <Share2 size={30} color="#d1d5db" style={{ transition: 'color 0.2s' }} /> </div> 
-                    <div onClick={(e) => toggleFavorite(e, recipe.id!, recipe.is_favorite)} style={{cursor: 'pointer'}}> 
-                      <Heart size={30} className={recipe.is_favorite ? "fill-red-500 text-red-500" : "text-gray-300"} color={recipe.is_favorite ? "#ef4444" : "#d1d5db"} fill={recipe.is_favorite ? "#ef4444" : "none"} /> 
-                    </div> 
-                  </div> 
-                </div> 
-
-                {recipe.description && ( <p style={{fontSize: '15px', color: '#4b5563', lineHeight: '1.5', margin: '5px 0 15px 0'}}>{recipe.description}</p> )} 
-               
-                {!fromFeed && !isSharedView && !isHistoryView && (analysisResult || (searchMode === 'text' && recipe)) && ( 
-                  <button onClick={handleSmartVariant} disabled={loadingRecipe} className="btn-smart-variant"> 
-                    {loadingRecipe ? ( <Sparkles className="animate-spin" size={24} color="#f97316"/> ) : ( <Shuffle size={20} color="#f97316"/> )} 
-                    <span style={{flex: 1, textAlign: 'left'}}> {loadingRecipe ? "Ищем идеи..." : "Подобрать другой рецепт"} </span> 
-                    <ChevronRight size={18} color="#9ca3af" /> 
-                  </button> 
-                )} 
-              </div> 
-
-              <div className="recipe-tags" style={{marginTop: '15px', marginBottom: '15px'}}> 
-                <div className="tag-badge"><Clock size={16}/> {formatTime(recipe.time)}</div> 
-                {recipe.calories && <div className="tag-badge orange"><Flame size={16}/> {formatCalories(recipe.calories)}</div>} 
-              </div> 
-
-              {recipe.detailed_ingredients && recipe.detailed_ingredients.length > 0 && ( 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', background: '#f9fafb', padding: '10px 15px', borderRadius: '12px', width: 'fit-content' }}> 
-                  <span style={{fontWeight: 700, color: '#374151', fontSize: '15px'}}>🍽 Порции:</span> 
-                  <div style={{display: 'flex', alignItems: 'center', background: 'white', border: '1px solid #d1d5db', borderRadius: '8px', overflow: 'hidden'}}> 
-                    <button onClick={() => setServings(prev => typeof prev === 'number' && prev > 1 ? prev - 1 : 1)} disabled={servings === 1 || servings === ""} style={{padding: '6px 12px', background: 'transparent', border: 'none', fontSize: '18px', color: (servings === 1 || servings === "") ? '#d1d5db' : '#374151', cursor: (servings === 1 || servings === "") ? 'default' : 'pointer', fontWeight: 600}}> - </button> 
-                    <input type="number" value={servings} onChange={(e) => { const val = e.target.value; if (val === '') setServings(''); else { const num = parseInt(val); if (!isNaN(num) && num > 0 && num <= 100) setServings(num); } }} onBlur={() => { if (servings === "") setServings(1); }} style={{width: '40px', textAlign: 'center', border: 'none', borderLeft: '1px solid #d1d5db', borderRight: '1px solid #d1d5db', padding: '6px 0', fontSize: '16px', fontWeight: 700, color: '#111', outline: 'none', boxSizing: 'border-box'}} /> 
-                    <button onClick={() => setServings(prev => typeof prev === 'number' ? prev + 1 : 2)} style={{padding: '6px 12px', background: 'transparent', border: 'none', fontSize: '18px', color: '#374151', cursor: 'pointer', fontWeight: 600}}> + </button> 
-                  </div> 
-                </div> 
-              )} 
-
-              {(() => { 
-                const itemsToBuy = (fromFeed && recipe.detailed_ingredients) ? recipe.detailed_ingredients.map(ing => ing.name) : (recipe.missing_ingredients || []); 
-                if (itemsToBuy.length === 0) return null; 
-                return ( 
-                  <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '12px', padding: '15px', margin: '20px 0', color: '#92400e' }}> 
-                    <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontWeight: 800}}> <ShoppingCart size={20} /> {(searchMode === 'text' || fromFeed || isSharedView) ? "Нужно купить:" : "Нужно докупить:"} </div> 
-                    <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px'}}> 
-                      {itemsToBuy.map((item, idx) => ( <a key={idx} href={`https://www.ozon.ru/search/?text=${encodeURIComponent(item)}&from_global=true`} target="_blank" rel="noopener noreferrer" style={{ background: '#fef3c7', padding: '6px 12px', borderRadius: '8px', fontSize: '14px', fontWeight: 600, textDecoration: 'none', color: '#92400e', display: 'flex', alignItems: 'center', gap: '6px', border: '1px solid #fcd34d', cursor: 'pointer', transition: 'all 0.2s' }}> {item} <ExternalLink size={12} style={{opacity: 0.6}} /> </a> ))} 
-                    </div> 
-                    <div style={{fontSize: '12px', color: '#b45309', display: 'flex', alignItems: 'center', gap: '5px'}}> <Info size={14} /> Нажмите на ингредиент, чтобы заказать быструю доставку Ozon Fresh до двери </div> 
-                  </div> 
-                ); 
-              })()} 
-
-              {recipe.detailed_ingredients && ( 
-                <div className="ing-box"> 
-                  <h3 style={{marginTop: 0, marginBottom: '15px'}}>Ингредиенты</h3> 
-                  {recipe.detailed_ingredients.map((ing, i) => ( 
-                    <div key={i} className="ing-row"> <span>{ing.name}</span> <span className="ing-val">{scaleAmount(ing.amount, actualServings)}</span> </div> 
-                  ))} 
-                </div> 
-              )} 
-
-              <h3 style={{fontSize: '22px', fontWeight: 800, marginBottom: '20px'}}>👨‍🍳 Рецепт приготовления</h3> 
-              <div> 
-                {recipe.steps?.map((step, i) => ( 
-                  <div key={i} className="step-row"> <div className="step-num">{i + 1}</div> <div className="step-text">{cleanText(step)}</div> </div> 
-                ))} 
-              </div> 
-
-              <div className="chat-box" style={{marginTop: '30px', background: '#e0f2fe', padding: '20px', borderRadius: '24px', border: '2px solid #93c5fd'}}> 
-                <div style={{fontWeight: 800, marginBottom: '20px', color: '#0369a1', fontSize: '18px', textAlign: 'center'}}> Задайте вопрос AI шеф-повару! </div> 
-                <div style={{display: 'flex', flexDirection: 'column', gap: '15px', alignItems: 'flex-start', width: '100%'}}> 
-                   <div style={{ fontWeight: 800, fontSize: '15px', color: '#0284c7', paddingLeft: '5px', display: 'flex', alignItems: 'center', gap: '6px' }}><Sparkles size={16} /> Спросить AI Шефа:</div>
-                   <div style={{display: 'flex', gap: '10px', alignItems: 'flex-end', width: '100%'}}>
-                      <textarea 
-                        value={question} 
-                        onChange={(e) => {
-                          setQuestion(e.target.value);
-                          e.target.style.height = '44px';
-                          e.target.style.height = (e.target.scrollHeight < 120 ? e.target.scrollHeight : 120) + 'px';
-                        }} 
-                        rows={1}
-                        disabled={asking}
-                        style={{ flex: 1, width: '100%', padding: '12px 16px', borderRadius: '22px', border: '1px solid #93c5fd', fontSize: '15px', outline: 'none', background: asking ? '#f8fafc' : 'white', resize: 'none', overflowY: 'auto', height: '44px', minHeight: '44px', maxHeight: '120px', boxSizing: 'border-box', lineHeight: '18px', fontFamily: 'inherit' }}
-                      /> 
-                      <button onClick={handleAskChef} disabled={asking || !question.trim()} style={{flexShrink: 0, padding: 0, width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: (asking || !question.trim()) ? '#bae6fd' : '#3b82f6', color: 'white', border: 'none', cursor: (asking || !question.trim()) ? 'default' : 'pointer'}}> <Send size={18} style={{marginLeft: '-2px'}}/> </button> 
-                   </div>
-                </div> 
-                {asking && (
-                  <div style={{marginTop: '15px', color: '#0ea5e9', fontSize: '14px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center'}}>
-                    <Sparkles className="animate-spin" size={16} /> Шеф-повар думает над ответом...
-                  </div>
-                )}
-                {answer && !asking && <div style={{marginTop: '20px', lineHeight: 1.5, background: 'white', padding: '15px', borderRadius: '16px'}}><strong>Ответ:</strong> {answer}</div>} 
-              </div> 
-
-              <div style={{marginTop: '30px', background: '#f8fafc', padding: '25px 20px', borderRadius: '16px', border: '1px solid #e2e8f0', textAlign: 'center'}}> 
-                <h3 style={{fontSize: '18px', fontWeight: 800, marginBottom: '5px', color: '#1f2937'}}>📸 Приготовили? Покажите результат!</h3> 
-                <p style={{fontSize: '13px', color: '#64748b', marginBottom: '15px', lineHeight: 1.4}}> Ваше фото появится в разделе <strong>«Лента»</strong>, где его смогут оценить другие пользователи! </p> 
-                {!user ? ( 
-                   <button className="btn-primary" onClick={() => setIsAuthModalOpen(true)}>Войти, чтобы опубликовать фото</button> 
-                ) : ( 
-                   <div style={{display: 'flex', flexDirection: 'column', gap: '15px'}}> 
-                     {!userPhotoFile ? ( 
-                        <div style={{border: '2px dashed #cbd5e1', borderRadius: '12px', padding: '20px', cursor: 'pointer', background: 'white'}} onClick={() => {setIsStandaloneUploadOpen(false); document.getElementById('user-photo-upload')?.click();}}> 
-                           <Camera size={32} color="#f97316" style={{margin: '0 auto 10px auto'}} /> 
-                           <div style={{fontSize: '14px', fontWeight: 600, color: '#4b5563'}}>Нажмите, чтобы загрузить фото блюда</div> 
-                           <input id="user-photo-upload" type="file" accept="image/*" style={{display: 'none'}} onChange={handleUserPhotoChange} /> 
-                        </div> 
-                     ) : ( 
-                        <div style={{background: 'white', padding: '15px', borderRadius: '12px', border: '1px solid #e2e8f0'}}> 
-                           <img src={userPhotoPreview!} alt="Preview" style={{width: '100%', height: '200px', objectFit: 'cover', borderRadius: '8px', marginBottom: '15px'}} /> 
-                           <textarea 
-                             placeholder="Описание (как получилось?)" 
-                             value={userComment} 
-                             onChange={(e) => {
-                               setUserComment(e.target.value);
-                               e.target.style.height = '44px';
-                               e.target.style.height = (e.target.scrollHeight) + 'px';
-                             }} 
-                             rows={1}
-                             style={{width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #fdba74', fontSize: '15px', marginBottom: '15px', outline: 'none', resize: 'none', overflow: 'hidden', minHeight: '44px', boxSizing: 'border-box', fontFamily: 'inherit', lineHeight: '18px'}} 
-                           /> 
-                           <div style={{display: 'flex', gap: '10px'}}> 
-                             <button onClick={() => {setUserPhotoFile(null); setUserPhotoPreview(null); setUserComment("");}} style={{flex: 1, padding: '12px', borderRadius: '8px', background: '#f3f4f6', border: 'none', color: '#4b5563', fontWeight: 700, cursor: 'pointer'}}>Отмена</button> 
-                             <button onClick={() => submitFeedPost(recipe)} disabled={isUploadingPhoto} style={{flex: 2, padding: '12px', borderRadius: '8px', background: '#ea580c', border: 'none', color: 'white', fontWeight: 700, cursor: isUploadingPhoto ? 'default' : 'pointer'}}> {isUploadingPhoto ? "Отправка..." : "Отправить в ленту"} </button> 
-                           </div> 
-                        </div> 
-                     )} 
-                   </div> 
-                )} 
-              </div> 
-            </div> 
-          )} 
-
-          {!isHistoryView && !fromFeed && !isSharedView && ( 
-            <> 
-              <div className="history-bar" style={{marginTop: '40px'}}> 
-                <span className="history-title">📜 История рецептов</span> 
-                <div className="history-filters"> 
-                  <button className={`filter-pill ${filterMode === 'all' ? 'active' : ''}`} onClick={() => setFilterMode('all')}>Все</button> 
-                  <button className={`filter-pill ${filterMode === 'favorites' ? 'active' : ''}`} onClick={() => setFilterMode('favorites')}>❤️ Избранное</button> 
-                </div> 
-              </div> 
-               
-              {historyExpanded && displayedFeed && displayedFeed.length > 4 && ( 
-                <button className="btn-expand-history" onClick={() => setHistoryExpanded(false)} style={{marginTop: '0', marginBottom: '15px'}}> Свернуть историю <ChevronUp size={16}/> </button> 
-              )} 
-               
-              {displayedFeed?.length === 0 && filterMode === 'favorites' ? ( 
-                 <div className="empty-msg">В избранном пока пусто 💔<br/>Добавьте рецепты лайком!</div> 
-              ) : ( 
-                <> 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '15px', marginBottom: '10px' }}> 
-                    {visibleHistory?.map((item) => ( 
-                      // ИСТОРИЯ РЕЦЕПТОВ - КРАСИВОЕ ИЗБРАННОЕ С ФОНОМ
-                      <div key={item.id} className="card" style={{ padding: '15px', cursor: 'pointer', marginBottom: 0, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: '1px solid #e5e7eb', position: 'relative', overflow: 'hidden', background: item.is_favorite ? '#fff5f5' : 'white' }} onClick={() => loadFromHistory(item, 'history')}> 
-                        {item.is_favorite && (
-                          <div style={{ position: 'absolute', top: '10px', right: '10px', color: '#ef4444' }}>
-                            <Heart size={18} className="fill-red-500" fill="#ef4444" />
-                          </div>
-                        )}
-                        <div style={{ fontWeight: 700, fontSize: '14px', marginBottom: '8px', lineHeight: 1.3, height: '38px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', wordBreak: 'break-word', position: 'relative', paddingRight: item.is_favorite ? '22px' : 0 }}> {item.title} </div> 
-                        <div style={{display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#6b7280'}}> 
-                           <div style={{display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap'}}><Clock size={12}/> {formatTime(item.time)}</div> 
-                           {item.calories && <div style={{display: 'flex', alignItems: 'center', gap: '3px', color: '#f97316', whiteSpace: 'nowrap'}}><Flame size={12}/> {formatCalories(item.calories)}</div>} 
-                        </div> 
-                      </div> 
-                    ))} 
-                  </div> 
-
-                  {!historyExpanded && displayedFeed && displayedFeed.length > 4 && ( 
-                    <button className="btn-expand-history" onClick={() => setHistoryExpanded(true)}> Показать еще ({displayedFeed.length - 4}) <ChevronDown size={16}/> </button> 
-                  )} 
-                </> 
-              )} 
-            </> 
-          )} 
-
-          {!isHistoryView && !fromFeed && !isSharedView && ( 
-            <section style={{marginTop: '40px', padding: '20px', background: '#f9fafb', borderRadius: '16px', color: '#6b7280', fontSize: '14px', lineHeight: '1.6'}}> 
-              <h2 style={{fontSize: '18px', color: '#1f2937', marginBottom: '10px', fontWeight: '700'}}>SmartCook: Генератор рецептов по фото</h2> 
-              <p>SmartCook использует искусственный интеллект для распознавания продуктов и создания рецептов за секунды.</p> 
-            </section> 
-          )} 
-        </> 
+      {activeView === 'service' && (
+        <ServiceView
+          isHistoryView={isHistoryView}
+          fromFeed={fromFeed}
+          isSharedView={isSharedView}
+          currentHoliday={currentHoliday}
+          switchView={switchView}
+          dailyRecipe={dailyRecipe}
+          searchMode={searchMode}
+          setSearchMode={setSearchMode}
+          setIsPreferencesModalOpen={setIsPreferencesModalOpen}
+          file={file}
+          handleFileChange={handleFileChange}
+          preview={preview}
+          triggerFileInput={triggerFileInput}
+          cookingMode={cookingMode}
+          setCookingMode={setCookingMode}
+          handleAnalyze={handleAnalyze}
+          analyzing={analyzing}
+          isProcessing={isProcessing}
+          textQuery={textQuery}
+          setTextQuery={setTextQuery}
+          handleTextSearch={handleTextSearch}
+          loadingRecipe={loadingRecipe}
+          analysisResult={analysisResult}
+          getRecipeFromPhoto={getRecipeFromPhoto}
+          selectedDish={selectedDish}
+          handleRegenerate={handleRegenerate}
+          isRegenerating={isRegenerating}
+          recipe={recipe}
+          handleBackToSearch={handleBackToSearch}
+          handleBackToSource={handleBackToSource}
+          handleShareRecipe={handleShareRecipe}
+          toggleFavorite={toggleFavorite}
+          handleSmartVariant={handleSmartVariant}
+          formatTime={formatTime}
+          formatCalories={formatCalories}
+          scaleAmount={scaleAmount}
+          cleanText={cleanText}
+          actualServings={actualServings}
+          servings={servings}
+          setServings={setServings}
+          question={question}
+          setQuestion={setQuestion}
+          handleAskChef={handleAskChef}
+          asking={asking}
+          answer={answer}
+          user={user}
+          setIsAuthModalOpen={setIsAuthModalOpen}
+          userPhotoFile={userPhotoFile}
+          userPhotoPreview={userPhotoPreview}
+          userComment={userComment}
+          setUserComment={setUserComment}
+          handleUserPhotoChange={handleUserPhotoChange}
+          submitFeedPost={submitFeedPost}
+          isUploadingPhoto={isUploadingPhoto}
+          setIsStandaloneUploadOpen={setIsStandaloneUploadOpen}
+          setUserPhotoFile={setUserPhotoFile}
+          setUserPhotoPreview={setUserPhotoPreview}
+          historyExpanded={historyExpanded}
+          setHistoryExpanded={setHistoryExpanded}
+          filterMode={filterMode}
+          setFilterMode={setFilterMode}
+          displayedFeed={displayedFeed}
+          visibleHistory={visibleHistory}
+          loadFromHistory={loadFromHistory}
+        />
       )} 
     </div> 
   ); 

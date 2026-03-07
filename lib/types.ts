@@ -1,0 +1,77 @@
+export interface AnalysisData {
+  ingredients: string[];
+  dishes: string[];
+}
+
+export interface DetailedIngredient {
+  name: string;
+  amount: string;
+}
+
+export interface RecipeData {
+  id?: number;
+  is_favorite?: boolean;
+  title: string;
+  description?: string;
+  time: string;
+  calories?: string;
+  steps: string[];
+  missing_ingredients?: string[];
+  ingredients?: string[];
+  detailed_ingredients?: DetailedIngredient[];
+}
+
+export interface DBRecipe {
+  id: number;
+  title: string;
+  time: string;
+  calories?: string;
+  is_favorite: boolean;
+  created_at: string;
+  steps: string[];
+  ingredients: string[];
+  detailed_ingredients?: DetailedIngredient[];
+  missing_ingredients?: string[];
+  description?: string;
+  session_id: string;
+  likes_count?: number;
+  comments_count?: number;
+  is_liked?: boolean;
+  custom_title?: string;
+  user_id?: string;
+  user_avatar?: string;
+  user_name?: string;
+}
+
+export interface DailyRecipeType {
+  title: string;
+  description?: string;
+  time: string | number;
+  calories: string | number;
+  ingredients?: string[];
+  detailed_ingredients?: DetailedIngredient[];
+  missing_ingredients?: string[];
+  steps: string[];
+  date?: string;
+  error?: string;
+}
+
+export interface HolidayType {
+  title: string;
+  text: string;
+  gradient: string;
+  icon: string;
+}
+
+export interface DBComment {
+  id: number;
+  post_id: number;
+  user_id: string;
+  user_name: string;
+  user_avatar?: string;
+  text: string;
+  created_at: string;
+  parent_id?: number | null;
+  likes_count?: number;
+  is_liked?: boolean;
+}

@@ -112,38 +112,42 @@ export default function DailyRecipe(props: any) {
               ))}
             </div>
 
-            {/* Блок: Вопрос Шефу (С ИНДИКАТОРОМ ЗАГРУЗКИ) */}
-            <div style={{background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '20px', padding: '20px', marginTop: '30px'}}> 
-              <div style={{fontWeight: 800, marginBottom: '15px', color: '#0369a1', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '6px'}}> 
-                <Sparkles size={18} /> Спросить AI Шефа: 
-              </div> 
-              <div style={{display: 'flex', gap: '10px', alignItems: 'flex-end', width: '100%'}}> 
-                <textarea 
-                  placeholder="Чем заменить сливки?" 
-                  value={question} 
-                  onChange={(e) => {
-                    setQuestion(e.target.value);
-                    e.target.style.height = '44px';
-                    e.target.style.height = (e.target.scrollHeight < 120 ? e.target.scrollHeight : 120) + 'px';
-                  }} 
-                  rows={1}
-                  disabled={asking}
-                  style={{ flex: 1, width: '100%', padding: '12px 16px', borderRadius: '22px', border: '1px solid #93c5fd', fontSize: '15px', outline: 'none', background: asking ? '#f8fafc' : 'white', resize: 'none', overflowY: 'auto', height: '44px', minHeight: '44px', maxHeight: '120px', boxSizing: 'border-box', lineHeight: '18px', fontFamily: 'inherit' }}
-                /> 
-                <button onClick={handleAskChef} disabled={asking || !question.trim()} style={{flexShrink: 0, padding: 0, width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: (asking || !question.trim()) ? '#bae6fd' : '#0ea5e9', color: 'white', border: 'none', cursor: (asking || !question.trim()) ? 'default' : 'pointer', boxShadow: '0 4px 10px rgba(14, 165, 233, 0.3)'}}> <Send size={18} style={{marginLeft: '-2px'}}/> </button> 
-              </div> 
-              
+            {/* Блок: Вопрос Шефу */}
+            <div className="chat-box" style={{marginTop: '30px', background: '#e0f2fe', padding: '20px', borderRadius: '24px', border: '2px solid #93c5fd'}}>
+              <div style={{fontWeight: 800, marginBottom: '20px', color: '#0369a1', fontSize: '18px', textAlign: 'center'}}>
+                Задайте вопрос AI шеф-повару!
+              </div>
+              <div style={{display: 'flex', flexDirection: 'column', gap: '15px', alignItems: 'flex-start', width: '100%'}}>
+                <div style={{fontWeight: 800, fontSize: '15px', color: '#0284c7', paddingLeft: '5px', display: 'flex', alignItems: 'center', gap: '6px'}}>
+                  <Sparkles size={16} /> Спросить AI Шефа:
+                </div>
+                <div style={{display: 'flex', gap: '10px', alignItems: 'flex-end', width: '100%'}}>
+                  <textarea
+                    value={question}
+                    onChange={(e) => {
+                      setQuestion(e.target.value);
+                      e.target.style.height = '44px';
+                      e.target.style.height = (e.target.scrollHeight < 120 ? e.target.scrollHeight : 120) + 'px';
+                    }}
+                    rows={1}
+                    disabled={asking}
+                    style={{flex: 1, width: '100%', padding: '12px 16px', borderRadius: '22px', border: '1px solid #93c5fd', fontSize: '15px', outline: 'none', background: asking ? '#f8fafc' : 'white', resize: 'none', overflowY: 'auto', height: '44px', minHeight: '44px', maxHeight: '120px', boxSizing: 'border-box', lineHeight: '18px', fontFamily: 'inherit'}}
+                  />
+                  <button onClick={handleAskChef} disabled={asking || !question.trim()} style={{flexShrink: 0, padding: 0, width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: (asking || !question.trim()) ? '#bae6fd' : '#3b82f6', color: 'white', border: 'none', cursor: (asking || !question.trim()) ? 'default' : 'pointer'}}>
+                    <Send size={18} style={{marginLeft: '-2px'}} />
+                  </button>
+                </div>
+              </div>
               {asking && (
                 <div style={{marginTop: '15px', color: '#0ea5e9', fontSize: '14px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center'}}>
                   <Sparkles className="animate-spin" size={16} /> Шеф-повар думает над ответом...
                 </div>
               )}
-
               {answer && !asking && (
-                <div style={{marginTop: '15px', lineHeight: 1.5, background: 'white', padding: '15px', borderRadius: '16px', border: '1px solid #e0f2fe', fontSize: '14px', color: '#0f172a'}}>
+                <div style={{marginTop: '20px', lineHeight: 1.5, background: 'white', padding: '15px', borderRadius: '16px', border: '1px solid #e0f2fe', fontSize: '14px', color: '#0f172a'}}>
                   <strong>Ответ:</strong> {answer}
                 </div>
-              )} 
+              )}
             </div>
 
           </div>

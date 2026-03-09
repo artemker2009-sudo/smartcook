@@ -608,12 +608,10 @@ export default function Home() {
     }
   };
 
-  const rewardForSaving = (estimatedCost?: number) => {
-    if (estimatedCost === undefined || estimatedCost === null) return;
-    const savings = 800 - estimatedCost;
-    if (savings >= 500) {
+  const rewardForSaving = (budgetTier?: number) => {
+    if (budgetTier === 1) {
       setCooks(prev => prev + 500);
-      setTimeout(() => showToast("💰 +500 куков за экономию бюджета!", <Sparkles size={18} color="#fbbf24" />), 2000);
+      setTimeout(() => showToast("💰 +500 куков за почти бесплатный рецепт!", <Sparkles size={18} color="#fbbf24" />), 2000);
     }
   };
 
@@ -626,7 +624,7 @@ export default function Home() {
       setRecipe({ ...json.recipe, id: json.recipe.id, is_favorite: false, ingredients: analysisResult.ingredients });  
       if (userId) fetchMyRecipes(userId);
       handleRewardForRecipe();
-      rewardForSaving(json.recipe.estimated_cost);
+      rewardForSaving(json.recipe.budget_tier);
     } catch (err: any) { showToast("Ошибка: " + err.message, undefined, 'error'); } finally { setLoadingRecipe(false); } 
   }; 
 
@@ -653,7 +651,7 @@ export default function Home() {
       setRecipe({ ...json.recipe, id: json.recipe.id, is_favorite: false, missing_ingredients: json.recipe.missing_ingredients || [] });  
       if (userId) fetchMyRecipes(userId);
       handleRewardForRecipe();
-      rewardForSaving(json.recipe.estimated_cost);
+      rewardForSaving(json.recipe.budget_tier);
     } catch (err: any) { showToast(err.message, undefined, 'error'); } finally { setLoadingRecipe(false); } 
   }; 
 

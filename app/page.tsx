@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, ChangeEvent } from "react";
+import { useState, useEffect, useRef, ChangeEvent } from "react";
 import { supabase } from "@/lib/supabase";
 import { Menu, X, Flame, Search, CheckCircle, Sparkles, Globe, User, Store, Settings } from "lucide-react";
 
@@ -112,6 +112,15 @@ export default function Home() {
   const [gameTab, setGameTab] = useState<'kitchen' | 'tasks' | 'shop' | 'leaderboard'>('kitchen');
   const [floatingClicks, setFloatingClicks] = useState<{id: number, x: number, y: number, val: number}[]>([]);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
+
+  const [toast, setToast] = useState<{ message: string; icon?: React.ReactNode; type?: 'success' | 'error' } | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showToast = (message: string, icon?: React.ReactNode, type: 'success' | 'error' = 'success') => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast({ message, icon, type });
+    toastTimerRef.current = setTimeout(() => setToast(null), 4500);
+  };
 
   // === ВСЕ ВАЖНЫЕ ФУНКЦИИ ИГРЫ ===
   const getRestaurantCost = (lvl: number) => {
@@ -328,10 +337,10 @@ export default function Home() {
   };
 
   const handleAuth = async () => {
-    if (!authUsername.trim() || authPassword.length < 6) return alert("Введите логин и пароль (минимум 6 символов)");
+    if (!authUsername.trim() || authPassword.length < 6) { showToast("Введите логин и пароль (мин. 6 символов)", undefined, 'error'); return; }
     
     const safeUsername = authUsername.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
-    if (safeUsername.length < 4) return alert("Логин должен содержать только английские буквы, цифры и _ (минимум 4 символа)!");
+    if (safeUsername.length < 4) { showToast("Логин: только a-z, 0-9, _ (мин. 4 символа)", undefined, 'error'); return; }
 
     setAuthLoading(true);
     const dummyEmail = `${safeUsername}@smartcook.app`;
@@ -345,24 +354,24 @@ export default function Home() {
         });
         if (error) {
           if (error.message.includes('already registered') || error.message.includes('User already exists')) {
-            alert("Этот Username уже занят! Выберите другой или перейдите во вкладку «Войти».");
+            showToast("Этот Username уже занят! Выберите другой или войдите.", undefined, 'error');
           } else throw error;
         } else {
-          alert("Успешная регистрация! Добро пожаловать, шеф.");
+          showToast("Добро пожаловать, шеф! 🎉", <Sparkles size={18} color="#fbbf24" />);
           setIsAuthModalOpen(false);
         }
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({ email: dummyEmail, password: authPassword });
         if (error) {
           if (error.message.includes('Invalid login credentials')) {
-            alert("Неверный Username или пароль!");
+            showToast("Неверный Username или пароль!", undefined, 'error');
           } else throw error;
         } else {
           setIsAuthModalOpen(false);
         }
       }
     } catch (e: any) { 
-      alert("Ошибка: " + e.message); 
+      showToast("Ошибка: " + e.message, undefined, 'error'); 
     } finally { 
       setAuthLoading(false); 
     }
@@ -388,7 +397,7 @@ export default function Home() {
          const finalFile = new File([compressedFile], `avatar_${Date.now()}.jpg`, { type: "image/jpeg" });
          setUserPhotoFile(finalFile); setEditAvatarPreview(URL.createObjectURL(finalFile)); setIsCropping(false); setCropImageSrc(null);
       }
-    } catch (e) { alert("Не удалось обработать фото"); setUserPhotoFile(null); setUserPhotoPreview(null); }
+    } catch (e) { showToast("Не удалось обработать фото", undefined, 'error'); setUserPhotoFile(null); setUserPhotoPreview(null); }
   };
 
   const handleProfileSave = async () => { 
@@ -415,7 +424,7 @@ export default function Home() {
       
       setPhotosFeed(prev => prev.map(p => p.user_id === user.id ? { ...p, user_name: editProfileName, user_avatar: avatarUrl } : p));
       setUserPhotos(prev => prev.map(p => p.user_id === user.id ? { ...p, user_name: editProfileName, user_avatar: avatarUrl } : p));
-    } catch(e: any) { alert(e.message || "Ошибка сохранения профиля"); } finally { setIsSavingProfile(false); } 
+    } catch(e: any) { showToast(e.message || "Ошибка сохранения профиля", undefined, 'error'); } finally { setIsSavingProfile(false); } 
   }; 
 
   const handlePhotoLike = async (e: any, item: any) => {
@@ -430,7 +439,7 @@ export default function Home() {
 
   const handleDeletePost = async (postId: number) => { 
     if (!confirm("Вы уверены, что хотите удалить этот пост?")) return; 
-    try { const { error } = await supabase.from('feed_posts').delete().eq('id', postId).eq('user_id', user?.id); if (error) throw error; setPhotosFeed(prev => prev.filter(p => p.id !== postId)); setUserPhotos(prev => prev.filter(p => p.id !== postId)); } catch (e: any) { alert("Ошибка удаления."); } 
+    try { const { error } = await supabase.from('feed_posts').delete().eq('id', postId).eq('user_id', user?.id); if (error) throw error; setPhotosFeed(prev => prev.filter(p => p.id !== postId)); setUserPhotos(prev => prev.filter(p => p.id !== postId)); } catch (e: any) { showToast("Ошибка удаления", undefined, 'error'); } 
   }; 
 
   const openComments = async (postId: number) => { 
@@ -452,7 +461,7 @@ export default function Home() {
       setPostComments(data?.map(c => ({...c, is_liked: likedIds.has(c.id)})) || []); 
     } catch (e) {
       console.error(e);
-      alert("Не удалось загрузить комментарии");
+      showToast("Не удалось загрузить комментарии", undefined, 'error');
     } finally {
       setIsLoadingComments(false);
     }
@@ -468,7 +477,7 @@ export default function Home() {
 
   const handleDeleteComment = async (commentId: number) => { 
     if (!confirm("Удалить комментарий?")) return; 
-    try { const { error } = await supabase.from('photo_comments').delete().eq('id', commentId).eq('user_id', user?.id); if (error) throw error; setPostComments(prev => prev.filter(c => c.id !== commentId && c.parent_id !== commentId)); setPhotosFeed(photosFeed.map(p => p.id === commentsModalPostId ? { ...p, comments_count: Math.max(0, (p.comments_count || 0) - 1) } : p)); } catch (e: any) { alert("Ошибка удаления"); } 
+    try { const { error } = await supabase.from('photo_comments').delete().eq('id', commentId).eq('user_id', user?.id); if (error) throw error; setPostComments(prev => prev.filter(c => c.id !== commentId && c.parent_id !== commentId)); setPhotosFeed(photosFeed.map(p => p.id === commentsModalPostId ? { ...p, comments_count: Math.max(0, (p.comments_count || 0) - 1) } : p)); } catch (e: any) { showToast("Ошибка удаления", undefined, 'error'); } 
   }; 
 
   const handleCommentLike = async (comment: DBComment) => {
@@ -502,7 +511,7 @@ export default function Home() {
       const imageCompression = (await import('browser-image-compression')).default; 
       const compressedFile = await imageCompression(files[0], { maxSizeMB: 1, maxWidthOrHeight: 1080, useWebWorker: true, fileType: "image/jpeg" }); 
       setUserPhotoFile(new File([compressedFile], `post_${Date.now()}.jpg`, { type: "image/jpeg" })); 
-    } catch (error) { alert("Не удалось обработать фото"); setUserPhotoFile(null); setUserPhotoPreview(null); } 
+    } catch (error) { showToast("Не удалось обработать фото", undefined, 'error'); setUserPhotoFile(null); setUserPhotoPreview(null); } 
     finally { setIsUploadingPhoto(false); } 
   }; 
 
@@ -514,8 +523,8 @@ export default function Home() {
 
   const submitFeedPost = async (currentRecipeContext: any) => { 
     if (!user) return setIsAuthModalOpen(true); 
-    if (!userPhotoFile) return alert("Сначала выберите фото!"); 
-    if (isStandaloneUploadOpen && !standaloneTitle.trim()) return alert("Введите название вашего блюда!"); 
+    if (!userPhotoFile) { showToast("Сначала выберите фото!", undefined, 'error'); return; } 
+    if (isStandaloneUploadOpen && !standaloneTitle.trim()) { showToast("Введите название вашего блюда!", undefined, 'error'); return; } 
 
     setIsUploadingPhoto(true); 
     try { 
@@ -542,19 +551,19 @@ export default function Home() {
           if (latestPost) await fetch('/api/telegram-mod', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ postId: latestPost.id, recipeTitle: postTitleContext, userName: userName, comment: userComment, photoUrl: publicUrlData.publicUrl }) }); 
       } catch (tgErr) {} 
 
-      alert(`Ура! 🎉 Ваше фото отправлено на проверку шефу.\n\n🎁 Вы заработали 1000 куков!`); 
+      showToast("🎉 Фото на проверке у шефа! +1000 куков!", <Sparkles size={18} color="#fbbf24" />); 
       setCooks(prev => prev + 1000); setUserPhotoFile(null); setUserPhotoPreview(null); setUserComment(""); setStandaloneTitle(""); setIsStandaloneUploadOpen(false); 
-    } catch (err: any) { alert("Ошибка отправки: " + err.message); } finally { setIsUploadingPhoto(false); } 
+    } catch (err: any) { showToast("Ошибка отправки: " + err.message, undefined, 'error'); } finally { setIsUploadingPhoto(false); } 
   }; 
 
   const handleShareDaily = async () => { 
     if (!dailyRecipe) return; const recipeUrl = `${window.location.origin}/?daily=true`; const fullText = `«${dailyRecipe.title}» 🍲\nПриготовлено с помощью SmartCook 👨‍🍳\n\nСмотри рецепт по ссылке:\n${recipeUrl}`; 
-    try { if (navigator.share) await navigator.share({ title: dailyRecipe.title, text: fullText }); else { await navigator.clipboard.writeText(fullText); alert("Ссылка на сайт скопирована в буфер обмена!"); } } catch (err) {} 
+    try { if (navigator.share) await navigator.share({ title: dailyRecipe.title, text: fullText }); else { await navigator.clipboard.writeText(fullText); showToast("📋 Ссылка скопирована в буфер обмена!"); } } catch (err) {} 
   }; 
 
   const handleShareRecipe = async () => { 
     if (!recipe) return; const recipeUrl = recipe.id ? `${window.location.origin}/?recipeId=${recipe.id}` : window.location.origin; const fullText = `«${recipe.title}» 🍲\nПриготовлено с помощью SmartCook 👨‍🍳\n\nОткрой рецепт по ссылке:\n${recipeUrl}`; 
-    try { if (navigator.share) await navigator.share({ title: recipe.title, text: fullText }); else { await navigator.clipboard.writeText(fullText); alert("Ссылка на рецепт скопирована в буфер обмена!"); } } catch (err) {} 
+    try { if (navigator.share) await navigator.share({ title: recipe.title, text: fullText }); else { await navigator.clipboard.writeText(fullText); showToast("📋 Ссылка скопирована в буфер обмена!"); } } catch (err) {} 
   }; 
 
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => { 
@@ -565,7 +574,7 @@ export default function Home() {
       const compressedFile = await imageCompression(files[0], { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true, fileType: "image/jpeg" }); 
       const finalFile = new File([compressedFile], "image.jpg", { type: "image/jpeg" }); 
       setFile(finalFile); setPreview(URL.createObjectURL(finalFile));  
-    } catch (error) { alert("Не удалось обработать фото."); setFile(null); } finally { setIsProcessing(false); } 
+    } catch (error) { showToast("Не удалось обработать фото", undefined, 'error'); setFile(null); } finally { setIsProcessing(false); } 
   }; 
 
   const triggerFileInput = () => document.getElementById('hidden-file-input')?.click(); 
@@ -577,7 +586,7 @@ export default function Home() {
       const response = await fetch("/api/analyze", { method: "POST", body: formData }); 
       const json = await response.json(); if (json.error) throw new Error(json.error);  
       setAnalysisResult(json.data); 
-    } catch (err: any) { alert("Ошибка: " + err.message); } finally { setAnalyzing(false); } 
+    } catch (err: any) { showToast("Ошибка: " + err.message, undefined, 'error'); } finally { setAnalyzing(false); } 
   }; 
 
   const handleRegenerate = async () => { 
@@ -586,7 +595,7 @@ export default function Home() {
       const response = await fetch("/api/regenerate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ingredients: analysisResult.ingredients }) }); 
       const json = await response.json(); if (json.error) throw new Error(json.error); 
       setAnalysisResult({ ...analysisResult, dishes: json.dishes }); 
-    } catch (err: any) { alert("Ошибка"); } finally { setIsRegenerating(false); } 
+    } catch (err: any) { showToast("Ошибка", undefined, 'error'); } finally { setIsRegenerating(false); } 
   }; 
 
   const handleRewardForRecipe = () => {
@@ -595,7 +604,16 @@ export default function Home() {
     if (lastGen !== today) {
       localStorage.setItem('sc_last_gen_date', today);
       setCooks(prev => prev + 100);
-      setTimeout(() => alert("🎉 Поздравляем! Вы заработали 100 куков за первый сгенерированный рецепт сегодня! Загляните в 'Мой ресторан'."), 1500);
+      setTimeout(() => showToast("🎉 +100 куков за первый рецепт сегодня!", <Sparkles size={18} color="#fbbf24" />), 1500);
+    }
+  };
+
+  const rewardForSaving = (estimatedCost?: number) => {
+    if (estimatedCost === undefined || estimatedCost === null) return;
+    const savings = 800 - estimatedCost;
+    if (savings >= 500) {
+      setCooks(prev => prev + 500);
+      setTimeout(() => showToast("💰 +500 куков за экономию бюджета!", <Sparkles size={18} color="#fbbf24" />), 2000);
     }
   };
 
@@ -607,11 +625,12 @@ export default function Home() {
       const json = await response.json(); if (json.error) throw new Error(json.error);  
       setRecipe({ ...json.recipe, ingredients: analysisResult.ingredients });  
       if (userId) {
-         await supabase.from('recipes').insert({ session_id: userId, title: json.recipe.title, description: json.recipe.description, time: String(json.recipe.time), calories: String(json.recipe.calories), ingredients: json.recipe.detailed_ingredients?.map((i:any) => `${i.name} - ${i.amount}`) || [], detailed_ingredients: json.recipe.detailed_ingredients, missing_ingredients: json.recipe.missing_ingredients, steps: json.recipe.steps, is_favorite: false }); 
+         await supabase.from('recipes').insert({ session_id: userId, title: json.recipe.title, description: json.recipe.description, time: String(json.recipe.time), calories: String(json.recipe.calories), ingredients: json.recipe.detailed_ingredients?.map((i:any) => `${i.name} - ${i.amount}`) || [], detailed_ingredients: json.recipe.detailed_ingredients, missing_ingredients: json.recipe.missing_ingredients, steps: json.recipe.steps, is_favorite: false, estimated_cost: json.recipe.estimated_cost || null, budget_tier: json.recipe.budget_tier || null }); 
          fetchMyRecipes(userId); 
       }
       handleRewardForRecipe();
-    } catch (err: any) { alert("Ошибка: " + err.message); } finally { setLoadingRecipe(false); } 
+      rewardForSaving(json.recipe.estimated_cost);
+    } catch (err: any) { showToast("Ошибка: " + err.message, undefined, 'error'); } finally { setLoadingRecipe(false); } 
   }; 
 
   const handleSmartVariant = async () => { 
@@ -626,7 +645,7 @@ export default function Home() {
       } else if (searchMode === 'text' && textQuery) { 
         await handleTextSearch();
       } 
-    } catch (err: any) { alert("Ошибка"); } finally { setLoadingRecipe(false); } 
+    } catch (err: any) { showToast("Ошибка", undefined, 'error'); } finally { setLoadingRecipe(false); } 
   }; 
 
   const handleTextSearch = async () => { 
@@ -636,11 +655,12 @@ export default function Home() {
       const json = await response.json(); if (!response.ok) throw new Error(json.error || "Ошибка поиска"); 
       setRecipe({ ...json.recipe, missing_ingredients: json.recipe.missing_ingredients || [] });  
       if (userId) {
-         await supabase.from('recipes').insert({ session_id: userId, title: json.recipe.title, description: json.recipe.description, time: String(json.recipe.time), calories: String(json.recipe.calories), ingredients: json.recipe.detailed_ingredients?.map((i:any) => `${i.name} - ${i.amount}`) || [], detailed_ingredients: json.recipe.detailed_ingredients, missing_ingredients: json.recipe.missing_ingredients, steps: json.recipe.steps, is_favorite: false }); 
+         await supabase.from('recipes').insert({ session_id: userId, title: json.recipe.title, description: json.recipe.description, time: String(json.recipe.time), calories: String(json.recipe.calories), ingredients: json.recipe.detailed_ingredients?.map((i:any) => `${i.name} - ${i.amount}`) || [], detailed_ingredients: json.recipe.detailed_ingredients, missing_ingredients: json.recipe.missing_ingredients, steps: json.recipe.steps, is_favorite: false, estimated_cost: json.recipe.estimated_cost || null, budget_tier: json.recipe.budget_tier || null }); 
          fetchMyRecipes(userId); 
       }
       handleRewardForRecipe();
-    } catch (err: any) { alert("🛑 " + err.message); } finally { setLoadingRecipe(false); } 
+      rewardForSaving(json.recipe.estimated_cost);
+    } catch (err: any) { showToast(err.message, undefined, 'error'); } finally { setLoadingRecipe(false); } 
   }; 
 
   const handleAskChef = async () => { 
@@ -649,12 +669,12 @@ export default function Home() {
     try { 
       const response = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: question, recipeContext: currentContext }) }); 
       const json = await response.json(); if (json.error) throw new Error(json.error); setAnswer(json.answer); 
-    } catch (err: any) { alert("Ошибка"); } finally { setAsking(false); } 
+    } catch (err: any) { showToast("Ошибка", undefined, 'error'); } finally { setAsking(false); } 
   }; 
 
   const loadFromHistory = (item: DBRecipe, source: 'photos' | 'history' | 'profile_history' | 'profile_favorites' = 'history') => { 
     setAnalysisResult(null); setQuestion(""); setAnswer(null); setServings(1);  
-    setRecipe({ id: item.id, is_favorite: item.is_favorite, title: item.title, description: item.description, time: item.time, calories: item.calories, steps: item.steps || [], missing_ingredients: item.missing_ingredients || [], ingredients: item.ingredients || [], detailed_ingredients: item.detailed_ingredients || [] }); 
+    setRecipe({ id: item.id, is_favorite: item.is_favorite, title: item.title, description: item.description, time: item.time, calories: item.calories, steps: item.steps || [], missing_ingredients: item.missing_ingredients || [], ingredients: item.ingredients || [], detailed_ingredients: item.detailed_ingredients || [], estimated_cost: item.estimated_cost, budget_tier: item.budget_tier }); 
     setFromFeed(source === 'history' ? false : source); setIsHistoryView(source === 'history' || source === 'profile_history' || source === 'profile_favorites'); setIsSharedView(false);  
     window.scrollTo({ top: 0, behavior: 'smooth' }); setActiveView('service');  
   }; 
@@ -664,7 +684,7 @@ export default function Home() {
       const { data, error } = await supabase.from('recipes').select('*').eq('id', id).single(); 
       if (data && !error) { 
         setAnalysisResult(null); setQuestion(""); setAnswer(null); setServings(1);  
-        setRecipe({ id: data.id, is_favorite: data.is_favorite, title: data.title, description: data.description, time: data.time, calories: data.calories, steps: data.steps || [], missing_ingredients: data.missing_ingredients || [], ingredients: data.ingredients || [], detailed_ingredients: data.detailed_ingredients || [] }); 
+        setRecipe({ id: data.id, is_favorite: data.is_favorite, title: data.title, description: data.description, time: data.time, calories: data.calories, steps: data.steps || [], missing_ingredients: data.missing_ingredients || [], ingredients: data.ingredients || [], detailed_ingredients: data.detailed_ingredients || [], estimated_cost: data.estimated_cost, budget_tier: data.budget_tier }); 
         setActiveView('service'); setFromFeed(source); setIsHistoryView(false); setIsSharedView(source === false);  
         window.scrollTo({ top: 0, behavior: 'smooth' }); 
       } 
@@ -706,6 +726,15 @@ export default function Home() {
         @keyframes floatUp { 0% { opacity: 1; transform: translateY(0) scale(1); } 100% { opacity: 0; transform: translateY(-60px) scale(1.3); } }
         .float-coin { position: absolute; animation: floatUp 0.8s ease-out forwards; pointer-events: none; font-size: 24px; font-weight: 900; color: #f59e0b; text-shadow: 0px 2px 4px rgba(0,0,0,0.3); z-index: 10; }
       `}</style> 
+
+      {/* TOAST УВЕДОМЛЕНИЯ */}
+      {toast && (
+        <div className={`sc-toast ${toast.type === 'error' ? 'sc-toast-error' : 'sc-toast-success'}`}>
+          {toast.icon && <span className="sc-toast-icon">{toast.icon}</span>}
+          <span className="sc-toast-text">{toast.message}</span>
+          <button className="sc-toast-close" onClick={() => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current); setToast(null); }}>&times;</button>
+        </div>
+      )}
 
       <FullScreenImage imageUrl={fullScreenImage} onClose={() => setFullScreenImage(null)} />
 

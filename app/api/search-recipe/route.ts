@@ -69,6 +69,10 @@ export async function POST(req: Request) {
       5. ОПЦИИ: 
          - Ингредиенты для подачи (сметана, хлеб, зелень) помечай: "(по желанию)".
 
+      6. БЮДЖЕТ (ОБЯЗАТЕЛЬНО):
+         - Оцени ПРИМЕРНУЮ стоимость ВСЕХ ингредиентов на 1 порцию по средним ценам продуктовых магазинов РФ (2026 год). Верни число в рублях (только число, без "руб").
+         - Определи budget_tier: 1 = "Почти бесплатно" (до 200 руб), 2 = "Экономно" (200-450 руб), 3 = "Ресторан дома" (более 450 руб).
+
       Верни JSON (если блюдо реальное):
       {
         "title": "Правильное название блюда",
@@ -79,7 +83,9 @@ export async function POST(req: Request) {
           { "name": "Продукт", "amount": "Вес (г/мл)" }
         ],
         "missing_ingredients": ["Полный список покупок"],
-        "steps": ["Текст первого действия...", "Текст второго действия..."]
+        "steps": ["Текст первого действия...", "Текст второго действия..."],
+        "estimated_cost": 250,
+        "budget_tier": 2
       }
     `;
 
@@ -112,7 +118,9 @@ export async function POST(req: Request) {
         detailed_ingredients: recipe.detailed_ingredients,
         missing_ingredients: recipe.missing_ingredients,
         steps: recipe.steps,
-        is_favorite: false
+        is_favorite: false,
+        estimated_cost: recipe.estimated_cost || null,
+        budget_tier: recipe.budget_tier || null,
       });
       if (error) console.error("History save error:", error);
     }

@@ -275,6 +275,58 @@ export default function RecipeView({
         )}
       </div>
 
+      {recipe.estimated_cost !== undefined && (() => {
+        const totalCost = (recipe.estimated_cost || 0) * actualServings;
+        const deliveryCost = 800 * actualServings;
+        const savings = deliveryCost - totalCost;
+        const tier = recipe.budget_tier || 2;
+        const tierConfig = {
+          1: { label: "Почти бесплатно", bg: "linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)", border: "#86efac", color: "#166534", icon: "🤑" },
+          2: { label: "Экономно", bg: "linear-gradient(135deg, #fef9c3 0%, #fde68a 100%)", border: "#fcd34d", color: "#854d0e", icon: "💰" },
+          3: { label: "Ресторан дома", bg: "linear-gradient(135deg, #fff7ed 0%, #fed7aa 100%)", border: "#fdba74", color: "#9a3412", icon: "👨‍🍳" },
+        }[tier as 1 | 2 | 3] || { label: "Экономно", bg: "linear-gradient(135deg, #fef9c3 0%, #fde68a 100%)", border: "#fcd34d", color: "#854d0e", icon: "💰" };
+
+        return (
+          <div style={{
+            background: tierConfig.bg,
+            border: `1px solid ${tierConfig.border}`,
+            borderRadius: "24px",
+            padding: "16px 20px",
+            marginBottom: "20px",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
+              <span style={{ fontSize: "24px" }}>{tierConfig.icon}</span>
+              <span style={{
+                fontSize: "13px",
+                fontWeight: 800,
+                background: `${tierConfig.border}80`,
+                color: tierConfig.color,
+                padding: "4px 12px",
+                borderRadius: "100px",
+              }}>
+                {tierConfig.label}
+              </span>
+            </div>
+            {totalCost === 0 ? (
+              <div style={{ fontSize: "16px", fontWeight: 800, color: tierConfig.color, lineHeight: 1.4 }}>
+                Ужин за 0 рублей! Полная экономия 🎉
+              </div>
+            ) : (
+              <>
+                <div style={{ fontSize: "16px", fontWeight: 800, color: tierConfig.color, lineHeight: 1.4 }}>
+                  Стоимость{actualServings > 1 ? ` (${actualServings} порц.)` : ""}: ~{totalCost} руб.
+                </div>
+                {savings > 0 && (
+                  <div style={{ fontSize: "14px", fontWeight: 600, color: "#059669", marginTop: "4px", display: "flex", alignItems: "center", gap: "6px" }}>
+                    Экономия vs доставка: {savings} руб.
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        );
+      })()}
+
       {recipe.detailed_ingredients && recipe.detailed_ingredients.length > 0 && (
         <div
           style={{

@@ -67,6 +67,10 @@ export async function POST(req: Request) {
       6. ПОКУПКИ:
          - В 'missing_ingredients' добавь ВСЁ, чего нет в списке, но нужно для рецепта.
 
+      7. БЮДЖЕТ (ОБЯЗАТЕЛЬНО):
+         - Оцени ПРИМЕРНУЮ стоимость ВСЕХ ингредиентов на 1 порцию по средним ценам продуктовых магазинов РФ (2026 год). Верни число в рублях (только число, без "руб").
+         - Определи budget_tier: 1 = "Почти бесплатно" (до 200 руб), 2 = "Экономно" (200-450 руб), 3 = "Ресторан дома" (более 450 руб).
+
       Верни JSON:
       {
         "title": "Название",
@@ -77,7 +81,9 @@ export async function POST(req: Request) {
           { "name": "Продукт", "amount": "Вес" }
         ],
         "missing_ingredients": ["Список покупок"],
-        "steps": ["Текст шага 1", "Текст шага 2"]
+        "steps": ["Текст шага 1", "Текст шага 2"],
+        "estimated_cost": 250,
+        "budget_tier": 2
       }
     `;
 
@@ -106,7 +112,9 @@ export async function POST(req: Request) {
         detailed_ingredients: recipe.detailed_ingredients, 
         steps: recipe.steps,
         missing_ingredients: recipe.missing_ingredients,
-        is_favorite: false
+        is_favorite: false,
+        estimated_cost: recipe.estimated_cost || null,
+        budget_tier: recipe.budget_tier || null,
       };
 
       const { error: dbError } = await supabase.from('recipes').insert(dbPayload);

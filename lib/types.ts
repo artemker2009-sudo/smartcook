@@ -19,6 +19,8 @@ export interface RecipeData {
   missing_ingredients?: string[];
   ingredients?: string[];
   detailed_ingredients?: DetailedIngredient[];
+  estimated_cost?: number;
+  budget_tier?: number;
 }
 
 export interface DBRecipe {
@@ -41,6 +43,8 @@ export interface DBRecipe {
   user_id?: string;
   user_avatar?: string;
   user_name?: string;
+  estimated_cost?: number;
+  budget_tier?: number;
 }
 
 export interface DailyRecipeType {
@@ -54,6 +58,8 @@ export interface DailyRecipeType {
   steps: string[];
   date?: string;
   error?: string;
+  estimated_cost?: number;
+  budget_tier?: number;
 }
 
 export interface HolidayType {

@@ -119,7 +119,7 @@ export default function Home() {
   const showToast = (message: string, icon?: React.ReactNode, type: 'success' | 'error' = 'success') => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToast({ message, icon, type });
-    toastTimerRef.current = setTimeout(() => setToast(null), 4500);
+    toastTimerRef.current = setTimeout(() => setToast(null), 5000);
   };
 
   // === ВСЕ ВАЖНЫЕ ФУНКЦИИ ИГРЫ ===
@@ -604,15 +604,8 @@ export default function Home() {
     const lastGen = localStorage.getItem('sc_last_gen_date');
     if (lastGen !== today) {
       localStorage.setItem('sc_last_gen_date', today);
-      setCooks(prev => prev + 100);
-      setTimeout(() => showToast("🎉 +100 куков за первый рецепт сегодня!", <Sparkles size={18} color="#fbbf24" />), 1500);
-    }
-  };
-
-  const rewardForSaving = (budgetTier?: number) => {
-    if (budgetTier === 1) {
       setCooks(prev => prev + 500);
-      setTimeout(() => showToast("💰 +500 куков за почти бесплатный рецепт!", <Sparkles size={18} color="#fbbf24" />), 2000);
+      setTimeout(() => showToast("🎉 +500 куков за первый рецепт сегодня!", <Sparkles size={18} color="#fbbf24" />), 1500);
     }
   };
 
@@ -625,7 +618,6 @@ export default function Home() {
       setRecipe({ ...json.recipe, id: json.recipe.id, is_favorite: false, ingredients: analysisResult.ingredients });  
       if (userId) fetchMyRecipes(userId);
       handleRewardForRecipe();
-      rewardForSaving(json.recipe.budget_tier);
     } catch (err: any) { showToast("Ошибка: " + err.message, undefined, 'error'); } finally { setLoadingRecipe(false); } 
   }; 
 
@@ -652,7 +644,6 @@ export default function Home() {
       setRecipe({ ...json.recipe, id: json.recipe.id, is_favorite: false, missing_ingredients: json.recipe.missing_ingredients || [] });  
       if (userId) fetchMyRecipes(userId);
       handleRewardForRecipe();
-      rewardForSaving(json.recipe.budget_tier);
     } catch (err: any) { showToast(err.message, undefined, 'error'); } finally { setLoadingRecipe(false); } 
   }; 
 

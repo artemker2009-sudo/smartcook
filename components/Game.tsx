@@ -95,7 +95,7 @@ export default function Game(props: any) {
           <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', padding: '15px', borderRadius: '16px', marginBottom: '10px'}}>
             <div>
               <div style={{fontWeight: 800, fontSize: '15px', color: '#111', marginBottom: '4px'}}>Сгенерировать рецепт</div>
-              <div style={{fontSize: '12px', color: '#64748b', fontWeight: 600}}>Награда: 100 куков (Раз в день)</div>
+              <div style={{fontSize: '12px', color: '#64748b', fontWeight: 600}}>Награда: 500 куков (Раз в день)</div>
             </div>
             <button onClick={() => switchView('service')} style={{background: '#3b82f6', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '100px', fontWeight: 700, fontSize: '12px', cursor: 'pointer'}}>В поиск</button>
           </div>

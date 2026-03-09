@@ -119,8 +119,6 @@ export async function POST(req: Request) {
         missing_ingredients: recipe.missing_ingredients,
         steps: recipe.steps,
         is_favorite: false,
-        estimated_cost: recipe.estimated_cost || null,
-        budget_tier: recipe.budget_tier || null,
       }).select('id').single();
       if (error) console.error("History save error:", error);
       if (savedRow) recipe.id = savedRow.id;

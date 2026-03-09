@@ -113,8 +113,6 @@ export async function POST(req: Request) {
         steps: recipe.steps,
         missing_ingredients: recipe.missing_ingredients,
         is_favorite: false,
-        estimated_cost: recipe.estimated_cost || null,
-        budget_tier: recipe.budget_tier || null,
       };
 
       const { data: savedRow, error: dbError } = await supabase.from('recipes').insert(dbPayload).select('id').single();

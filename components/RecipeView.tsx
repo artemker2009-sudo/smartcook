@@ -307,22 +307,21 @@ export default function RecipeView({
                 {tierConfig.label}
               </span>
             </div>
+            <div style={{ fontSize: "16px", fontWeight: 800, color: tierConfig.color, lineHeight: 1.4, marginBottom: "6px" }}>
+              Цена блюда{actualServings > 1 ? ` (${actualServings} порц.)` : ""}:
+            </div>
             {totalCost === 0 ? (
-              <div style={{ fontSize: "16px", fontWeight: 800, color: tierConfig.color, lineHeight: 1.4 }}>
-                Ужин за 0 рублей! Полная экономия 🎉
+              <div style={{ fontSize: "15px", fontWeight: 700, color: tierConfig.color, lineHeight: 1.4 }}>
+                Своё приготовление: 0 руб. 🎉
               </div>
             ) : (
-              <>
-                <div style={{ fontSize: "16px", fontWeight: 800, color: tierConfig.color, lineHeight: 1.4 }}>
-                  Стоимость{actualServings > 1 ? ` (${actualServings} порц.)` : ""}: ~{totalCost} руб.
-                </div>
-                {savings > 0 && (
-                  <div style={{ fontSize: "14px", fontWeight: 600, color: "#059669", marginTop: "4px", display: "flex", alignItems: "center", gap: "6px" }}>
-                    Экономия vs доставка: {savings} руб.
-                  </div>
-                )}
-              </>
+              <div style={{ fontSize: "15px", fontWeight: 700, color: tierConfig.color, lineHeight: 1.4 }}>
+                Своё приготовление: ~{totalCost} руб.
+              </div>
             )}
+            <div style={{ fontSize: "14px", fontWeight: 600, color: "#6b7280", marginTop: "4px" }}>
+              В сервисах доставки: ~{deliveryCost} руб.
+            </div>
           </div>
         );
       })()}

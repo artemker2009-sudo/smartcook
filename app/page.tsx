@@ -509,7 +509,7 @@ export default function Home() {
     setUserPhotoPreview(URL.createObjectURL(files[0])); setIsUploadingPhoto(true); 
     try { 
       const imageCompression = (await import('browser-image-compression')).default; 
-      const compressedFile = await imageCompression(files[0], { maxSizeMB: 1, maxWidthOrHeight: 1080, useWebWorker: true, fileType: "image/jpeg" }); 
+      const compressedFile = await imageCompression(files[0], { maxSizeMB: 1, maxWidthOrHeight: 1080, useWebWorker: false, fileType: "image/jpeg" }); 
       setUserPhotoFile(new File([compressedFile], `post_${Date.now()}.jpg`, { type: "image/jpeg" })); 
     } catch (error) { showToast("Не удалось обработать фото", undefined, 'error'); setUserPhotoFile(null); setUserPhotoPreview(null); } 
     finally { setIsUploadingPhoto(false); } 
@@ -535,7 +535,8 @@ export default function Home() {
          postTitleContext = currentRecipeContext.title; 
       } 
       const fileName = `${user.id}/${Date.now()}.jpg`; 
-      const { error: uploadError } = await supabase.storage.from('recipe_photos').upload(fileName, userPhotoFile); 
+      const fileBuffer = await userPhotoFile.arrayBuffer();
+      const { error: uploadError } = await supabase.storage.from('recipe_photos').upload(fileName, fileBuffer, { contentType: 'image/jpeg' }); 
       if (uploadError) throw uploadError; 
 
       const { data: publicUrlData } = supabase.storage.from('recipe_photos').getPublicUrl(fileName); 

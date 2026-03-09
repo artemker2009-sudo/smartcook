@@ -117,8 +117,9 @@ export async function POST(req: Request) {
         budget_tier: recipe.budget_tier || null,
       };
 
-      const { error: dbError } = await supabase.from('recipes').insert(dbPayload);
+      const { data: savedRow, error: dbError } = await supabase.from('recipes').insert(dbPayload).select('id').single();
       if (dbError) console.error("❌ ОШИБКА СОХРАНЕНИЯ В SUPABASE:", dbError);
+      if (savedRow) recipe.id = savedRow.id;
     }
 
     return NextResponse.json({ recipe });

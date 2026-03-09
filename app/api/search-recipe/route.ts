@@ -108,7 +108,7 @@ export async function POST(req: Request) {
     const recipe = result;
 
     if (sessionId) {
-      const { error } = await supabase.from('recipes').insert({
+      const { data: savedRow, error } = await supabase.from('recipes').insert({
         session_id: sessionId,
         title: recipe.title,
         description: recipe.description,
@@ -121,8 +121,9 @@ export async function POST(req: Request) {
         is_favorite: false,
         estimated_cost: recipe.estimated_cost || null,
         budget_tier: recipe.budget_tier || null,
-      });
+      }).select('id').single();
       if (error) console.error("History save error:", error);
+      if (savedRow) recipe.id = savedRow.id;
     }
 
     return NextResponse.json({ recipe });

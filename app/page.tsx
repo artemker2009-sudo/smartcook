@@ -623,11 +623,8 @@ export default function Home() {
     try { 
       const response = await fetch("/api/recipe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ dish: dishName, ingredients: analysisResult.ingredients, sessionId: userId, allergies, dislikes }) }); 
       const json = await response.json(); if (json.error) throw new Error(json.error);  
-      setRecipe({ ...json.recipe, ingredients: analysisResult.ingredients });  
-      if (userId) {
-         await supabase.from('recipes').insert({ session_id: userId, title: json.recipe.title, description: json.recipe.description, time: String(json.recipe.time), calories: String(json.recipe.calories), ingredients: json.recipe.detailed_ingredients?.map((i:any) => `${i.name} - ${i.amount}`) || [], detailed_ingredients: json.recipe.detailed_ingredients, missing_ingredients: json.recipe.missing_ingredients, steps: json.recipe.steps, is_favorite: false, estimated_cost: json.recipe.estimated_cost || null, budget_tier: json.recipe.budget_tier || null }); 
-         fetchMyRecipes(userId); 
-      }
+      setRecipe({ ...json.recipe, id: json.recipe.id, is_favorite: false, ingredients: analysisResult.ingredients });  
+      if (userId) fetchMyRecipes(userId);
       handleRewardForRecipe();
       rewardForSaving(json.recipe.estimated_cost);
     } catch (err: any) { showToast("Ошибка: " + err.message, undefined, 'error'); } finally { setLoadingRecipe(false); } 
@@ -653,11 +650,8 @@ export default function Home() {
     try { 
       const response = await fetch("/api/search-recipe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query: textQuery, sessionId: userId, allergies, dislikes }) }); 
       const json = await response.json(); if (!response.ok) throw new Error(json.error || "Ошибка поиска"); 
-      setRecipe({ ...json.recipe, missing_ingredients: json.recipe.missing_ingredients || [] });  
-      if (userId) {
-         await supabase.from('recipes').insert({ session_id: userId, title: json.recipe.title, description: json.recipe.description, time: String(json.recipe.time), calories: String(json.recipe.calories), ingredients: json.recipe.detailed_ingredients?.map((i:any) => `${i.name} - ${i.amount}`) || [], detailed_ingredients: json.recipe.detailed_ingredients, missing_ingredients: json.recipe.missing_ingredients, steps: json.recipe.steps, is_favorite: false, estimated_cost: json.recipe.estimated_cost || null, budget_tier: json.recipe.budget_tier || null }); 
-         fetchMyRecipes(userId); 
-      }
+      setRecipe({ ...json.recipe, id: json.recipe.id, is_favorite: false, missing_ingredients: json.recipe.missing_ingredients || [] });  
+      if (userId) fetchMyRecipes(userId);
       handleRewardForRecipe();
       rewardForSaving(json.recipe.estimated_cost);
     } catch (err: any) { showToast(err.message, undefined, 'error'); } finally { setLoadingRecipe(false); } 

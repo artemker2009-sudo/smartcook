@@ -20,6 +20,7 @@ export interface RecipeData {
   ingredients?: string[];
   detailed_ingredients?: DetailedIngredient[];
   estimated_cost?: number;
+  delivery_cost?: number;
   budget_tier?: number;
 }
 
@@ -44,6 +45,7 @@ export interface DBRecipe {
   user_avatar?: string;
   user_name?: string;
   estimated_cost?: number;
+  delivery_cost?: number;
   budget_tier?: number;
 }
 
@@ -59,6 +61,7 @@ export interface DailyRecipeType {
   date?: string;
   error?: string;
   estimated_cost?: number;
+  delivery_cost?: number;
   budget_tier?: number;
 }
 

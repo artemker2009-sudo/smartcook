@@ -277,7 +277,7 @@ export default function RecipeView({
 
       {recipe.estimated_cost !== undefined && (() => {
         const totalCost = (recipe.estimated_cost || 0) * actualServings;
-        const deliveryCost = 800 * actualServings;
+        const deliveryCost = (recipe.delivery_cost || Math.round((recipe.estimated_cost || 0) * 2.5)) * actualServings;
         const savings = deliveryCost - totalCost;
         const tier = recipe.budget_tier || 2;
         const tierConfig = {

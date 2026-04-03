@@ -395,9 +395,9 @@ export default function Home() {
          const imageCompression = (await import('browser-image-compression')).default; 
          const compressedFile = await imageCompression(croppedFile, { maxSizeMB: 0.3, maxWidthOrHeight: 500, useWebWorker: true, fileType: "image/jpeg" }); 
          const finalFile = new File([compressedFile], `avatar_${Date.now()}.jpg`, { type: "image/jpeg" });
-         setUserPhotoFile(finalFile); setEditAvatarPreview(URL.createObjectURL(finalFile)); setIsCropping(false); setCropImageSrc(null);
+         setEditAvatarFile(finalFile); setEditAvatarPreview(URL.createObjectURL(finalFile)); setIsCropping(false); setCropImageSrc(null);
       }
-    } catch (e) { showToast("Не удалось обработать фото", undefined, 'error'); setUserPhotoFile(null); setUserPhotoPreview(null); }
+    } catch (e) { showToast("Не удалось обработать фото", undefined, 'error'); setEditAvatarFile(null); setEditAvatarPreview(null); }
   };
 
   const handleProfileSave = async () => { 

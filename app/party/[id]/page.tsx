@@ -14,13 +14,29 @@ type Party = {
   guest_count: number;
 };
 
+type MenuIngredient = {
+  name: string;
+  amount: number;
+  unit: string;
+};
+
+type MenuItem = {
+  id?: string;
+  party_id?: string;
+  name: string;
+  category: string;
+  ingredients: MenuIngredient[] | string | null;
+};
+
 export default function PartyRoomPage() {
   const params = useParams();
   const partyId = params.id as string;
   const router = useRouter();
   const [activeMobileTab, setActiveMobileTab] = useState<"menu" | "chat">("menu");
   const [party, setParty] = useState<any>(null);
+  const [menuItems, setMenuItems] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
     async function fetchParty() {
@@ -29,17 +45,20 @@ export default function PartyRoomPage() {
       setIsLoading(true);
 
       try {
-        const { data, error } = await supabase
-          .from("parties")
-          .select("*")
-          .eq("id", partyId)
-          .single();
+        const [{ data, error }, { data: items, error: itemsError }] = await Promise.all([
+          supabase.from("parties").select("*").eq("id", partyId).single(),
+          supabase.from("party_items").select("*").eq("party_id", partyId),
+        ]);
 
         if (error) throw error;
+        if (itemsError) throw itemsError;
+
         setParty(data);
+        setMenuItems(items || []);
       } catch (err) {
         console.error("Ошибка загрузки банкета:", err);
         setParty(null);
+        setMenuItems([]);
       } finally {
         setIsLoading(false);
       }
@@ -48,8 +67,80 @@ export default function PartyRoomPage() {
     void fetchParty();
   }, [partyId]);
 
+  async function handleGenerateMenu() {
+    if (!party) return;
+
+    setIsGenerating(true);
+
+    try {
+      const response = await fetch("/api/party/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: party.title,
+          guestCount: party.guest_count,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Не удалось сгенерировать меню");
+      }
+
+      const generatedMenu = Array.isArray(result.menu) ? result.menu : [];
+      const itemsToInsert = generatedMenu.map((item: MenuItem) => ({
+        party_id: partyId,
+        name: item.name,
+        category: item.category,
+        ingredients: item.ingredients,
+      }));
+
+      if (itemsToInsert.length === 0) {
+        setMenuItems([]);
+        return;
+      }
+
+      const { data: insertedItems, error } = await supabase
+        .from("party_items")
+        .insert(itemsToInsert)
+        .select("*");
+
+      if (error) throw error;
+
+      setMenuItems(insertedItems || itemsToInsert);
+    } catch (err) {
+      console.error("Ошибка генерации меню:", err);
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
   const guestCountLabel =
     typeof party?.guest_count === "number" ? `${party.guest_count} персон` : "Без гостей";
+
+  const groupedMenuItems = MENU_CATEGORIES.map((category) => ({
+    category,
+    items: menuItems.filter((item) => item.category === category),
+  }));
+
+  const formatIngredients = (ingredients: MenuItem["ingredients"]) => {
+    if (!ingredients) return "";
+
+    if (typeof ingredients === "string") {
+      return ingredients;
+    }
+
+    if (!Array.isArray(ingredients)) {
+      return "";
+    }
+
+    return ingredients
+      .map((ingredient) => `${ingredient.name} - ${ingredient.amount} ${ingredient.unit}`)
+      .join(", ");
+  };
 
   return (
     <div className="min-h-screen bg-zinc-50 font-sans text-zinc-900">
@@ -104,23 +195,41 @@ export default function PartyRoomPage() {
             <section
               className={`${activeMobileTab === "menu" ? "block" : "hidden"} lg:block lg:col-span-2`}
             >
-              <button
-                type="button"
-                className="mb-8 w-full rounded-2xl bg-black py-5 text-lg font-medium text-white shadow-md transition-all hover:bg-zinc-800 active:scale-[0.99]"
-              >
-                <span className="inline-flex items-center gap-3">
-                  <Sparkles className="h-5 w-5" />
-                  <span>Сгенерировать меню с ИИ</span>
-                </span>
-              </button>
+              {!isLoading && menuItems.length === 0 && (
+                <button
+                  type="button"
+                  onClick={handleGenerateMenu}
+                  disabled={isGenerating || !party}
+                  className="mb-8 w-full rounded-2xl bg-black py-5 text-lg font-medium text-white shadow-md transition-all hover:bg-zinc-800 active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-zinc-400 disabled:shadow-none"
+                >
+                  <span className="inline-flex items-center gap-3">
+                    <Sparkles className="h-5 w-5" />
+                    <span>{isGenerating ? "Шеф-повар думает..." : "Сгенерировать меню с ИИ"}</span>
+                  </span>
+                </button>
+              )}
 
-              {MENU_CATEGORIES.map((category) => (
+              {groupedMenuItems.map(({ category, items }) => (
                 <article
                   key={category}
                   className="mb-4 rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm"
                 >
                   <h2 className="mb-2 text-xl font-semibold">{category}</h2>
-                  <p className="text-zinc-500">Здесь появятся предложенные блюда...</p>
+
+                  {items.length > 0 ? (
+                    <div className="space-y-4">
+                      {items.map((item, index) => (
+                        <div key={item.id || `${item.name}-${index}`}>
+                          <p className="font-semibold text-zinc-900">{item.name}</p>
+                          <p className="mt-1 text-sm text-zinc-500">
+                            {formatIngredients(item.ingredients)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-zinc-500">Пока блюд нет</p>
+                  )}
                 </article>
               ))}
             </section>

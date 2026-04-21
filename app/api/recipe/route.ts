@@ -90,7 +90,7 @@ export async function POST(req: Request) {
     `;
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4o-mini",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: `Составь полную техкарту для "${dish}".` },

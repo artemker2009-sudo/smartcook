@@ -75,7 +75,7 @@ const getDailyRecipe = unstable_cache(
     `;
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4o-mini",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: `Придумай рецепт дня на ${dateStr} с учетом праздников.` },

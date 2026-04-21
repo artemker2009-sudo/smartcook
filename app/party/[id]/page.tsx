@@ -97,7 +97,28 @@ export default function PartyRoomPage() {
           filter: `party_id=eq.${partyId}`,
         },
         (payload) => {
-          setMessages((prev) => [...prev, payload.new]);
+          setMessages((prev) => {
+            const newIncomingMessage = payload.new as PartyMessage & { id: string };
+
+            const optimisticMessageIndex = prev.findIndex(
+              (message) =>
+                message.id?.startsWith("temp-") &&
+                message.user_name === newIncomingMessage.user_name &&
+                message.text === newIncomingMessage.text,
+            );
+
+            if (optimisticMessageIndex !== -1) {
+              return prev.map((message, index) =>
+                index === optimisticMessageIndex ? newIncomingMessage : message,
+              );
+            }
+
+            if (prev.some((message) => message.id === newIncomingMessage.id)) {
+              return prev;
+            }
+
+            return [...prev, newIncomingMessage];
+          });
         },
       )
       .subscribe();
@@ -118,18 +139,36 @@ export default function PartyRoomPage() {
 
     if (!newMessage.trim()) return;
 
-    const { error } = await supabase.from("party_messages").insert({
-      party_id: partyId,
-      user_name: currentUser,
-      text: newMessage.trim(),
-    });
-
-    if (error) {
-      console.error("Ошибка отправки сообщения:", error);
-      return;
-    }
+    const textToSend = newMessage.trim();
+    const optimisticMessageId = `temp-${Date.now()}`;
 
     setNewMessage("");
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: optimisticMessageId,
+        party_id: partyId,
+        user_name: currentUser,
+        text: textToSend,
+        created_at: new Date().toISOString(),
+      },
+    ]);
+
+    try {
+      const { error } = await supabase.from("party_messages").insert({
+        party_id: partyId,
+        user_name: currentUser,
+        text: textToSend,
+      });
+
+      if (error) {
+        throw error;
+      }
+    } catch (error) {
+      console.error("Ошибка отправки сообщения:", error);
+      setMessages((prev) => prev.filter((message) => message.id !== optimisticMessageId));
+      setNewMessage(textToSend);
+    }
   }
 
   async function handleGenerateMenu() {
@@ -383,22 +422,25 @@ export default function PartyRoomPage() {
                       </div>
                     )}
                   </div>
-                  <form onSubmit={sendMessage} className="border-t border-zinc-100 p-4">
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="text"
-                        value={newMessage}
-                        onChange={(event) => setNewMessage(event.target.value)}
-                        placeholder="Написать сообщение..."
-                        className="w-full rounded-full bg-zinc-100 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-black/5"
-                      />
-                      <button
-                        type="submit"
-                        className="shrink-0 text-blue-500 font-medium px-2"
-                      >
-                        Отправить
-                      </button>
-                    </div>
+                  <form
+                    onSubmit={sendMessage}
+                    className="p-3 border-t border-zinc-100 bg-white flex items-end gap-2"
+                  >
+                    <input
+                      type="text"
+                      value={newMessage}
+                      onChange={(event) => setNewMessage(event.target.value)}
+                      placeholder="Написать сообщение..."
+                      className="flex-1 bg-zinc-100 rounded-2xl px-4 py-2.5 max-h-32 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-black/5"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!newMessage.trim()}
+                      className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full bg-blue-500 text-white transition-all hover:bg-blue-600 active:scale-95 disabled:bg-zinc-200 disabled:text-zinc-400"
+                      aria-label="Отправить сообщение"
+                    >
+                      <span aria-hidden="true">⬆</span>
+                    </button>
                   </form>
                 </section>
 

@@ -37,6 +37,7 @@ export default function PartyRoomPage() {
   const [menuItems, setMenuItems] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isShoppingListOpen, setIsShoppingListOpen] = useState(false);
 
   useEffect(() => {
     async function fetchParty() {
@@ -125,6 +126,31 @@ export default function PartyRoomPage() {
     category,
     items: menuItems.filter((item) => item.category === category),
   }));
+
+  const getAggregatedList = () => {
+    const aggregatedIngredients = menuItems.reduce<MenuIngredient[]>((acc, item) => {
+      if (!Array.isArray(item.ingredients)) {
+        return acc;
+      }
+
+      item.ingredients.forEach((ingredient) => {
+        const existingIngredient = acc.find(
+          (currentIngredient) => currentIngredient.name === ingredient.name,
+        );
+
+        if (existingIngredient) {
+          existingIngredient.amount += ingredient.amount;
+          return;
+        }
+
+        acc.push({ ...ingredient });
+      });
+
+      return acc;
+    }, []);
+
+    return aggregatedIngredients.sort((a, b) => a.name.localeCompare(b.name, "ru"));
+  };
 
   const formatIngredients = (ingredients: MenuItem["ingredients"]) => {
     if (!ingredients) return "";
@@ -232,6 +258,15 @@ export default function PartyRoomPage() {
                   )}
                 </article>
               ))}
+
+              <button
+                type="button"
+                onClick={() => setIsShoppingListOpen(true)}
+                className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-zinc-200 bg-white py-4 text-lg font-medium text-zinc-900 transition-all hover:border-black active:scale-[0.99]"
+              >
+                <span>🛒</span>
+                <span>Показать список покупок</span>
+              </button>
             </section>
 
             <aside
@@ -296,6 +331,53 @@ export default function PartyRoomPage() {
             <span>Чат</span>
           </button>
         </nav>
+      )}
+
+      {isShoppingListOpen && (
+        <div
+          className="fixed inset-0 z-[100] flex items-end justify-center bg-zinc-900/40 p-0 backdrop-blur-sm transition-opacity sm:items-center sm:p-4"
+          onClick={() => setIsShoppingListOpen(false)}
+        >
+          <div
+            className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-white p-6 shadow-2xl animate-in slide-in-from-bottom-10 sm:rounded-3xl sm:p-8 sm:zoom-in-95"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-6 flex items-start justify-between gap-4">
+              <h2 className="text-2xl font-semibold">Список покупок</h2>
+              <button
+                type="button"
+                onClick={() => setIsShoppingListOpen(false)}
+                className="text-zinc-400 transition-colors hover:text-black"
+              >
+                Закрыть
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {getAggregatedList().length > 0 ? (
+                getAggregatedList().map((ingredient) => (
+                  <label
+                    key={`${ingredient.name}-${ingredient.unit}`}
+                    className="flex items-center justify-between gap-4"
+                  >
+                    <span className="flex items-center gap-3 text-base text-zinc-900">
+                      <input
+                        type="checkbox"
+                        className="h-5 w-5 rounded border-zinc-300 text-black focus:ring-black/10"
+                      />
+                      <span>{ingredient.name}</span>
+                    </span>
+                    <span className="text-sm text-zinc-400">
+                      {ingredient.amount} {ingredient.unit}
+                    </span>
+                  </label>
+                ))
+              ) : (
+                <p className="text-sm text-zinc-500">Список покупок появится после генерации меню.</p>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ArrowLeft, MessageCircle, Sparkles, UtensilsCrossed } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 
 import { supabase } from "@/lib/supabase";
 
@@ -14,45 +14,39 @@ type Party = {
   guest_count: number;
 };
 
-export default function PartyRoomPage({ params }: { params: { id: string } }) {
+export default function PartyRoomPage() {
+  const params = useParams();
+  const partyId = params.id as string;
   const router = useRouter();
   const [activeMobileTab, setActiveMobileTab] = useState<"menu" | "chat">("menu");
   const [party, setParty] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    let isMounted = true;
+    async function fetchParty() {
+      if (!partyId) return;
 
-    const fetchParty = async () => {
       setIsLoading(true);
 
-      const { data, error } = await supabase
-        .from("parties")
-        .select("id, title, guest_count")
-        .eq("id", params.id)
-        .maybeSingle<Party>();
+      try {
+        const { data, error } = await supabase
+          .from("parties")
+          .select("*")
+          .eq("id", partyId)
+          .single();
 
-      if (!isMounted) {
-        return;
-      }
-
-      if (error) {
-        console.error("Failed to fetch party:", error);
+        if (error) throw error;
+        setParty(data);
+      } catch (err) {
+        console.error("Ошибка загрузки банкета:", err);
         setParty(null);
+      } finally {
         setIsLoading(false);
-        return;
       }
-
-      setParty(data);
-      setIsLoading(false);
-    };
+    }
 
     void fetchParty();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [params.id]);
+  }, [partyId]);
 
   const guestCountLabel =
     typeof party?.guest_count === "number" ? `${party.guest_count} персон` : "Без гостей";

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, MessageCircle, Sparkles, UtensilsCrossed } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 
@@ -28,16 +28,28 @@ type MenuItem = {
   ingredients: MenuIngredient[] | string | null;
 };
 
+type PartyMessage = {
+  id?: string;
+  party_id?: string;
+  user_name: string;
+  text: string;
+  created_at?: string;
+};
+
 export default function PartyRoomPage() {
   const params = useParams();
   const partyId = params.id as string;
   const router = useRouter();
   const [activeMobileTab, setActiveMobileTab] = useState<"menu" | "chat">("menu");
-  const [party, setParty] = useState<any>(null);
-  const [menuItems, setMenuItems] = useState<any[]>([]);
+  const [party, setParty] = useState<Party | null>(null);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [messages, setMessages] = useState<PartyMessage[]>([]);
+  const [newMessage, setNewMessage] = useState("");
+  const [currentUser, setCurrentUser] = useState("Организатор");
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isShoppingListOpen, setIsShoppingListOpen] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     async function fetchParty() {
@@ -50,23 +62,75 @@ export default function PartyRoomPage() {
           supabase.from("parties").select("*").eq("id", partyId).single(),
           supabase.from("party_items").select("*").eq("party_id", partyId),
         ]);
+        const { data: initialMessages } = await supabase
+          .from("party_messages")
+          .select("*")
+          .eq("party_id", partyId)
+          .order("created_at", { ascending: true });
 
         if (error) throw error;
         if (itemsError) throw itemsError;
 
         setParty(data);
         setMenuItems(items || []);
+        setMessages(initialMessages || []);
       } catch (err) {
         console.error("Ошибка загрузки банкета:", err);
         setParty(null);
         setMenuItems([]);
+        setMessages([]);
       } finally {
         setIsLoading(false);
       }
     }
 
+    if (!partyId) return;
+
+    const channel = supabase
+      .channel(`party_messages:${partyId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "party_messages",
+          filter: `party_id=eq.${partyId}`,
+        },
+        (payload) => {
+          setMessages((prev) => [...prev, payload.new]);
+        },
+      )
+      .subscribe();
+
     void fetchParty();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
   }, [partyId]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  async function sendMessage(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
+    if (!newMessage.trim()) return;
+
+    const { error } = await supabase.from("party_messages").insert({
+      party_id: partyId,
+      user_name: currentUser,
+      text: newMessage.trim(),
+    });
+
+    if (error) {
+      console.error("Ошибка отправки сообщения:", error);
+      return;
+    }
+
+    setNewMessage("");
+  }
 
   async function handleGenerateMenu() {
     if (!party) return;
@@ -277,16 +341,65 @@ export default function PartyRoomPage() {
                   <div className="border-b border-zinc-100 bg-zinc-50/50 px-5 py-3 font-medium">
                     Обсуждение
                   </div>
-                  <div className="flex flex-1 items-center justify-center bg-zinc-50/30 p-5 text-sm text-zinc-400">
-                    Пока сообщений нет
+                  <div className="flex-1 overflow-y-auto bg-zinc-50/30 p-5">
+                    {messages.length === 0 ? (
+                      <div className="flex h-full items-center justify-center text-sm text-zinc-400">
+                        Пока сообщений нет
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {messages.map((message, index) => {
+                          const isCurrentUserMessage = message.user_name === currentUser;
+
+                          return (
+                            <div
+                              key={message.id || `${message.created_at}-${index}`}
+                              className={`flex ${
+                                isCurrentUserMessage ? "justify-end" : "justify-start"
+                              }`}
+                            >
+                              <div
+                                className={`max-w-[85%] ${
+                                  isCurrentUserMessage ? "items-end" : "items-start"
+                                } flex flex-col`}
+                              >
+                                <span className="mb-1 px-1 text-xs text-zinc-400">
+                                  {message.user_name}
+                                </span>
+                                <div
+                                  className={`rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm ${
+                                    isCurrentUserMessage
+                                      ? "bg-blue-500 text-white"
+                                      : "bg-zinc-200 text-zinc-900"
+                                  }`}
+                                >
+                                  {message.text}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        <div ref={messagesEndRef} />
+                      </div>
+                    )}
                   </div>
-                  <div className="border-t border-zinc-100 p-4">
-                    <input
-                      type="text"
-                      placeholder="Написать сообщение..."
-                      className="w-full rounded-full bg-zinc-100 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-black/5"
-                    />
-                  </div>
+                  <form onSubmit={sendMessage} className="border-t border-zinc-100 p-4">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="text"
+                        value={newMessage}
+                        onChange={(event) => setNewMessage(event.target.value)}
+                        placeholder="Написать сообщение..."
+                        className="w-full rounded-full bg-zinc-100 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-black/5"
+                      />
+                      <button
+                        type="submit"
+                        className="shrink-0 text-blue-500 font-medium px-2"
+                      >
+                        Отправить
+                      </button>
+                    </div>
+                  </form>
                 </section>
 
                 <section className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">

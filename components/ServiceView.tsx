@@ -394,28 +394,30 @@ export default function ServiceView({
                       className="upload-input"
                       onChange={handleFileChange}
                     />
-                    <Camera
-                      size={48}
-                      color="#059669"
-                      style={{ marginBottom: "15px" }}
-                    />
-                    <div
-                      style={{
-                        fontWeight: "700",
-                        fontSize: "18px",
-                        color: "#374151",
-                        marginBottom: "5px",
-                      }}
-                    >
-                      Выберите фото
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "14px",
-                        color: "#9ca3af",
-                      }}
-                    >
-                      HEIC, JPG, PNG
+                    <div className="flex flex-col items-center justify-center text-center w-full">
+                      <Camera
+                        size={48}
+                        color="#059669"
+                        className="mx-auto mb-3"
+                      />
+                      <div
+                        style={{
+                          fontWeight: "700",
+                          fontSize: "18px",
+                          color: "#374151",
+                          marginBottom: "5px",
+                        }}
+                      >
+                        Выберите фото
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "14px",
+                          color: "#9ca3af",
+                        }}
+                      >
+                        HEIC, JPG, PNG
+                      </div>
                     </div>
                   </div>
                 ) : (

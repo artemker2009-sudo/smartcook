@@ -45,7 +45,8 @@ export default function PartyRoomPage() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [messages, setMessages] = useState<PartyMessage[]>([]);
   const [newMessage, setNewMessage] = useState("");
-  const [currentUser, setCurrentUser] = useState("Организатор");
+  const [currentUser, setCurrentUser] = useState<string | null>(null);
+  const [guestName, setGuestName] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isShoppingListOpen, setIsShoppingListOpen] = useState(false);
@@ -79,6 +80,10 @@ export default function PartyRoomPage() {
     }
 
     if (!partyId) return;
+
+    const savedName = localStorage.getItem(`party_name_${partyId}`);
+    setCurrentUser(savedName);
+    setGuestName(savedName ?? "");
 
     void fetchParty();
   }, [partyId]);
@@ -142,10 +147,21 @@ export default function PartyRoomPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  function handleJoin(e?: React.FormEvent) {
+    e?.preventDefault();
+
+    const trimmedName = guestName.trim();
+
+    if (!trimmedName) return;
+
+    localStorage.setItem(`party_name_${partyId}`, trimmedName);
+    setCurrentUser(trimmedName);
+  }
+
   async function sendMessage(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
-    if (!newMessage.trim()) return;
+    if (!newMessage.trim() || !currentUser) return;
 
     const textToSend = newMessage.trim();
     const optimisticMessageId = `temp-${Date.now()}`;
@@ -489,6 +505,33 @@ export default function PartyRoomPage() {
             <span>Чат</span>
           </button>
         </nav>
+      )}
+
+      {party && currentUser === null && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-zinc-50/95 p-4 backdrop-blur-md">
+          <div className="animate-in zoom-in-95 w-full max-w-sm rounded-[2rem] border border-zinc-100 bg-white p-8 text-center shadow-2xl duration-300">
+            <div className="mb-5 text-5xl">👋</div>
+            <h2 className="mb-2 text-2xl font-bold text-zinc-900">Добро пожаловать</h2>
+            <p className="mb-8 text-zinc-500">Как вас представить другим участникам банкета?</p>
+            <form onSubmit={handleJoin}>
+              <input
+                type="text"
+                value={guestName}
+                onChange={(event) => setGuestName(event.target.value)}
+                placeholder="Ваше имя"
+                className="mb-4 w-full rounded-2xl bg-zinc-100/80 px-5 py-4 text-center text-lg text-zinc-900 transition-all placeholder:text-zinc-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-black"
+                autoFocus
+              />
+              <button
+                type="submit"
+                disabled={!guestName.trim()}
+                className="w-full rounded-2xl bg-black py-4 text-lg font-medium text-white transition-all hover:bg-zinc-800 active:scale-95 disabled:bg-zinc-200 disabled:text-zinc-400"
+              >
+                Войти
+              </button>
+            </form>
+          </div>
+        </div>
       )}
 
       {isShoppingListOpen && (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, MessageCircle, Sparkles, Trash2, UtensilsCrossed } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 
@@ -300,30 +300,39 @@ export default function PartyRoomPage() {
     items: menuItems.filter((item) => item.category === category),
   }));
 
-  const getAggregatedList = () => {
-    const aggregatedIngredients = menuItems.reduce<MenuIngredient[]>((acc, item) => {
-      if (!Array.isArray(item.ingredients)) {
-        return acc;
+  const shoppingList = useMemo(() => {
+    const aggregated: Record<string, { name: string; amount: number; unit: string }> = {};
+
+    menuItems.forEach((item) => {
+      let ingredients = item.ingredients;
+
+      if (typeof ingredients === "string") {
+        try {
+          ingredients = JSON.parse(ingredients);
+        } catch (e) {
+          ingredients = [];
+        }
       }
 
-      item.ingredients.forEach((ingredient) => {
-        const existingIngredient = acc.find(
-          (currentIngredient) => currentIngredient.name === ingredient.name,
-        );
+      if (Array.isArray(ingredients)) {
+        ingredients.forEach((ing) => {
+          const key = ing.name.toLowerCase().trim();
 
-        if (existingIngredient) {
-          existingIngredient.amount += ingredient.amount;
-          return;
-        }
+          if (aggregated[key]) {
+            aggregated[key].amount += Number(ing.amount);
+          } else {
+            aggregated[key] = {
+              name: ing.name,
+              amount: Number(ing.amount),
+              unit: ing.unit,
+            };
+          }
+        });
+      }
+    });
 
-        acc.push({ ...ingredient });
-      });
-
-      return acc;
-    }, []);
-
-    return aggregatedIngredients.sort((a, b) => a.name.localeCompare(b.name, "ru"));
-  };
+    return Object.values(aggregated).sort((a, b) => a.name.localeCompare(b.name));
+  }, [menuItems]);
 
   const formatIngredients = (ingredients: MenuItem["ingredients"]) => {
     if (!ingredients) return "";
@@ -650,8 +659,8 @@ export default function PartyRoomPage() {
             </div>
 
             <div className="space-y-4">
-              {getAggregatedList().length > 0 ? (
-                getAggregatedList().map((ingredient) => (
+              {shoppingList.length > 0 ? (
+                shoppingList.map((ingredient) => (
                   <label
                     key={`${ingredient.name}-${ingredient.unit}`}
                     className="flex items-center justify-between gap-4"

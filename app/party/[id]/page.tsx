@@ -476,22 +476,22 @@ export default function PartyRoomPage() {
                                       ? setSelectedMessageId(isSelected ? null : message.id)
                                       : undefined
                                   }
-                                  className={`rounded-2xl px-4 py-3 text-left text-sm leading-6 shadow-sm ${
+                                  className={`relative rounded-2xl px-4 py-3 pr-16 text-left shadow-sm ${
                                     isCurrentUserMessage
                                       ? "cursor-pointer bg-blue-500 text-white"
                                       : "bg-zinc-200 text-zinc-900"
                                   }`}
                                 >
-                                  <div className="flex items-end gap-2">
-                                    <span className="break-words">{message.text}</span>
-                                    <span
-                                      className={`mt-1 shrink-0 text-[10px] ${
-                                        isCurrentUserMessage ? "text-blue-100" : "text-zinc-400"
-                                      }`}
-                                    >
-                                      {messageTime}
-                                    </span>
-                                  </div>
+                                  <span className="block break-words text-sm leading-relaxed">
+                                    {message.text}
+                                  </span>
+                                  <span
+                                    className={`absolute bottom-1.5 right-2 text-[10px] leading-none ${
+                                      isCurrentUserMessage ? "text-blue-100/80" : "text-zinc-400"
+                                    }`}
+                                  >
+                                    {messageTime}
+                                  </span>
                                 </button>
                                 {isSelected && message.id && (
                                   <button

@@ -114,11 +114,20 @@ export default function PartyRoomPage() {
           const newMessage = payload.new as PartyMessage;
 
           setMessages((current) => {
-            if (current.some((message) => message.id === newMessage.id || message.text === newMessage.text)) {
+            if (current.some((message) => message.id === newMessage.id)) {
               return current;
             }
 
-            return [...current, newMessage];
+            const filtered = current.filter(
+              (message) =>
+                !(
+                  String(message.id).startsWith("temp-") &&
+                  message.text === newMessage.text &&
+                  message.user_name === newMessage.user_name
+                ),
+            );
+
+            return [...filtered, newMessage];
           });
         },
       )

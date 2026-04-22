@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/react";
+import { createClient } from "@supabase/supabase-js";
+import { headers } from "next/headers";
 import "./globals.css";
 import YandexMetrika from "@/components/YandexMetrika"; // Импортируем компонент Метрики
 import { Suspense } from "react"; // Импортируем Suspense для корректной работы
@@ -64,11 +66,34 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+async function getMaintenanceStatus() {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || "https://yjfqwwiqwoighjdlkodg.supabase.co",
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "sb_publishable_E7Fj9ZiOZTyNHAQQKo7Y0A_E8-ExX6Z"
+  );
+
+  const { data, error } = await supabase
+    .from("site_settings")
+    .select("is_maintenance")
+    .eq("id", 1)
+    .single();
+
+  if (error) {
+    return false;
+  }
+
+  return Boolean(data?.is_maintenance);
+}
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const pathname = (await headers()).get("x-pathname") || "";
+  const isAdminRoute = pathname.startsWith("/admin");
+  const isMaintenance = isAdminRoute ? false : await getMaintenanceStatus();
+
   return (
     <html lang="ru">
       <body>
@@ -77,7 +102,23 @@ export default function RootLayout({
           <YandexMetrika />
         </Suspense>
 
-        {children}
+        {isMaintenance ? (
+          <main className="flex min-h-screen items-center justify-center bg-zinc-50 px-6 text-center text-zinc-900">
+            <div className="max-w-xl space-y-4">
+              <p className="text-xs font-medium uppercase tracking-[0.24em] text-zinc-500">
+                Maintenance Mode
+              </p>
+              <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
+                Обновляем кухню
+              </h1>
+              <p className="text-base leading-7 tracking-tight text-zinc-600 sm:text-lg">
+                Мы внедряем новые фишки. Вернемся через пару минут, будет еще вкуснее!
+              </p>
+            </div>
+          </main>
+        ) : (
+          children
+        )}
         
         {/* Компонент аналитики Vercel */}
         <Analytics />

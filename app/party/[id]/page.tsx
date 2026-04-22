@@ -47,6 +47,7 @@ export default function PartyRoomPage() {
   const partyId = params.id as string;
   const router = useRouter();
   const [activeMobileTab, setActiveMobileTab] = useState<"menu" | "chat">("menu");
+  const [isAdmin, setIsAdmin] = useState(false);
   const [party, setParty] = useState<Party | null>(null);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [messages, setMessages] = useState<PartyMessage[]>([]);
@@ -54,6 +55,9 @@ export default function PartyRoomPage() {
   const [newMessage, setNewMessage] = useState("");
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [guestName, setGuestName] = useState("");
+  const [isAddDishOpen, setIsAddDishOpen] = useState(false);
+  const [newDishName, setNewDishName] = useState("");
+  const [newDishCategory, setNewDishCategory] = useState("Закуски");
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isShoppingListOpen, setIsShoppingListOpen] = useState(false);
@@ -88,7 +92,12 @@ export default function PartyRoomPage() {
 
     if (!partyId) return;
 
+    setIsAdmin(false);
     const savedName = localStorage.getItem(`party_name_${partyId}`);
+    if (savedName) {
+      const adminFlag = localStorage.getItem(`party_admin_${partyId}`);
+      if (adminFlag === "true") setIsAdmin(true);
+    }
     setCurrentUser(savedName);
     setGuestName(savedName ?? "");
 
@@ -241,6 +250,55 @@ export default function PartyRoomPage() {
       setMenuItems((prev) => prev.filter((item) => item.id !== itemId));
     } catch (error) {
       console.error("Ошибка удаления блюда:", error);
+    }
+  }
+
+  async function handleAddManualDish(e: React.FormEvent) {
+    e.preventDefault();
+
+    const trimmedName = newDishName.trim();
+
+    if (!trimmedName) return;
+
+    const optimisticId = `temp-dish-${Date.now()}`;
+    const optimisticItem: MenuItem = {
+      id: optimisticId,
+      party_id: partyId,
+      name: trimmedName,
+      category: newDishCategory,
+      ingredients: [],
+    };
+
+    const categoryToRestore = newDishCategory;
+
+    setMenuItems((prev) => [...prev, optimisticItem]);
+    setIsAddDishOpen(false);
+    setNewDishName("");
+    setNewDishCategory("Закуски");
+
+    try {
+      const { data, error } = await supabase
+        .from("party_items")
+        .insert({
+          party_id: partyId,
+          name: trimmedName,
+          category: categoryToRestore,
+          ingredients: [],
+        })
+        .select("*")
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      setMenuItems((prev) => prev.map((item) => (item.id === optimisticId ? data : item)));
+    } catch (error) {
+      console.error("Ошибка добавления блюда:", error);
+      setMenuItems((prev) => prev.filter((item) => item.id !== optimisticId));
+      setNewDishName(trimmedName);
+      setNewDishCategory(categoryToRestore);
+      setIsAddDishOpen(true);
     }
   }
 
@@ -409,7 +467,7 @@ export default function PartyRoomPage() {
             <section
               className={`${activeMobileTab === "menu" ? "block" : "hidden"} lg:block lg:col-span-2`}
             >
-              {!isLoading && menuItems.length === 0 && (
+              {isAdmin && !isLoading && menuItems.length === 0 && (
                 <button
                   type="button"
                   onClick={handleGenerateMenu}
@@ -436,7 +494,7 @@ export default function PartyRoomPage() {
                         <div key={item.id || `${item.name}-${index}`}>
                           <div className="mb-1 flex items-start justify-between gap-3">
                             <p className="font-semibold text-zinc-900">{item.name}</p>
-                            {item.id && (
+                            {isAdmin && item.id && (
                               <button
                                 type="button"
                                 onClick={() => handleDeleteDish(item.id!)}
@@ -465,6 +523,15 @@ export default function PartyRoomPage() {
                   )}
                 </article>
               ))}
+
+              <button
+                type="button"
+                onClick={() => setIsAddDishOpen(true)}
+                className="mt-2 mb-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-zinc-200 bg-zinc-100 py-4 text-lg font-medium text-zinc-900 transition-all hover:bg-zinc-200 active:scale-[0.99]"
+              >
+                <span>+</span>
+                <span>Добавить свое блюдо</span>
+              </button>
 
               <button
                 type="button"
@@ -681,6 +748,69 @@ export default function PartyRoomPage() {
                 <p className="text-sm text-zinc-500">Список покупок появится после генерации меню.</p>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {isAddDishOpen && (
+        <div
+          className="fixed inset-0 z-[100] flex items-end justify-center bg-zinc-900/40 p-0 backdrop-blur-sm transition-opacity sm:items-center sm:p-4"
+          onClick={() => setIsAddDishOpen(false)}
+        >
+          <div
+            className="animate-in slide-in-from-bottom-10 max-h-[85vh] w-full max-w-md rounded-t-3xl bg-white p-6 shadow-2xl sm:zoom-in-95 sm:rounded-3xl sm:p-8"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-6 flex items-start justify-between gap-4">
+              <h2 className="text-2xl font-semibold">Добавить блюдо</h2>
+              <button
+                type="button"
+                onClick={() => setIsAddDishOpen(false)}
+                className="text-zinc-400 transition-colors hover:text-black"
+              >
+                Закрыть
+              </button>
+            </div>
+
+            <form onSubmit={handleAddManualDish} className="space-y-5">
+              <input
+                type="text"
+                value={newDishName}
+                onChange={(event) => setNewDishName(event.target.value)}
+                placeholder="Например: Бабушкин пирог"
+                className="w-full rounded-2xl bg-zinc-100/80 px-5 py-4 text-base text-zinc-900 transition-all placeholder:text-zinc-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-black"
+                autoFocus
+              />
+
+              <div className="flex gap-2 rounded-2xl bg-zinc-50 p-1">
+                {MENU_CATEGORIES.map((category) => {
+                  const isActive = newDishCategory === category;
+
+                  return (
+                    <button
+                      key={category}
+                      type="button"
+                      onClick={() => setNewDishCategory(category)}
+                      className={`flex-1 rounded-[1.1rem] px-3 py-3 text-sm font-medium transition-all sm:text-base ${
+                        isActive
+                          ? "bg-black text-white shadow-sm"
+                          : "bg-zinc-100 text-zinc-900 hover:bg-zinc-200"
+                      }`}
+                    >
+                      {category}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                type="submit"
+                disabled={!newDishName.trim()}
+                className="w-full rounded-2xl bg-black py-4 text-lg font-medium text-white transition-all hover:bg-zinc-800 active:scale-95 disabled:bg-zinc-200 disabled:text-zinc-400"
+              >
+                Добавить в меню
+              </button>
+            </form>
           </div>
         </div>
       )}

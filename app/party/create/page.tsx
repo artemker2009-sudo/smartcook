@@ -35,6 +35,7 @@ export default function CreatePartyPage() {
         throw error;
       }
 
+      localStorage.setItem(`party_admin_${data.id}`, "true");
       router.push("/party/" + data.id);
     } catch (error) {
       console.error("Failed to create party:", error);

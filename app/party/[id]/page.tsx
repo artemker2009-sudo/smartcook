@@ -230,6 +230,20 @@ export default function PartyRoomPage() {
     }
   }
 
+  async function handleDeleteDish(itemId: string) {
+    try {
+      const { error } = await supabase.from("party_items").delete().eq("id", itemId);
+
+      if (error) {
+        throw error;
+      }
+
+      setMenuItems((prev) => prev.filter((item) => item.id !== itemId));
+    } catch (error) {
+      console.error("Ошибка удаления блюда:", error);
+    }
+  }
+
   async function handleGenerateMenu() {
     if (!party) return;
 
@@ -411,7 +425,26 @@ export default function PartyRoomPage() {
                     <div className="space-y-4">
                       {items.map((item, index) => (
                         <div key={item.id || `${item.name}-${index}`}>
-                          <p className="font-semibold text-zinc-900">{item.name}</p>
+                          <div className="mb-1 flex items-start justify-between gap-3">
+                            <p className="font-semibold text-zinc-900">{item.name}</p>
+                            {item.id && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteDish(item.id!)}
+                                className="p-1 -mr-1 -mt-1 text-zinc-400 transition-colors hover:text-red-500 active:scale-90"
+                                aria-label={`Удалить блюдо ${item.name}`}
+                              >
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  viewBox="0 0 20 20"
+                                  fill="currentColor"
+                                  className="h-5 w-5"
+                                >
+                                  <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
                           <p className="mt-1 text-sm text-zinc-500">
                             {formatIngredients(item.ingredients)}
                           </p>

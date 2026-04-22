@@ -47,7 +47,6 @@ export default function PartyRoomPage() {
   const partyId = params.id as string;
   const router = useRouter();
   const [activeMobileTab, setActiveMobileTab] = useState<"menu" | "chat">("menu");
-  const [isAdmin, setIsAdmin] = useState(false);
   const [party, setParty] = useState<Party | null>(null);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [messages, setMessages] = useState<PartyMessage[]>([]);
@@ -93,14 +92,11 @@ export default function PartyRoomPage() {
 
     if (!partyId) return;
 
-    setIsAdmin(false);
     const savedName = localStorage.getItem(`party_name_${partyId}`);
     if (savedName) {
-      const adminFlag = localStorage.getItem(`party_admin_${partyId}`);
-      if (adminFlag === "true") setIsAdmin(true);
+      setCurrentUser(savedName);
       void registerGuest(savedName);
     }
-    setCurrentUser(savedName);
     setGuestName(savedName ?? "");
 
     void fetchParty();
@@ -451,7 +447,7 @@ export default function PartyRoomPage() {
                   onClick={() => setIsGuestsOpen(true)}
                   className="text-zinc-500 cursor-pointer transition-colors hover:text-black"
                 >
-                  {guests.length} персон (показать)
+                  {party.guest_count} персон (показать)
                 </span>
               </div>
             ) : (
@@ -484,7 +480,7 @@ export default function PartyRoomPage() {
             <section
               className={`${activeMobileTab === "menu" ? "block" : "hidden"} lg:block lg:col-span-2`}
             >
-              {isAdmin && !isLoading && menuItems.length === 0 && (
+              {!isLoading && menuItems.length === 0 && (
                 <button
                   type="button"
                   onClick={handleGenerateMenu}
@@ -511,7 +507,7 @@ export default function PartyRoomPage() {
                         <div key={item.id || `${item.name}-${index}`}>
                           <div className="mb-1 flex items-start justify-between gap-3">
                             <p className="font-semibold text-zinc-900">{item.name}</p>
-                            {isAdmin && item.id && (
+                            {item.id && (
                               <button
                                 type="button"
                                 onClick={() => handleDeleteDish(item.id!)}

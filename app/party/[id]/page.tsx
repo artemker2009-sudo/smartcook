@@ -49,6 +49,7 @@ export default function PartyRoomPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isShoppingListOpen, setIsShoppingListOpen] = useState(false);
+  const [isGuestsOpen, setIsGuestsOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -62,23 +63,16 @@ export default function PartyRoomPage() {
           supabase.from("parties").select("*").eq("id", partyId).single(),
           supabase.from("party_items").select("*").eq("party_id", partyId),
         ]);
-        const { data: initialMessages } = await supabase
-          .from("party_messages")
-          .select("*")
-          .eq("party_id", partyId)
-          .order("created_at", { ascending: true });
 
         if (error) throw error;
         if (itemsError) throw itemsError;
 
         setParty(data);
         setMenuItems(items || []);
-        setMessages(initialMessages || []);
       } catch (err) {
         console.error("Ошибка загрузки банкета:", err);
         setParty(null);
         setMenuItems([]);
-        setMessages([]);
       } finally {
         setIsLoading(false);
       }
@@ -86,44 +80,49 @@ export default function PartyRoomPage() {
 
     if (!partyId) return;
 
+    void fetchParty();
+  }, [partyId]);
+
+  useEffect(() => {
+    if (!partyId) return;
+
+    const realtimePartyId = String(partyId);
+
+    const fetchMessages = async () => {
+      const { data } = await supabase
+        .from("party_messages")
+        .select("*")
+        .eq("party_id", realtimePartyId)
+        .order("created_at", { ascending: true });
+
+      if (data) setMessages(data);
+    };
+
+    void fetchMessages();
+
     const channel = supabase
-      .channel(`party_messages:${partyId}`)
+      .channel(`chat-${realtimePartyId}`)
       .on(
         "postgres_changes",
         {
           event: "INSERT",
           schema: "public",
           table: "party_messages",
-          filter: `party_id=eq.${partyId}`,
+          filter: `party_id=eq.${realtimePartyId}`,
         },
         (payload) => {
-          setMessages((prev) => {
-            const newIncomingMessage = payload.new as PartyMessage & { id: string };
+          const newMessage = payload.new as PartyMessage;
 
-            const optimisticMessageIndex = prev.findIndex(
-              (message) =>
-                message.id?.startsWith("temp-") &&
-                message.user_name === newIncomingMessage.user_name &&
-                message.text === newIncomingMessage.text,
-            );
-
-            if (optimisticMessageIndex !== -1) {
-              return prev.map((message, index) =>
-                index === optimisticMessageIndex ? newIncomingMessage : message,
-              );
+          setMessages((current) => {
+            if (current.some((message) => message.id === newMessage.id || message.text === newMessage.text)) {
+              return current;
             }
 
-            if (prev.some((message) => message.id === newIncomingMessage.id)) {
-              return prev;
-            }
-
-            return [...prev, newIncomingMessage];
+            return [...current, newMessage];
           });
         },
       )
       .subscribe();
-
-    void fetchParty();
 
     return () => {
       void supabase.removeChannel(channel);
@@ -222,9 +221,6 @@ export default function PartyRoomPage() {
     }
   }
 
-  const guestCountLabel =
-    typeof party?.guest_count === "number" ? `${party.guest_count} персон` : "Без гостей";
-
   const groupedMenuItems = MENU_CATEGORIES.map((category) => ({
     category,
     items: menuItems.filter((item) => item.category === category),
@@ -291,9 +287,15 @@ export default function PartyRoomPage() {
                 <div className="h-3 w-28 animate-pulse rounded-full bg-zinc-100" />
               </div>
             ) : party ? (
-              <p className="truncate text-base font-semibold text-zinc-900">
-                {party.title} • {party.guest_count} персон
-              </p>
+              <div className="flex min-w-0 flex-col gap-1">
+                <p className="truncate text-base font-semibold text-zinc-900">{party.title}</p>
+                <span
+                  onClick={() => setIsGuestsOpen(true)}
+                  className="text-zinc-500 cursor-pointer transition-colors hover:text-black"
+                >
+                  {party.guest_count} персон (показать)
+                </span>
+              </div>
             ) : (
               <p className="truncate text-base font-semibold text-zinc-900">Банкет не найден</p>
             )}
@@ -376,7 +378,7 @@ export default function PartyRoomPage() {
               className={`${activeMobileTab === "chat" ? "block" : "hidden"} lg:block lg:col-span-1`}
             >
               <div className="space-y-4 lg:sticky lg:top-24">
-                <section className="flex h-[600px] flex-col overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm">
+                <section className="flex h-[calc(100vh-160px)] flex-col overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm lg:h-[600px]">
                   <div className="border-b border-zinc-100 bg-zinc-50/50 px-5 py-3 font-medium">
                     Обсуждение
                   </div>
@@ -436,26 +438,18 @@ export default function PartyRoomPage() {
                     <button
                       type="submit"
                       disabled={!newMessage.trim()}
-                      className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full bg-blue-500 text-white transition-all hover:bg-blue-600 active:scale-95 disabled:bg-zinc-200 disabled:text-zinc-400"
-                      aria-label="Отправить сообщение"
+                      className="w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-full bg-blue-500 text-white transition-all hover:bg-blue-600 active:scale-95 disabled:bg-zinc-200 disabled:text-zinc-400"
                     >
-                      <span aria-hidden="true">⬆</span>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                        className="w-4 h-4 translate-x-[1px] translate-y-[-1px]"
+                      >
+                        <path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z" />
+                      </svg>
                     </button>
                   </form>
-                </section>
-
-                <section className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
-                  <div className="mb-4 flex items-center justify-between">
-                    <h2 className="text-xl font-semibold">Гости</h2>
-                    <span className="text-sm text-zinc-500">
-                      {isLoading ? "Загружаем..." : guestCountLabel}
-                    </span>
-                  </div>
-
-                  <div className="rounded-2xl bg-zinc-50 px-4 py-6 text-sm text-zinc-500">
-                    Список гостей подключим следующим шагом. Пока держим фокус на структуре меню и
-                    чате.
-                  </div>
                 </section>
               </div>
             </aside>
@@ -530,6 +524,45 @@ export default function PartyRoomPage() {
               ) : (
                 <p className="text-sm text-zinc-500">Список покупок появится после генерации меню.</p>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isGuestsOpen && (
+        <div
+          className="fixed inset-0 z-[100] flex items-end justify-center bg-zinc-900/40 p-0 backdrop-blur-sm transition-opacity sm:items-center sm:p-4"
+          onClick={() => setIsGuestsOpen(false)}
+        >
+          <div
+            className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-white p-6 shadow-2xl animate-in slide-in-from-bottom-10 sm:rounded-3xl sm:p-8 sm:zoom-in-95"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-6 flex items-start justify-between gap-4">
+              <h2 className="text-2xl font-semibold">Участники</h2>
+              <button
+                type="button"
+                onClick={() => setIsGuestsOpen(false)}
+                className="text-zinc-400 transition-colors hover:text-black"
+              >
+                Закрыть
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {[
+                "Организатор - Подтвержден",
+                "Анна - Подтвержден",
+                "Максим - Подтвержден",
+                "Елена - Ожидает ответ",
+              ].map((guest) => (
+                <div
+                  key={guest}
+                  className="rounded-2xl bg-zinc-50 px-4 py-4 text-base text-zinc-900"
+                >
+                  {guest}
+                </div>
+              ))}
             </div>
           </div>
         </div>

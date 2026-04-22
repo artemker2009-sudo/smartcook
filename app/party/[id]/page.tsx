@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, MessageCircle, Sparkles, UtensilsCrossed } from "lucide-react";
+import { ArrowLeft, MessageCircle, Sparkles, Trash2, UtensilsCrossed } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 
 import { supabase } from "@/lib/supabase";
@@ -36,6 +36,12 @@ type PartyMessage = {
   created_at?: string;
 };
 
+const formatTime = (isoString: string) => {
+  if (!isoString) return "";
+  const date = new Date(isoString);
+  return date.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+};
+
 export default function PartyRoomPage() {
   const params = useParams();
   const partyId = params.id as string;
@@ -44,6 +50,7 @@ export default function PartyRoomPage() {
   const [party, setParty] = useState<Party | null>(null);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [messages, setMessages] = useState<PartyMessage[]>([]);
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState("");
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [guestName, setGuestName] = useState("");
@@ -136,6 +143,19 @@ export default function PartyRoomPage() {
           });
         },
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "party_messages",
+          filter: `party_id=eq.${realtimePartyId}`,
+        },
+        (payload) => {
+          setMessages((current) => current.filter((message) => message.id !== payload.old.id));
+          setSelectedMessageId((current) => (current === payload.old.id ? null : current));
+        },
+      )
       .subscribe();
 
     return () => {
@@ -192,6 +212,21 @@ export default function PartyRoomPage() {
       console.error("Ошибка отправки сообщения:", error);
       setMessages((prev) => prev.filter((message) => message.id !== optimisticMessageId));
       setNewMessage(textToSend);
+    }
+  }
+
+  async function handleDeleteMessage(id: string) {
+    try {
+      const { error } = await supabase.from("party_messages").delete().eq("id", id);
+
+      if (error) {
+        throw error;
+      }
+
+      setSelectedMessageId(null);
+      setMessages((prev) => prev.filter((message) => message.id !== id));
+    } catch (error) {
+      console.error("Ошибка удаления сообщения:", error);
     }
   }
 
@@ -416,6 +451,8 @@ export default function PartyRoomPage() {
                       <div className="space-y-4">
                         {messages.map((message, index) => {
                           const isCurrentUserMessage = message.user_name === currentUser;
+                          const isSelected = selectedMessageId === message.id;
+                          const messageTime = formatTime(message.created_at ?? "");
 
                           return (
                             <div
@@ -432,15 +469,40 @@ export default function PartyRoomPage() {
                                 <span className="mb-1 px-1 text-xs text-zinc-400">
                                   {message.user_name}
                                 </span>
-                                <div
-                                  className={`rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm ${
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    isCurrentUserMessage && message.id
+                                      ? setSelectedMessageId(isSelected ? null : message.id)
+                                      : undefined
+                                  }
+                                  className={`rounded-2xl px-4 py-3 text-left text-sm leading-6 shadow-sm ${
                                     isCurrentUserMessage
-                                      ? "bg-blue-500 text-white"
+                                      ? "cursor-pointer bg-blue-500 text-white"
                                       : "bg-zinc-200 text-zinc-900"
                                   }`}
                                 >
-                                  {message.text}
-                                </div>
+                                  <div className="flex items-end gap-2">
+                                    <span className="break-words">{message.text}</span>
+                                    <span
+                                      className={`mt-1 shrink-0 text-[10px] ${
+                                        isCurrentUserMessage ? "text-blue-100" : "text-zinc-400"
+                                      }`}
+                                    >
+                                      {messageTime}
+                                    </span>
+                                  </div>
+                                </button>
+                                {isSelected && message.id && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteMessage(message.id)}
+                                    className="mt-1 flex cursor-pointer items-center gap-1 text-xs font-medium text-red-500 hover:underline"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                    <span>Удалить</span>
+                                  </button>
+                                )}
                               </div>
                             </div>
                           );

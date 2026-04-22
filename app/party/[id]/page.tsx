@@ -260,29 +260,13 @@ export default function PartyRoomPage() {
 
     if (!trimmedName) return;
 
-    const optimisticId = `temp-dish-${Date.now()}`;
-    const optimisticItem: MenuItem = {
-      id: optimisticId,
-      party_id: partyId,
-      name: trimmedName,
-      category: newDishCategory,
-      ingredients: [],
-    };
-
-    const categoryToRestore = newDishCategory;
-
-    setMenuItems((prev) => [...prev, optimisticItem]);
-    setIsAddDishOpen(false);
-    setNewDishName("");
-    setNewDishCategory("Закуски");
-
     try {
       const { data, error } = await supabase
         .from("party_items")
         .insert({
           party_id: partyId,
           name: trimmedName,
-          category: categoryToRestore,
+          category: newDishCategory,
           ingredients: [],
         })
         .select("*")
@@ -292,13 +276,12 @@ export default function PartyRoomPage() {
         throw error;
       }
 
-      setMenuItems((prev) => prev.map((item) => (item.id === optimisticId ? data : item)));
+      setMenuItems((prev) => [...prev, data]);
+      setIsAddDishOpen(false);
+      setNewDishName("");
+      setNewDishCategory("Закуски");
     } catch (error) {
       console.error("Ошибка добавления блюда:", error);
-      setMenuItems((prev) => prev.filter((item) => item.id !== optimisticId));
-      setNewDishName(trimmedName);
-      setNewDishCategory(categoryToRestore);
-      setIsAddDishOpen(true);
     }
   }
 
@@ -527,7 +510,7 @@ export default function PartyRoomPage() {
               <button
                 type="button"
                 onClick={() => setIsAddDishOpen(true)}
-                className="mt-2 mb-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-zinc-200 bg-zinc-100 py-4 text-lg font-medium text-zinc-900 transition-all hover:bg-zinc-200 active:scale-[0.99]"
+                className="w-full bg-zinc-100 text-zinc-900 border border-zinc-200 text-lg font-medium rounded-2xl py-4 flex items-center justify-center gap-2 hover:bg-zinc-200 transition-all active:scale-[0.99] mt-2 mb-4"
               >
                 <span>+</span>
                 <span>Добавить свое блюдо</span>
@@ -758,31 +741,33 @@ export default function PartyRoomPage() {
           onClick={() => setIsAddDishOpen(false)}
         >
           <div
-            className="animate-in slide-in-from-bottom-10 max-h-[85vh] w-full max-w-md rounded-t-3xl bg-white p-6 shadow-2xl sm:zoom-in-95 sm:rounded-3xl sm:p-8"
+            className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-white p-6 shadow-2xl animate-in slide-in-from-bottom-10 sm:rounded-3xl sm:p-8 sm:zoom-in-95"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="mb-6 flex items-start justify-between gap-4">
-              <h2 className="text-2xl font-semibold">Добавить блюдо</h2>
-              <button
-                type="button"
-                onClick={() => setIsAddDishOpen(false)}
-                className="text-zinc-400 transition-colors hover:text-black"
-              >
-                Закрыть
-              </button>
-            </div>
+            <form onSubmit={handleAddManualDish}>
+              <div className="mb-6 flex items-start justify-between gap-4">
+                <h2 className="text-2xl font-semibold">Новое блюдо</h2>
+                <button
+                  type="button"
+                  onClick={() => setIsAddDishOpen(false)}
+                  className="text-zinc-400 transition-colors hover:text-black"
+                >
+                  Отмена
+                </button>
+              </div>
 
-            <form onSubmit={handleAddManualDish} className="space-y-5">
               <input
                 type="text"
                 value={newDishName}
                 onChange={(event) => setNewDishName(event.target.value)}
-                placeholder="Например: Бабушкин пирог"
-                className="w-full rounded-2xl bg-zinc-100/80 px-5 py-4 text-base text-zinc-900 transition-all placeholder:text-zinc-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-black"
+                placeholder="Например: Крабовый салат"
+                className="w-full bg-zinc-100 rounded-2xl px-5 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-black focus:bg-white transition-all mb-6"
                 autoFocus
               />
 
-              <div className="flex gap-2 rounded-2xl bg-zinc-50 p-1">
+              <div>
+                <p className="mb-2 text-sm text-zinc-500">Категория</p>
+                <div className="grid grid-cols-3 gap-2">
                 {MENU_CATEGORIES.map((category) => {
                   const isActive = newDishCategory === category;
 
@@ -791,22 +776,21 @@ export default function PartyRoomPage() {
                       key={category}
                       type="button"
                       onClick={() => setNewDishCategory(category)}
-                      className={`flex-1 rounded-[1.1rem] px-3 py-3 text-sm font-medium transition-all sm:text-base ${
-                        isActive
-                          ? "bg-black text-white shadow-sm"
-                          : "bg-zinc-100 text-zinc-900 hover:bg-zinc-200"
+                      className={`rounded-2xl px-3 py-4 text-sm font-medium transition-all ${
+                        isActive ? "bg-black text-white" : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
                       }`}
                     >
                       {category}
                     </button>
                   );
                 })}
+                </div>
               </div>
 
               <button
                 type="submit"
                 disabled={!newDishName.trim()}
-                className="w-full rounded-2xl bg-black py-4 text-lg font-medium text-white transition-all hover:bg-zinc-800 active:scale-95 disabled:bg-zinc-200 disabled:text-zinc-400"
+                className="w-full bg-black text-white py-4 rounded-2xl mt-6 disabled:opacity-50"
               >
                 Добавить в меню
               </button>

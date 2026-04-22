@@ -51,6 +51,7 @@ export default function PartyRoomPage() {
   const [party, setParty] = useState<Party | null>(null);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [messages, setMessages] = useState<PartyMessage[]>([]);
+  const [guests, setGuests] = useState<any[]>([]);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState("");
   const [currentUser, setCurrentUser] = useState<string | null>(null);
@@ -97,6 +98,7 @@ export default function PartyRoomPage() {
     if (savedName) {
       const adminFlag = localStorage.getItem(`party_admin_${partyId}`);
       if (adminFlag === "true") setIsAdmin(true);
+      void registerGuest(savedName);
     }
     setCurrentUser(savedName);
     setGuestName(savedName ?? "");
@@ -109,17 +111,25 @@ export default function PartyRoomPage() {
 
     const realtimePartyId = String(partyId);
 
-    const fetchMessages = async () => {
-      const { data } = await supabase
-        .from("party_messages")
-        .select("*")
-        .eq("party_id", realtimePartyId)
-        .order("created_at", { ascending: true });
+    const fetchRoomData = async () => {
+      const [{ data: initialMessages }, { data: initialGuests }] = await Promise.all([
+        supabase
+          .from("party_messages")
+          .select("*")
+          .eq("party_id", realtimePartyId)
+          .order("created_at", { ascending: true }),
+        supabase
+          .from("party_guests")
+          .select("*")
+          .eq("party_id", realtimePartyId)
+          .order("joined_at", { ascending: true }),
+      ]);
 
-      if (data) setMessages(data);
+      if (initialMessages) setMessages(initialMessages);
+      if (initialGuests) setGuests(initialGuests);
     };
 
-    void fetchMessages();
+    void fetchRoomData();
 
     const channel = supabase
       .channel(`chat-${realtimePartyId}`)
@@ -165,6 +175,21 @@ export default function PartyRoomPage() {
           setSelectedMessageId((current) => (current === payload.old.id ? null : current));
         },
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "party_guests",
+          filter: `party_id=eq.${realtimePartyId}`,
+        },
+        (payload) => {
+          setGuests((current) => {
+            if (current.some((guest) => guest.name === payload.new.name)) return current;
+            return [...current, payload.new];
+          });
+        },
+      )
       .subscribe();
 
     return () => {
@@ -176,6 +201,14 @@ export default function PartyRoomPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  const registerGuest = async (nameToRegister: string) => {
+    if (!nameToRegister || !partyId) return;
+
+    await supabase
+      .from("party_guests")
+      .upsert({ party_id: partyId, name: nameToRegister }, { onConflict: "party_id, name" });
+  };
+
   function handleJoin(e?: React.FormEvent) {
     e?.preventDefault();
 
@@ -185,6 +218,7 @@ export default function PartyRoomPage() {
 
     localStorage.setItem(`party_name_${partyId}`, trimmedName);
     setCurrentUser(trimmedName);
+    void registerGuest(trimmedName);
   }
 
   async function sendMessage(e: React.FormEvent<HTMLFormElement>) {
@@ -417,7 +451,7 @@ export default function PartyRoomPage() {
                   onClick={() => setIsGuestsOpen(true)}
                   className="text-zinc-500 cursor-pointer transition-colors hover:text-black"
                 >
-                  {party.guest_count} персон (показать)
+                  {guests.length} персон (показать)
                 </span>
               </div>
             ) : (
@@ -820,19 +854,27 @@ export default function PartyRoomPage() {
             </div>
 
             <div className="space-y-4">
-              {[
-                "Организатор - Подтвержден",
-                "Анна - Подтвержден",
-                "Максим - Подтвержден",
-                "Елена - Ожидает ответ",
-              ].map((guest) => (
-                <div
-                  key={guest}
-                  className="rounded-2xl bg-zinc-50 px-4 py-4 text-base text-zinc-900"
-                >
-                  {guest}
-                </div>
-              ))}
+              {guests.length > 0 ? (
+                guests.map((guest) => (
+                  <div
+                    key={guest.id ?? guest.name}
+                    className="flex items-center justify-between gap-4 rounded-2xl bg-zinc-50 px-4 py-4 text-base text-zinc-900"
+                  >
+                    <div className="font-medium">
+                      <span>{guest.name}</span>
+                      {guest.name === currentUser && (
+                        <span className="ml-2 text-sm font-semibold text-zinc-500">(Вы)</span>
+                      )}
+                    </div>
+                    <div className="text-xs text-green-500 flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-green-500" />
+                      <span>В комнате</span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-zinc-500">Пока никого нет</p>
+              )}
             </div>
           </div>
         </div>

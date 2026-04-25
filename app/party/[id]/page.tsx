@@ -320,7 +320,21 @@ export default function PartyRoomPage() {
 
     setIsGenerating(true);
 
+    const controller = new AbortController();
+    const safetyTimeout = setTimeout(() => {
+      controller.abort();
+      setIsGenerating(false);
+      alert("⏳ Сервер слишком долго отвечает (таймаут 25 сек). Проверьте консоль.");
+      console.error("TIMEOUT: Сервер не ответил за 25 секунд.");
+    }, 25000);
+
     try {
+      console.log("🚀 [1/4] Начинаем генерацию. Отправляем запрос к API...", {
+        partyId,
+        title: party.title,
+        guestCount: party.guest_count,
+      });
+
       const response = await fetch("/api/party/generate", {
         method: "POST",
         headers: {
@@ -330,15 +344,20 @@ export default function PartyRoomPage() {
           title: party.title,
           guestCount: party.guest_count,
         }),
+        signal: controller.signal,
       });
 
-      const result = await response.json();
+      console.log("📥 [2/4] Ответ от сервера получен. Статус:", response.status);
 
       if (!response.ok) {
-        throw new Error(result.error || "Не удалось сгенерировать меню");
+        const errorText = await response.text();
+        throw new Error(`Ошибка сервера ${response.status}: ${errorText}`);
       }
 
-      const generatedMenu = Array.isArray(result.menu) ? result.menu : [];
+      const data = await response.json();
+      console.log("✅ [3/4] Данные успешно распарсены:", data);
+
+      const generatedMenu = Array.isArray(data.menu) ? data.menu : [];
       const itemsToInsert = generatedMenu.map((item: MenuItem) => ({
         party_id: partyId,
         name: item.name,
@@ -347,22 +366,36 @@ export default function PartyRoomPage() {
       }));
 
       if (itemsToInsert.length === 0) {
+        console.log("ℹ️ [4/4] API вернул пустое меню. Очищаем список блюд на странице.");
         setMenuItems([]);
         return;
       }
+
+      console.log("💾 Сохраняем сгенерированное меню в Supabase...", {
+        itemsCount: itemsToInsert.length,
+      });
 
       const { data: insertedItems, error } = await supabase
         .from("party_items")
         .insert(itemsToInsert)
         .select("*");
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       setMenuItems(insertedItems || itemsToInsert);
-    } catch (err) {
-      console.error("Ошибка генерации меню:", err);
-      alert("Ошибка при генерации: меню получилось слишком сложным или сервер не ответил. Попробуйте еще раз.");
+      console.log("🎉 [4/4] Меню успешно добавлено на страницу!");
+    } catch (error) {
+      console.error("❌ КРИТИЧЕСКАЯ ОШИБКА ГЕНЕРАЦИИ:", error);
+
+      if (error instanceof Error && error.name === "AbortError") {
+        return;
+      }
+
+      alert(`Ошибка генерации: ${error instanceof Error ? error.message : "Неизвестная ошибка"}`);
     } finally {
+      clearTimeout(safetyTimeout);
       setIsGenerating(false);
     }
   }

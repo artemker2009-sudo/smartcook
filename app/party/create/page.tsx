@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { type FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
@@ -17,35 +17,53 @@ export default function CreatePartyPage() {
   const [guestCount, setGuestCount] = useState<number>(4);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleCreate = async () => {
+  const handleCreate = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
     if (!selectedScenario) return;
+
     setIsLoading(true);
 
     try {
+      const safeGuestCount = Number.isFinite(guestCount) && guestCount > 0 ? guestCount : 1;
+
       const { data, error } = await supabase
         .from("parties")
-        .insert({
-          title: selectedScenario,
-          guest_count: guestCount,
-        })
+        .insert([
+          {
+            title: selectedScenario,
+            guest_count: safeGuestCount,
+          },
+        ])
         .select()
         .single();
 
       if (error) {
-        throw error;
+        console.error("Supabase Error:", error);
+        throw new Error(error.message);
+      }
+
+      if (!data?.id) {
+        throw new Error("База данных не вернула данные созданного банкета");
       }
 
       localStorage.setItem(`party_admin_${data.id}`, "true");
-      router.push("/party/" + data.id);
+      router.push(`/party/${data.id}`);
     } catch (error) {
-      console.error("Failed to create party:", error);
+      console.error("Ошибка при создании банкета:", error);
+      alert(
+        `Не удалось создать банкет. Ошибка: ${
+          error instanceof Error ? error.message : "Неизвестная ошибка"
+        }`,
+      );
+    } finally {
       setIsLoading(false);
     }
   };
 
   return (
     <div className="min-h-screen bg-zinc-50 py-16 px-4 sm:px-6 lg:px-8 font-sans text-zinc-900">
-      <div className="max-w-2xl mx-auto">
+      <form className="max-w-2xl mx-auto" onSubmit={handleCreate}>
         
         <div className="text-center mb-12">
           <h1 className="text-4xl font-semibold tracking-tight text-zinc-900 mb-3">
@@ -64,6 +82,7 @@ export default function CreatePartyPage() {
               return (
                 <button
                   key={scenario.id}
+                  type="button"
                   onClick={() => setSelectedScenario(scenario.title)}
                   className={`relative flex flex-col items-start p-6 rounded-3xl border text-left transition-all duration-200 ${
                     isSelected
@@ -95,14 +114,14 @@ export default function CreatePartyPage() {
         </div>
 
         <button
-          onClick={handleCreate}
+          type="submit"
           disabled={!selectedScenario || isLoading}
           className="w-full bg-black text-white text-lg font-medium py-4 rounded-2xl hover:bg-zinc-800 disabled:bg-zinc-200 disabled:text-zinc-400 disabled:cursor-not-allowed transition-all shadow-md active:scale-[0.98]"
         >
           {isLoading ? "Подготавливаем меню..." : "Создать меню"}
         </button>
         
-      </div>
+      </form>
     </div>
   );
 }

@@ -361,6 +361,7 @@ export default function PartyRoomPage() {
       setMenuItems(insertedItems || itemsToInsert);
     } catch (err) {
       console.error("Ошибка генерации меню:", err);
+      alert("Ошибка при генерации: меню получилось слишком сложным или сервер не ответил. Попробуйте еще раз.");
     } finally {
       setIsGenerating(false);
     }

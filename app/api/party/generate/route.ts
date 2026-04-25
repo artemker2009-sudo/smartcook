@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 
+export const maxDuration = 60;
+export const runtime = "edge";
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
@@ -36,7 +39,24 @@ export async function POST(req: Request) {
       throw new Error("Empty response from OpenAI");
     }
 
-    return NextResponse.json(JSON.parse(content));
+    let cleanText = content.replace(/```json/g, "").replace(/```/g, "").trim();
+
+    const arrayStartIndex = cleanText.indexOf("[");
+    const arrayEndIndex = cleanText.lastIndexOf("]");
+
+    if (arrayStartIndex !== -1 && arrayEndIndex !== -1) {
+      cleanText = cleanText.substring(arrayStartIndex, arrayEndIndex + 1);
+      return NextResponse.json({ menu: JSON.parse(cleanText) });
+    }
+
+    const objectStartIndex = cleanText.indexOf("{");
+    const objectEndIndex = cleanText.lastIndexOf("}");
+
+    if (objectStartIndex !== -1 && objectEndIndex !== -1) {
+      cleanText = cleanText.substring(objectStartIndex, objectEndIndex + 1);
+    }
+
+    return NextResponse.json(JSON.parse(cleanText));
   } catch (error: any) {
     console.error("Party menu generation error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });

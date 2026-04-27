@@ -303,7 +303,6 @@ export default function ClientRoom({
       await supabase.from("parties").update({ is_paid: true }).eq("id", currentParty.id);
       setCurrentParty({ ...currentParty, is_paid: true });
       setShowPaywall(false);
-      setShowShoppingList(true);
     } finally {
       setIsProcessingPay(false);
     }
@@ -343,6 +342,11 @@ export default function ClientRoom({
   };
 
   const handleGenerateMenu = async () => {
+    if (!currentParty.is_paid) {
+      setShowPaywall(true);
+      return;
+    }
+
     try {
       setIsGenerating(true);
       const res = await fetch('/api/party/generate', {
@@ -386,7 +390,7 @@ export default function ClientRoom({
             className="w-full bg-black text-white font-medium p-4 rounded-3xl flex items-center justify-center gap-2 disabled:opacity-80 transition-all"
           >
             <Sparkles className="h-4 w-4" />
-            {isGenerating ? "✨ Шеф-повар составляет меню..." : "✨ Сгенерировать меню с ИИ"}
+            {isGenerating ? "✨ Шеф-повар составляет меню..." : "✨ Сгенерировать меню с ИИ (PRO)"}
           </button>
 
           {isGenerating && (
@@ -474,10 +478,10 @@ export default function ClientRoom({
 
       <button
         type="button"
-        onClick={() => (currentParty.is_paid ? setShowShoppingList(true) : setShowPaywall(true))}
+        onClick={() => setShowShoppingList(true)}
         className="inline-flex w-full items-center justify-center gap-2 rounded-3xl border border-black/5 bg-white px-5 py-4 text-base font-medium text-black shadow-sm transition hover:bg-zinc-50"
       >
-        <span>🛒</span> {currentParty.is_paid ? "Показать список покупок" : "Открыть список покупок (PRO)"}
+        <span>🛒</span> Показать список покупок
       </button>
     </section>
   );
@@ -781,23 +785,23 @@ export default function ClientRoom({
               </div>
             </div>
 
-            <h2 className="text-2xl font-bold text-center mb-2 tracking-tight">Smart Party Pass</h2>
+            <h2 className="text-2xl font-bold text-center mb-2 tracking-tight">AI Chef Pass</h2>
             <p className="text-center text-zinc-500 text-sm mb-6">
-              Откройте полный доступ к банкету для себя и всех ваших гостей.
+              Нейросеть составит идеальное меню и список покупок за 10 секунд.
             </p>
 
             <div className="space-y-3 mb-8">
               <div className="flex items-center gap-3">
                 <span className="text-green-500 text-xl">✓</span>
-                <span className="text-sm font-medium">Умный список покупок</span>
+                <span className="text-sm font-medium">Мгновенная генерация меню от ИИ</span>
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-green-500 text-xl">✓</span>
-                <span className="text-sm font-medium">Безлимитное количество гостей</span>
+                <span className="text-sm font-medium">Автоматический список покупок</span>
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-green-500 text-xl">✓</span>
-                <span className="text-sm font-medium">Голосование за меню без ограничений</span>
+                <span className="text-sm font-medium">Интерактивный чат и голосование</span>
               </div>
             </div>
 
@@ -807,7 +811,7 @@ export default function ClientRoom({
               disabled={isProcessingPay}
               className="w-full bg-black text-white text-lg font-medium p-4 rounded-2xl active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-70"
             >
-              {isProcessingPay ? "Обработка..." : "Оплатить 99 ₽"}
+              {isProcessingPay ? "Обработка..." : "Оплатить 29 ₽"}
             </button>
 
             <button

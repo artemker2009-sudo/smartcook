@@ -17,8 +17,8 @@ export const viewport: Viewport = {
 
 // 2. Настройки SEO и метаданные
 export const metadata: Metadata = {
-  title: "SmartCook — Генератор рецептов по фото | ИИ Шеф-повар",
-  description: "SmartCook: не знаете, что приготовить? Сфотографируйте продукты, и искусственный интеллект подберет рецепт за 3 секунды. Экономьте время и деньги.",
+  title: "SmartCook — Умный ИИ-Шеф и организатор",
+  description: "Ваш личный нейро-шеф. Генерируйте уникальные рецепты, планируйте меню для банкетов и составляйте списки покупок за секунды.",
   applicationName: "SmartCook",
   
   // --- PWA настройки ---
@@ -43,8 +43,8 @@ export const metadata: Metadata = {
     "zero waste рецепты"
   ],
   openGraph: {
-    title: "SmartCook — Сфоткай еду, получи рецепт 📸",
-    description: "Магия ИИ на вашей кухне. Готовим из того, что есть.",
+    title: "SmartCook — Умный ИИ-Шеф",
+    description: "Создайте идеальное меню для любого повода с помощью нейросети. Интерактивный чат, голосование и умный список покупок.",
     url: "https://smart-cook.pro",
     siteName: "SmartCook",
     locale: "ru_RU",

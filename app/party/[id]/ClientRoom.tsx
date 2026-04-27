@@ -642,6 +642,16 @@ export default function ClientRoom({
       >
         <span>🛒</span> {currentParty.is_paid ? "Показать список покупок" : "Открыть список покупок (PRO)"}
       </button>
+
+      <div className="mt-6 border-t border-zinc-100 pt-6">
+        <button
+          type="button"
+          onClick={() => setShowSupport(true)}
+          className="flex w-full items-center justify-center gap-2 rounded-3xl bg-zinc-50 p-4 text-sm font-medium text-zinc-500 transition-colors hover:bg-zinc-100"
+        >
+          💬 Сообщить о проблеме
+        </button>
+      </div>
     </section>
   );
 
@@ -801,15 +811,6 @@ export default function ClientRoom({
           renderChatPanel()
         )}
       </main>
-
-      <button
-        type="button"
-        onClick={() => setShowSupport(true)}
-        className="fixed bottom-28 right-6 z-[45] flex h-14 w-14 items-center justify-center rounded-full bg-black text-2xl text-white shadow-2xl transition-all hover:scale-105 active:scale-95 sm:bottom-6"
-        aria-label="Открыть поддержку"
-      >
-        💬
-      </button>
 
       <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-black/5 bg-white/90 backdrop-blur-md">
         <div className="mx-auto grid max-w-3xl grid-cols-2 px-6 pb-8 pt-3">

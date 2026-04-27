@@ -304,45 +304,55 @@ export default function ClientRoom({
   };
 
   const renderMenuPanel = () => (
-    <section className="space-y-4">
-      {menuItems.length === 0 ? (
+    <section className="space-y-4 p-4 pb-32">
+      <button
+        type="button"
+        onClick={() => window.alert("Здесь появится генерация меню с ИИ.")}
+        className="flex w-full items-center justify-center gap-2 rounded-3xl bg-black p-4 text-center text-base font-medium text-white shadow-sm transition hover:bg-zinc-800"
+      >
+        <Sparkles className="h-4 w-4" />
+        ✨ Сгенерировать меню с ИИ
+      </button>
+
+      <div className="grid grid-cols-2 gap-3">
         <button
           type="button"
-          onClick={() => window.alert("Здесь появится генерация меню с ИИ.")}
-          className="flex min-h-[220px] w-full flex-col items-center justify-center gap-4 rounded-[28px] bg-black px-6 py-8 text-center text-white shadow-sm transition hover:bg-zinc-800"
+          onClick={() => setIsAddDishOpen(true)}
+          className="inline-flex items-center justify-center gap-2 rounded-3xl border border-black/5 bg-white px-4 py-4 text-sm font-medium text-black shadow-sm transition hover:bg-zinc-50"
         >
-          <Sparkles className="h-10 w-10" />
-          <div>
-            <div className="text-2xl font-semibold">Сгенерировать меню с ИИ</div>
-            <p className="mt-2 text-sm text-zinc-300">
-              Пока блюд нет. Заполните банкет автоматически одним нажатием.
-            </p>
-          </div>
+          <Plus className="h-4 w-4" />
+          Добавить блюдо
         </button>
-      ) : null}
+        <button
+          type="button"
+          onClick={handleShare}
+          className="inline-flex items-center justify-center gap-2 rounded-3xl border border-black/5 bg-white px-4 py-4 text-sm font-medium text-black shadow-sm transition hover:bg-zinc-50"
+        >
+          <Share2 className="h-4 w-4" />
+          Поделиться
+        </button>
+      </div>
 
       {groupedItems.map(({ category, items }) => (
-        <article key={category} className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">
-          <div className="mb-5 flex items-center justify-between gap-3">
-            <h2 className="text-xl font-semibold text-zinc-950">{category}</h2>
+        <article key={category} className="rounded-3xl border border-black/5 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="text-xl font-semibold tracking-tight text-black">{category}</h2>
             <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-500">
               {items.length}
             </span>
           </div>
 
           {items.length === 0 ? (
-            <div className="rounded-3xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-8 text-center text-sm text-zinc-500">
-              Пока в этой категории пусто
-            </div>
+            <p className="text-sm leading-6 text-zinc-400">Здесь появятся предложенные блюда...</p>
           ) : (
             <div className="space-y-3">
               {items.map((item) => (
                 <div
                   key={item.id ?? `${category}-${item.name}`}
-                  className="rounded-3xl border border-zinc-200 bg-zinc-50 px-4 py-4"
+                  className="rounded-[28px] bg-zinc-50 px-4 py-4"
                 >
-                  <div className="text-base font-semibold text-zinc-950">{item.name}</div>
-                  <p className="mt-2 text-sm leading-6 text-zinc-500">{formatIngredients(item.ingredients)}</p>
+                  <div className="text-base font-semibold tracking-tight text-black">{item.name}</div>
+                  <p className="mt-1 text-sm leading-6 text-zinc-500">{formatIngredients(item.ingredients)}</p>
                 </div>
               ))}
             </div>
@@ -352,177 +362,188 @@ export default function ClientRoom({
 
       <button
         type="button"
-        onClick={() => setIsAddDishOpen(true)}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-[28px] border border-zinc-200 bg-white px-5 py-4 text-base font-medium text-zinc-950 shadow-sm transition hover:bg-zinc-100"
+        onClick={() => window.alert("Список покупок появится здесь.")}
+        className="inline-flex w-full items-center justify-center gap-2 rounded-3xl border border-black/5 bg-white px-5 py-4 text-base font-medium text-black shadow-sm transition hover:bg-zinc-50"
       >
-        <Plus className="h-4 w-4" /> Добавить свое блюдо
+        🛒 Показать список покупок
       </button>
     </section>
   );
 
   const renderChatPanel = () => (
-    <section className="flex min-h-[620px] flex-col rounded-[28px] border border-zinc-200 bg-white p-4 shadow-sm xl:h-[calc(100vh-12rem)]">
-      <div className="mb-4 rounded-3xl border border-zinc-200 bg-zinc-50 p-4">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500">Участники</h2>
-          <span className="text-sm text-zinc-400">{guestNames.length}</span>
+    <section className="m-4 flex h-[calc(100vh-180px)] flex-col overflow-hidden rounded-3xl border border-black/5 bg-white shadow-sm">
+      <div className="border-b border-zinc-100 p-4">
+        <div className="flex items-center gap-2 text-base font-semibold tracking-tight text-black">
+          <MessageCircle className="h-4 w-4" />
+          Обсуждение
         </div>
-
-        {guestNames.length === 0 ? (
-          <p className="text-sm text-zinc-500">Пока никто не присоединился.</p>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {guestNames.map((guestName) => (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {guestNames.length === 0 ? (
+            <span className="text-sm text-zinc-400">Пока никто не присоединился</span>
+          ) : (
+            guestNames.map((guestName) => (
               <span
                 key={guestName}
-                className={`rounded-full border px-3 py-1.5 text-sm ${
-                  guestName === currentUser
-                    ? "border-black bg-black text-white"
-                    : "border-zinc-200 bg-white text-zinc-700"
+                className={`rounded-full px-3 py-1.5 text-xs font-medium ${
+                  guestName === currentUser ? "bg-black text-white" : "bg-zinc-100 text-zinc-500"
                 }`}
               >
                 {guestName}
                 {guestName === currentUser ? " (вы)" : ""}
               </span>
-            ))}
+            ))
+          )}
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4">
+        {messages.length === 0 ? (
+          <div className="flex h-full items-center justify-center text-center text-sm text-zinc-400">
+            Пока сообщений нет
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {messages.map((message, index) => {
+              const author = getMessageAuthor(message);
+              const isOwn = author === currentUser;
+
+              return (
+                <div
+                  key={message.id ?? `${message.created_at}-${index}`}
+                  className={`flex ${isOwn ? "justify-end" : "justify-start"}`}
+                >
+                  <div className={`flex max-w-[85%] flex-col ${isOwn ? "items-end" : "items-start"}`}>
+                    <span className="mb-1 px-1 text-xs text-zinc-400">{isOwn ? "Вы" : author || "Гость"}</span>
+                    <div
+                      className={`rounded-[24px] px-4 py-3 ${
+                        isOwn ? "bg-black text-white" : "bg-zinc-100 text-black"
+                      }`}
+                    >
+                      <p className="whitespace-pre-wrap break-words text-sm leading-6">{message.text}</p>
+                      <div className={`mt-2 text-[11px] ${isOwn ? "text-zinc-300" : "text-zinc-400"}`}>
+                        {formatTime(message.created_at)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            <div ref={messagesEndRef} />
           </div>
         )}
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-zinc-200">
-        <div className="border-b border-zinc-200 bg-zinc-50 px-5 py-4">
-          <h2 className="text-lg font-semibold text-zinc-950">Чат банкета</h2>
+      <form onSubmit={sendMessage} className="border-t border-zinc-100 bg-white p-4">
+        <div className="flex items-center gap-3">
+          <input
+            type="text"
+            value={newMessage}
+            onChange={(event) => setNewMessage(event.target.value)}
+            placeholder={currentUser ? "Написать сообщение..." : "Сначала укажите ваше имя"}
+            disabled={!currentUser}
+            className="h-12 flex-1 rounded-2xl bg-zinc-100 px-4 text-sm text-black outline-none transition focus:bg-zinc-200 disabled:cursor-not-allowed disabled:text-zinc-400"
+          />
+          <button
+            type="submit"
+            disabled={!newMessage.trim() || !currentUser || isSendingMessage}
+            className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-black text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400"
+          >
+            <SendHorizonal className="h-4 w-4" />
+          </button>
         </div>
-
-        <div className="flex-1 overflow-y-auto bg-zinc-50/70 px-4 py-5">
-          {messages.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-center text-sm text-zinc-500">
-              Напишите первое сообщение и начните обсуждение.
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {messages.map((message, index) => {
-                const author = getMessageAuthor(message);
-                const isOwn = author === currentUser;
-
-                return (
-                  <div
-                    key={message.id ?? `${message.created_at}-${index}`}
-                    className={`flex ${isOwn ? "justify-end" : "justify-start"}`}
-                  >
-                    <div className={`flex max-w-[85%] flex-col ${isOwn ? "items-end" : "items-start"}`}>
-                      <span className="mb-1 px-1 text-xs text-zinc-400">{isOwn ? "Вы" : author || "Гость"}</span>
-                      <div
-                        className={`rounded-[24px] px-4 py-3 shadow-sm ${
-                          isOwn ? "bg-black text-white" : "border border-zinc-200 bg-white text-zinc-950"
-                        }`}
-                      >
-                        <p className="whitespace-pre-wrap break-words text-sm leading-6">{message.text}</p>
-                        <div className={`mt-2 text-[11px] ${isOwn ? "text-zinc-300" : "text-zinc-400"}`}>
-                          {formatTime(message.created_at)}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-              <div ref={messagesEndRef} />
-            </div>
-          )}
-        </div>
-
-        <form onSubmit={sendMessage} className="border-t border-zinc-200 bg-white p-3">
-          <div className="flex items-end gap-3">
-            <input
-              type="text"
-              value={newMessage}
-              onChange={(event) => setNewMessage(event.target.value)}
-              placeholder={currentUser ? "Написать сообщение..." : "Сначала укажите ваше имя"}
-              disabled={!currentUser}
-              className="h-12 flex-1 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 text-sm text-zinc-950 outline-none transition focus:border-zinc-300 focus:bg-white disabled:cursor-not-allowed disabled:text-zinc-400"
-            />
-            <button
-              type="submit"
-              disabled={!newMessage.trim() || !currentUser || isSendingMessage}
-              className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-black text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400"
-            >
-              <SendHorizonal className="h-4 w-4" />
-            </button>
-          </div>
-        </form>
-      </div>
+      </form>
     </section>
   );
 
   return (
-    <div className="min-h-screen bg-zinc-50 text-zinc-950">
-      <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-8">
-        <header className="mb-6 rounded-[32px] border border-zinc-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
-            <div className="min-w-0">
-              <p className="mb-2 text-sm font-medium uppercase tracking-[0.2em] text-zinc-400">Банкет</p>
-              <h1 className="truncate text-3xl font-semibold tracking-tight text-zinc-950">{party.title}</h1>
-              <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-zinc-500">
-                <span className="inline-flex items-center gap-2 rounded-full bg-zinc-100 px-3 py-1.5">
-                  <Users className="h-4 w-4" />
-                  {guestNames.length} участников
-                </span>
-                {party.guest_count ? (
-                  <span className="rounded-full bg-zinc-100 px-3 py-1.5">План: {party.guest_count} гостей</span>
-                ) : null}
+    <div className="min-h-screen bg-[#F5F5F7] text-black">
+      <header className="sticky top-0 z-30 border-b border-black/5 bg-white/90 backdrop-blur-md">
+        <div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-4">
+          <button
+            type="button"
+            onClick={() => window.history.back()}
+            className="inline-flex min-w-[76px] items-center gap-1 text-sm font-medium text-black transition hover:text-zinc-600"
+          >
+            <span aria-hidden="true">‹</span>
+            Назад
+          </button>
+
+          <div className="min-w-0 text-center">
+            <h1 className="truncate text-base font-semibold tracking-tight text-black">{party.title}</h1>
+            <p className="text-sm font-medium text-zinc-500">
+              {party.title} • {party.guest_count ?? guestNames.length} персон
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleShare}
+            className="inline-flex min-w-[76px] items-center justify-end gap-1 text-sm font-medium text-black transition hover:text-zinc-600"
+          >
+            <Share2 className="h-4 w-4" />
+            <span className="sr-only">Поделиться</span>
+          </button>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-3xl pb-28">
+        {activeTab === "menu" ? (
+          <>
+            <div className="px-4 pt-4">
+              <div className="rounded-3xl border border-black/5 bg-white p-4 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-2xl bg-zinc-100 p-3">
+                    <Users className="h-5 w-5 text-zinc-500" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-zinc-500">Участники банкета</p>
+                    <p className="truncate text-base font-semibold tracking-tight text-black">
+                      {guestNames.length > 0 ? guestNames.join(", ") : "Список гостей появится здесь"}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
+            {renderMenuPanel()}
+          </>
+        ) : (
+          renderChatPanel()
+        )}
+      </main>
 
-            <button
-              type="button"
-              onClick={handleShare}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-900 transition hover:bg-zinc-100"
-            >
-              <Share2 className="h-4 w-4" />
-              Поделиться
-            </button>
-          </div>
-        </header>
-
-        <div className="mb-4 grid grid-cols-2 gap-3 xl:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-black/5 bg-white/90 backdrop-blur-md">
+        <div className="mx-auto grid max-w-3xl grid-cols-2 px-6 pb-8 pt-3">
           <button
             type="button"
             onClick={() => setActiveTab("menu")}
-            className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-medium transition ${
-              activeTab === "menu" ? "bg-black text-white" : "border border-zinc-200 bg-white text-zinc-700"
+            className={`flex flex-col items-center justify-center gap-1 text-sm font-medium transition ${
+              activeTab === "menu" ? "text-black" : "text-zinc-400"
             }`}
           >
-            <UtensilsCrossed className="h-4 w-4" />
-            Меню
+            <UtensilsCrossed className="h-5 w-5" />
+            <span>Меню</span>
           </button>
           <button
             type="button"
             onClick={() => setActiveTab("chat")}
-            className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-medium transition ${
-              activeTab === "chat" ? "bg-black text-white" : "border border-zinc-200 bg-white text-zinc-700"
+            className={`flex flex-col items-center justify-center gap-1 text-sm font-medium transition ${
+              activeTab === "chat" ? "text-black" : "text-zinc-400"
             }`}
           >
-            <MessageCircle className="h-4 w-4" />
-            Чат
+            <MessageCircle className="h-5 w-5" />
+            <span>Чат</span>
           </button>
         </div>
-
-        <div className="hidden gap-6 xl:grid xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
-          {renderMenuPanel()}
-          {renderChatPanel()}
-        </div>
-
-        <div className="xl:hidden">{activeTab === "menu" ? renderMenuPanel() : renderChatPanel()}</div>
-      </div>
+      </nav>
 
       {showJoinModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-[32px] bg-white p-8 shadow-2xl">
-            <div className="mb-6">
-              <p className="mb-2 text-sm font-medium uppercase tracking-[0.2em] text-zinc-400">Участник</p>
-              <h2 className="text-3xl font-semibold text-zinc-950">Как вас зовут?</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-md">
+          <div className="w-full max-w-md rounded-3xl border border-black/5 bg-white p-8 shadow-sm">
+            <div className="mb-6 text-center">
+              <div className="mb-4 text-4xl">👋</div>
+              <h2 className="text-3xl font-semibold tracking-tight text-black">Добро пожаловать</h2>
               <p className="mt-3 text-sm leading-6 text-zinc-500">
-                Имя нужно, чтобы вы появились в списке гостей и могли писать в чат.
+                Как вас представить другим участникам банкета?
               </p>
             </div>
 
@@ -537,15 +558,15 @@ export default function ClientRoom({
                 value={inputName}
                 onChange={(event) => setInputName(event.target.value)}
                 placeholder="Введите ваше имя"
-                className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-5 py-4 text-base text-zinc-950 outline-none transition focus:border-zinc-300 focus:bg-white"
+                className="w-full rounded-2xl bg-zinc-100 px-5 py-4 text-base text-black outline-none transition focus:bg-zinc-200"
                 autoFocus
               />
               <button
                 type="submit"
                 disabled={!inputName.trim()}
-                className="w-full rounded-2xl bg-black px-5 py-4 text-base font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
+                className="w-full rounded-2xl bg-zinc-200 px-5 py-4 text-base font-medium text-black transition hover:bg-zinc-300 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400"
               >
-                Продолжить
+                Войти
               </button>
             </form>
           </div>
@@ -554,18 +575,16 @@ export default function ClientRoom({
 
       {isAddDishOpen && (
         <div
-          className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4 backdrop-blur-md"
           onClick={() => setIsAddDishOpen(false)}
         >
           <div
-            className="w-full max-w-md rounded-[32px] bg-white p-6 shadow-2xl"
+            className="w-full max-w-md rounded-3xl border border-black/5 bg-white p-6 shadow-sm"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-6">
-              <h3 className="text-2xl font-semibold text-zinc-950">Добавить свое блюдо</h3>
-              <p className="mt-2 text-sm text-zinc-500">
-                Блюдо сразу появится в общем меню для всех участников.
-              </p>
+              <h3 className="text-2xl font-semibold tracking-tight text-black">Добавить свое блюдо</h3>
+              <p className="mt-2 text-sm text-zinc-500">Блюдо сразу появится в общем меню для всех участников.</p>
             </div>
 
             <form onSubmit={handleAddDish} className="space-y-4">
@@ -574,7 +593,7 @@ export default function ClientRoom({
                 value={newDishName}
                 onChange={(event) => setNewDishName(event.target.value)}
                 placeholder="Например: Брускетта с томатами"
-                className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3.5 text-sm text-zinc-950 outline-none transition focus:border-zinc-300 focus:bg-white"
+                className="w-full rounded-2xl bg-zinc-100 px-4 py-3.5 text-sm text-black outline-none transition focus:bg-zinc-200"
                 autoFocus
               />
 
@@ -587,7 +606,7 @@ export default function ClientRoom({
                     className={`rounded-2xl px-4 py-3 text-sm font-medium transition ${
                       newDishCategory === category
                         ? "bg-black text-white"
-                        : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-100"
+                        : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
                     }`}
                   >
                     {category}
@@ -599,7 +618,7 @@ export default function ClientRoom({
                 <button
                   type="button"
                   onClick={() => setIsAddDishOpen(false)}
-                  className="flex-1 rounded-2xl border border-zinc-200 px-4 py-3 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100"
+                  className="flex-1 rounded-2xl bg-zinc-100 px-4 py-3 text-sm font-medium text-zinc-700 transition hover:bg-zinc-200"
                 >
                   Отмена
                 </button>

@@ -54,6 +54,8 @@ export default function PartyRoomPage() {
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState("");
   const [currentUser, setCurrentUser] = useState<string | null>(null);
+  const [showJoinModal, setShowJoinModal] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [guestName, setGuestName] = useState("");
   const [isAddDishOpen, setIsAddDishOpen] = useState(false);
   const [newDishName, setNewDishName] = useState("");
@@ -69,6 +71,7 @@ export default function PartyRoomPage() {
       if (!partyId) return;
 
       setIsLoading(true);
+      setLoadError(null);
 
       try {
         const [{ data, error }, { data: items, error: itemsError }] = await Promise.all([
@@ -85,6 +88,9 @@ export default function PartyRoomPage() {
         console.error("Ошибка загрузки банкета:", err);
         setParty(null);
         setMenuItems([]);
+        setLoadError(
+          "Не удалось загрузить данные банкета. Возможно, ваш браузер или провайдер блокирует запрос.",
+        );
       } finally {
         setIsLoading(false);
       }
@@ -93,8 +99,12 @@ export default function PartyRoomPage() {
     if (!partyId) return;
 
     const savedName = localStorage.getItem(`party_name_${partyId}`);
-    if (savedName) {
+    if (!savedName) {
+      setCurrentUser(null);
+      setShowJoinModal(true);
+    } else {
       setCurrentUser(savedName);
+      setShowJoinModal(false);
       void registerGuest(savedName);
     }
     setGuestName(savedName ?? "");
@@ -237,6 +247,8 @@ export default function PartyRoomPage() {
 
     localStorage.setItem(`party_name_${partyId}`, trimmedName);
     setCurrentUser(trimmedName);
+    setGuestName(trimmedName);
+    setShowJoinModal(false);
     void registerGuest(trimmedName);
   }
 
@@ -480,247 +492,260 @@ export default function PartyRoomPage() {
 
   return (
     <div className="min-h-screen bg-zinc-50 font-sans text-zinc-900">
-      <header className="sticky top-0 z-10 border-b border-zinc-200 bg-white/90 px-6 py-4 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center gap-4">
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span>Назад</span>
-          </button>
-
-          <div className="min-w-0 flex-1">
-            {isLoading ? (
-              <div className="space-y-2 py-1">
-                <div className="h-4 w-48 animate-pulse rounded-full bg-zinc-200" />
-                <div className="h-3 w-28 animate-pulse rounded-full bg-zinc-100" />
-              </div>
-            ) : party ? (
-              <div className="flex min-w-0 flex-col gap-1">
-                <p className="truncate text-base font-semibold text-zinc-900">{party.title}</p>
-                <span
-                  onClick={() => setIsGuestsOpen(true)}
-                  className="text-zinc-500 cursor-pointer transition-colors hover:text-black"
-                >
-                  {guests.length} участников (показать)
-                </span>
-              </div>
-            ) : (
-              <p className="truncate text-base font-semibold text-zinc-900">Банкет не найден</p>
-            )}
+      {loadError ? (
+        <div className="flex min-h-screen items-center justify-center p-8 text-center">
+          <div className="max-w-lg">
+            <p className="font-medium text-red-500">{loadError}</p>
+            <button onClick={() => window.location.reload()} className="mt-4 underline">
+              Обновить страницу
+            </button>
           </div>
         </div>
-      </header>
-
-      {!isLoading && !party ? (
-        <main className="mx-auto flex min-h-[calc(100vh-81px)] max-w-7xl items-center px-4 py-8">
-          <section className="w-full rounded-[2rem] border border-zinc-200 bg-white p-8 text-center shadow-sm">
-            <h1 className="mb-3 text-2xl font-semibold text-zinc-900">Банкет не найден</h1>
-            <p className="mx-auto mb-6 max-w-md text-sm leading-6 text-zinc-500">
-              Возможно, ссылка устарела или этот банкет был удален. Вернитесь на главную и создайте
-              новый.
-            </p>
-            <button
-              type="button"
-              onClick={() => router.push("/")}
-              className="inline-flex rounded-full bg-black px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-zinc-800"
-            >
-              На главную
-            </button>
-          </section>
-        </main>
       ) : (
-        <main className="mx-auto max-w-7xl px-4 py-8 pb-24 lg:pb-8">
-          <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-            <section
-              className={`${activeMobileTab === "menu" ? "block" : "hidden"} lg:block lg:col-span-2`}
-            >
-              {!isLoading && menuItems.length === 0 && (
+        <>
+          <header className="sticky top-0 z-10 border-b border-zinc-200 bg-white/90 px-6 py-4 backdrop-blur-xl">
+            <div className="mx-auto flex max-w-7xl items-center gap-4">
+              <button
+                type="button"
+                onClick={() => router.back()}
+                className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span>Назад</span>
+              </button>
+
+              <div className="min-w-0 flex-1">
+                {isLoading ? (
+                  <div className="space-y-2 py-1">
+                    <div className="h-4 w-48 animate-pulse rounded-full bg-zinc-200" />
+                    <div className="h-3 w-28 animate-pulse rounded-full bg-zinc-100" />
+                  </div>
+                ) : party ? (
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <p className="truncate text-base font-semibold text-zinc-900">{party.title}</p>
+                    <span
+                      onClick={() => setIsGuestsOpen(true)}
+                      className="cursor-pointer text-zinc-500 transition-colors hover:text-black"
+                    >
+                      {guests.length} участников (показать)
+                    </span>
+                  </div>
+                ) : (
+                  <p className="truncate text-base font-semibold text-zinc-900">Банкет не найден</p>
+                )}
+              </div>
+            </div>
+          </header>
+
+          {!isLoading && !party ? (
+            <main className="mx-auto flex min-h-[calc(100vh-81px)] max-w-7xl items-center px-4 py-8">
+              <section className="w-full rounded-[2rem] border border-zinc-200 bg-white p-8 text-center shadow-sm">
+                <h1 className="mb-3 text-2xl font-semibold text-zinc-900">Банкет не найден</h1>
+                <p className="mx-auto mb-6 max-w-md text-sm leading-6 text-zinc-500">
+                  Возможно, ссылка устарела или этот банкет был удален. Вернитесь на главную и создайте
+                  новый.
+                </p>
                 <button
                   type="button"
-                  onClick={handleGenerateMenu}
-                  disabled={isGenerating || !party}
-                  className="mb-8 w-full rounded-2xl bg-black py-5 text-lg font-medium text-white shadow-md transition-all hover:bg-zinc-800 active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-zinc-400 disabled:shadow-none"
+                  onClick={() => router.push("/")}
+                  className="inline-flex rounded-full bg-black px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-zinc-800"
                 >
-                  <span className="inline-flex items-center gap-3">
-                    <Sparkles className="h-5 w-5" />
-                    <span>{isGenerating ? "Шеф-повар думает..." : "Сгенерировать меню с ИИ"}</span>
-                  </span>
+                  На главную
                 </button>
-              )}
-
-              {groupedMenuItems.map(({ category, items }) => (
-                <article
-                  key={category}
-                  className="mb-4 rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm"
+              </section>
+            </main>
+          ) : (
+            <main className="mx-auto max-w-7xl px-4 py-8 pb-24 lg:pb-8">
+              <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+                <section
+                  className={`${activeMobileTab === "menu" ? "block" : "hidden"} lg:block lg:col-span-2`}
                 >
-                  <h2 className="mb-2 text-xl font-semibold">{category}</h2>
-
-                  {items.length > 0 ? (
-                    <div className="space-y-4">
-                      {items.map((item, index) => (
-                        <div key={item.id || `${item.name}-${index}`}>
-                          <div className="mb-1 flex items-start justify-between gap-3">
-                            <p className="font-semibold text-zinc-900">{item.name}</p>
-                            {item.id && (
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteDish(item.id!)}
-                                className="p-1 -mr-1 -mt-1 text-zinc-400 transition-colors hover:text-red-500 active:scale-90"
-                                aria-label={`Удалить блюдо ${item.name}`}
-                              >
-                                <svg
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  viewBox="0 0 20 20"
-                                  fill="currentColor"
-                                  className="h-5 w-5"
-                                >
-                                  <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
-                                </svg>
-                              </button>
-                            )}
-                          </div>
-                          <p className="mt-1 text-sm text-zinc-500">
-                            {formatIngredients(item.ingredients)}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-zinc-500">Пока блюд нет</p>
+                  {!isLoading && menuItems.length === 0 && (
+                    <button
+                      type="button"
+                      onClick={handleGenerateMenu}
+                      disabled={isGenerating || !party}
+                      className="mb-8 w-full rounded-2xl bg-black py-5 text-lg font-medium text-white shadow-md transition-all hover:bg-zinc-800 active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-zinc-400 disabled:shadow-none"
+                    >
+                      <span className="inline-flex items-center gap-3">
+                        <Sparkles className="h-5 w-5" />
+                        <span>{isGenerating ? "Шеф-повар думает..." : "Сгенерировать меню с ИИ"}</span>
+                      </span>
+                    </button>
                   )}
-                </article>
-              ))}
 
-              <button
-                type="button"
-                onClick={() => setIsAddDishOpen(true)}
-                className="w-full bg-zinc-100 text-zinc-900 border border-zinc-200 text-lg font-medium rounded-2xl py-4 flex items-center justify-center gap-2 hover:bg-zinc-200 transition-all active:scale-[0.99] mt-2 mb-4"
-              >
-                <span>+</span>
-                <span>Добавить свое блюдо</span>
-              </button>
+                  {groupedMenuItems.map(({ category, items }) => (
+                    <article
+                      key={category}
+                      className="mb-4 rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm"
+                    >
+                      <h2 className="mb-2 text-xl font-semibold">{category}</h2>
 
-              <button
-                type="button"
-                onClick={() => setIsShoppingListOpen(true)}
-                className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-zinc-200 bg-white py-4 text-lg font-medium text-zinc-900 transition-all hover:border-black active:scale-[0.99]"
-              >
-                <span>🛒</span>
-                <span>Показать список покупок</span>
-              </button>
-            </section>
-
-            <aside
-              className={`${activeMobileTab === "chat" ? "block" : "hidden"} lg:block lg:col-span-1`}
-            >
-              <div className="space-y-4 lg:sticky lg:top-24">
-                <section className="flex h-[calc(100vh-160px)] flex-col overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm lg:h-[600px]">
-                  <div className="border-b border-zinc-100 bg-zinc-50/50 px-5 py-3 font-medium">
-                    Обсуждение
-                  </div>
-                  <div className="flex-1 overflow-y-auto bg-zinc-50/30 p-5">
-                    {messages.length === 0 ? (
-                      <div className="flex h-full items-center justify-center text-sm text-zinc-400">
-                        Пока сообщений нет
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        {messages.map((message, index) => {
-                          const isCurrentUserMessage = message.user_name === currentUser;
-                          const isSelected = selectedMessageId === message.id;
-                          const messageTime = formatTime(message.created_at ?? "");
-
-                          return (
-                            <div
-                              key={message.id || `${message.created_at}-${index}`}
-                              className={`flex ${
-                                isCurrentUserMessage ? "justify-end" : "justify-start"
-                              }`}
-                            >
-                              <div
-                                className={`max-w-[85%] ${
-                                  isCurrentUserMessage ? "items-end" : "items-start"
-                                } flex flex-col`}
-                              >
-                                <span className="mb-1 px-1 text-xs text-zinc-400">
-                                  {message.user_name}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    isCurrentUserMessage && message.id
-                                      ? setSelectedMessageId(isSelected ? null : message.id)
-                                      : undefined
-                                  }
-                                  className={`relative rounded-2xl px-4 py-3 pr-16 text-left shadow-sm ${
-                                    isCurrentUserMessage
-                                      ? "cursor-pointer bg-blue-500 text-white"
-                                      : "bg-zinc-200 text-zinc-900"
-                                  }`}
-                                >
-                                  <span className="block break-words text-sm leading-relaxed">
-                                    {message.text}
-                                  </span>
-                                  <span
-                                    className={`absolute bottom-1.5 right-2 text-[10px] leading-none ${
-                                      isCurrentUserMessage ? "text-blue-100/80" : "text-zinc-400"
-                                    }`}
-                                  >
-                                    {messageTime}
-                                  </span>
-                                </button>
-                                {isSelected && message.id && (
+                      {items.length > 0 ? (
+                        <div className="space-y-4">
+                          {items.map((item, index) => (
+                            <div key={item.id || `${item.name}-${index}`}>
+                              <div className="mb-1 flex items-start justify-between gap-3">
+                                <p className="font-semibold text-zinc-900">{item.name}</p>
+                                {item.id && (
                                   <button
                                     type="button"
-                                    onClick={() => handleDeleteMessage(message.id)}
-                                    className="mt-1 flex cursor-pointer items-center gap-1 text-xs font-medium text-red-500 hover:underline"
+                                    onClick={() => handleDeleteDish(item.id!)}
+                                    className="p-1 -mr-1 -mt-1 text-zinc-400 transition-colors hover:text-red-500 active:scale-90"
+                                    aria-label={`Удалить блюдо ${item.name}`}
                                   >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                    <span>Удалить</span>
+                                    <svg
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      viewBox="0 0 20 20"
+                                      fill="currentColor"
+                                      className="h-5 w-5"
+                                    >
+                                      <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
+                                    </svg>
                                   </button>
                                 )}
                               </div>
+                              <p className="mt-1 text-sm text-zinc-500">
+                                {formatIngredients(item.ingredients)}
+                              </p>
                             </div>
-                          );
-                        })}
-                        <div ref={messagesEndRef} />
-                      </div>
-                    )}
-                  </div>
-                  <form
-                    onSubmit={sendMessage}
-                    className="p-3 border-t border-zinc-100 bg-white flex items-end gap-2"
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-zinc-500">Пока блюд нет</p>
+                      )}
+                    </article>
+                  ))}
+
+                  <button
+                    type="button"
+                    onClick={() => setIsAddDishOpen(true)}
+                    className="mt-2 mb-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-zinc-200 bg-zinc-100 py-4 text-lg font-medium text-zinc-900 transition-all hover:bg-zinc-200 active:scale-[0.99]"
                   >
-                    <input
-                      type="text"
-                      value={newMessage}
-                      onChange={(event) => setNewMessage(event.target.value)}
-                      placeholder="Написать сообщение..."
-                      className="flex-1 bg-zinc-100 rounded-2xl px-4 py-2.5 max-h-32 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-black/5"
-                    />
-                    <button
-                      type="submit"
-                      disabled={!newMessage.trim()}
-                      className="w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-full bg-blue-500 text-white transition-all hover:bg-blue-600 active:scale-95 disabled:bg-zinc-200 disabled:text-zinc-400"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                        className="w-4 h-4 translate-x-[1px] translate-y-[-1px]"
-                      >
-                        <path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z" />
-                      </svg>
-                    </button>
-                  </form>
+                    <span>+</span>
+                    <span>Добавить свое блюдо</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsShoppingListOpen(true)}
+                    className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-zinc-200 bg-white py-4 text-lg font-medium text-zinc-900 transition-all hover:border-black active:scale-[0.99]"
+                  >
+                    <span>🛒</span>
+                    <span>Показать список покупок</span>
+                  </button>
                 </section>
+
+                <aside
+                  className={`${activeMobileTab === "chat" ? "block" : "hidden"} lg:block lg:col-span-1`}
+                >
+                  <div className="space-y-4 lg:sticky lg:top-24">
+                    <section className="flex h-[calc(100vh-160px)] flex-col overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm lg:h-[600px]">
+                      <div className="border-b border-zinc-100 bg-zinc-50/50 px-5 py-3 font-medium">
+                        Обсуждение
+                      </div>
+                      <div className="flex-1 overflow-y-auto bg-zinc-50/30 p-5">
+                        {messages.length === 0 ? (
+                          <div className="flex h-full items-center justify-center text-sm text-zinc-400">
+                            Пока сообщений нет
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            {messages.map((message, index) => {
+                              const isCurrentUserMessage = message.user_name === currentUser;
+                              const isSelected = selectedMessageId === message.id;
+                              const messageTime = formatTime(message.created_at ?? "");
+
+                              return (
+                                <div
+                                  key={message.id || `${message.created_at}-${index}`}
+                                  className={`flex ${
+                                    isCurrentUserMessage ? "justify-end" : "justify-start"
+                                  }`}
+                                >
+                                  <div
+                                    className={`max-w-[85%] ${
+                                      isCurrentUserMessage ? "items-end" : "items-start"
+                                    } flex flex-col`}
+                                  >
+                                    <span className="mb-1 px-1 text-xs text-zinc-400">
+                                      {message.user_name}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        isCurrentUserMessage && message.id
+                                          ? setSelectedMessageId(isSelected ? null : message.id)
+                                          : undefined
+                                      }
+                                      className={`relative rounded-2xl px-4 py-3 pr-16 text-left shadow-sm ${
+                                        isCurrentUserMessage
+                                          ? "cursor-pointer bg-blue-500 text-white"
+                                          : "bg-zinc-200 text-zinc-900"
+                                      }`}
+                                    >
+                                      <span className="block break-words text-sm leading-relaxed">
+                                        {message.text}
+                                      </span>
+                                      <span
+                                        className={`absolute bottom-1.5 right-2 text-[10px] leading-none ${
+                                          isCurrentUserMessage ? "text-blue-100/80" : "text-zinc-400"
+                                        }`}
+                                      >
+                                        {messageTime}
+                                      </span>
+                                    </button>
+                                    {isSelected && message.id && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteMessage(message.id)}
+                                        className="mt-1 flex cursor-pointer items-center gap-1 text-xs font-medium text-red-500 hover:underline"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                        <span>Удалить</span>
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            <div ref={messagesEndRef} />
+                          </div>
+                        )}
+                      </div>
+                      <form
+                        onSubmit={sendMessage}
+                        className="flex items-end gap-2 border-t border-zinc-100 bg-white p-3"
+                      >
+                        <input
+                          type="text"
+                          value={newMessage}
+                          onChange={(event) => setNewMessage(event.target.value)}
+                          placeholder="Написать сообщение..."
+                          className="max-h-32 flex-1 rounded-2xl bg-zinc-100 px-4 py-2.5 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-black/5"
+                        />
+                        <button
+                          type="submit"
+                          disabled={!newMessage.trim()}
+                          className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-blue-500 text-white transition-all hover:bg-blue-600 active:scale-95 disabled:bg-zinc-200 disabled:text-zinc-400"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                            className="h-4 w-4 translate-x-[1px] translate-y-[-1px]"
+                          >
+                            <path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z" />
+                          </svg>
+                        </button>
+                      </form>
+                    </section>
+                  </div>
+                </aside>
               </div>
-            </aside>
-          </div>
-        </main>
+            </main>
+          )}
+        </>
       )}
 
       {party && (
@@ -748,19 +773,20 @@ export default function PartyRoomPage() {
         </nav>
       )}
 
-      {party && currentUser === null && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-zinc-50/95 p-4 backdrop-blur-md">
-          <div className="animate-in zoom-in-95 w-full max-w-sm rounded-[2rem] border border-zinc-100 bg-white p-8 text-center shadow-2xl duration-300">
-            <div className="mb-5 text-5xl">👋</div>
-            <h2 className="mb-2 text-2xl font-bold text-zinc-900">Добро пожаловать</h2>
-            <p className="mb-8 text-zinc-500">Как вас представить другим участникам банкета?</p>
+      {showJoinModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl">
+            <h2 className="mb-3 text-2xl font-semibold text-zinc-900">Добро пожаловать на банкет!</h2>
+            <p className="mb-6 text-sm leading-6 text-zinc-500">
+              Как вас зовут? Это имя увидят другие гости.
+            </p>
             <form onSubmit={handleJoin}>
               <input
                 type="text"
                 value={guestName}
                 onChange={(event) => setGuestName(event.target.value)}
-                placeholder="Ваше имя"
-                className="mb-4 w-full rounded-2xl bg-zinc-100/80 px-5 py-4 text-center text-lg text-zinc-900 transition-all placeholder:text-zinc-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-black"
+                placeholder="Введите ваше имя"
+                className="mb-4 w-full rounded-2xl bg-zinc-100 px-5 py-4 text-lg text-zinc-900 transition-all placeholder:text-zinc-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-black"
                 autoFocus
               />
               <button

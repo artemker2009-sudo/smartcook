@@ -46,7 +46,7 @@ export default function PartyRoomPage() {
   const params = useParams();
   const partyId = params.id as string;
   const router = useRouter();
-  const [activeMobileTab, setActiveMobileTab] = useState<"menu" | "chat">("menu");
+  const [activeTab, setActiveTab] = useState<"menu" | "chat">("menu");
   const [party, setParty] = useState<Party | null>(null);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [messages, setMessages] = useState<PartyMessage[]>([]);
@@ -558,7 +558,7 @@ export default function PartyRoomPage() {
             <main className="mx-auto max-w-7xl px-4 py-8 pb-24 lg:pb-8">
               <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
                 <section
-                  className={`${activeMobileTab === "menu" ? "block" : "hidden"} lg:block lg:col-span-2`}
+                  className={`${activeTab === "menu" ? "block" : "hidden"} lg:block lg:col-span-2`}
                 >
                   {!isLoading && menuItems.length === 0 && (
                     <button
@@ -637,7 +637,7 @@ export default function PartyRoomPage() {
                 </section>
 
                 <aside
-                  className={`${activeMobileTab === "chat" ? "block" : "hidden"} lg:block lg:col-span-1`}
+                  className={`${activeTab === "chat" ? "block" : "hidden"} lg:block lg:col-span-1`}
                 >
                   <div className="space-y-4 lg:sticky lg:top-24">
                     <section className="flex h-[calc(100vh-160px)] flex-col overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm lg:h-[600px]">
@@ -752,9 +752,9 @@ export default function PartyRoomPage() {
         <nav className="fixed bottom-0 left-0 right-0 z-50 flex justify-around border-t border-zinc-200 bg-white/80 p-2 backdrop-blur-md lg:hidden">
           <button
             type="button"
-            onClick={() => setActiveMobileTab("menu")}
+            onClick={() => setActiveTab("menu")}
             className={`flex min-w-[120px] flex-col items-center gap-1 rounded-2xl px-4 py-2 text-sm font-medium transition-colors ${
-              activeMobileTab === "menu" ? "text-black" : "text-zinc-400"
+              activeTab === "menu" ? "text-black" : "text-zinc-400"
             }`}
           >
             <UtensilsCrossed className="h-5 w-5" />
@@ -762,9 +762,9 @@ export default function PartyRoomPage() {
           </button>
           <button
             type="button"
-            onClick={() => setActiveMobileTab("chat")}
+            onClick={() => setActiveTab("chat")}
             className={`flex min-w-[120px] flex-col items-center gap-1 rounded-2xl px-4 py-2 text-sm font-medium transition-colors ${
-              activeMobileTab === "chat" ? "text-black" : "text-zinc-400"
+              activeTab === "chat" ? "text-black" : "text-zinc-400"
             }`}
           >
             <MessageCircle className="h-5 w-5" />

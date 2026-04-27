@@ -1,7 +1,7 @@
 "use client";
 
 import { type FormEvent, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { createPartyAction } from "@/app/actions/party";
 
 const SCENARIOS = [
   { id: "birthday", title: "День рождения", desc: "Торт, закуски и вау-эффект", emoji: "🎂" },
@@ -22,71 +22,29 @@ export default function CreatePartyPage() {
       document.activeElement.blur();
     }
 
-    alert(`Шаг 1: Кнопка нажата. Данные: ${selectedScenario ?? "без сценария"}, ${guestCount}`);
-
     if (!selectedScenario) {
-      alert("Ошибка: не выбран сценарий банкета");
+      alert("Не выбран сценарий банкета");
       return;
     }
 
     setIsLoading(true);
-    const safetyTimeout = setTimeout(() => {
-      setIsLoading(false);
-      alert("Превышено время ожидания. Попробуйте нажать кнопку еще раз или проверьте интернет.");
-    }, 15000);
 
     try {
       const parsedGuestCount = parseInt(String(guestCount).trim(), 10);
       const safeGuestCount = Number.isFinite(parsedGuestCount) && parsedGuestCount > 0 ? parsedGuestCount : 4;
+      const result = await createPartyAction(selectedScenario, safeGuestCount, null);
 
-      alert("Шаг 2: Данные готовы. Отправляем в Supabase...");
-
-      const { data, error } = await supabase
-        .from("parties")
-        .insert([
-          {
-            title: selectedScenario,
-            guest_count: safeGuestCount,
-          },
-        ])
-        .select()
-        .single();
-
-      if (error) {
-        alert(`Ошибка БД: ${error.message}`);
-        console.error("Supabase Error:", error);
-        throw error;
+      if ("error" in result) {
+        alert(result.error);
+        return;
       }
 
-      if (!data) {
-        alert("Ошибка: БД не вернула data");
-        throw new Error("No data returned");
-      }
-
-      if (!data.id) {
-        alert("Ошибка: БД не вернула id созданного банкета");
-        throw new Error("No party id returned");
-      }
-
-      alert(`Шаг 3: Банкет создан в БД! ID: ${data.id}. Сохраняем админа...`);
-
-      try {
-        localStorage.setItem(`party_admin_${data.id}`, "true");
-      } catch (lsError) {
-        alert(`Ошибка LocalStorage (возможно, инкогнито): ${String(lsError)}`);
-      }
-
-      alert("Шаг 4: Делаем редирект...");
-      window.location.href = `/party/${data.id}`;
+      localStorage.setItem(`party_admin_${result.partyId}`, "true");
+      window.location.href = `/party/${result.partyId}`;
     } catch (error) {
       console.error("Ошибка при создании банкета:", error);
-      alert(
-        `Глобальная ошибка: ${
-          error instanceof Error ? error.message : JSON.stringify(error)
-        }`,
-      );
+      alert(error instanceof Error ? error.message : "Не удалось создать банкет");
     } finally {
-      clearTimeout(safetyTimeout);
       setIsLoading(false);
     }
   };

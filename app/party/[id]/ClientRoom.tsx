@@ -308,14 +308,21 @@ export default function ClientRoom({
         })
       });
       
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Ошибка сервера (${res.status}). Сервер перегружен, попробуйте еще раз.`);
+      }
+
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
       
-      // Нам не нужно делать setMenuItems руками, так как наш Realtime канал 
-      // автоматически поймает новые блюда из БД и обновит интерфейс!
+      const { data: newItems } = await supabase.from('party_items').select('*').eq('party_id', party.id);
+      if (newItems) {
+        setMenuItems(newItems);
+      }
       
     } catch (error: any) {
-      alert("Ошибка при генерации меню: " + error.message);
+      alert("Не удалось сгенерировать меню: " + error.message);
     } finally {
       setIsGenerating(false);
     }

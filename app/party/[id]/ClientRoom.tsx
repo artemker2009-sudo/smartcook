@@ -330,14 +330,36 @@ export default function ClientRoom({
 
   const renderMenuPanel = () => (
     <section className="space-y-4 p-4 pb-32">
-      <button
-        type="button"
-        onClick={handleGenerateMenu}
-        className="flex w-full items-center justify-center gap-2 rounded-3xl bg-black p-4 text-center text-base font-medium text-white shadow-sm transition hover:bg-zinc-800"
-      >
-        <Sparkles className="h-4 w-4" />
-        {isGenerating ? "✨ Шеф-повар думает..." : "✨ Сгенерировать меню с ИИ"}
-      </button>
+      {menuItems.length === 0 && (
+        <div className="space-y-4">
+          <button
+            type="button"
+            onClick={handleGenerateMenu}
+            disabled={isGenerating}
+            className="w-full bg-black text-white font-medium p-4 rounded-3xl flex items-center justify-center gap-2 disabled:opacity-80 transition-all"
+          >
+            <Sparkles className="h-4 w-4" />
+            {isGenerating ? "✨ Шеф-повар составляет меню..." : "✨ Сгенерировать меню с ИИ"}
+          </button>
+
+          {isGenerating && (
+            <div className="bg-zinc-100 rounded-3xl p-6 text-center animate-in fade-in slide-in-from-top-4 duration-500">
+              <div className="text-2xl mb-2">⏳</div>
+              <h3 className="font-semibold text-lg mb-1">Меню уже готовится</h3>
+              <p className="text-zinc-500 text-sm mb-4">
+                Нейросеть подбирает лучшие блюда. Пока вы ждете, пригласите друзей — они смогут добавлять свои идеи!
+              </p>
+              <button
+                type="button"
+                onClick={handleShare}
+                className="bg-white text-black font-medium px-6 py-3 rounded-2xl shadow-sm border border-black/5 hover:bg-zinc-50 transition-colors w-full"
+              >
+                Поделиться ссылкой
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         <button

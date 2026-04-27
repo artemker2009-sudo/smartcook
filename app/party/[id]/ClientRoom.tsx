@@ -142,6 +142,21 @@ export default function ClientRoom({
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const CATEGORIES = ["Закуски", "Салаты", "Горячее", "Напитки"] as const;
 
+  // Отправка аналитики
+  const trackEvent = async (eventType: string) => {
+    try {
+      await supabase.from("analytics_events").insert([
+        {
+          party_id: party.id,
+          user_name: currentUser || "anonymous",
+          event_type: eventType,
+        },
+      ]);
+    } catch (e) {
+      console.error("Analytics error", e);
+    }
+  };
+
   const refreshMenuItems = useCallback(async () => {
     const { data } = await supabase.from("party_items").select("*").eq("party_id", party.id);
     const nextItems = (data as PartyItem[] | null) ?? [];
@@ -380,6 +395,7 @@ export default function ClientRoom({
     // Обновляем локально статус и закрываем Пейволл
     setCurrentParty({ ...currentParty, is_paid: true });
     setIsProcessingPay(false);
+    await trackEvent("paywall_payment_success");
     setShowPaywall(false);
   };
 
@@ -448,6 +464,7 @@ export default function ClientRoom({
   const handleGenerateMenu = async () => {
     if (!currentParty.is_paid) {
       setShowPaywall(true);
+      void trackEvent("paywall_view_from_ai");
       return;
     }
 
@@ -472,6 +489,7 @@ export default function ClientRoom({
       if (!data.success) throw new Error(data.error);
 
       await refreshMenuItems();
+      void trackEvent("ai_menu_generated_success");
     } catch (error: any) {
       const latestItems = await refreshMenuItems();
       if (latestItems.length > 0) {
@@ -585,7 +603,15 @@ export default function ClientRoom({
 
       <button
         type="button"
-        onClick={() => (currentParty.is_paid ? setShowShoppingList(true) : setShowPaywall(true))}
+        onClick={() => {
+          if (currentParty.is_paid) {
+            setShowShoppingList(true);
+            void trackEvent("shopping_list_opened");
+          } else {
+            setShowPaywall(true);
+            void trackEvent("paywall_view_from_cart");
+          }
+        }}
         className="w-full bg-white text-black font-medium p-4 rounded-3xl flex items-center justify-center gap-2 shadow-sm border border-black/5 active:scale-95 transition-transform"
       >
         <span>🛒</span> {currentParty.is_paid ? "Показать список покупок" : "Открыть список покупок (PRO)"}
@@ -992,7 +1018,10 @@ export default function ClientRoom({
             
             <button
               type="button"
-              onClick={() => setShowPaywall(false)}
+              onClick={() => {
+                setShowPaywall(false);
+                void trackEvent("paywall_cancelled");
+              }}
               className="w-full mt-3 text-zinc-400 text-sm font-medium p-3 hover:text-black transition-colors"
             >
               Отмена

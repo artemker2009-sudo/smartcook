@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { MessageCircle, Plus, SendHorizonal, Share2, Sparkles, Users, UtensilsCrossed } from "lucide-react";
 
@@ -10,6 +10,9 @@ const supabase = createClient(
 );
 
 const MENU_CATEGORIES = ["Закуски", "Салаты", "Горячее", "Напитки"] as const;
+const FREE_GUEST_LIMIT = 2;
+const ORGANIZER_ALERT_MESSAGE =
+  "Кто-то хочет зайти, но лимит исчерпан! Организатор, обнови банкет до PRO.";
 
 type MenuCategory = (typeof MENU_CATEGORIES)[number];
 
@@ -114,6 +117,11 @@ export default function ClientRoom({
   const [isProcessingPay, setIsProcessingPay] = useState(false);
   const [currentParty, setCurrentParty] = useState(party);
   const [showShoppingList, setShowShoppingList] = useState(false);
+  const [isObserver, setIsObserver] = useState(false);
+  const [joinLimitReached, setJoinLimitReached] = useState(false);
+  const [pendingJoinName, setPendingJoinName] = useState("");
+  const [isNotifyingOrganizer, setIsNotifyingOrganizer] = useState(false);
+  const [hasNotifiedOrganizer, setHasNotifiedOrganizer] = useState(false);
 
   const [guests, setGuests] = useState<PartyMember[]>(() => {
     const baseGuests = initialMembers ?? [];
@@ -133,6 +141,33 @@ export default function ClientRoom({
   const [isGenerating, setIsGenerating] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const CATEGORIES = ["Закуски", "Салаты", "Горячее", "Напитки"] as const;
+
+  const refreshMenuItems = useCallback(async () => {
+    const { data } = await supabase.from("party_items").select("*").eq("party_id", party.id);
+    const nextItems = (data as PartyItem[] | null) ?? [];
+    setMenuItems(nextItems);
+    return nextItems;
+  }, [party.id]);
+
+  const completeJoin = useCallback(
+    async (name: string) => {
+      localStorage.setItem(`party_name_${party.id}`, name);
+      setInputName(name);
+      setCurrentUser(name);
+      setIsObserver(false);
+      setJoinLimitReached(false);
+      setPendingJoinName("");
+      setHasNotifiedOrganizer(false);
+      setShowJoinModal(false);
+      setGuests((prev) =>
+        prev.some((guest) => getGuestName(guest).toLowerCase() === name.toLowerCase())
+          ? prev
+          : [...prev, { party_id: party.id, user_name: name }],
+      );
+      await supabase.from("party_members").insert([{ party_id: party.id, user_name: name }]);
+    },
+    [party.id],
+  );
 
   const handleAddCustomDish = async () => {
     if (!newDishName.trim() || !currentUser) return;
@@ -218,13 +253,11 @@ export default function ClientRoom({
           filter: `party_id=eq.${party.id}`,
         },
         () => {
-          void supabase
-            .from("party_items")
-            .select("*")
-            .eq("party_id", party.id)
-            .then(({ data }) => {
-              if (data) setMenuItems(data as PartyItem[]);
-            });
+          void refreshMenuItems().then((items) => {
+            if (items.length > 0) {
+              setIsGenerating(false);
+            }
+          });
         },
       )
       .subscribe();
@@ -232,11 +265,34 @@ export default function ClientRoom({
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [party.id, storedName]);
+  }, [party.id, refreshMenuItems, storedName]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, activeTab]);
+
+  useEffect(() => {
+    if (!isGenerating) return;
+
+    const intervalId = window.setInterval(() => {
+      void supabase
+        .from("party_items")
+        .select("id")
+        .eq("party_id", party.id)
+        .limit(1)
+        .then(async ({ data }) => {
+          if (!data?.length) return;
+
+          await refreshMenuItems();
+          setIsGenerating(false);
+          window.clearInterval(intervalId);
+        });
+    }, 3000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [isGenerating, party.id, refreshMenuItems]);
 
   const groupedItems = useMemo(
     () =>
@@ -283,25 +339,67 @@ export default function ClientRoom({
 
   const handleJoin = async () => {
     if (!inputName.trim()) return;
+
     const trimmedName = inputName.trim();
-    localStorage.setItem(`party_name_${party.id}`, trimmedName);
-    setCurrentUser(trimmedName);
-    setShowJoinModal(false);
-    setGuests((prev) =>
-      prev.some((guest) => getGuestName(guest).toLowerCase() === trimmedName.toLowerCase())
-        ? prev
-        : [...prev, { party_id: party.id, user_name: trimmedName }],
-    );
-    await supabase.from("party_members").insert([{ party_id: party.id, user_name: trimmedName }]);
+    const normalizedName = trimmedName.toLowerCase();
+    const uniqueGuests = Array.from(new Set(guests.map(getGuestName).filter(Boolean)));
+    const isExistingGuest = uniqueGuests.some((guestName) => guestName.toLowerCase() === normalizedName);
+
+    if (!currentParty.is_paid && !isExistingGuest && uniqueGuests.length >= FREE_GUEST_LIMIT) {
+      setPendingJoinName(trimmedName);
+      setJoinLimitReached(true);
+      setHasNotifiedOrganizer(false);
+      return;
+    }
+
+    await completeJoin(trimmedName);
   };
 
   const handleMockPayment = async () => {
     setIsProcessingPay(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    await supabase.from("parties").update({ is_paid: true }).eq("id", currentParty.id);
-    setCurrentParty({ ...currentParty, is_paid: true });
-    setIsProcessingPay(false);
-    setShowPaywall(false);
+
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await supabase.from("parties").update({ is_paid: true }).eq("id", currentParty.id);
+      setCurrentParty((prev) => ({ ...prev, is_paid: true }));
+      setShowPaywall(false);
+      setJoinLimitReached(false);
+
+      if (pendingJoinName) {
+        await completeJoin(pendingJoinName);
+      }
+    } finally {
+      setIsProcessingPay(false);
+    }
+  };
+
+  const handleNotifyOrganizer = async () => {
+    if (isNotifyingOrganizer) return;
+
+    setIsNotifyingOrganizer(true);
+
+    try {
+      await supabase.from("party_messages").insert([
+        {
+          party_id: party.id,
+          user_name: pendingJoinName || "Гость",
+          text: ORGANIZER_ALERT_MESSAGE,
+        },
+      ]);
+      setHasNotifiedOrganizer(true);
+      setActiveTab("chat");
+    } finally {
+      setIsNotifyingOrganizer(false);
+    }
+  };
+
+  const handleWatchOnly = () => {
+    setCurrentUser(null);
+    setIsObserver(true);
+    setJoinLimitReached(false);
+    setPendingJoinName("");
+    setHasNotifiedOrganizer(false);
+    setShowJoinModal(false);
   };
 
   const sendMessage = async (e: FormEvent<HTMLFormElement>) => {
@@ -338,7 +436,6 @@ export default function ClientRoom({
   };
 
   const handleGenerateMenu = async () => {
-    // Блокируем, если не оплачено
     if (!currentParty.is_paid) {
       setShowPaywall(true);
       return;
@@ -363,13 +460,14 @@ export default function ClientRoom({
 
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
-      
-      const { data: newItems } = await supabase.from('party_items').select('*').eq('party_id', party.id);
-      if (newItems) {
-        setMenuItems(newItems);
-      }
-      
+
+      await refreshMenuItems();
     } catch (error: any) {
+      const latestItems = await refreshMenuItems();
+      if (latestItems.length > 0) {
+        return;
+      }
+
       alert("Не удалось сгенерировать меню: " + error.message);
     } finally {
       setIsGenerating(false);
@@ -413,7 +511,8 @@ export default function ClientRoom({
         <button
           type="button"
           onClick={() => setShowAddDishModal(true)}
-          className="inline-flex items-center justify-center gap-2 rounded-3xl border border-black/5 bg-white px-4 py-4 text-sm font-medium text-black shadow-sm transition hover:bg-zinc-50"
+          disabled={!currentUser}
+          className="inline-flex items-center justify-center gap-2 rounded-3xl border border-black/5 bg-white px-4 py-4 text-sm font-medium text-black shadow-sm transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Plus className="h-4 w-4" />
           Добавить блюдо
@@ -459,7 +558,8 @@ export default function ClientRoom({
                       <button
                         type="button"
                         onClick={() => toggleVote(item.id, item.votes ?? null)}
-                        className="flex items-center gap-1.5 bg-zinc-100 px-3 py-1.5 rounded-full shrink-0 active:scale-95 transition-transform"
+                        disabled={!currentUser}
+                        className="flex items-center gap-1.5 bg-zinc-100 px-3 py-1.5 rounded-full shrink-0 active:scale-95 transition-transform disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <span className="text-sm">{item.votes?.includes(currentUser || "") ? "❤️" : "🤍"}</span>
                         <span className="text-sm font-medium">{item.votes?.length || 0}</span>
@@ -552,7 +652,13 @@ export default function ClientRoom({
             type="text"
             value={newMessage}
             onChange={(event) => setNewMessage(event.target.value)}
-            placeholder={currentUser ? "Написать сообщение..." : "Сначала укажите ваше имя"}
+            placeholder={
+              currentUser
+                ? "Написать сообщение..."
+                : isObserver
+                  ? "Режим наблюдателя: чат доступен после Party Pass"
+                  : "Сначала укажите ваше имя"
+            }
             disabled={!currentUser}
             className="h-12 flex-1 rounded-2xl bg-zinc-100 px-4 text-sm text-black outline-none transition focus:bg-zinc-200 disabled:cursor-not-allowed disabled:text-zinc-400"
           />
@@ -602,6 +708,16 @@ export default function ClientRoom({
       <main className="mx-auto max-w-3xl pb-28">
         {activeTab === "menu" ? (
           <>
+            {isObserver && (
+              <div className="px-4 pt-4">
+                <div className="rounded-3xl border border-amber-200/70 bg-amber-50 p-4 shadow-sm">
+                  <p className="text-sm font-semibold tracking-tight text-black">Режим наблюдателя</p>
+                  <p className="mt-1 text-sm leading-6 text-zinc-600">
+                    Вы можете смотреть меню и чат. Голосование и сообщения откроются после Party Pass.
+                  </p>
+                </div>
+              </div>
+            )}
             <div className="px-4 pt-4">
               <div className="rounded-3xl border border-black/5 bg-white p-4 shadow-sm">
                 <div className="flex items-center gap-3">
@@ -652,36 +768,87 @@ export default function ClientRoom({
       {showJoinModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-md">
           <div className="w-full max-w-md rounded-3xl border border-black/5 bg-white p-8 shadow-sm">
-            <div className="mb-6 text-center">
-              <div className="mb-4 text-4xl">👋</div>
-              <h2 className="text-3xl font-semibold tracking-tight text-black">Добро пожаловать</h2>
-              <p className="mt-3 text-sm leading-6 text-zinc-500">
-                Как вас представить другим участникам банкета?
-              </p>
-            </div>
+            {joinLimitReached ? (
+              <div className="space-y-5">
+                <div className="text-center">
+                  <div className="mb-4 text-4xl">🥂</div>
+                  <h2 className="text-3xl font-semibold tracking-tight text-black">Лимит гостей исчерпан</h2>
+                  <p className="mt-3 text-sm leading-6 text-zinc-500">
+                    Упс! Этот банкет сейчас в бесплатном режиме (лимит 2 гостя). Чтобы вы могли зайти и
+                    участвовать в обсуждении, нужно активировать Party Pass.
+                  </p>
+                </div>
 
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                void handleJoin();
-              }}
-              className="space-y-4"
-            >
-              <input
-                value={inputName}
-                onChange={(event) => setInputName(event.target.value)}
-                placeholder="Введите ваше имя"
-                className="w-full rounded-2xl bg-zinc-100 px-5 py-4 text-base text-black outline-none transition focus:bg-zinc-200"
-                autoFocus
-              />
-              <button
-                type="submit"
-                disabled={!inputName.trim()}
-                className="w-full rounded-2xl bg-zinc-200 px-5 py-4 text-base font-medium text-black transition hover:bg-zinc-300 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400"
-              >
-                Войти
-              </button>
-            </form>
+                <div className="space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowPaywall(true)}
+                    className="w-full rounded-2xl bg-black px-5 py-4 text-base font-medium text-white transition hover:bg-zinc-800"
+                  >
+                    Стать спонсором банкета (Оплатить 29 ₽)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleNotifyOrganizer}
+                    disabled={isNotifyingOrganizer}
+                    className="w-full rounded-2xl bg-zinc-100 px-5 py-4 text-base font-medium text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isNotifyingOrganizer ? "Отправляем сообщение..." : "Уведомить организатора"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleWatchOnly}
+                    className="w-full rounded-2xl border border-black/5 bg-white px-5 py-4 text-base font-medium text-black transition hover:bg-zinc-50"
+                  >
+                    Просто смотреть
+                  </button>
+                </div>
+
+                {hasNotifiedOrganizer && (
+                  <p className="text-center text-sm leading-6 text-zinc-500">
+                    Сообщение отправлено в чат банкета. Можно подождать организатора или продолжить в режиме
+                    наблюдателя.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <>
+                <div className="mb-6 text-center">
+                  <div className="mb-4 text-4xl">👋</div>
+                  <h2 className="text-3xl font-semibold tracking-tight text-black">Добро пожаловать</h2>
+                  <p className="mt-3 text-sm leading-6 text-zinc-500">
+                    Как вас представить другим участникам банкета?
+                  </p>
+                </div>
+
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void handleJoin();
+                  }}
+                  className="space-y-4"
+                >
+                  <input
+                    value={inputName}
+                    onChange={(event) => {
+                      setInputName(event.target.value);
+                      setJoinLimitReached(false);
+                      setHasNotifiedOrganizer(false);
+                    }}
+                    placeholder="Введите ваше имя"
+                    className="w-full rounded-2xl bg-zinc-100 px-5 py-4 text-base text-black outline-none transition focus:bg-zinc-200"
+                    autoFocus
+                  />
+                  <button
+                    type="submit"
+                    disabled={!inputName.trim()}
+                    className="w-full rounded-2xl bg-zinc-200 px-5 py-4 text-base font-medium text-black transition hover:bg-zinc-300 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400"
+                  >
+                    Войти
+                  </button>
+                </form>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -776,18 +943,19 @@ export default function ClientRoom({
       {showPaywall && (
         <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-md sm:p-4 transition-all">
           <div className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300">
-            
             <div className="flex justify-center mb-4">
               <div className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center text-3xl shadow-lg">
                 👑
               </div>
             </div>
-            
-            <h2 className="text-2xl font-bold text-center mb-2 tracking-tight">Smart Party Premium</h2>
+
+            <h2 className="text-2xl font-bold text-center mb-2 tracking-tight">Party Pass</h2>
             <p className="text-center text-zinc-500 text-sm mb-6">
-              Один платеж — полный доступ к инструментам для этого банкета.
+              Вы можете оплатить доступ сами, чтобы помочь организатору, или подождать, пока это сделает
+              он. Party Pass открывает ИИ-генерацию, список покупок и безлимит гостей для ВСЕХ участников
+              этого банкета.
             </p>
-            
+
             <div className="space-y-3 mb-8">
               <div className="flex items-center gap-3">
                 <span className="text-green-500 text-xl">✓</span>
@@ -809,7 +977,7 @@ export default function ClientRoom({
               disabled={isProcessingPay}
               className="w-full bg-black text-white text-lg font-medium p-4 rounded-2xl active:scale-95 transition-all flex items-center justify-center gap-2"
             >
-              {isProcessingPay ? "Обработка..." : "Оплатить 99 ₽"}
+              {isProcessingPay ? "Обработка..." : "Стать спонсором банкета (Оплатить 29 ₽)"}
             </button>
             
             <button

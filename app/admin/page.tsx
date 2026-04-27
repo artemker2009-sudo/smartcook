@@ -140,6 +140,9 @@ export default function AdminPage() {
   const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState("");
   const [stats, setStats] = useState<DashboardStats>(EMPTY_STATS);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -238,6 +241,31 @@ export default function AdminPage() {
 
     setIsMaintenance(nextValue);
     setIsUpdating(false);
+  };
+
+  const handleDeleteParty = async () => {
+    if (!deleteConfirmId) return;
+
+    setIsDeleting(true);
+
+    try {
+      const { error } = await supabase.from("parties").delete().eq("id", deleteConfirmId);
+
+      if (error) {
+        throw error;
+      }
+
+      setStats((currentStats) => ({
+        parties: currentStats.parties.filter((party) => party.id !== deleteConfirmId),
+        recentEvents: currentStats.recentEvents.filter((event) => event.party_id !== deleteConfirmId),
+      }));
+      setOpenMenuId(null);
+    } catch (error) {
+      console.error("Ошибка при удалении", error);
+    } finally {
+      setIsDeleting(false);
+      setDeleteConfirmId(null);
+    }
   };
 
   const totalParties = stats.parties.length;
@@ -353,8 +381,8 @@ export default function AdminPage() {
                   Управление SmartCook
                 </h2>
                 <p className="mt-3 text-base leading-7 text-zinc-600">
-                  Десктопная админ-панель с понятным контролем статуса сайта, живой аналитикой и
-                  историей оплаченных банкетов из Supabase.
+                  Центр управления проектом. Контролируйте доступность сайта, следите за
+                  финансовыми показателями и активностью пользователей.
                 </p>
               </div>
 
@@ -421,7 +449,7 @@ export default function AdminPage() {
                     </h3>
                     <p className="mt-4 max-w-2xl text-base leading-7 text-zinc-700">
                       {isLoading
-                        ? "Загружаем актуальное состояние из таблицы site_settings."
+                        ? "Загружаем актуальный статус сайта."
                         : isMaintenance
                           ? "Пользователи сейчас не могут пользоваться сайтом. Когда работы завершатся, запустите его обратно одной кнопкой."
                           : "Все работает нормально. Если нужно провести технические работы, можно мгновенно остановить доступ для пользователей."}
@@ -474,7 +502,7 @@ export default function AdminPage() {
                       </button>
 
                       <p className="mt-4 text-sm leading-6 text-zinc-500">
-                        Изменение сразу записывается в `site_settings.is_maintenance`.
+                        Изменение применяется сразу и влияет на доступность сайта для пользователей.
                       </p>
                     </div>
                   </div>
@@ -499,7 +527,7 @@ export default function AdminPage() {
                     </div>
                   </div>
                   <p className="mt-5 text-sm leading-6 text-zinc-600">
-                    Общее количество записей, загруженных из таблицы `parties`.
+                    Общее число созданных мероприятий.
                   </p>
                 </article>
 
@@ -516,7 +544,7 @@ export default function AdminPage() {
                     </div>
                   </div>
                   <p className="mt-5 text-sm leading-6 text-zinc-600">
-                    Банкеты, у которых в базе установлен флаг `is_paid === true`.
+                    Количество мероприятий с успешно оплаченной покупкой доступа.
                   </p>
                 </article>
 
@@ -533,7 +561,7 @@ export default function AdminPage() {
                     </div>
                   </div>
                   <p className="mt-5 text-sm leading-6 text-zinc-600">
-                    Реальная доля оплаченных банкетов от общего числа записей.
+                    Доля успешно оплаченных доступов от общего числа созданных мероприятий.
                   </p>
                 </article>
               </section>
@@ -543,10 +571,10 @@ export default function AdminPage() {
                   <div>
                     <p className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-400">Analytics Feed</p>
                     <h3 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-950">
-                      Последние события
+                      Журнал активности пользователей
                     </h3>
                   </div>
-                  <p className="text-sm text-zinc-500">Лента в стиле Stripe на основе `analytics_events`.</p>
+                  <p className="text-sm text-zinc-500">Последние действия пользователей в сервисе.</p>
                 </div>
 
                 {analyticsError ? (
@@ -623,7 +651,7 @@ export default function AdminPage() {
                     История покупок
                   </h3>
                 </div>
-                <p className="text-sm text-zinc-500">Показаны только реально оплаченные банкеты.</p>
+                <p className="text-sm text-zinc-500">Список успешно оплаченных доступов.</p>
               </div>
 
               {analyticsError ? (
@@ -638,12 +666,13 @@ export default function AdminPage() {
                       <th className="px-6 py-4">ID банкета</th>
                       <th className="px-6 py-4">Имя создателя</th>
                       <th className="px-6 py-4">Статус</th>
+                      <th className="text-right"></th>
                     </tr>
                   </thead>
                   <tbody className="bg-white">
                     {paidPartyHistory.length === 0 && !isAnalyticsLoading ? (
                       <tr className="border-b border-zinc-200 last:border-b-0">
-                        <td colSpan={4} className="px-6 py-12 text-center text-sm text-zinc-500">
+                        <td colSpan={5} className="px-6 py-12 text-center text-sm text-zinc-500">
                           Оплаченных банкетов пока нет.
                         </td>
                       </tr>
@@ -651,7 +680,7 @@ export default function AdminPage() {
 
                     {isAnalyticsLoading && paidPartyHistory.length === 0 ? (
                       <tr className="border-b border-zinc-200 last:border-b-0">
-                        <td colSpan={4} className="px-6 py-12 text-center text-sm text-zinc-500">
+                        <td colSpan={5} className="px-6 py-12 text-center text-sm text-zinc-500">
                           Загружаем покупки...
                         </td>
                       </tr>
@@ -677,12 +706,65 @@ export default function AdminPage() {
                             Оплачено
                           </span>
                         </td>
+                        <td className="relative p-4 text-right">
+                          <button
+                            type="button"
+                            onClick={() => setOpenMenuId(openMenuId === party.id ? null : party.id ?? null)}
+                            className="rounded-full p-2 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-black"
+                          >
+                            •••
+                          </button>
+
+                          {openMenuId === party.id && party.id ? (
+                            <div className="absolute right-8 top-10 z-10 w-32 overflow-hidden rounded-xl border border-zinc-100 bg-white shadow-xl animate-in fade-in zoom-in-95 duration-100">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenMenuId(null);
+                                  setDeleteConfirmId(party.id ?? null);
+                                }}
+                                className="w-full px-4 py-3 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+                              >
+                                Удалить
+                              </button>
+                            </div>
+                          ) : null}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             </section>
+          ) : null}
+
+          {deleteConfirmId ? (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+              <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+                <h3 className="mb-2 text-xl font-bold text-black">Удалить банкет?</h3>
+                <p className="mb-6 text-sm text-zinc-500">
+                  Это действие нельзя отменить. Банкет, а также вся его аналитика, меню и чат
+                  будут удалены навсегда.
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setDeleteConfirmId(null)}
+                    className="flex-1 rounded-xl bg-zinc-100 p-3 font-medium text-black transition-colors hover:bg-zinc-200"
+                  >
+                    Отмена
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeleteParty}
+                    disabled={isDeleting}
+                    className="flex-1 rounded-xl bg-red-600 p-3 font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+                  >
+                    {isDeleting ? "Удаление..." : "Удалить"}
+                  </button>
+                </div>
+              </div>
+            </div>
           ) : null}
         </div>
       </main>

@@ -1,7 +1,6 @@
 "use client";
 
 import { type FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 const SCENARIOS = [
@@ -12,7 +11,6 @@ const SCENARIOS = [
 ];
 
 export default function CreatePartyPage() {
-  const router = useRouter();
   const [selectedScenario, setSelectedScenario] = useState<string | null>(null);
   const [guestCount, setGuestCount] = useState<number>(4);
   const [isLoading, setIsLoading] = useState(false);
@@ -20,12 +18,28 @@ export default function CreatePartyPage() {
   const handleCreate = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (!selectedScenario) return;
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
+    alert(`Шаг 1: Кнопка нажата. Данные: ${selectedScenario ?? "без сценария"}, ${guestCount}`);
+
+    if (!selectedScenario) {
+      alert("Ошибка: не выбран сценарий банкета");
+      return;
+    }
 
     setIsLoading(true);
+    const safetyTimeout = setTimeout(() => {
+      setIsLoading(false);
+      alert("Превышено время ожидания. Попробуйте нажать кнопку еще раз или проверьте интернет.");
+    }, 15000);
 
     try {
-      const safeGuestCount = Number.isFinite(guestCount) && guestCount > 0 ? guestCount : 1;
+      const parsedGuestCount = parseInt(String(guestCount).trim(), 10);
+      const safeGuestCount = Number.isFinite(parsedGuestCount) && parsedGuestCount > 0 ? parsedGuestCount : 4;
+
+      alert("Шаг 2: Данные готовы. Отправляем в Supabase...");
 
       const { data, error } = await supabase
         .from("parties")
@@ -39,24 +53,40 @@ export default function CreatePartyPage() {
         .single();
 
       if (error) {
+        alert(`Ошибка БД: ${error.message}`);
         console.error("Supabase Error:", error);
-        throw new Error(error.message);
+        throw error;
       }
 
-      if (!data?.id) {
-        throw new Error("База данных не вернула данные созданного банкета");
+      if (!data) {
+        alert("Ошибка: БД не вернула data");
+        throw new Error("No data returned");
       }
 
-      localStorage.setItem(`party_admin_${data.id}`, "true");
-      router.push(`/party/${data.id}`);
+      if (!data.id) {
+        alert("Ошибка: БД не вернула id созданного банкета");
+        throw new Error("No party id returned");
+      }
+
+      alert(`Шаг 3: Банкет создан в БД! ID: ${data.id}. Сохраняем админа...`);
+
+      try {
+        localStorage.setItem(`party_admin_${data.id}`, "true");
+      } catch (lsError) {
+        alert(`Ошибка LocalStorage (возможно, инкогнито): ${String(lsError)}`);
+      }
+
+      alert("Шаг 4: Делаем редирект...");
+      window.location.href = `/party/${data.id}`;
     } catch (error) {
       console.error("Ошибка при создании банкета:", error);
       alert(
-        `Не удалось создать банкет. Ошибка: ${
-          error instanceof Error ? error.message : "Неизвестная ошибка"
+        `Глобальная ошибка: ${
+          error instanceof Error ? error.message : JSON.stringify(error)
         }`,
       );
     } finally {
+      clearTimeout(safetyTimeout);
       setIsLoading(false);
     }
   };

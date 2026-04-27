@@ -105,19 +105,17 @@ export default function PartyRoomPage() {
   useEffect(() => {
     if (!partyId) return;
 
-    const realtimePartyId = String(partyId);
-
     const fetchRoomData = async () => {
       const [{ data: initialMessages }, { data: initialGuests }] = await Promise.all([
         supabase
           .from("party_messages")
           .select("*")
-          .eq("party_id", realtimePartyId)
+          .eq("party_id", partyId)
           .order("created_at", { ascending: true }),
         supabase
           .from("party_guests")
           .select("*")
-          .eq("party_id", realtimePartyId)
+          .eq("party_id", partyId)
           .order("joined_at", { ascending: true }),
       ]);
 
@@ -128,24 +126,22 @@ export default function PartyRoomPage() {
     void fetchRoomData();
 
     const channel = supabase
-      .channel(`chat-${realtimePartyId}`)
+      .channel(`room-${partyId}`)
       .on(
         "postgres_changes",
         {
           event: "INSERT",
           schema: "public",
           table: "party_messages",
-          filter: `party_id=eq.${realtimePartyId}`,
+          filter: `party_id=eq.${partyId}`,
         },
         (payload) => {
           const newMessage = payload.new as PartyMessage;
 
-          setMessages((current) => {
-            if (current.some((message) => message.id === newMessage.id)) {
-              return current;
-            }
+          setMessages((prev) => {
+            if (prev.some((message) => message.id === newMessage.id)) return prev;
 
-            const filtered = current.filter(
+            const filtered = prev.filter(
               (message) =>
                 !(
                   String(message.id).startsWith("temp-") &&
@@ -164,11 +160,11 @@ export default function PartyRoomPage() {
           event: "DELETE",
           schema: "public",
           table: "party_messages",
-          filter: `party_id=eq.${realtimePartyId}`,
+          filter: `party_id=eq.${partyId}`,
         },
         (payload) => {
-          setMessages((current) => current.filter((message) => message.id !== payload.old.id));
-          setSelectedMessageId((current) => (current === payload.old.id ? null : current));
+          setMessages((prev) => prev.filter((message) => message.id !== payload.old.id));
+          setSelectedMessageId((prev) => (prev === payload.old.id ? null : prev));
         },
       )
       .on(
@@ -177,13 +173,40 @@ export default function PartyRoomPage() {
           event: "INSERT",
           schema: "public",
           table: "party_guests",
-          filter: `party_id=eq.${realtimePartyId}`,
+          filter: `party_id=eq.${partyId}`,
         },
         (payload) => {
-          setGuests((current) => {
-            if (current.some((guest) => guest.name === payload.new.name)) return current;
-            return [...current, payload.new];
+          setGuests((prev) => {
+            if (prev.some((guest) => guest.name === payload.new.name)) return prev;
+            return [...prev, payload.new];
           });
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "party_items",
+          filter: `party_id=eq.${partyId}`,
+        },
+        (payload) => {
+          setMenuItems((prev) => {
+            if (prev.some((item) => item.id === payload.new.id)) return prev;
+            return [...prev, payload.new as MenuItem];
+          });
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "party_items",
+          filter: `party_id=eq.${partyId}`,
+        },
+        (payload) => {
+          setMenuItems((prev) => prev.filter((item) => item.id !== payload.old.id));
         },
       )
       .subscribe();
@@ -481,7 +504,7 @@ export default function PartyRoomPage() {
                   onClick={() => setIsGuestsOpen(true)}
                   className="text-zinc-500 cursor-pointer transition-colors hover:text-black"
                 >
-                  {party.guest_count} персон (показать)
+                  {guests.length} участников (показать)
                 </span>
               </div>
             ) : (

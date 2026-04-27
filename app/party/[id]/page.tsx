@@ -1,31 +1,41 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Sparkles, Trash2 } from "lucide-react";
-import { useParams, useRouter } from "next/navigation";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Plus, SendHorizonal, Share2, Sparkles, Users } from "lucide-react";
+import { useParams } from "next/navigation";
 
 import { supabase } from "@/lib/supabase";
 
-const MENU_CATEGORIES = ["Закуски", "Горячее блюдо", "Напитки"];
+const MENU_CATEGORIES = ["Закуски", "Салаты", "Горячее", "Напитки"] as const;
+
+type MenuCategory = (typeof MENU_CATEGORIES)[number];
 
 type Party = {
   id: string;
   title: string;
-  guest_count: number;
+  guest_count: number | null;
+};
+
+type PartyMember = {
+  id?: string;
+  party_id?: string;
+  name: string;
+  created_at?: string | null;
 };
 
 type MenuIngredient = {
   name: string;
-  amount: number;
-  unit: string;
+  amount?: number | string | null;
+  unit?: string | null;
 };
 
-type MenuItem = {
+type PartyItem = {
   id?: string;
   party_id?: string;
   name: string;
-  category: string;
-  ingredients: MenuIngredient[] | string | null;
+  category?: string | null;
+  ingredients?: MenuIngredient[] | string | null;
+  created_at?: string | null;
 };
 
 type PartyMessage = {
@@ -33,117 +43,235 @@ type PartyMessage = {
   party_id?: string;
   user_name: string;
   text: string;
-  created_at?: string;
+  created_at?: string | null;
 };
 
-const formatTime = (isoString: string) => {
-  if (!isoString) return "";
-  const date = new Date(isoString);
-  return date.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+const getStoredNameKey = (partyId: string) => `party_name_${partyId}`;
+
+const isMenuCategory = (value: string): value is MenuCategory =>
+  MENU_CATEGORIES.includes(value as MenuCategory);
+
+const normalizeCategory = (category?: string | null): MenuCategory => {
+  if (category === "Горячее блюдо") return "Горячее";
+  if (category && isMenuCategory(category)) return category;
+  return "Закуски";
 };
+
+const formatTime = (value?: string | null) => {
+  if (!value) return "";
+
+  return new Date(value).toLocaleTimeString("ru-RU", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const parseIngredients = (ingredients?: PartyItem["ingredients"]) => {
+  if (!ingredients) return [] as MenuIngredient[];
+
+  if (typeof ingredients === "string") {
+    try {
+      const parsed = JSON.parse(ingredients);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  return Array.isArray(ingredients) ? ingredients : [];
+};
+
+const formatIngredients = (ingredients?: PartyItem["ingredients"]) => {
+  if (!ingredients) return "Ингредиенты пока не указаны";
+
+  if (typeof ingredients === "string") {
+    return ingredients || "Ингредиенты пока не указаны";
+  }
+
+  const parsed = parseIngredients(ingredients);
+  if (parsed.length === 0) return "Ингредиенты пока не указаны";
+
+  return parsed
+    .map((ingredient) => {
+      const amount = ingredient.amount ?? "";
+      const unit = ingredient.unit ?? "";
+      return [ingredient.name, amount, unit].filter(Boolean).join(" ");
+    })
+    .join(", ");
+};
+
+const upsertMember = (prev: PartyMember[], next: PartyMember) => {
+  if (next.id && prev.some((member) => member.id === next.id)) {
+    return prev.map((member) => (member.id === next.id ? next : member));
+  }
+
+  if (prev.some((member) => member.name.trim().toLowerCase() === next.name.trim().toLowerCase())) {
+    return prev.map((member) =>
+      member.name.trim().toLowerCase() === next.name.trim().toLowerCase() ? { ...member, ...next } : member,
+    );
+  }
+
+  return [...prev, next];
+};
+
+const upsertItem = (prev: PartyItem[], next: PartyItem) => {
+  if (!next.id) return [...prev, next];
+  const exists = prev.some((item) => item.id === next.id);
+  return exists ? prev.map((item) => (item.id === next.id ? next : item)) : [...prev, next];
+};
+
+const upsertMessage = (prev: PartyMessage[], next: PartyMessage) => {
+  const withoutOptimisticTwin = prev.filter(
+    (message) =>
+      !(
+        String(message.id).startsWith("temp-") &&
+        message.user_name === next.user_name &&
+        message.text === next.text
+      ),
+  );
+
+  if (next.id && withoutOptimisticTwin.some((message) => message.id === next.id)) {
+    return withoutOptimisticTwin;
+  }
+
+  return [...withoutOptimisticTwin, next].sort((a, b) => {
+    const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+    return aTime - bTime;
+  });
+};
+
+function SkeletonBlock({ className }: { className: string }) {
+  return <div className={`animate-pulse rounded-2xl bg-zinc-200/80 ${className}`} />;
+}
+
+function LoadingScreen() {
+  return (
+    <div className="min-h-screen bg-zinc-50">
+      <div className="mx-auto max-w-7xl px-4 py-6 md:px-6">
+        <div className="mb-6 rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">
+          <SkeletonBlock className="mb-4 h-8 w-64" />
+          <SkeletonBlock className="h-5 w-40" />
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
+          <div className="space-y-4">
+            <SkeletonBlock className="h-16 w-full rounded-[28px]" />
+            {MENU_CATEGORIES.map((category) => (
+              <div
+                key={category}
+                className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm"
+              >
+                <SkeletonBlock className="mb-5 h-6 w-32" />
+                <div className="space-y-3">
+                  <SkeletonBlock className="h-16 w-full" />
+                  <SkeletonBlock className="h-16 w-full" />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">
+            <SkeletonBlock className="mb-4 h-10 w-full rounded-2xl" />
+            <SkeletonBlock className="mb-3 h-24 w-full rounded-3xl" />
+            <SkeletonBlock className="mb-3 ml-auto h-20 w-2/3 rounded-3xl" />
+            <SkeletonBlock className="h-14 w-full rounded-2xl" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function PartyRoomPage() {
   const params = useParams();
   const partyId = params.id as string;
-  const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"menu" | "chat">("menu");
-  const [party, setParty] = useState<Party | null>(null);
-  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
-  const [messages, setMessages] = useState<PartyMessage[]>([]);
-  const [guests, setGuests] = useState<any[]>([]);
-  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
-  const [newMessage, setNewMessage] = useState("");
-  const [currentUser, setCurrentUser] = useState<string | null>(null);
-  const [showJoinModal, setShowJoinModal] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [guestName, setGuestName] = useState("");
-  const [isAddDishOpen, setIsAddDishOpen] = useState(false);
-  const [newDishName, setNewDishName] = useState("");
-  const [newDishCategory, setNewDishCategory] = useState("Закуски");
-  const [isLoading, setIsLoading] = useState(true);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isShoppingListOpen, setIsShoppingListOpen] = useState(false);
-  const [isGuestsOpen, setIsGuestsOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
+  const [party, setParty] = useState<Party | null>(null);
+  const [members, setMembers] = useState<PartyMember[]>([]);
+  const [items, setItems] = useState<PartyItem[]>([]);
+  const [messages, setMessages] = useState<PartyMessage[]>([]);
+
+  const [currentUserName, setCurrentUserName] = useState("");
+  const [nameInput, setNameInput] = useState("");
+  const [messageInput, setMessageInput] = useState("");
+  const [newDishName, setNewDishName] = useState("");
+  const [newDishCategory, setNewDishCategory] = useState<MenuCategory>("Закуски");
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSavingName, setIsSavingName] = useState(false);
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [isAddingDish, setIsAddingDish] = useState(false);
+  const [isAddDishOpen, setIsAddDishOpen] = useState(false);
+
+  const [showNameModal, setShowNameModal] = useState(false);
+  const [pageError, setPageError] = useState("");
+
   useEffect(() => {
-    async function fetchParty() {
-      if (!partyId) return;
+    if (!partyId) return;
+
+    let isCancelled = false;
+
+    const initializePage = async () => {
+      const storedName = window.localStorage.getItem(getStoredNameKey(partyId)) ?? "";
+      if (isCancelled) return;
+
+      setCurrentUserName(storedName);
+      setNameInput(storedName);
+      setShowNameModal(!storedName);
 
       setIsLoading(true);
-      setLoadError(null);
+      setPageError("");
 
-      try {
-        const { data: partyData, error: partyError } = await supabase
-          .from("parties")
-          .select("*")
-          .eq("id", partyId)
-          .single();
-        const { data: items, error: itemsError } = await supabase
-          .from("party_items")
-          .select("*")
-          .eq("party_id", partyId);
-
-        if (partyError) throw partyError;
-        if (itemsError) throw itemsError;
-
-        if (partyData) {
-          setParty(partyData);
-        }
-        setMenuItems(items || []);
-      } catch (err) {
-        console.error("Ошибка загрузки банкета:", err);
-        setParty(null);
-        setMenuItems([]);
-        setLoadError(
-          "Не удалось загрузить данные банкета. Возможно, ваш браузер или провайдер блокирует запрос.",
-        );
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    if (!partyId) return;
-
-    const savedName = localStorage.getItem(`party_name_${partyId}`);
-    if (!savedName) {
-      setCurrentUser(null);
-      setShowJoinModal(true);
-    } else {
-      setCurrentUser(savedName);
-      setShowJoinModal(false);
-      void registerGuest(savedName);
-    }
-    setGuestName(savedName ?? "");
-
-    void fetchParty();
-  }, [partyId]);
-
-  useEffect(() => {
-    if (!partyId) return;
-
-    const fetchRoomData = async () => {
-      const [{ data: initialMessages }, { data: initialGuests }] = await Promise.all([
+      const [partyResult, membersResult, itemsResult, messagesResult] = await Promise.all([
+        supabase.from("parties").select("*").eq("id", partyId).maybeSingle(),
+        supabase.from("party_members").select("*").eq("party_id", partyId),
+        supabase.from("party_items").select("*").eq("party_id", partyId),
         supabase
           .from("party_messages")
           .select("*")
           .eq("party_id", partyId)
           .order("created_at", { ascending: true }),
-        supabase
-          .from("party_guests")
-          .select("*")
-          .eq("party_id", partyId)
-          .order("joined_at", { ascending: true }),
       ]);
 
-      if (initialMessages) setMessages(initialMessages);
-      if (initialGuests) setGuests(initialGuests);
+      if (isCancelled) return;
+
+      if (partyResult.error || membersResult.error || itemsResult.error || messagesResult.error) {
+        console.error("Ошибка загрузки банкета:", {
+          party: partyResult.error,
+          members: membersResult.error,
+          items: itemsResult.error,
+          messages: messagesResult.error,
+        });
+        setPageError("Не удалось загрузить банкет. Попробуйте обновить страницу.");
+        setParty(null);
+        setMembers([]);
+        setItems([]);
+        setMessages([]);
+        setIsLoading(false);
+        return;
+      }
+
+      setParty((partyResult.data as Party | null) ?? null);
+      setMembers((membersResult.data as PartyMember[]) ?? []);
+      setItems((itemsResult.data as PartyItem[]) ?? []);
+      setMessages((messagesResult.data as PartyMessage[]) ?? []);
+      setIsLoading(false);
     };
 
-    void fetchRoomData();
+    void initializePage();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [partyId]);
+
+  useEffect(() => {
+    if (!partyId) return;
 
     const channel = supabase
-      .channel(`room-${partyId}`)
+      .channel(`party-room-${partyId}`)
       .on(
         "postgres_changes",
         {
@@ -153,35 +281,7 @@ export default function PartyRoomPage() {
           filter: `party_id=eq.${partyId}`,
         },
         (payload) => {
-          const newMessage = payload.new as PartyMessage;
-
-          setMessages((prev) => {
-            if (prev.some((message) => message.id === newMessage.id)) return prev;
-
-            const filtered = prev.filter(
-              (message) =>
-                !(
-                  String(message.id).startsWith("temp-") &&
-                  message.text === newMessage.text &&
-                  message.user_name === newMessage.user_name
-                ),
-            );
-
-            return [...filtered, newMessage];
-          });
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "DELETE",
-          schema: "public",
-          table: "party_messages",
-          filter: `party_id=eq.${partyId}`,
-        },
-        (payload) => {
-          setMessages((prev) => prev.filter((message) => message.id !== payload.old.id));
-          setSelectedMessageId((prev) => (prev === payload.old.id ? null : prev));
+          setMessages((prev) => upsertMessage(prev, payload.new as PartyMessage));
         },
       )
       .on(
@@ -189,41 +289,29 @@ export default function PartyRoomPage() {
         {
           event: "INSERT",
           schema: "public",
-          table: "party_guests",
+          table: "party_members",
           filter: `party_id=eq.${partyId}`,
         },
         (payload) => {
-          setGuests((prev) => {
-            if (prev.some((guest) => guest.name === payload.new.name)) return prev;
-            return [...prev, payload.new];
-          });
+          setMembers((prev) => upsertMember(prev, payload.new as PartyMember));
         },
       )
       .on(
         "postgres_changes",
         {
-          event: "INSERT",
+          event: "*",
           schema: "public",
           table: "party_items",
           filter: `party_id=eq.${partyId}`,
         },
         (payload) => {
-          setMenuItems((prev) => {
-            if (prev.some((item) => item.id === payload.new.id)) return prev;
-            return [...prev, payload.new as MenuItem];
-          });
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "DELETE",
-          schema: "public",
-          table: "party_items",
-          filter: `party_id=eq.${partyId}`,
-        },
-        (payload) => {
-          setMenuItems((prev) => prev.filter((item) => item.id !== payload.old.id));
+          if (payload.eventType === "DELETE") {
+            setItems((prev) => prev.filter((item) => item.id !== payload.old.id));
+            return;
+          }
+
+          const nextItem = payload.new as PartyItem;
+          setItems((prev) => upsertItem(prev, nextItem));
         },
       )
       .subscribe();
@@ -237,733 +325,514 @@ export default function PartyRoomPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const registerGuest = async (nameToRegister: string) => {
-    if (!nameToRegister || !partyId) return;
+  const groupedItems = useMemo(
+    () =>
+      MENU_CATEGORIES.map((category) => ({
+        category,
+        items: items.filter((item) => normalizeCategory(item.category) === category),
+      })),
+    [items],
+  );
 
-    await supabase
-      .from("party_guests")
-      .upsert({ party_id: partyId, name: nameToRegister }, { onConflict: "party_id, name" });
+  const memberNames = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          members
+            .map((member) => member.name.trim())
+            .filter(Boolean),
+        ),
+      ).sort((a, b) => a.localeCompare(b, "ru")),
+    [members],
+  );
+
+  const handleSaveName = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const trimmedName = nameInput.trim();
+    if (!trimmedName || !partyId) return;
+
+    window.localStorage.setItem(getStoredNameKey(partyId), trimmedName);
+    setCurrentUserName(trimmedName);
+    setShowNameModal(false);
+    setMembers((prev) => upsertMember(prev, { id: `temp-${trimmedName}`, name: trimmedName }));
+
+    setIsSavingName(true);
+
+    const { data, error } = await supabase
+      .from("party_members")
+      .insert({ party_id: partyId, name: trimmedName })
+      .select("*")
+      .single();
+
+    setIsSavingName(false);
+
+    if (error) {
+      console.error("Ошибка добавления участника:", error);
+      window.localStorage.removeItem(getStoredNameKey(partyId));
+      setCurrentUserName("");
+      setMembers((prev) => prev.filter((member) => member.id !== `temp-${trimmedName}`));
+      setShowNameModal(true);
+      window.alert("Не удалось сохранить имя в списке участников. Попробуйте обновить страницу.");
+      return;
+    }
+
+    setMembers((prev) => upsertMember(prev, data as PartyMember));
   };
 
-  function handleJoin(e?: React.FormEvent) {
-    e?.preventDefault();
-
-    const trimmedName = guestName.trim();
-
-    if (!trimmedName) return;
-
-    localStorage.setItem(`party_name_${partyId}`, trimmedName);
-    setCurrentUser(trimmedName);
-    setGuestName(trimmedName);
-    setShowJoinModal(false);
-    void registerGuest(trimmedName);
-  }
-
-  async function sendMessage(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-
-    if (!newMessage.trim() || !currentUser) return;
-
-    const textToSend = newMessage.trim();
-    const optimisticMessageId = `temp-${Date.now()}`;
-
-    setNewMessage("");
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: optimisticMessageId,
-        party_id: partyId,
-        user_name: currentUser,
-        text: textToSend,
-        created_at: new Date().toISOString(),
-      },
-    ]);
-
-    try {
-      const { error } = await supabase.from("party_messages").insert({
-        party_id: partyId,
-        user_name: currentUser,
-        text: textToSend,
-      });
-
-      if (error) {
-        throw error;
-      }
-    } catch (error) {
-      console.error("Ошибка отправки сообщения:", error);
-      setMessages((prev) => prev.filter((message) => message.id !== optimisticMessageId));
-      setNewMessage(textToSend);
-    }
-  }
-
-  async function handleDeleteMessage(id: string) {
-    try {
-      const { error } = await supabase.from("party_messages").delete().eq("id", id);
-
-      if (error) {
-        throw error;
-      }
-
-      setSelectedMessageId(null);
-      setMessages((prev) => prev.filter((message) => message.id !== id));
-    } catch (error) {
-      console.error("Ошибка удаления сообщения:", error);
-    }
-  }
-
-  async function handleDeleteDish(itemId: string) {
-    try {
-      const { error } = await supabase.from("party_items").delete().eq("id", itemId);
-
-      if (error) {
-        throw error;
-      }
-
-      setMenuItems((prev) => prev.filter((item) => item.id !== itemId));
-    } catch (error) {
-      console.error("Ошибка удаления блюда:", error);
-    }
-  }
-
-  async function handleAddManualDish(e: React.FormEvent) {
-    e.preventDefault();
-
-    const trimmedName = newDishName.trim();
-
-    if (!trimmedName) return;
-
-    try {
-      const { data, error } = await supabase
-        .from("party_items")
-        .insert({
-          party_id: partyId,
-          name: trimmedName,
-          category: newDishCategory,
-          ingredients: [],
-        })
-        .select("*")
-        .single();
-
-      if (error) {
-        throw error;
-      }
-
-      setMenuItems((prev) => [...prev, data]);
-      setIsAddDishOpen(false);
-      setNewDishName("");
-      setNewDishCategory("Закуски");
-    } catch (error) {
-      console.error("Ошибка добавления блюда:", error);
-    }
-  }
-
-  async function handleGenerateMenu() {
+  const handleShare = async () => {
     if (!party) return;
 
-    setIsGenerating(true);
-
-    const controller = new AbortController();
-    const safetyTimeout = setTimeout(() => {
-      controller.abort();
-      setIsGenerating(false);
-      alert("⏳ Сервер слишком долго отвечает (таймаут 25 сек). Проверьте консоль.");
-      console.error("TIMEOUT: Сервер не ответил за 25 секунд.");
-    }, 25000);
+    const shareData = {
+      title: party.title,
+      text: `Присоединяйся к банкету «${party.title}»`,
+      url: window.location.href,
+    };
 
     try {
-      console.log("🚀 [1/4] Начинаем генерацию. Отправляем запрос к API...", {
-        partyId,
-        title: party.title,
-        guestCount: party.guest_count,
-      });
-
-      const response = await fetch("/api/party/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          title: party.title,
-          guestCount: party.guest_count,
-        }),
-        signal: controller.signal,
-      });
-
-      console.log("📥 [2/4] Ответ от сервера получен. Статус:", response.status);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Ошибка сервера ${response.status}: ${errorText}`);
-      }
-
-      const data = await response.json();
-      console.log("✅ [3/4] Данные успешно распарсены:", data);
-
-      const generatedMenu = Array.isArray(data.menu) ? data.menu : [];
-      const itemsToInsert = generatedMenu.map((item: MenuItem) => ({
-        party_id: partyId,
-        name: item.name,
-        category: item.category,
-        ingredients: item.ingredients,
-      }));
-
-      if (itemsToInsert.length === 0) {
-        console.log("ℹ️ [4/4] API вернул пустое меню. Очищаем список блюд на странице.");
-        setMenuItems([]);
+      if (navigator.share) {
+        await navigator.share(shareData);
         return;
       }
 
-      console.log("💾 Сохраняем сгенерированное меню в Supabase...", {
-        itemsCount: itemsToInsert.length,
-      });
-
-      const { data: insertedItems, error } = await supabase
-        .from("party_items")
-        .insert(itemsToInsert)
-        .select("*");
-
-      if (error) {
-        throw error;
-      }
-
-      setMenuItems(insertedItems || itemsToInsert);
-      console.log("🎉 [4/4] Меню успешно добавлено на страницу!");
+      await navigator.clipboard.writeText(shareData.url);
+      window.alert("Ссылка скопирована в буфер обмена.");
     } catch (error) {
-      console.error("❌ КРИТИЧЕСКАЯ ОШИБКА ГЕНЕРАЦИИ:", error);
-
-      if (error instanceof Error && error.name === "AbortError") {
-        return;
-      }
-
-      alert(`Ошибка генерации: ${error instanceof Error ? error.message : "Неизвестная ошибка"}`);
-    } finally {
-      clearTimeout(safetyTimeout);
-      setIsGenerating(false);
+      console.error("Ошибка шаринга:", error);
     }
-  }
-
-  const groupedMenuItems = MENU_CATEGORIES.map((category) => ({
-    category,
-    items: menuItems.filter((item) => item.category === category),
-  }));
-
-  const shoppingList = useMemo(() => {
-    const aggregated: Record<string, { name: string; amount: number; unit: string }> = {};
-
-    menuItems.forEach((item) => {
-      let ingredients = item.ingredients;
-
-      if (typeof ingredients === "string") {
-        try {
-          ingredients = JSON.parse(ingredients);
-        } catch (e) {
-          ingredients = [];
-        }
-      }
-
-      if (Array.isArray(ingredients)) {
-        ingredients.forEach((ing) => {
-          const key = ing.name.toLowerCase().trim();
-
-          if (aggregated[key]) {
-            aggregated[key].amount += Number(ing.amount);
-          } else {
-            aggregated[key] = {
-              name: ing.name,
-              amount: Number(ing.amount),
-              unit: ing.unit,
-            };
-          }
-        });
-      }
-    });
-
-    return Object.values(aggregated).sort((a, b) => a.name.localeCompare(b.name));
-  }, [menuItems]);
-
-  const formatIngredients = (ingredients: MenuItem["ingredients"]) => {
-    if (!ingredients) return "";
-
-    if (typeof ingredients === "string") {
-      return ingredients;
-    }
-
-    if (!Array.isArray(ingredients)) {
-      return "";
-    }
-
-    return ingredients
-      .map((ingredient) => `${ingredient.name} - ${ingredient.amount} ${ingredient.unit}`)
-      .join(", ");
   };
 
+  const handleSendMessage = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const text = messageInput.trim();
+    if (!text || !partyId || !currentUserName || isSendingMessage) return;
+
+    const optimisticId = `temp-${Date.now()}`;
+    const optimisticMessage: PartyMessage = {
+      id: optimisticId,
+      party_id: partyId,
+      user_name: currentUserName,
+      text,
+      created_at: new Date().toISOString(),
+    };
+
+    setMessageInput("");
+    setIsSendingMessage(true);
+    setMessages((prev) => upsertMessage(prev, optimisticMessage));
+
+    const { data, error } = await supabase
+      .from("party_messages")
+      .insert({
+        party_id: partyId,
+        user_name: currentUserName,
+        text,
+      })
+      .select("*")
+      .single();
+
+    setIsSendingMessage(false);
+
+    if (error) {
+      console.error("Ошибка отправки сообщения:", error);
+      setMessages((prev) => prev.filter((message) => message.id !== optimisticId));
+      setMessageInput(text);
+      return;
+    }
+
+    setMessages((prev) => upsertMessage(prev, data as PartyMessage));
+  };
+
+  const handleAddDish = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const trimmedName = newDishName.trim();
+    if (!trimmedName || !partyId || isAddingDish) return;
+
+    setIsAddingDish(true);
+
+    const { data, error } = await supabase
+      .from("party_items")
+      .insert({
+        party_id: partyId,
+        name: trimmedName,
+        category: newDishCategory,
+        ingredients: [],
+      })
+      .select("*")
+      .single();
+
+    setIsAddingDish(false);
+
+    if (error) {
+      console.error("Ошибка добавления блюда:", error);
+      window.alert("Не удалось добавить блюдо.");
+      return;
+    }
+
+    setItems((prev) => upsertItem(prev, data as PartyItem));
+    setNewDishName("");
+    setNewDishCategory("Закуски");
+    setIsAddDishOpen(false);
+  };
+
+  if (isLoading) {
+    return (
+      <>
+        <LoadingScreen />
+        {showNameModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-[32px] bg-white p-8 shadow-2xl">
+              <div className="mb-6">
+                <p className="mb-2 text-sm font-medium uppercase tracking-[0.2em] text-zinc-400">
+                  Участник
+                </p>
+                <h2 className="text-3xl font-semibold text-zinc-950">Как вас зовут?</h2>
+                <p className="mt-3 text-sm leading-6 text-zinc-500">
+                  Имя нужно, чтобы вы появились в списке гостей и могли писать в чат.
+                </p>
+              </div>
+
+              <form onSubmit={handleSaveName} className="space-y-4">
+                <input
+                  value={nameInput}
+                  onChange={(event) => setNameInput(event.target.value)}
+                  placeholder="Введите ваше имя"
+                  className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-5 py-4 text-base text-zinc-950 outline-none transition focus:border-zinc-300 focus:bg-white"
+                  autoFocus
+                />
+                <button
+                  type="submit"
+                  disabled={!nameInput.trim() || isSavingName}
+                  className="w-full rounded-2xl bg-black px-5 py-4 text-base font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
+                >
+                  {isSavingName ? "Сохраняем..." : "Продолжить"}
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-zinc-50 font-sans text-zinc-900">
-      {loadError ? (
-        <div className="flex min-h-screen items-center justify-center p-8 text-center">
-          <div className="max-w-lg">
-            <p className="font-medium text-red-500">{loadError}</p>
-            <button onClick={() => window.location.reload()} className="mt-4 underline">
+    <div className="min-h-screen bg-zinc-50 text-zinc-950">
+      <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-8">
+        <header className="mb-6 rounded-[32px] border border-zinc-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+            <div className="min-w-0">
+              <p className="mb-2 text-sm font-medium uppercase tracking-[0.2em] text-zinc-400">
+                Банкет
+              </p>
+              <h1 className="truncate text-3xl font-semibold tracking-tight text-zinc-950">
+                {party?.title ?? "Банкет не найден"}
+              </h1>
+              <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-zinc-500">
+                <span className="inline-flex items-center gap-2 rounded-full bg-zinc-100 px-3 py-1.5">
+                  <Users className="h-4 w-4" />
+                  {members.length} участников
+                </span>
+                {party?.guest_count ? (
+                  <span className="rounded-full bg-zinc-100 px-3 py-1.5">
+                    План: {party.guest_count} гостей
+                  </span>
+                ) : null}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleShare}
+              disabled={!party}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-900 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
+            >
+              <Share2 className="h-4 w-4" />
+              Поделиться
+            </button>
+          </div>
+        </header>
+
+        {pageError ? (
+          <div className="rounded-[32px] border border-red-200 bg-white p-8 text-center shadow-sm">
+            <h2 className="text-2xl font-semibold text-zinc-950">Не удалось открыть банкет</h2>
+            <p className="mt-3 text-sm leading-6 text-zinc-500">{pageError}</p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="mt-6 rounded-2xl bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-zinc-800"
+            >
               Обновить страницу
             </button>
           </div>
-        </div>
-      ) : (
-        <>
-          <header className="sticky top-0 z-10 border-b border-zinc-200 bg-white/90 px-6 py-4 backdrop-blur-xl">
-            <div className="mx-auto flex max-w-7xl items-center gap-4">
-              <button
-                type="button"
-                onClick={() => router.back()}
-                className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                <span>Назад</span>
-              </button>
-
-              <div className="min-w-0 flex-1">
-                {isLoading ? (
-                  <div className="space-y-2 py-1">
-                    <div className="h-4 w-48 animate-pulse rounded-full bg-zinc-200" />
-                    <div className="h-3 w-28 animate-pulse rounded-full bg-zinc-100" />
-                  </div>
-                ) : party ? (
-                  <div className="flex min-w-0 flex-col gap-1">
-                    <p className="truncate text-base font-semibold text-zinc-900">{party.title}</p>
-                    <span
-                      onClick={() => setIsGuestsOpen(true)}
-                      className="cursor-pointer text-zinc-500 transition-colors hover:text-black"
-                    >
-                      {guests.length} участников (показать)
-                    </span>
-                  </div>
-                ) : (
-                  <p className="truncate text-base font-semibold text-zinc-900">Банкет не найден</p>
-                )}
-              </div>
-            </div>
-          </header>
-
-          {!isLoading && !party ? (
-            <main className="mx-auto flex min-h-[calc(100vh-81px)] max-w-7xl items-center px-4 py-8">
-              <section className="w-full rounded-[2rem] border border-zinc-200 bg-white p-8 text-center shadow-sm">
-                <h1 className="mb-3 text-2xl font-semibold text-zinc-900">Банкет не найден</h1>
-                <p className="mx-auto mb-6 max-w-md text-sm leading-6 text-zinc-500">
-                  Возможно, ссылка устарела или этот банкет был удален. Вернитесь на главную и создайте
-                  новый.
-                </p>
+        ) : !party ? (
+          <div className="rounded-[32px] border border-zinc-200 bg-white p-8 text-center shadow-sm">
+            <h2 className="text-2xl font-semibold text-zinc-950">Банкет не найден</h2>
+            <p className="mt-3 text-sm leading-6 text-zinc-500">
+              Возможно, ссылка устарела или мероприятие уже было удалено.
+            </p>
+          </div>
+        ) : (
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
+            <section className="space-y-4">
+              {items.length === 0 ? (
                 <button
                   type="button"
-                  onClick={() => router.push("/")}
-                  className="inline-flex rounded-full bg-black px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-zinc-800"
+                  onClick={() => window.alert("Заглушка: здесь будет генерация меню с ИИ.")}
+                  className="flex w-full items-center justify-center gap-3 rounded-[28px] bg-black px-6 py-5 text-left text-white shadow-sm transition hover:bg-zinc-800"
                 >
-                  На главную
+                  <Sparkles className="h-5 w-5" />
+                  <span className="text-lg font-medium">Сгенерировать меню с ИИ</span>
                 </button>
-              </section>
-            </main>
-          ) : (
-            <main className="mx-auto max-w-7xl px-4 py-8 pb-24">
-              {activeTab === "menu" && (
-                <section className="mx-auto max-w-4xl">
-                  {menuItems.length === 0 && (
-                    <button
-                      type="button"
-                      onClick={handleGenerateMenu}
-                      disabled={isGenerating || !party}
-                      className="mb-8 w-full rounded-2xl bg-black py-5 text-lg font-medium text-white shadow-md transition-all hover:bg-zinc-800 active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-zinc-400 disabled:shadow-none"
-                    >
-                      <span className="inline-flex items-center gap-3">
-                        <Sparkles className="h-5 w-5" />
-                        <span>{isGenerating ? "Шеф-повар думает..." : "Сгенерировать меню с ИИ"}</span>
-                      </span>
-                    </button>
-                  )}
+              ) : null}
 
-                  {groupedMenuItems.map(({ category, items }) => (
-                    <article
-                      key={category}
-                      className="mb-4 rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm"
-                    >
-                      <h2 className="mb-2 text-xl font-semibold">{category}</h2>
+              {groupedItems.map(({ category, items: categoryItems }) => (
+                <article
+                  key={category}
+                  className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm"
+                >
+                  <div className="mb-5 flex items-center justify-between gap-3">
+                    <h2 className="text-xl font-semibold text-zinc-950">{category}</h2>
+                    <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-500">
+                      {categoryItems.length}
+                    </span>
+                  </div>
 
-                      {items.length > 0 ? (
-                        <div className="space-y-4">
-                          {items.map((item, index) => (
-                            <div key={item.id || `${item.name}-${index}`}>
-                              <div className="mb-1 flex items-start justify-between gap-3">
-                                <p className="font-semibold text-zinc-900">{item.name}</p>
-                                {item.id && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteDish(item.id!)}
-                                    className="p-1 -mr-1 -mt-1 text-zinc-400 transition-colors hover:text-red-500 active:scale-90"
-                                    aria-label={`Удалить блюдо ${item.name}`}
-                                  >
-                                    <svg
-                                      xmlns="http://www.w3.org/2000/svg"
-                                      viewBox="0 0 20 20"
-                                      fill="currentColor"
-                                      className="h-5 w-5"
-                                    >
-                                      <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
-                                    </svg>
-                                  </button>
-                                )}
-                              </div>
-                              <p className="mt-1 text-sm text-zinc-500">
-                                {formatIngredients(item.ingredients)}
-                              </p>
-                            </div>
-                          ))}
+                  {categoryItems.length === 0 ? (
+                    <div className="rounded-3xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-8 text-center text-sm text-zinc-500">
+                      Пока в этой категории пусто
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {categoryItems.map((item) => (
+                        <div
+                          key={item.id ?? `${category}-${item.name}`}
+                          className="rounded-3xl border border-zinc-200 bg-zinc-50 px-4 py-4"
+                        >
+                          <div className="text-base font-semibold text-zinc-950">{item.name}</div>
+                          <p className="mt-2 text-sm leading-6 text-zinc-500">
+                            {formatIngredients(item.ingredients)}
+                          </p>
                         </div>
-                      ) : (
-                        <p className="text-zinc-500">Пока блюд нет</p>
-                      )}
-                    </article>
-                  ))}
+                      ))}
+                    </div>
+                  )}
+                </article>
+              ))}
 
-                  <button
-                    type="button"
-                    onClick={() => setIsAddDishOpen(true)}
-                    className="mt-2 mb-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-zinc-200 bg-zinc-100 py-4 text-lg font-medium text-zinc-900 transition-all hover:bg-zinc-200 active:scale-[0.99]"
-                  >
-                    <span>+</span>
-                    <span>Добавить свое блюдо</span>
-                  </button>
+              <button
+                type="button"
+                onClick={() => setIsAddDishOpen(true)}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-[28px] border border-zinc-200 bg-white px-5 py-4 text-base font-medium text-zinc-950 shadow-sm transition hover:bg-zinc-100"
+              >
+                <Plus className="h-4 w-4" /> Добавить свое блюдо
+              </button>
+            </section>
 
-                  <button
-                    type="button"
-                    onClick={() => setIsShoppingListOpen(true)}
-                    className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-zinc-200 bg-white py-4 text-lg font-medium text-zinc-900 transition-all hover:border-black active:scale-[0.99]"
-                  >
-                    <span>🛒</span>
-                    <span>Показать список покупок</span>
-                  </button>
-                </section>
-              )}
+            <section className="flex min-h-[620px] flex-col rounded-[28px] border border-zinc-200 bg-white p-4 shadow-sm xl:h-[calc(100vh-12rem)]">
+              <div className="mb-4 rounded-3xl border border-zinc-200 bg-zinc-50 p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                    Участники
+                  </h2>
+                  <span className="text-sm text-zinc-400">{members.length}</span>
+                </div>
 
-              {activeTab === "chat" && (
-                <section className="mx-auto max-w-3xl">
-                  <div className="space-y-4">
-                    <section className="flex h-[calc(100vh-160px)] flex-col overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm lg:h-[600px]">
-                      <div className="border-b border-zinc-100 bg-zinc-50/50 px-5 py-3 font-medium">
-                        Обсуждение
-                      </div>
-                      <div className="flex-1 overflow-y-auto bg-zinc-50/30 p-5">
-                        {messages.length === 0 ? (
-                          <div className="flex h-full items-center justify-center text-sm text-zinc-400">
-                            Пока сообщений нет
-                          </div>
-                        ) : (
-                          <div className="space-y-4">
-                            {messages.map((message, index) => {
-                              const isCurrentUserMessage = message.user_name === currentUser;
-                              const isSelected = selectedMessageId === message.id;
-                              const messageTime = formatTime(message.created_at ?? "");
+                {memberNames.length === 0 ? (
+                  <p className="text-sm text-zinc-500">Пока никто не присоединился.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {memberNames.map((memberName) => (
+                      <span
+                        key={memberName}
+                        className={`rounded-full border px-3 py-1.5 text-sm ${
+                          memberName === currentUserName
+                            ? "border-black bg-black text-white"
+                            : "border-zinc-200 bg-white text-zinc-700"
+                        }`}
+                      >
+                        {memberName}
+                        {memberName === currentUserName ? " (вы)" : ""}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-                              return (
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-zinc-200">
+                <div className="border-b border-zinc-200 bg-zinc-50 px-5 py-4">
+                  <h2 className="text-lg font-semibold text-zinc-950">Чат банкета</h2>
+                </div>
+
+                <div className="flex-1 overflow-y-auto bg-zinc-50/70 px-4 py-5">
+                  {messages.length === 0 ? (
+                    <div className="flex h-full items-center justify-center text-center text-sm text-zinc-500">
+                      Напишите первое сообщение и начните обсуждение.
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {messages.map((message, index) => {
+                        const isOwn = message.user_name === currentUserName;
+
+                        return (
+                          <div
+                            key={message.id ?? `${message.created_at}-${index}`}
+                            className={`flex ${isOwn ? "justify-end" : "justify-start"}`}
+                          >
+                            <div className={`max-w-[85%] ${isOwn ? "items-end" : "items-start"} flex flex-col`}>
+                              <span className="mb-1 px-1 text-xs text-zinc-400">
+                                {isOwn ? "Вы" : message.user_name}
+                              </span>
+                              <div
+                                className={`rounded-[24px] px-4 py-3 shadow-sm ${
+                                  isOwn
+                                    ? "bg-black text-white"
+                                    : "border border-zinc-200 bg-white text-zinc-950"
+                                }`}
+                              >
+                                <p className="whitespace-pre-wrap break-words text-sm leading-6">
+                                  {message.text}
+                                </p>
                                 <div
-                                  key={message.id || `${message.created_at}-${index}`}
-                                  className={`flex ${
-                                    isCurrentUserMessage ? "justify-end" : "justify-start"
+                                  className={`mt-2 text-[11px] ${
+                                    isOwn ? "text-zinc-300" : "text-zinc-400"
                                   }`}
                                 >
-                                  <div
-                                    className={`max-w-[85%] ${
-                                      isCurrentUserMessage ? "items-end" : "items-start"
-                                    } flex flex-col`}
-                                  >
-                                    <span className="mb-1 px-1 text-xs text-zinc-400">
-                                      {message.user_name}
-                                    </span>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        isCurrentUserMessage && message.id
-                                          ? setSelectedMessageId(isSelected ? null : message.id)
-                                          : undefined
-                                      }
-                                      className={`relative rounded-2xl px-4 py-3 pr-16 text-left shadow-sm ${
-                                        isCurrentUserMessage
-                                          ? "cursor-pointer bg-blue-500 text-white"
-                                          : "bg-zinc-200 text-zinc-900"
-                                      }`}
-                                    >
-                                      <span className="block break-words text-sm leading-relaxed">
-                                        {message.text}
-                                      </span>
-                                      <span
-                                        className={`absolute bottom-1.5 right-2 text-[10px] leading-none ${
-                                          isCurrentUserMessage ? "text-blue-100/80" : "text-zinc-400"
-                                        }`}
-                                      >
-                                        {messageTime}
-                                      </span>
-                                    </button>
-                                    {isSelected && message.id && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          if (message.id) {
-                                            void handleDeleteMessage(message.id);
-                                          }
-                                        }}
-                                        className="mt-1 flex cursor-pointer items-center gap-1 text-xs font-medium text-red-500 hover:underline"
-                                      >
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                        <span>Удалить</span>
-                                      </button>
-                                    )}
-                                  </div>
+                                  {formatTime(message.created_at)}
                                 </div>
-                              );
-                            })}
-                            <div ref={messagesEndRef} />
+                              </div>
+                            </div>
                           </div>
-                        )}
-                      </div>
-                      <form
-                        onSubmit={sendMessage}
-                        className="flex items-end gap-2 border-t border-zinc-100 bg-white p-3"
-                      >
-                        <input
-                          type="text"
-                          value={newMessage}
-                          onChange={(event) => setNewMessage(event.target.value)}
-                          placeholder="Написать сообщение..."
-                          className="max-h-32 flex-1 rounded-2xl bg-zinc-100 px-4 py-2.5 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-black/5"
-                        />
-                        <button
-                          type="submit"
-                          disabled={!newMessage.trim()}
-                          className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-blue-500 text-white transition-all hover:bg-blue-600 active:scale-95 disabled:bg-zinc-200 disabled:text-zinc-400"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 24 24"
-                            fill="currentColor"
-                            className="h-4 w-4 translate-x-[1px] translate-y-[-1px]"
-                          >
-                            <path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z" />
-                          </svg>
-                        </button>
-                      </form>
-                    </section>
+                        );
+                      })}
+                      <div ref={messagesEndRef} />
+                    </div>
+                  )}
+                </div>
+
+                <form
+                  onSubmit={handleSendMessage}
+                  className="border-t border-zinc-200 bg-white p-3"
+                >
+                  <div className="flex items-end gap-3">
+                    <input
+                      type="text"
+                      value={messageInput}
+                      onChange={(event) => setMessageInput(event.target.value)}
+                      placeholder={
+                        currentUserName ? "Написать сообщение..." : "Сначала укажите ваше имя"
+                      }
+                      disabled={!currentUserName}
+                      className="h-12 flex-1 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 text-sm text-zinc-950 outline-none transition focus:border-zinc-300 focus:bg-white disabled:cursor-not-allowed disabled:text-zinc-400"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!messageInput.trim() || !currentUserName || isSendingMessage}
+                      className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-black text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400"
+                    >
+                      <SendHorizonal className="h-4 w-4" />
+                    </button>
                   </div>
-                </section>
-              )}
-            </main>
-          )}
-        </>
-      )}
-
-      {party && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-zinc-200 pb-safe">
-          <div className="flex justify-around p-2">
-            <button
-              type="button"
-              onClick={() => setActiveTab("menu")}
-              className={`flex-1 py-2 text-center rounded-xl ${
-                activeTab === "menu" ? "bg-zinc-100 font-medium text-black" : "text-zinc-500"
-              }`}
-            >
-              Меню
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("chat")}
-              className={`flex-1 py-2 text-center rounded-xl ${
-                activeTab === "chat" ? "bg-zinc-100 font-medium text-black" : "text-zinc-500"
-              }`}
-            >
-              Чат
-            </button>
+                </form>
+              </div>
+            </section>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {showJoinModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl">
-            <h2 className="mb-3 text-2xl font-semibold text-zinc-900">Добро пожаловать на банкет!</h2>
-            <p className="mb-6 text-sm leading-6 text-zinc-500">
-              Как вас зовут? Это имя увидят другие гости.
-            </p>
-            <form onSubmit={handleJoin}>
+      {showNameModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-[32px] bg-white p-8 shadow-2xl">
+            <div className="mb-6">
+              <p className="mb-2 text-sm font-medium uppercase tracking-[0.2em] text-zinc-400">
+                Участник
+              </p>
+              <h2 className="text-3xl font-semibold text-zinc-950">Как вас зовут?</h2>
+              <p className="mt-3 text-sm leading-6 text-zinc-500">
+                После этого вы появитесь в списке гостей и сможете писать в чат.
+              </p>
+            </div>
+
+            <form onSubmit={handleSaveName} className="space-y-4">
               <input
-                type="text"
-                value={guestName}
-                onChange={(event) => setGuestName(event.target.value)}
+                value={nameInput}
+                onChange={(event) => setNameInput(event.target.value)}
                 placeholder="Введите ваше имя"
-                className="mb-4 w-full rounded-2xl bg-zinc-100 px-5 py-4 text-lg text-zinc-900 transition-all placeholder:text-zinc-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-black"
+                className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-5 py-4 text-base text-zinc-950 outline-none transition focus:border-zinc-300 focus:bg-white"
                 autoFocus
               />
               <button
                 type="submit"
-                disabled={!guestName.trim()}
-                className="w-full rounded-2xl bg-black py-4 text-lg font-medium text-white transition-all hover:bg-zinc-800 active:scale-95 disabled:bg-zinc-200 disabled:text-zinc-400"
+                disabled={!nameInput.trim() || isSavingName}
+                className="w-full rounded-2xl bg-black px-5 py-4 text-base font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
               >
-                Войти
+                {isSavingName ? "Сохраняем..." : "Продолжить"}
               </button>
             </form>
-          </div>
-        </div>
-      )}
-
-      {isShoppingListOpen && (
-        <div
-          className="fixed inset-0 z-[100] flex items-end justify-center bg-zinc-900/40 p-0 backdrop-blur-sm transition-opacity sm:items-center sm:p-4"
-          onClick={() => setIsShoppingListOpen(false)}
-        >
-          <div
-            className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-white p-6 shadow-2xl animate-in slide-in-from-bottom-10 sm:rounded-3xl sm:p-8 sm:zoom-in-95"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="mb-6 flex items-start justify-between gap-4">
-              <h2 className="text-2xl font-semibold">Список покупок</h2>
-              <button
-                type="button"
-                onClick={() => setIsShoppingListOpen(false)}
-                className="text-zinc-400 transition-colors hover:text-black"
-              >
-                Закрыть
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              {shoppingList.length > 0 ? (
-                shoppingList.map((ingredient) => (
-                  <label
-                    key={`${ingredient.name}-${ingredient.unit}`}
-                    className="flex items-center justify-between gap-4"
-                  >
-                    <span className="flex items-center gap-3 text-base text-zinc-900">
-                      <input
-                        type="checkbox"
-                        className="h-5 w-5 rounded border-zinc-300 text-black focus:ring-black/10"
-                      />
-                      <span>{ingredient.name}</span>
-                    </span>
-                    <span className="text-sm text-zinc-400">
-                      {ingredient.amount} {ingredient.unit}
-                    </span>
-                  </label>
-                ))
-              ) : (
-                <p className="text-sm text-zinc-500">Список покупок появится после генерации меню.</p>
-              )}
-            </div>
           </div>
         </div>
       )}
 
       {isAddDishOpen && (
         <div
-          className="fixed inset-0 z-[100] flex items-end justify-center bg-zinc-900/40 p-0 backdrop-blur-sm transition-opacity sm:items-center sm:p-4"
+          className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
           onClick={() => setIsAddDishOpen(false)}
         >
           <div
-            className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-white p-6 shadow-2xl animate-in slide-in-from-bottom-10 sm:rounded-3xl sm:p-8 sm:zoom-in-95"
+            className="w-full max-w-md rounded-[32px] bg-white p-6 shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <form onSubmit={handleAddManualDish}>
-              <div className="mb-6 flex items-start justify-between gap-4">
-                <h2 className="text-2xl font-semibold">Новое блюдо</h2>
-                <button
-                  type="button"
-                  onClick={() => setIsAddDishOpen(false)}
-                  className="text-zinc-400 transition-colors hover:text-black"
-                >
-                  Отмена
-                </button>
-              </div>
+            <div className="mb-6">
+              <h3 className="text-2xl font-semibold text-zinc-950">Добавить свое блюдо</h3>
+              <p className="mt-2 text-sm text-zinc-500">
+                Блюдо сразу появится в общем меню для всех участников.
+              </p>
+            </div>
 
+            <form onSubmit={handleAddDish} className="space-y-4">
               <input
                 type="text"
                 value={newDishName}
                 onChange={(event) => setNewDishName(event.target.value)}
-                placeholder="Например: Крабовый салат"
-                className="w-full bg-zinc-100 rounded-2xl px-5 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-black focus:bg-white transition-all mb-6"
+                placeholder="Например: Брускетта с томатами"
+                className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3.5 text-sm text-zinc-950 outline-none transition focus:border-zinc-300 focus:bg-white"
                 autoFocus
               />
 
-              <div>
-                <p className="mb-2 text-sm text-zinc-500">Категория</p>
-                <div className="grid grid-cols-3 gap-2">
-                {MENU_CATEGORIES.map((category) => {
-                  const isActive = newDishCategory === category;
-
-                  return (
-                    <button
-                      key={category}
-                      type="button"
-                      onClick={() => setNewDishCategory(category)}
-                      className={`rounded-2xl px-3 py-4 text-sm font-medium transition-all ${
-                        isActive ? "bg-black text-white" : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
-                      }`}
-                    >
-                      {category}
-                    </button>
-                  );
-                })}
-                </div>
+              <div className="grid grid-cols-2 gap-2">
+                {MENU_CATEGORIES.map((category) => (
+                  <button
+                    key={category}
+                    type="button"
+                    onClick={() => setNewDishCategory(category)}
+                    className={`rounded-2xl px-4 py-3 text-sm font-medium transition ${
+                      newDishCategory === category
+                        ? "bg-black text-white"
+                        : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-100"
+                    }`}
+                  >
+                    {category}
+                  </button>
+                ))}
               </div>
 
-              <button
-                type="submit"
-                disabled={!newDishName.trim()}
-                className="w-full bg-black text-white py-4 rounded-2xl mt-6 disabled:opacity-50"
-              >
-                Добавить в меню
-              </button>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddDishOpen(false)}
+                  className="flex-1 rounded-2xl border border-zinc-200 px-4 py-3 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100"
+                >
+                  Отмена
+                </button>
+                <button
+                  type="submit"
+                  disabled={!newDishName.trim() || isAddingDish}
+                  className="flex-1 rounded-2xl bg-black px-4 py-3 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
+                >
+                  {isAddingDish ? "Добавляем..." : "Добавить"}
+                </button>
+              </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {isGuestsOpen && (
-        <div
-          className="fixed inset-0 z-[100] flex items-end justify-center bg-zinc-900/40 p-0 backdrop-blur-sm transition-opacity sm:items-center sm:p-4"
-          onClick={() => setIsGuestsOpen(false)}
-        >
-          <div
-            className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-white p-6 shadow-2xl animate-in slide-in-from-bottom-10 sm:rounded-3xl sm:p-8 sm:zoom-in-95"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="mb-6 flex items-start justify-between gap-4">
-              <h2 className="text-2xl font-semibold">Участники</h2>
-              <button
-                type="button"
-                onClick={() => setIsGuestsOpen(false)}
-                className="text-zinc-400 transition-colors hover:text-black"
-              >
-                Закрыть
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              {guests.length > 0 ? (
-                guests.map((guest) => (
-                  <div
-                    key={guest.id ?? guest.name}
-                    className="flex items-center justify-between gap-4 rounded-2xl bg-zinc-50 px-4 py-4 text-base text-zinc-900"
-                  >
-                    <div className="font-medium">
-                      <span>{guest.name}</span>
-                      {guest.name === currentUser && (
-                        <span className="ml-2 text-sm font-semibold text-zinc-500">(Вы)</span>
-                      )}
-                    </div>
-                    <div className="text-xs text-green-500 flex items-center gap-1.5">
-                      <span className="h-2 w-2 rounded-full bg-green-500" />
-                      <span>В комнате</span>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-zinc-500">Пока никого нет</p>
-              )}
-            </div>
           </div>
         </div>
       )}

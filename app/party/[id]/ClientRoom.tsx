@@ -35,11 +35,12 @@ type MenuIngredient = {
 };
 
 type PartyItem = {
-  id?: string;
+  id: string;
   party_id?: string;
   name: string;
   category?: string | null;
   ingredients?: MenuIngredient[] | string | null;
+  votes?: string[] | null;
   created_at?: string | null;
 };
 
@@ -95,25 +96,6 @@ const parseIngredients = (ingredients?: PartyItem["ingredients"]) => {
   return Array.isArray(ingredients) ? ingredients : [];
 };
 
-const formatIngredients = (ingredients?: PartyItem["ingredients"]) => {
-  if (!ingredients) return "Ингредиенты пока не указаны";
-
-  if (typeof ingredients === "string") {
-    return ingredients || "Ингредиенты пока не указаны";
-  }
-
-  const parsed = parseIngredients(ingredients);
-  if (parsed.length === 0) return "Ингредиенты пока не указаны";
-
-  return parsed
-    .map((ingredient) => {
-      const amount = ingredient.amount ?? "";
-      const unit = ingredient.unit ?? "";
-      return [ingredient.name, amount, unit].filter(Boolean).join(" ");
-    })
-    .join(", ");
-};
-
 export default function ClientRoom({
   party,
   initialItems,
@@ -138,14 +120,44 @@ export default function ClientRoom({
   });
   const [messages, setMessages] = useState<PartyMessage[]>(initialMessages ?? []);
   const [menuItems, setMenuItems] = useState<PartyItem[]>(initialItems ?? []);
+  const [showAddDishModal, setShowAddDishModal] = useState(false);
   const [newMessage, setNewMessage] = useState("");
   const [newDishName, setNewDishName] = useState("");
-  const [newDishCategory, setNewDishCategory] = useState<MenuCategory>("Закуски");
-  const [isAddDishOpen, setIsAddDishOpen] = useState(false);
+  const [newDishCategory, setNewDishCategory] = useState("Закуски");
   const [isSendingMessage, setIsSendingMessage] = useState(false);
-  const [isAddingDish, setIsAddingDish] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const CATEGORIES = ["Закуски", "Салаты", "Горячее", "Напитки"] as const;
+
+  const handleAddCustomDish = async () => {
+    if (!newDishName.trim() || !currentUser) return;
+
+    await supabase.from("party_items").insert([
+      {
+        party_id: party.id,
+        name: newDishName.trim(),
+        category: newDishCategory,
+        ingredients: [],
+        votes: [currentUser],
+      },
+    ]);
+
+    setNewDishName("");
+    setShowAddDishModal(false);
+  };
+
+  const toggleVote = async (itemId: string, currentVotes: string[] | null) => {
+    if (!currentUser) return;
+    const votes = currentVotes || [];
+
+    const newVotes = votes.includes(currentUser)
+      ? votes.filter((vote) => vote !== currentUser)
+      : [...votes, currentUser];
+
+    setMenuItems((prev) => prev.map((item) => (item.id === itemId ? { ...item, votes: newVotes } : item)));
+
+    await supabase.from("party_items").update({ votes: newVotes }).eq("id", itemId);
+  };
 
   useEffect(() => {
     if (storedName) {
@@ -263,28 +275,6 @@ export default function ClientRoom({
     setIsSendingMessage(false);
   };
 
-  const handleAddDish = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!newDishName.trim() || isAddingDish) return;
-
-    setIsAddingDish(true);
-
-    const { data } = await supabase
-      .from("party_items")
-      .insert([{ party_id: party.id, name: newDishName.trim(), category: newDishCategory, ingredients: [] }])
-      .select("*")
-      .single();
-
-    if (data) {
-      setMenuItems((prev) => [...prev, data as PartyItem]);
-    }
-
-    setNewDishName("");
-    setNewDishCategory("Закуски");
-    setIsAddDishOpen(false);
-    setIsAddingDish(false);
-  };
-
   const handleShare = async () => {
     const shareData = {
       title: party.title,
@@ -345,7 +335,7 @@ export default function ClientRoom({
       <div className="grid grid-cols-2 gap-3">
         <button
           type="button"
-          onClick={() => setIsAddDishOpen(true)}
+          onClick={() => setShowAddDishModal(true)}
           className="inline-flex items-center justify-center gap-2 rounded-3xl border border-black/5 bg-white px-4 py-4 text-sm font-medium text-black shadow-sm transition hover:bg-zinc-50"
         >
           <Plus className="h-4 w-4" />
@@ -374,15 +364,33 @@ export default function ClientRoom({
             <p className="text-sm leading-6 text-zinc-400">Здесь появятся предложенные блюда...</p>
           ) : (
             <div className="space-y-3">
-              {items.map((item) => (
-                <div
-                  key={item.id ?? `${category}-${item.name}`}
-                  className="rounded-[28px] bg-zinc-50 px-4 py-4"
-                >
-                  <div className="text-base font-semibold tracking-tight text-black">{item.name}</div>
-                  <p className="mt-1 text-sm leading-6 text-zinc-500">{formatIngredients(item.ingredients)}</p>
-                </div>
-              ))}
+              {items.map((item) => {
+                const ingredients = parseIngredients(item.ingredients);
+
+                return (
+                  <div key={item.id ?? `${category}-${item.name}`} className="rounded-[28px] bg-zinc-50 px-4 py-4">
+                    <div className="flex justify-between items-start gap-4">
+                      <div className="flex-1">
+                        <div className="text-black font-medium">{item.name}</div>
+
+                        {ingredients.length > 0 && (
+                          <div className="text-sm text-zinc-500 mt-1">
+                            {ingredients.map((ing) => `${ing.name} ${ing.amount} ${ing.unit}`).join(", ")}
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => toggleVote(item.id, item.votes ?? null)}
+                        className="flex items-center gap-1.5 bg-zinc-100 px-3 py-1.5 rounded-full shrink-0 active:scale-95 transition-transform"
+                      >
+                        <span className="text-sm">{item.votes?.includes(currentUser || "") ? "❤️" : "🤍"}</span>
+                        <span className="text-sm font-medium">{item.votes?.length || 0}</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </article>
@@ -601,64 +609,49 @@ export default function ClientRoom({
         </div>
       )}
 
-      {isAddDishOpen && (
-        <div
-          className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4 backdrop-blur-md"
-          onClick={() => setIsAddDishOpen(false)}
-        >
-          <div
-            className="w-full max-w-md rounded-3xl border border-black/5 bg-white p-6 shadow-sm"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="mb-6">
-              <h3 className="text-2xl font-semibold tracking-tight text-black">Добавить свое блюдо</h3>
-              <p className="mt-2 text-sm text-zinc-500">Блюдо сразу появится в общем меню для всех участников.</p>
+      {showAddDishModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+            <h2 className="text-xl font-bold mb-2">Добавить свое блюдо</h2>
+            <p className="text-sm text-zinc-500 mb-6">Блюдо сразу появится в общем меню для всех участников.</p>
+
+            <input
+              type="text"
+              placeholder="Например: Брускетта с томатами"
+              value={newDishName}
+              onChange={(e) => setNewDishName(e.target.value)}
+              className="w-full bg-zinc-100 border border-transparent rounded-2xl p-4 outline-none focus:border-black mb-4 transition-colors text-black"
+            />
+
+            <div className="grid grid-cols-2 gap-2 mb-6">
+              {CATEGORIES.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setNewDishCategory(cat)}
+                  className={`p-3 rounded-xl text-sm font-medium transition-colors ${
+                    newDishCategory === cat ? "bg-black text-white" : "bg-zinc-100 text-black hover:bg-zinc-200"
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
             </div>
 
-            <form onSubmit={handleAddDish} className="space-y-4">
-              <input
-                type="text"
-                value={newDishName}
-                onChange={(event) => setNewDishName(event.target.value)}
-                placeholder="Например: Брускетта с томатами"
-                className="w-full rounded-2xl bg-zinc-100 px-4 py-3.5 text-sm text-black outline-none transition focus:bg-zinc-200"
-                autoFocus
-              />
-
-              <div className="grid grid-cols-2 gap-2">
-                {MENU_CATEGORIES.map((category) => (
-                  <button
-                    key={category}
-                    type="button"
-                    onClick={() => setNewDishCategory(category)}
-                    className={`rounded-2xl px-4 py-3 text-sm font-medium transition ${
-                      newDishCategory === category
-                        ? "bg-black text-white"
-                        : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
-                    }`}
-                  >
-                    {category}
-                  </button>
-                ))}
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsAddDishOpen(false)}
-                  className="flex-1 rounded-2xl bg-zinc-100 px-4 py-3 text-sm font-medium text-zinc-700 transition hover:bg-zinc-200"
-                >
-                  Отмена
-                </button>
-                <button
-                  type="submit"
-                  disabled={!newDishName.trim() || isAddingDish}
-                  className="flex-1 rounded-2xl bg-black px-4 py-3 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
-                >
-                  {isAddingDish ? "Добавляем..." : "Добавить"}
-                </button>
-              </div>
-            </form>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowAddDishModal(false)}
+                className="flex-1 bg-zinc-100 text-black font-medium p-4 rounded-xl hover:bg-zinc-200 transition-colors"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={handleAddCustomDish}
+                disabled={!newDishName.trim()}
+                className="flex-1 bg-black text-white font-medium p-4 rounded-xl disabled:opacity-50 active:scale-95 transition-all"
+              >
+                Добавить
+              </button>
+            </div>
           </div>
         </div>
       )}

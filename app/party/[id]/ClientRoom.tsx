@@ -16,6 +16,7 @@ type MenuCategory = (typeof MENU_CATEGORIES)[number];
 type Party = {
   id: string;
   title: string;
+  theme?: string | null;
   guest_count?: number | null;
 };
 
@@ -143,6 +144,7 @@ export default function ClientRoom({
   const [isAddDishOpen, setIsAddDishOpen] = useState(false);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [isAddingDish, setIsAddingDish] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -303,15 +305,41 @@ export default function ClientRoom({
     }
   };
 
+  const handleGenerateMenu = async () => {
+    try {
+      setIsGenerating(true);
+      const res = await fetch('/api/party/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          partyId: party.id, 
+          theme: party.theme || party.title, 
+          guestCount: party.guest_count || 4 
+        })
+      });
+      
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      
+      // Нам не нужно делать setMenuItems руками, так как наш Realtime канал 
+      // автоматически поймает новые блюда из БД и обновит интерфейс!
+      
+    } catch (error: any) {
+      alert("Ошибка при генерации меню: " + error.message);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const renderMenuPanel = () => (
     <section className="space-y-4 p-4 pb-32">
       <button
         type="button"
-        onClick={() => window.alert("Здесь появится генерация меню с ИИ.")}
+        onClick={handleGenerateMenu}
         className="flex w-full items-center justify-center gap-2 rounded-3xl bg-black p-4 text-center text-base font-medium text-white shadow-sm transition hover:bg-zinc-800"
       >
         <Sparkles className="h-4 w-4" />
-        ✨ Сгенерировать меню с ИИ
+        {isGenerating ? "✨ Шеф-повар думает..." : "✨ Сгенерировать меню с ИИ"}
       </button>
 
       <div className="grid grid-cols-2 gap-3">

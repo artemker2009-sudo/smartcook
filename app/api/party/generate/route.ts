@@ -1,63 +1,67 @@
-import { NextResponse } from "next/server";
-import OpenAI from "openai";
-
-export const maxDuration = 60;
+import { NextResponse } from 'next/server';
+import OpenAI from 'openai';
+import { createClient } from '@supabase/supabase-js';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
 export async function POST(req: Request) {
   try {
-    const { title, guestCount } = await req.json();
+    const { partyId, theme, guestCount } = await req.json();
 
-    if (!title || typeof guestCount !== "number") {
-      return NextResponse.json(
-        { error: "Нужно передать title и guestCount" },
-        { status: 400 }
-      );
+    const systemPrompt = `Ты профессиональный шеф-повар. Составь меню для банкета. 
+    Тематика/Сценарий: "${theme}". 
+    Количество гостей: ${guestCount}.
+    
+    Верни СТРОГИЙ JSON в таком формате (без маркдауна и лишних слов):
+    {
+      "items": [
+        {
+          "name": "Название блюда",
+          "category": "Закуски", // Строго одно из: "Закуски", "Салаты", "Горячее", "Напитки"
+          "ingredients": [
+            { "name": "Помидоры", "amount": 500, "unit": "г" } // amount уже умножено на количество гостей (${guestCount})
+          ]
+        }
+      ]
     }
-
-    const systemPrompt = `Ты шеф-повар. Составь меню для мероприятия: ${title} на ${guestCount} человек. Верни СТРОГИЙ JSON формат: { "menu": [ { "name": "Название блюда", "category": "Закуски" | "Горячее блюдо" | "Напитки", "ingredients": [ { "name": "Продукт", "amount": число, "unit": "шт/г/мл" } ] } ] }. Ингредиенты должны быть УЖЕ умножены на количество гостей.`;
+    
+    Сгенерируй 2-3 закуски, 2 салата, 1-2 горячих блюда и 2 напитка. Количество ингредиентов должно быть реалистичным для ${guestCount} человек.`;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemPrompt },
-        {
-          role: "user",
-          content: `Составь меню для "${title}" на ${guestCount} человек.`,
-        },
-      ],
+      messages: [{ role: "system", content: systemPrompt }],
       response_format: { type: "json_object" },
+      temperature: 0.7,
     });
 
-    const content = completion.choices[0].message.content;
+    const responseContent = completion.choices[0].message.content;
+    if (!responseContent) throw new Error("Пустой ответ от ИИ");
 
-    if (!content) {
-      throw new Error("Empty response from OpenAI");
-    }
+    const parsedData = JSON.parse(responseContent);
+    
+    // Формируем массив для вставки в БД
+    const itemsToInsert = parsedData.items.map((item: any) => ({
+      party_id: partyId,
+      name: item.name,
+      category: item.category,
+      ingredients: item.ingredients
+    }));
 
-    let cleanText = content.replace(/```json/g, "").replace(/```/g, "").trim();
+    // Сохраняем в Supabase
+    const { error } = await supabase.from('party_items').insert(itemsToInsert);
+    if (error) throw new Error(error.message);
 
-    const arrayStartIndex = cleanText.indexOf("[");
-    const arrayEndIndex = cleanText.lastIndexOf("]");
+    return NextResponse.json({ success: true });
 
-    if (arrayStartIndex !== -1 && arrayEndIndex !== -1) {
-      cleanText = cleanText.substring(arrayStartIndex, arrayEndIndex + 1);
-      return NextResponse.json({ menu: JSON.parse(cleanText) });
-    }
-
-    const objectStartIndex = cleanText.indexOf("{");
-    const objectEndIndex = cleanText.lastIndexOf("}");
-
-    if (objectStartIndex !== -1 && objectEndIndex !== -1) {
-      cleanText = cleanText.substring(objectStartIndex, objectEndIndex + 1);
-    }
-
-    return NextResponse.json(JSON.parse(cleanText));
   } catch (error: any) {
-    console.error("Party menu generation error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("AI Generation Error:", error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

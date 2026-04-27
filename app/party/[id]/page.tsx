@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, MessageCircle, Sparkles, Trash2, UtensilsCrossed } from "lucide-react";
+import { ArrowLeft, Sparkles, Trash2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 
 import { supabase } from "@/lib/supabase";
@@ -74,15 +74,22 @@ export default function PartyRoomPage() {
       setLoadError(null);
 
       try {
-        const [{ data, error }, { data: items, error: itemsError }] = await Promise.all([
-          supabase.from("parties").select("*").eq("id", partyId).single(),
-          supabase.from("party_items").select("*").eq("party_id", partyId),
-        ]);
+        const { data: partyData, error: partyError } = await supabase
+          .from("parties")
+          .select("*")
+          .eq("id", partyId)
+          .single();
+        const { data: items, error: itemsError } = await supabase
+          .from("party_items")
+          .select("*")
+          .eq("party_id", partyId);
 
-        if (error) throw error;
+        if (partyError) throw partyError;
         if (itemsError) throw itemsError;
 
-        setParty(data);
+        if (partyData) {
+          setParty(partyData);
+        }
         setMenuItems(items || []);
       } catch (err) {
         console.error("Ошибка загрузки банкета:", err);
@@ -555,12 +562,10 @@ export default function PartyRoomPage() {
               </section>
             </main>
           ) : (
-            <main className="mx-auto max-w-7xl px-4 py-8 pb-24 lg:pb-8">
-              <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-                <section
-                  className={`${activeTab === "menu" ? "block" : "hidden"} lg:block lg:col-span-2`}
-                >
-                  {!isLoading && menuItems.length === 0 && (
+            <main className="mx-auto max-w-7xl px-4 py-8 pb-24">
+              {activeTab === "menu" && (
+                <section className="mx-auto max-w-4xl">
+                  {menuItems.length === 0 && (
                     <button
                       type="button"
                       onClick={handleGenerateMenu}
@@ -635,11 +640,11 @@ export default function PartyRoomPage() {
                     <span>Показать список покупок</span>
                   </button>
                 </section>
+              )}
 
-                <aside
-                  className={`${activeTab === "chat" ? "block" : "hidden"} lg:block lg:col-span-1`}
-                >
-                  <div className="space-y-4 lg:sticky lg:top-24">
+              {activeTab === "chat" && (
+                <section className="mx-auto max-w-3xl">
+                  <div className="space-y-4">
                     <section className="flex h-[calc(100vh-160px)] flex-col overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm lg:h-[600px]">
                       <div className="border-b border-zinc-100 bg-zinc-50/50 px-5 py-3 font-medium">
                         Обсуждение
@@ -698,7 +703,11 @@ export default function PartyRoomPage() {
                                     {isSelected && message.id && (
                                       <button
                                         type="button"
-                                        onClick={() => handleDeleteMessage(message.id)}
+                                        onClick={() => {
+                                          if (message.id) {
+                                            void handleDeleteMessage(message.id);
+                                          }
+                                        }}
                                         className="mt-1 flex cursor-pointer items-center gap-1 text-xs font-medium text-red-500 hover:underline"
                                       >
                                         <Trash2 className="h-3.5 w-3.5" />
@@ -741,36 +750,36 @@ export default function PartyRoomPage() {
                       </form>
                     </section>
                   </div>
-                </aside>
-              </div>
+                </section>
+              )}
             </main>
           )}
         </>
       )}
 
       {party && (
-        <nav className="fixed bottom-0 left-0 right-0 z-50 flex justify-around border-t border-zinc-200 bg-white/80 p-2 backdrop-blur-md lg:hidden">
-          <button
-            type="button"
-            onClick={() => setActiveTab("menu")}
-            className={`flex min-w-[120px] flex-col items-center gap-1 rounded-2xl px-4 py-2 text-sm font-medium transition-colors ${
-              activeTab === "menu" ? "text-black" : "text-zinc-400"
-            }`}
-          >
-            <UtensilsCrossed className="h-5 w-5" />
-            <span>Меню</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("chat")}
-            className={`flex min-w-[120px] flex-col items-center gap-1 rounded-2xl px-4 py-2 text-sm font-medium transition-colors ${
-              activeTab === "chat" ? "text-black" : "text-zinc-400"
-            }`}
-          >
-            <MessageCircle className="h-5 w-5" />
-            <span>Чат</span>
-          </button>
-        </nav>
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-zinc-200 pb-safe">
+          <div className="flex justify-around p-2">
+            <button
+              type="button"
+              onClick={() => setActiveTab("menu")}
+              className={`flex-1 py-2 text-center rounded-xl ${
+                activeTab === "menu" ? "bg-zinc-100 font-medium text-black" : "text-zinc-500"
+              }`}
+            >
+              Меню
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("chat")}
+              className={`flex-1 py-2 text-center rounded-xl ${
+                activeTab === "chat" ? "bg-zinc-100 font-medium text-black" : "text-zinc-500"
+              }`}
+            >
+              Чат
+            </button>
+          </div>
+        </div>
       )}
 
       {showJoinModal && (

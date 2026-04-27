@@ -18,6 +18,7 @@ type Party = {
   title: string;
   theme?: string | null;
   guest_count?: number | null;
+  is_paid?: boolean | null;
 };
 
 type PartyMember = {
@@ -109,6 +110,10 @@ export default function ClientRoom({
   const [showJoinModal, setShowJoinModal] = useState(!storedName);
   const [inputName, setInputName] = useState(storedName);
   const [activeTab, setActiveTab] = useState<"menu" | "chat">("menu");
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [isProcessingPay, setIsProcessingPay] = useState(false);
+  const [currentParty, setCurrentParty] = useState(party);
+  const [showShoppingList, setShowShoppingList] = useState(false);
 
   const [guests, setGuests] = useState<PartyMember[]>(() => {
     const baseGuests = initialMembers ?? [];
@@ -248,6 +253,34 @@ export default function ClientRoom({
     [guests],
   );
 
+  const shoppingList = useMemo(() => {
+    const aggregated = new Map<string, { name: string; amount?: number | string | null; unit?: string | null }>();
+
+    for (const item of menuItems) {
+      for (const ingredient of parseIngredients(item.ingredients)) {
+        const name = ingredient.name?.trim();
+        if (!name) continue;
+
+        const key = `${name.toLowerCase()}::${ingredient.unit ?? ""}`;
+        const prev = aggregated.get(key);
+
+        if (!prev) {
+          aggregated.set(key, { ...ingredient, name });
+          continue;
+        }
+
+        const prevAmount = typeof prev.amount === "number" ? prev.amount : Number(prev.amount);
+        const nextAmount = typeof ingredient.amount === "number" ? ingredient.amount : Number(ingredient.amount);
+
+        if (Number.isFinite(prevAmount) && Number.isFinite(nextAmount)) {
+          aggregated.set(key, { ...prev, amount: prevAmount + nextAmount });
+        }
+      }
+    }
+
+    return Array.from(aggregated.values()).sort((a, b) => a.name.localeCompare(b.name, "ru"));
+  }, [menuItems]);
+
   const handleJoin = async () => {
     if (!inputName.trim()) return;
     const trimmedName = inputName.trim();
@@ -260,6 +293,20 @@ export default function ClientRoom({
         : [...prev, { party_id: party.id, user_name: trimmedName }],
     );
     await supabase.from("party_members").insert([{ party_id: party.id, user_name: trimmedName }]);
+  };
+
+  const handleMockPayment = async () => {
+    setIsProcessingPay(true);
+
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await supabase.from("parties").update({ is_paid: true }).eq("id", currentParty.id);
+      setCurrentParty({ ...currentParty, is_paid: true });
+      setShowPaywall(false);
+      setShowShoppingList(true);
+    } finally {
+      setIsProcessingPay(false);
+    }
   };
 
   const sendMessage = async (e: FormEvent<HTMLFormElement>) => {
@@ -427,10 +474,10 @@ export default function ClientRoom({
 
       <button
         type="button"
-        onClick={() => window.alert("Список покупок появится здесь.")}
+        onClick={() => (currentParty.is_paid ? setShowShoppingList(true) : setShowPaywall(true))}
         className="inline-flex w-full items-center justify-center gap-2 rounded-3xl border border-black/5 bg-white px-5 py-4 text-base font-medium text-black shadow-sm transition hover:bg-zinc-50"
       >
-        🛒 Показать список покупок
+        <span>🛒</span> {currentParty.is_paid ? "Показать список покупок" : "Открыть список покупок (PRO)"}
       </button>
     </section>
   );
@@ -681,6 +728,95 @@ export default function ClientRoom({
                 Добавить
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showShoppingList && (
+        <div className="fixed inset-0 z-[55] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-md sm:p-4">
+          <div className="w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl bg-white p-6 shadow-2xl animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300">
+            <div className="mb-5 flex items-center justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-bold tracking-tight">Список покупок</h2>
+                <p className="mt-1 text-sm text-zinc-500">Собрано автоматически из ингредиентов выбранных блюд.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowShoppingList(false)}
+                className="rounded-full bg-zinc-100 px-3 py-2 text-sm font-medium text-zinc-500 transition hover:bg-zinc-200 hover:text-black"
+              >
+                Закрыть
+              </button>
+            </div>
+
+            {shoppingList.length === 0 ? (
+              <div className="rounded-3xl bg-zinc-50 p-5 text-sm text-zinc-500">
+                Добавьте блюда с ингредиентами, и список покупок появится здесь.
+              </div>
+            ) : (
+              <div className="max-h-[60vh] space-y-3 overflow-y-auto pr-1">
+                {shoppingList.map((ingredient) => (
+                  <div
+                    key={`${ingredient.name}-${ingredient.unit ?? ""}`}
+                    className="flex items-center justify-between rounded-2xl bg-zinc-50 px-4 py-3"
+                  >
+                    <span className="font-medium text-black">{ingredient.name}</span>
+                    <span className="text-sm text-zinc-500">
+                      {[ingredient.amount, ingredient.unit].filter(Boolean).join(" ")}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showPaywall && (
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-md sm:p-4 transition-all">
+          <div className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300">
+            <div className="flex justify-center mb-4">
+              <div className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center text-3xl shadow-lg">
+                👑
+              </div>
+            </div>
+
+            <h2 className="text-2xl font-bold text-center mb-2 tracking-tight">Smart Party Pass</h2>
+            <p className="text-center text-zinc-500 text-sm mb-6">
+              Откройте полный доступ к банкету для себя и всех ваших гостей.
+            </p>
+
+            <div className="space-y-3 mb-8">
+              <div className="flex items-center gap-3">
+                <span className="text-green-500 text-xl">✓</span>
+                <span className="text-sm font-medium">Умный список покупок</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-green-500 text-xl">✓</span>
+                <span className="text-sm font-medium">Безлимитное количество гостей</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-green-500 text-xl">✓</span>
+                <span className="text-sm font-medium">Голосование за меню без ограничений</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleMockPayment}
+              disabled={isProcessingPay}
+              className="w-full bg-black text-white text-lg font-medium p-4 rounded-2xl active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-70"
+            >
+              {isProcessingPay ? "Обработка..." : "Оплатить 99 ₽"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowPaywall(false)}
+              className="w-full mt-3 text-zinc-400 text-sm font-medium p-3 hover:text-black transition-colors"
+            >
+              Может быть позже
+            </button>
           </div>
         </div>
       )}

@@ -357,20 +357,30 @@ export default function ClientRoom({
 
   const handleMockPayment = async () => {
     setIsProcessingPay(true);
+    // Имитация задержки банка
+    await new Promise((r) => setTimeout(r, 1500));
 
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      await supabase.from("parties").update({ is_paid: true }).eq("id", currentParty.id);
-      setCurrentParty((prev) => ({ ...prev, is_paid: true }));
-      setShowPaywall(false);
-      setJoinLimitReached(false);
+    // Обновляем статус банкета в БД
+    await supabase.from("parties").update({ is_paid: true }).eq("id", currentParty.id);
 
-      if (pendingJoinName) {
-        await completeJoin(pendingJoinName);
-      }
-    } finally {
-      setIsProcessingPay(false);
+    // ФИКС БАГА: Если человек пытался зайти, у него в inputName осталось имя,
+    // но он еще не является currentUser. Регистрируем его автоматически!
+    if (inputName.trim() && !currentUser) {
+      const name = inputName.trim();
+      localStorage.setItem(`party_name_${party.id}`, name);
+      setCurrentUser(name);
+
+      // Записываем спонсора в список участников
+      await supabase.from("party_members").insert([{ party_id: party.id, user_name: name }]);
+
+      // Скрываем модалку входа, если она висела под пейволлом
+      setShowJoinModal(false);
     }
+
+    // Обновляем локально статус и закрываем Пейволл
+    setCurrentParty({ ...currentParty, is_paid: true });
+    setIsProcessingPay(false);
+    setShowPaywall(false);
   };
 
   const handleNotifyOrganizer = async () => {

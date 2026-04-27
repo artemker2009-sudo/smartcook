@@ -122,6 +122,9 @@ export default function ClientRoom({
   const [pendingJoinName, setPendingJoinName] = useState("");
   const [isNotifyingOrganizer, setIsNotifyingOrganizer] = useState(false);
   const [hasNotifiedOrganizer, setHasNotifiedOrganizer] = useState(false);
+  const [showSupport, setShowSupport] = useState(false);
+  const [supportText, setSupportText] = useState("");
+  const [isSendingSupport, setIsSendingSupport] = useState(false);
 
   const [guests, setGuests] = useState<PartyMember[]>(() => {
     const baseGuests = initialMembers ?? [];
@@ -439,6 +442,29 @@ export default function ClientRoom({
     await supabase.from("party_messages").insert([{ party_id: party.id, user_name: currentUser, text }]);
 
     setIsSendingMessage(false);
+  };
+
+  const handleSendSupport = async () => {
+    if (!supportText.trim() || !currentUser) return;
+
+    setIsSendingSupport(true);
+
+    try {
+      await supabase.from("support_tickets").insert([
+        {
+          party_id: party.id,
+          user_name: currentUser,
+          message: supportText.trim(),
+        },
+      ]);
+      setSupportText("");
+      setShowSupport(false);
+      alert("Сообщение отправлено! Мы скоро все починим.");
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSendingSupport(false);
+    }
   };
 
   const handleShare = async () => {
@@ -776,6 +802,15 @@ export default function ClientRoom({
         )}
       </main>
 
+      <button
+        type="button"
+        onClick={() => setShowSupport(true)}
+        className="fixed bottom-28 right-6 z-[45] flex h-14 w-14 items-center justify-center rounded-full bg-black text-2xl text-white shadow-2xl transition-all hover:scale-105 active:scale-95 sm:bottom-6"
+        aria-label="Открыть поддержку"
+      >
+        💬
+      </button>
+
       <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-black/5 bg-white/90 backdrop-blur-md">
         <div className="mx-auto grid max-w-3xl grid-cols-2 px-6 pb-8 pt-3">
           <button
@@ -930,6 +965,45 @@ export default function ClientRoom({
                 className="flex-1 bg-black text-white font-medium p-4 rounded-xl disabled:opacity-50 active:scale-95 transition-all"
               >
                 Добавить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSupport && (
+        <div className="fixed inset-0 z-[56] flex items-end justify-center bg-black/40 p-4 backdrop-blur-md sm:items-center">
+          <div className="w-full max-w-md rounded-t-3xl border border-black/5 bg-white p-6 shadow-2xl animate-in slide-in-from-bottom-full duration-300 sm:rounded-3xl sm:zoom-in-95 sm:slide-in-from-bottom-0">
+            <div className="mb-5">
+              <h2 className="text-2xl font-semibold tracking-tight text-black">Служба поддержки</h2>
+              <p className="mt-2 text-sm leading-6 text-zinc-500">
+                Опишите, что пошло не так. Мы передадим сообщение администратору.
+              </p>
+            </div>
+
+            <textarea
+              value={supportText}
+              onChange={(event) => setSupportText(event.target.value)}
+              placeholder="Например: не открывается чат, пропало меню или что-то работает странно..."
+              rows={5}
+              className="w-full resize-none rounded-3xl bg-zinc-100 px-5 py-4 text-base text-black outline-none transition focus:bg-zinc-200"
+            />
+
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowSupport(false)}
+                className="flex-1 rounded-2xl bg-zinc-100 px-5 py-4 text-base font-medium text-black transition hover:bg-zinc-200"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                onClick={handleSendSupport}
+                disabled={!supportText.trim() || !currentUser || isSendingSupport}
+                className="flex-1 rounded-2xl bg-black px-5 py-4 text-base font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSendingSupport ? "Отправляем..." : "Отправить"}
               </button>
             </div>
           </div>

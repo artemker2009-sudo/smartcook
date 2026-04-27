@@ -37,17 +37,27 @@ type DashboardStats = {
   recentEvents: AnalyticsEvent[];
 };
 
+type SupportTicket = {
+  id: string;
+  party_id?: string | null;
+  user_name?: string | null;
+  message?: string | null;
+  status?: string | null;
+  created_at?: string | null;
+};
+
 const EMPTY_STATS: DashboardStats = {
   parties: [],
   recentEvents: [],
 };
 
-type TabId = "management" | "analytics" | "purchases";
+type TabId = "management" | "analytics" | "purchases" | "support";
 
 const TABS = [
   { id: "management" as TabId, label: "⚙️ Управление", hint: "Статус сайта и техработы" },
   { id: "analytics" as TabId, label: "📊 Аналитика", hint: "Живые метрики и события" },
   { id: "purchases" as TabId, label: "💳 История покупок", hint: "Только оплаченные банкеты" },
+  { id: "support" as TabId, label: "💬 Поддержка", hint: "Обращения пользователей" },
 ];
 
 const formatDateTime = (value?: string | null) => {
@@ -143,6 +153,10 @@ export default function AdminPage() {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
+  const [isSupportLoading, setIsSupportLoading] = useState(false);
+  const [supportError, setSupportError] = useState("");
+  const [closingTicketId, setClosingTicketId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -209,6 +223,33 @@ export default function AdminPage() {
     void loadAnalytics();
   }, [isAuthenticated]);
 
+  useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    const loadSupportTickets = async () => {
+      setIsSupportLoading(true);
+      setSupportError("");
+
+      const { data, error } = await supabase
+        .from("support_tickets")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        setSupportError("Не удалось загрузить обращения.");
+        setIsSupportLoading(false);
+        return;
+      }
+
+      setSupportTickets((data as SupportTicket[] | null) ?? []);
+      setIsSupportLoading(false);
+    };
+
+    void loadSupportTickets();
+  }, [isAuthenticated]);
+
   const handleLogin = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -265,6 +306,26 @@ export default function AdminPage() {
     } finally {
       setIsDeleting(false);
       setDeleteConfirmId(null);
+    }
+  };
+
+  const handleCloseTicket = async (id: string) => {
+    setClosingTicketId(id);
+
+    try {
+      const { error } = await supabase.from("support_tickets").update({ status: "closed" }).eq("id", id);
+
+      if (error) {
+        throw error;
+      }
+
+      setSupportTickets((currentTickets) =>
+        currentTickets.map((ticket) => (ticket.id === id ? { ...ticket, status: "closed" } : ticket)),
+      );
+    } catch (error) {
+      console.error("Ошибка при закрытии тикета", error);
+    } finally {
+      setClosingTicketId(null);
     }
   };
 
@@ -735,6 +796,86 @@ export default function AdminPage() {
                   </tbody>
                 </table>
               </div>
+            </section>
+          ) : null}
+
+          {activeTab === "support" ? (
+            <section className="space-y-4">
+              <div className="rounded-[2rem] border border-zinc-200 bg-white px-6 py-5 shadow-sm">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-400">Helpdesk</p>
+                <h3 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-950">Обращения в поддержку</h3>
+                <p className="mt-2 text-sm text-zinc-500">
+                  Здесь собраны все сообщения от пользователей по текущим проблемам в банкетах.
+                </p>
+              </div>
+
+              {supportError ? (
+                <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                  {supportError}
+                </p>
+              ) : null}
+
+              {isSupportLoading && supportTickets.length === 0 ? (
+                <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-12 text-center text-sm text-zinc-500 shadow-sm">
+                  Загружаем обращения...
+                </div>
+              ) : null}
+
+              {!isSupportLoading && supportTickets.length === 0 ? (
+                <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-12 text-center text-sm text-zinc-500 shadow-sm">
+                  Новых обращений пока нет.
+                </div>
+              ) : null}
+
+              {supportTickets.map((ticket) => {
+                const isOpen = (ticket.status ?? "open") === "open";
+
+                return (
+                  <article key={ticket.id} className="mb-4 rounded-2xl bg-white p-6 shadow-sm">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="space-y-2 text-sm text-zinc-500">
+                        <p>
+                          <span className="font-semibold text-zinc-900">Дата:</span> {formatDateTime(ticket.created_at)}
+                        </p>
+                        <p>
+                          <span className="font-semibold text-zinc-900">Пользователь:</span>{" "}
+                          {ticket.user_name?.trim() || "Не указан"}
+                        </p>
+                        <p>
+                          <span className="font-semibold text-zinc-900">ID банкета:</span>{" "}
+                          {shortenPartyId(ticket.party_id)}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${
+                            isOpen
+                              ? "bg-amber-100 text-amber-700 ring-amber-200"
+                              : "bg-zinc-100 text-zinc-600 ring-zinc-200"
+                          }`}
+                        >
+                          {isOpen ? "Ожидает ответа" : "Решено"}
+                        </span>
+                        {isOpen ? (
+                          <button
+                            type="button"
+                            onClick={() => void handleCloseTicket(ticket.id)}
+                            disabled={closingTicketId === ticket.id}
+                            className="rounded-2xl bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {closingTicketId === ticket.id ? "Сохраняем..." : "Отметить как решенное"}
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <p className="mt-4 text-lg font-medium text-zinc-950">
+                      {ticket.message?.trim() || "Текст обращения отсутствует."}
+                    </p>
+                  </article>
+                );
+              })}
             </section>
           ) : null}
 

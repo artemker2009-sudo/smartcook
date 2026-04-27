@@ -297,15 +297,11 @@ export default function ClientRoom({
 
   const handleMockPayment = async () => {
     setIsProcessingPay(true);
-
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      await supabase.from("parties").update({ is_paid: true }).eq("id", currentParty.id);
-      setCurrentParty({ ...currentParty, is_paid: true });
-      setShowPaywall(false);
-    } finally {
-      setIsProcessingPay(false);
-    }
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await supabase.from("parties").update({ is_paid: true }).eq("id", currentParty.id);
+    setCurrentParty({ ...currentParty, is_paid: true });
+    setIsProcessingPay(false);
+    setShowPaywall(false);
   };
 
   const sendMessage = async (e: FormEvent<HTMLFormElement>) => {
@@ -342,6 +338,7 @@ export default function ClientRoom({
   };
 
   const handleGenerateMenu = async () => {
+    // Блокируем, если не оплачено
     if (!currentParty.is_paid) {
       setShowPaywall(true);
       return;
@@ -478,10 +475,10 @@ export default function ClientRoom({
 
       <button
         type="button"
-        onClick={() => setShowShoppingList(true)}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-3xl border border-black/5 bg-white px-5 py-4 text-base font-medium text-black shadow-sm transition hover:bg-zinc-50"
+        onClick={() => (currentParty.is_paid ? setShowShoppingList(true) : setShowPaywall(true))}
+        className="w-full bg-white text-black font-medium p-4 rounded-3xl flex items-center justify-center gap-2 shadow-sm border border-black/5 active:scale-95 transition-transform"
       >
-        <span>🛒</span> Показать список покупок
+        <span>🛒</span> {currentParty.is_paid ? "Показать список покупок" : "Открыть список покупок (PRO)"}
       </button>
     </section>
   );
@@ -779,47 +776,48 @@ export default function ClientRoom({
       {showPaywall && (
         <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-md sm:p-4 transition-all">
           <div className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300">
+            
             <div className="flex justify-center mb-4">
               <div className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center text-3xl shadow-lg">
                 👑
               </div>
             </div>
-
-            <h2 className="text-2xl font-bold text-center mb-2 tracking-tight">AI Chef Pass</h2>
+            
+            <h2 className="text-2xl font-bold text-center mb-2 tracking-tight">Smart Party Premium</h2>
             <p className="text-center text-zinc-500 text-sm mb-6">
-              Нейросеть составит идеальное меню и список покупок за 10 секунд.
+              Один платеж — полный доступ к инструментам для этого банкета.
             </p>
-
+            
             <div className="space-y-3 mb-8">
               <div className="flex items-center gap-3">
                 <span className="text-green-500 text-xl">✓</span>
-                <span className="text-sm font-medium">Мгновенная генерация меню от ИИ</span>
+                <span className="text-sm font-medium">Моментальная ИИ-генерация меню</span>
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-green-500 text-xl">✓</span>
-                <span className="text-sm font-medium">Автоматический список покупок</span>
+                <span className="text-sm font-medium">Умный список покупок</span>
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-green-500 text-xl">✓</span>
-                <span className="text-sm font-medium">Интерактивный чат и голосование</span>
+                <span className="text-sm font-medium">Безлимитное количество гостей</span>
               </div>
             </div>
-
+            
             <button
               type="button"
               onClick={handleMockPayment}
               disabled={isProcessingPay}
-              className="w-full bg-black text-white text-lg font-medium p-4 rounded-2xl active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-70"
+              className="w-full bg-black text-white text-lg font-medium p-4 rounded-2xl active:scale-95 transition-all flex items-center justify-center gap-2"
             >
-              {isProcessingPay ? "Обработка..." : "Оплатить 29 ₽"}
+              {isProcessingPay ? "Обработка..." : "Оплатить 99 ₽"}
             </button>
-
+            
             <button
               type="button"
               onClick={() => setShowPaywall(false)}
               className="w-full mt-3 text-zinc-400 text-sm font-medium p-3 hover:text-black transition-colors"
             >
-              Может быть позже
+              Отмена
             </button>
           </div>
         </div>

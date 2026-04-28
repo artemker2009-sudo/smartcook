@@ -27,6 +27,7 @@ type Party = {
 type PartyMember = {
   id?: string;
   party_id?: string;
+  user_id?: string | null;
   user_name?: string | null;
   name?: string | null;
   created_at?: string | null;
@@ -51,9 +52,15 @@ type PartyItem = {
 type PartyMessage = {
   id?: string;
   party_id?: string;
+  user_id?: string | null;
   user_name?: string | null;
   text: string;
   created_at?: string | null;
+};
+
+type StoredPartyParticipant = {
+  userId: string;
+  name: string;
 };
 
 type ClientRoomProps = {
@@ -72,9 +79,56 @@ const normalizeCategory = (category?: string | null): MenuCategory => {
   return "Закуски";
 };
 
+const normalizeName = (value?: string | null) => value?.trim().toLowerCase() ?? "";
 const getGuestName = (guest: PartyMember) => (guest.user_name ?? guest.name ?? "").trim();
+const getGuestIdentity = (guest: PartyMember) => guest.user_id?.trim() || `name:${normalizeName(getGuestName(guest))}`;
 
 const getMessageAuthor = (message: PartyMessage) => (message.user_name ?? "").trim();
+const getMessageIdentity = (message: PartyMessage) =>
+  message.user_id?.trim() || `name:${normalizeName(getMessageAuthor(message))}`;
+const getPartyParticipantStorageKey = (partyId: string) => `party_participant_${partyId}`;
+const getPartyNameStorageKey = (partyId: string) => `party_name_${partyId}`;
+const getPartyUserIdStorageKey = (partyId: string) => `party_user_id_${partyId}`;
+
+const readStoredParticipant = (partyId: string): StoredPartyParticipant | null => {
+  if (typeof window === "undefined") return null;
+
+  const rawParticipant = localStorage.getItem(getPartyParticipantStorageKey(partyId));
+  if (rawParticipant) {
+    try {
+      const parsed = JSON.parse(rawParticipant) as Partial<StoredPartyParticipant>;
+      if (parsed.userId?.trim() && parsed.name?.trim()) {
+        return { userId: parsed.userId.trim(), name: parsed.name.trim() };
+      }
+    } catch {
+      // Игнорируем поврежденный localStorage и пробуем legacy-ключи.
+    }
+  }
+
+  const name = localStorage.getItem(getPartyNameStorageKey(partyId))?.trim();
+  const userId = localStorage.getItem(getPartyUserIdStorageKey(partyId))?.trim();
+
+  if (name && userId) {
+    return { userId, name };
+  }
+
+  return null;
+};
+
+const writeStoredParticipant = (partyId: string, participant: StoredPartyParticipant | null) => {
+  if (typeof window === "undefined") return;
+
+  if (!participant) {
+    localStorage.removeItem(getPartyParticipantStorageKey(partyId));
+    localStorage.removeItem(getPartyNameStorageKey(partyId));
+    localStorage.removeItem(getPartyUserIdStorageKey(partyId));
+    return;
+  }
+
+  localStorage.setItem(getPartyParticipantStorageKey(partyId), JSON.stringify(participant));
+  localStorage.setItem(getPartyNameStorageKey(partyId), participant.name);
+  localStorage.setItem(getPartyUserIdStorageKey(partyId), participant.userId);
+};
 
 const formatTime = (value?: string | null) => {
   if (!value) return "";
@@ -106,11 +160,15 @@ export default function ClientRoom({
   initialMembers,
   initialMessages,
 }: ClientRoomProps) {
-  const storedName =
-    typeof window === "undefined" ? "" : localStorage.getItem(`party_name_${party.id}`)?.trim() ?? "";
+  const legacyStoredName =
+    typeof window === "undefined" ? "" : localStorage.getItem(getPartyNameStorageKey(party.id))?.trim() ?? "";
+  const storedParticipant = readStoredParticipant(party.id);
+  const storedName = storedParticipant?.name ?? legacyStoredName;
+  const storedUserId = storedParticipant?.userId ?? null;
 
   const [currentUser, setCurrentUser] = useState<string | null>(storedName || null);
-  const [showJoinModal, setShowJoinModal] = useState(!storedName);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(storedUserId);
+  const [showJoinModal, setShowJoinModal] = useState(!storedName || !storedUserId);
   const [inputName, setInputName] = useState(storedName);
   const [activeTab, setActiveTab] = useState<"menu" | "chat">("menu");
   const [showPaywall, setShowPaywall] = useState(false);
@@ -130,9 +188,11 @@ export default function ClientRoom({
     const baseGuests = initialMembers ?? [];
     if (!storedName) return baseGuests;
 
-    return baseGuests.some((guest) => getGuestName(guest).toLowerCase() === storedName.toLowerCase())
+    const storedIdentity = storedUserId || `name:${normalizeName(storedName)}`;
+
+    return baseGuests.some((guest) => getGuestIdentity(guest) === storedIdentity)
       ? baseGuests
-      : [...baseGuests, { party_id: party.id, user_name: storedName }];
+      : [...baseGuests, { party_id: party.id, user_id: storedUserId, user_name: storedName }];
   });
   const [messages, setMessages] = useState<PartyMessage[]>(initialMessages ?? []);
   const [menuItems, setMenuItems] = useState<PartyItem[]>(initialItems ?? []);
@@ -140,7 +200,10 @@ export default function ClientRoom({
   const [newMessage, setNewMessage] = useState("");
   const [newDishName, setNewDishName] = useState("");
   const [newDishCategory, setNewDishCategory] = useState("Закуски");
+  const [isJoining, setIsJoining] = useState(false);
+  const [isAddingDish, setIsAddingDish] = useState(false);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [votingItemId, setVotingItemId] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const CATEGORIES = ["Закуски", "Салаты", "Горячее", "Напитки"] as const;
@@ -167,61 +230,132 @@ export default function ClientRoom({
     return nextItems;
   }, [party.id]);
 
+  const runWriteMutation = useCallback(
+    async ({
+      setLoading,
+      mutate,
+      rollback,
+      errorMessage = "Ошибка связи. Попробуйте еще раз",
+    }: {
+      setLoading: (value: boolean) => void;
+      mutate: () => Promise<void>;
+      rollback?: () => void;
+      errorMessage?: string;
+    }) => {
+      setLoading(true);
+
+      try {
+        await mutate();
+      } catch (error) {
+        console.error(error);
+        rollback?.();
+        window.alert(errorMessage);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
+
   const completeJoin = useCallback(
-    async (name: string) => {
-      localStorage.setItem(`party_name_${party.id}`, name);
+    (name: string, userId: string) => {
+      writeStoredParticipant(party.id, { name, userId });
       setInputName(name);
       setCurrentUser(name);
+      setCurrentUserId(userId);
       setIsObserver(false);
       setJoinLimitReached(false);
       setPendingJoinName("");
       setHasNotifiedOrganizer(false);
       setShowJoinModal(false);
       setGuests((prev) =>
-        prev.some((guest) => getGuestName(guest).toLowerCase() === name.toLowerCase())
+        prev.some((guest) => getGuestIdentity(guest) === userId)
           ? prev
-          : [...prev, { party_id: party.id, user_name: name }],
+          : [...prev, { party_id: party.id, user_id: userId, user_name: name }],
       );
-      await supabase.from("party_members").insert([{ party_id: party.id, user_name: name }]);
     },
     [party.id],
   );
 
   const handleAddCustomDish = async () => {
-    if (!newDishName.trim() || !currentUser) return;
+    if (!newDishName.trim() || !currentUserId) return;
 
-    await supabase.from("party_items").insert([
+    const dishName = newDishName.trim();
+    const previousItems = menuItems;
+    const previousDishName = newDishName;
+    const previousShowModal = showAddDishModal;
+    const optimisticId = `temp-${Date.now()}`;
+
+    setShowAddDishModal(false);
+    setNewDishName("");
+    setMenuItems((prev) => [
+      ...prev,
       {
+        id: optimisticId,
         party_id: party.id,
-        name: newDishName.trim(),
+        name: dishName,
         category: newDishCategory,
         ingredients: [],
-        votes: [currentUser],
+        votes: [currentUserId],
       },
     ]);
 
-    setNewDishName("");
-    setShowAddDishModal(false);
+    await runWriteMutation({
+      setLoading: setIsAddingDish,
+      mutate: async () => {
+        const { error } = await supabase.from("party_items").insert([
+          {
+            party_id: party.id,
+            name: dishName,
+            category: newDishCategory,
+            ingredients: [],
+            votes: [currentUserId],
+          },
+        ]);
+
+        if (error) throw error;
+        await refreshMenuItems();
+      },
+      rollback: () => {
+        setMenuItems(previousItems);
+        setNewDishName(previousDishName);
+        setShowAddDishModal(previousShowModal);
+      },
+    });
   };
 
   const toggleVote = async (itemId: string, currentVotes: string[] | null) => {
-    if (!currentUser) return;
+    if (!currentUserId) return;
     const votes = currentVotes || [];
-
-    const newVotes = votes.includes(currentUser)
-      ? votes.filter((vote) => vote !== currentUser)
-      : [...votes, currentUser];
+    const currentUserMarkers = [currentUserId, currentUser].filter(Boolean) as string[];
+    const hasCurrentVote = votes.some((vote) => currentUserMarkers.includes(vote));
+    const newVotes = hasCurrentVote
+      ? votes.filter((vote) => !currentUserMarkers.includes(vote))
+      : [...votes.filter((vote) => !currentUserMarkers.includes(vote)), currentUserId];
+    const previousItems = menuItems;
 
     setMenuItems((prev) => prev.map((item) => (item.id === itemId ? { ...item, votes: newVotes } : item)));
 
-    await supabase.from("party_items").update({ votes: newVotes }).eq("id", itemId);
+    await runWriteMutation({
+      setLoading: (loading) => setVotingItemId(loading ? itemId : null),
+      mutate: async () => {
+        const { error } = await supabase.from("party_items").update({ votes: newVotes }).eq("id", itemId);
+        if (error) throw error;
+      },
+      rollback: () => {
+        setMenuItems(previousItems);
+      },
+    });
   };
 
   useEffect(() => {
-    if (storedName) {
-      void supabase.from("party_members").insert([{ party_id: party.id, user_name: storedName }]);
-    }
+    if (!storedUserId || !storedName) return;
+    if (initialMembers.some((guest) => getGuestIdentity(guest) === storedUserId)) return;
 
+    void supabase.from("party_members").insert([{ party_id: party.id, user_id: storedUserId, user_name: storedName }]);
+  }, [initialMembers, party.id, storedName, storedUserId]);
+
+  useEffect(() => {
     const channel = supabase
       .channel(`room-${party.id}`)
       .on(
@@ -256,9 +390,7 @@ export default function ClientRoom({
         (payload) => {
           const nextGuest = payload.new as PartyMember;
           setGuests((prev) =>
-            prev.some((guest) => getGuestName(guest).toLowerCase() === getGuestName(nextGuest).toLowerCase())
-              ? prev
-              : [...prev, nextGuest],
+            prev.some((guest) => getGuestIdentity(guest) === getGuestIdentity(nextGuest)) ? prev : [...prev, nextGuest],
           );
         },
       )
@@ -280,10 +412,28 @@ export default function ClientRoom({
       )
       .subscribe();
 
+    const partySubscription = supabase
+      .channel("public:parties")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "parties", filter: `id=eq.${party.id}` },
+        (payload) => {
+          setCurrentParty(payload.new as Party);
+        },
+      )
+      .subscribe();
+
     return () => {
       void supabase.removeChannel(channel);
+      void supabase.removeChannel(partySubscription);
     };
-  }, [party.id, refreshMenuItems, storedName]);
+  }, [party.id, refreshMenuItems]);
+
+  useEffect(() => {
+    if (!currentParty.is_paid) return;
+    setShowPaywall(false);
+    setJoinLimitReached(false);
+  }, [currentParty.is_paid]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -321,10 +471,28 @@ export default function ClientRoom({
     [menuItems],
   );
 
-  const guestNames = useMemo(
-    () =>
-      Array.from(new Set(guests.map(getGuestName).filter(Boolean))).sort((a, b) => a.localeCompare(b, "ru")),
-    [guests],
+  const visibleGuests = useMemo(() => {
+    const seen = new Set<string>();
+
+    return guests
+      .filter((guest) => {
+        const identity = getGuestIdentity(guest);
+        if (!identity || seen.has(identity)) return false;
+        seen.add(identity);
+        return Boolean(getGuestName(guest));
+      })
+      .sort((a, b) => getGuestName(a).localeCompare(getGuestName(b), "ru"));
+  }, [guests]);
+
+  const guestNames = useMemo(() => visibleGuests.map(getGuestName), [visibleGuests]);
+  const currentParticipantIdentity = currentUserId || (currentUser ? `name:${normalizeName(currentUser)}` : null);
+  const currentVoteMarkers = useMemo(
+    () => [currentUserId, currentUser].filter(Boolean) as string[],
+    [currentUserId, currentUser],
+  );
+  const hasCurrentUserVoted = useCallback(
+    (votes?: string[] | null) => (votes ?? []).some((vote) => currentVoteMarkers.includes(vote)),
+    [currentVoteMarkers],
   );
 
   const shoppingList = useMemo(() => {
@@ -356,50 +524,96 @@ export default function ClientRoom({
   }, [menuItems]);
 
   const handleJoin = async () => {
-    if (!inputName.trim()) return;
+    if (!inputName.trim() || isJoining) return;
 
     const trimmedName = inputName.trim();
-    const normalizedName = trimmedName.toLowerCase();
-    const uniqueGuests = Array.from(new Set(guests.map(getGuestName).filter(Boolean)));
-    const isExistingGuest = uniqueGuests.some((guestName) => guestName.toLowerCase() === normalizedName);
+    const userId = crypto.randomUUID();
+    const previousParticipant = readStoredParticipant(party.id);
+    const previousInputName = inputName;
+    const previousCurrentUser = currentUser;
+    const previousCurrentUserId = currentUserId;
+    const previousGuests = guests;
+    const previousIsObserver = isObserver;
+    const previousJoinLimitReached = joinLimitReached;
+    const previousPendingJoinName = pendingJoinName;
+    const previousHasNotifiedOrganizer = hasNotifiedOrganizer;
+    const previousShowJoinModal = showJoinModal;
 
-    if (!currentParty.is_paid && !isExistingGuest && uniqueGuests.length >= FREE_GUEST_LIMIT) {
-      setPendingJoinName(trimmedName);
-      setJoinLimitReached(true);
-      setHasNotifiedOrganizer(false);
-      return;
-    }
+    await runWriteMutation({
+      setLoading: setIsJoining,
+      mutate: async () => {
+        const [{ count, error: countError }, { data: latestParty, error: partyError }] = await Promise.all([
+          supabase.from("party_members").select("*", { count: "exact", head: true }).eq("party_id", party.id),
+          supabase.from("parties").select("is_paid").eq("id", party.id).single(),
+        ]);
 
-    await completeJoin(trimmedName);
+        if (countError) throw countError;
+        if (partyError) throw partyError;
+
+        const isPaid = Boolean(latestParty?.is_paid);
+        setCurrentParty((prev) => ({ ...prev, is_paid: isPaid }));
+
+        if (!isPaid && (count ?? 0) >= FREE_GUEST_LIMIT) {
+          setPendingJoinName(trimmedName);
+          setJoinLimitReached(true);
+          setHasNotifiedOrganizer(false);
+          return;
+        }
+
+        completeJoin(trimmedName, userId);
+
+        const { error } = await supabase
+          .from("party_members")
+          .insert([{ party_id: party.id, user_id: userId, user_name: trimmedName }]);
+
+        if (error) throw error;
+      },
+      rollback: () => {
+        writeStoredParticipant(party.id, previousParticipant);
+        setInputName(previousInputName);
+        setCurrentUser(previousCurrentUser);
+        setCurrentUserId(previousCurrentUserId);
+        setGuests(previousGuests);
+        setIsObserver(previousIsObserver);
+        setJoinLimitReached(previousJoinLimitReached);
+        setPendingJoinName(previousPendingJoinName);
+        setHasNotifiedOrganizer(previousHasNotifiedOrganizer);
+        setShowJoinModal(previousShowJoinModal);
+      },
+    });
   };
 
   const handleMockPayment = async () => {
     setIsProcessingPay(true);
-    // Имитация задержки банка
-    await new Promise((r) => setTimeout(r, 1500));
 
-    // Обновляем статус банкета в БД
-    await supabase.from("parties").update({ is_paid: true }).eq("id", currentParty.id);
+    try {
+      // Имитация задержки банка
+      await new Promise((r) => setTimeout(r, 1500));
 
-    // ФИКС БАГА: Если человек пытался зайти, у него в inputName осталось имя,
-    // но он еще не является currentUser. Регистрируем его автоматически!
-    if (inputName.trim() && !currentUser) {
-      const name = inputName.trim();
-      localStorage.setItem(`party_name_${party.id}`, name);
-      setCurrentUser(name);
+      const { error: paymentError } = await supabase.from("parties").update({ is_paid: true }).eq("id", currentParty.id);
+      if (paymentError) throw paymentError;
 
-      // Записываем спонсора в список участников
-      await supabase.from("party_members").insert([{ party_id: party.id, user_name: name }]);
+      if (inputName.trim() && !currentUser) {
+        const name = inputName.trim();
+        const userId = crypto.randomUUID();
+        completeJoin(name, userId);
 
-      // Скрываем модалку входа, если она висела под пейволлом
-      setShowJoinModal(false);
+        const { error: joinError } = await supabase
+          .from("party_members")
+          .insert([{ party_id: party.id, user_id: userId, user_name: name }]);
+
+        if (joinError) throw joinError;
+      }
+
+      setCurrentParty((prev) => ({ ...prev, is_paid: true }));
+      await trackEvent("paywall_payment_success");
+      setShowPaywall(false);
+    } catch (error) {
+      console.error(error);
+      window.alert("Ошибка связи. Попробуйте еще раз");
+    } finally {
+      setIsProcessingPay(false);
     }
-
-    // Обновляем локально статус и закрываем Пейволл
-    setCurrentParty({ ...currentParty, is_paid: true });
-    setIsProcessingPay(false);
-    await trackEvent("paywall_payment_success");
-    setShowPaywall(false);
   };
 
   const handleNotifyOrganizer = async () => {
@@ -424,6 +638,7 @@ export default function ClientRoom({
 
   const handleWatchOnly = () => {
     setCurrentUser(null);
+    setCurrentUserId(null);
     setIsObserver(true);
     setJoinLimitReached(false);
     setPendingJoinName("");
@@ -433,15 +648,24 @@ export default function ClientRoom({
 
   const sendMessage = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!newMessage.trim() || !currentUser || isSendingMessage) return;
+    if (!newMessage.trim() || !currentUser || !currentUserId || isSendingMessage) return;
 
     const text = newMessage.trim();
     setNewMessage("");
-    setIsSendingMessage(true);
 
-    await supabase.from("party_messages").insert([{ party_id: party.id, user_name: currentUser, text }]);
+    await runWriteMutation({
+      setLoading: setIsSendingMessage,
+      mutate: async () => {
+        const { error } = await supabase
+          .from("party_messages")
+          .insert([{ party_id: party.id, user_id: currentUserId, user_name: currentUser, text }]);
 
-    setIsSendingMessage(false);
+        if (error) throw error;
+      },
+      rollback: () => {
+        setNewMessage(text);
+      },
+    });
   };
 
   const handleSendSupport = async () => {
@@ -507,7 +731,6 @@ export default function ClientRoom({
       });
       
       if (!res.ok) {
-        const errText = await res.text();
         throw new Error(`Ошибка сервера (${res.status}). Сервер перегружен, попробуйте еще раз.`);
       }
 
@@ -516,13 +739,14 @@ export default function ClientRoom({
 
       await refreshMenuItems();
       void trackEvent("ai_menu_generated_success");
-    } catch (error: any) {
+    } catch (error: unknown) {
       const latestItems = await refreshMenuItems();
       if (latestItems.length > 0) {
         return;
       }
 
-      alert("Не удалось сгенерировать меню: " + error.message);
+      const message = error instanceof Error ? error.message : "Неизвестная ошибка";
+      alert("Не удалось сгенерировать меню: " + message);
     } finally {
       setIsGenerating(false);
     }
@@ -565,7 +789,7 @@ export default function ClientRoom({
         <button
           type="button"
           onClick={() => setShowAddDishModal(true)}
-          disabled={!currentUser}
+          disabled={!currentUserId}
           className="inline-flex items-center justify-center gap-2 rounded-3xl border border-black/5 bg-white px-4 py-4 text-sm font-medium text-black shadow-sm transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Plus className="h-4 w-4" />
@@ -612,10 +836,10 @@ export default function ClientRoom({
                       <button
                         type="button"
                         onClick={() => toggleVote(item.id, item.votes ?? null)}
-                        disabled={!currentUser}
+                        disabled={!currentUserId || votingItemId === item.id}
                         className="flex items-center gap-1.5 bg-zinc-100 px-3 py-1.5 rounded-full shrink-0 active:scale-95 transition-transform disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        <span className="text-sm">{item.votes?.includes(currentUser || "") ? "❤️" : "🤍"}</span>
+                        <span className="text-sm">{hasCurrentUserVoted(item.votes) ? "❤️" : "🤍"}</span>
                         <span className="text-sm font-medium">{item.votes?.length || 0}</span>
                       </button>
                     </div>
@@ -666,17 +890,21 @@ export default function ClientRoom({
           {guestNames.length === 0 ? (
             <span className="text-sm text-zinc-400">Пока никто не присоединился</span>
           ) : (
-            guestNames.map((guestName) => (
-              <span
-                key={guestName}
-                className={`rounded-full px-3 py-1.5 text-xs font-medium ${
-                  guestName === currentUser ? "bg-black text-white" : "bg-zinc-100 text-zinc-500"
-                }`}
-              >
-                {guestName}
-                {guestName === currentUser ? " (вы)" : ""}
-              </span>
-            ))
+            visibleGuests.map((guest) => {
+              const guestName = getGuestName(guest);
+
+              return (
+                <span
+                  key={getGuestIdentity(guest)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-medium ${
+                    getGuestIdentity(guest) === currentParticipantIdentity ? "bg-black text-white" : "bg-zinc-100 text-zinc-500"
+                  }`}
+                >
+                  {guestName}
+                  {getGuestIdentity(guest) === currentParticipantIdentity ? " (вы)" : ""}
+                </span>
+              );
+            })
           )}
         </div>
       </div>
@@ -690,7 +918,7 @@ export default function ClientRoom({
           <div className="space-y-4">
             {messages.map((message, index) => {
               const author = getMessageAuthor(message);
-              const isOwn = author === currentUser;
+              const isOwn = currentParticipantIdentity ? getMessageIdentity(message) === currentParticipantIdentity : false;
 
               return (
                 <div
@@ -731,12 +959,12 @@ export default function ClientRoom({
                   ? "Режим наблюдателя: чат доступен после Party Pass"
                   : "Сначала укажите ваше имя"
             }
-            disabled={!currentUser}
+            disabled={!currentUserId}
             className="h-12 flex-1 rounded-2xl bg-zinc-100 px-4 text-sm text-black outline-none transition focus:bg-zinc-200 disabled:cursor-not-allowed disabled:text-zinc-400"
           />
           <button
             type="submit"
-            disabled={!newMessage.trim() || !currentUser || isSendingMessage}
+            disabled={!newMessage.trim() || !currentUserId || isSendingMessage}
             className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-black text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400"
           >
             <SendHorizonal className="h-4 w-4" />
@@ -913,10 +1141,11 @@ export default function ClientRoom({
                   />
                   <button
                     type="submit"
-                    disabled={!inputName.trim()}
+                    disabled={!inputName.trim() || isJoining}
+                    aria-busy={isJoining}
                     className="w-full rounded-2xl bg-zinc-200 px-5 py-4 text-base font-medium text-black transition hover:bg-zinc-300 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400"
                   >
-                    Войти
+                    {isJoining ? "Подключаем..." : "Войти"}
                   </button>
                 </form>
               </>
@@ -962,10 +1191,10 @@ export default function ClientRoom({
               </button>
               <button
                 onClick={handleAddCustomDish}
-                disabled={!newDishName.trim()}
+                disabled={!newDishName.trim() || isAddingDish}
                 className="flex-1 bg-black text-white font-medium p-4 rounded-xl disabled:opacity-50 active:scale-95 transition-all"
               >
-                Добавить
+                {isAddingDish ? "Добавляем..." : "Добавить"}
               </button>
             </div>
           </div>

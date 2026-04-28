@@ -13,9 +13,33 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+type GeneratedMenuItem = {
+  name: string;
+  category: string;
+  ingredients: unknown[];
+};
+
+type GeneratedMenuResponse = {
+  items?: GeneratedMenuItem[];
+};
+
 export async function POST(req: Request) {
   try {
     const { partyId, theme, guestCount } = await req.json();
+
+    const { data: party, error: partyError } = await supabase
+      .from('parties')
+      .select('is_paid')
+      .eq('id', partyId)
+      .single();
+
+    if (partyError) {
+      throw new Error(partyError.message);
+    }
+
+    if (!party?.is_paid) {
+      return NextResponse.json({ error: 'Необходима активация Party Pass' }, { status: 402 });
+    }
 
     const systemPrompt = `Ты профессиональный шеф-повар. Составь меню для банкета. 
     Тематика/Сценарий: "${theme}". 
@@ -46,10 +70,15 @@ export async function POST(req: Request) {
     const responseContent = completion.choices[0].message.content;
     if (!responseContent) throw new Error("Пустой ответ от ИИ");
 
-    const parsedData = JSON.parse(responseContent);
+    const parsedData = JSON.parse(responseContent) as GeneratedMenuResponse;
+    const items = Array.isArray(parsedData.items) ? parsedData.items : [];
+
+    if (items.length === 0) {
+      throw new Error("ИИ не вернул блюда для сохранения");
+    }
     
     // Формируем массив для вставки в БД
-    const itemsToInsert = parsedData.items.map((item: any) => ({
+    const itemsToInsert = items.map((item) => ({
       party_id: partyId,
       name: item.name,
       category: item.category,
@@ -62,8 +91,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Неизвестная ошибка";
     console.error("AI Generation Error:", error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }

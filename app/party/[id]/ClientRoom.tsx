@@ -79,6 +79,23 @@ const normalizeCategory = (category?: string | null): MenuCategory => {
   return "Закуски";
 };
 
+const getErrorMessage = (error: unknown) => {
+  if (error instanceof Error && error.message) return error.message;
+  if (error && typeof error === "object") {
+    const candidate = error as { message?: unknown; error_description?: unknown };
+    if (typeof candidate.message === "string" && candidate.message) return candidate.message;
+    if (typeof candidate.error_description === "string" && candidate.error_description) {
+      return candidate.error_description;
+    }
+  }
+
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+};
+
 const normalizeName = (value?: string | null) => value?.trim().toLowerCase() ?? "";
 const getGuestName = (guest: PartyMember) => (guest.user_name ?? guest.name ?? "").trim();
 const getGuestIdentity = (guest: PartyMember) => guest.user_id?.trim() || `name:${normalizeName(getGuestName(guest))}`;
@@ -235,12 +252,10 @@ export default function ClientRoom({
       setLoading,
       mutate,
       rollback,
-      errorMessage = "Ошибка связи. Попробуйте еще раз",
     }: {
       setLoading: (value: boolean) => void;
       mutate: () => Promise<void>;
       rollback?: () => void;
-      errorMessage?: string;
     }) => {
       setLoading(true);
 
@@ -249,7 +264,7 @@ export default function ClientRoom({
       } catch (error) {
         console.error(error);
         rollback?.();
-        window.alert(errorMessage);
+        window.alert("Ошибка: " + getErrorMessage(error));
       } finally {
         setLoading(false);
       }
@@ -610,7 +625,7 @@ export default function ClientRoom({
       setShowPaywall(false);
     } catch (error) {
       console.error(error);
-      window.alert("Ошибка связи. Попробуйте еще раз");
+      window.alert("Ошибка: " + getErrorMessage(error));
     } finally {
       setIsProcessingPay(false);
     }
@@ -745,8 +760,7 @@ export default function ClientRoom({
         return;
       }
 
-      const message = error instanceof Error ? error.message : "Неизвестная ошибка";
-      alert("Не удалось сгенерировать меню: " + message);
+      alert("Ошибка: " + getErrorMessage(error));
     } finally {
       setIsGenerating(false);
     }

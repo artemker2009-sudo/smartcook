@@ -23,6 +23,23 @@ type GeneratedMenuResponse = {
   items?: GeneratedMenuItem[];
 };
 
+const getErrorMessage = (error: unknown) => {
+  if (error instanceof Error && error.message) return error.message;
+  if (error && typeof error === "object") {
+    const candidate = error as { message?: unknown; error_description?: unknown };
+    if (typeof candidate.message === "string" && candidate.message) return candidate.message;
+    if (typeof candidate.error_description === "string" && candidate.error_description) {
+      return candidate.error_description;
+    }
+  }
+
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+};
+
 export async function POST(req: Request) {
   try {
     const { partyId, theme, guestCount } = await req.json();
@@ -92,8 +109,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true });
 
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Неизвестная ошибка";
     console.error("AI Generation Error:", error);
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return NextResponse.json({ success: false, error: getErrorMessage(error) }, { status: 500 });
   }
 }

@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { MessageCircle, Plus, SendHorizonal, Share2, Sparkles, Users, UtensilsCrossed } from "lucide-react";
+import { joinPartyAction } from "@/app/actions/party";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -10,7 +11,6 @@ const supabase = createClient(
 );
 
 const MENU_CATEGORIES = ["Закуски", "Салаты", "Горячее", "Напитки"] as const;
-const FREE_GUEST_LIMIT = 2;
 const ORGANIZER_ALERT_MESSAGE =
   "Кто-то хочет зайти, но лимит исчерпан! Организатор, обнови банкет до PRO.";
 const SUPABASE_TIMEOUT_MS = 12000;
@@ -160,7 +160,7 @@ const safeStorageRemoveItem = (key: string) => {
   }
 };
 
-const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> => {
+const withTimeout = async <T,>(promise: PromiseLike<T>, timeoutMs: number, label: string): Promise<T> => {
   let timeoutId: number | undefined;
 
   const timeoutPromise = new Promise<never>((_, reject) => {
@@ -640,39 +640,26 @@ export default function ClientRoom({
 
     try {
       const userId = generateSafeUserId();
-      const [{ count, error: countError }, { data: latestParty, error: partyError }] = await withTimeout(
-        Promise.all([
-          supabase.from("party_members").select("*", { count: "exact", head: true }).eq("party_id", party.id),
-          supabase.from("parties").select("is_paid").eq("id", party.id).single(),
-        ]),
-        SUPABASE_TIMEOUT_MS,
-        "Не удалось проверить доступ к банкету",
-      );
-
-      if (countError) throw countError;
-      if (partyError) throw partyError;
-
-      const isPaid = Boolean(latestParty?.is_paid);
-      setCurrentParty((prev) => ({ ...prev, is_paid: isPaid }));
-
-      if (!isPaid && (count ?? 0) >= FREE_GUEST_LIMIT) {
-        setPendingJoinName(trimmedName);
-        setJoinLimitReached(true);
-        setHasNotifiedOrganizer(false);
-        return;
-      }
-
-      completeJoin(trimmedName, userId);
-
-      const { error } = await withTimeout(
-        supabase
-          .from("party_members")
-          .insert([{ party_id: party.id, user_id: userId, user_name: trimmedName }]),
+      const result = await withTimeout(
+        joinPartyAction(party.id, trimmedName, userId),
         SUPABASE_TIMEOUT_MS,
         "Не удалось завершить вход",
       );
 
-      if (error) throw error;
+      if (!result.success) {
+        if ("reason" in result && result.reason === "limit_reached") {
+          setCurrentParty((prev) => ({ ...prev, is_paid: false }));
+          setPendingJoinName(trimmedName);
+          setJoinLimitReached(true);
+          setHasNotifiedOrganizer(false);
+          return;
+        }
+
+        throw new Error("error" in result ? result.error : "Не удалось завершить вход");
+      }
+
+      setCurrentParty((prev) => ({ ...prev, is_paid: result.isPaid }));
+      completeJoin(trimmedName, userId);
     } catch (e) {
       console.error(e);
       writeStoredParticipant(party.id, previousParticipant);

@@ -107,6 +107,14 @@ const getPartyParticipantStorageKey = (partyId: string) => `party_participant_${
 const getPartyNameStorageKey = (partyId: string) => `party_name_${partyId}`;
 const getPartyUserIdStorageKey = (partyId: string) => `party_user_id_${partyId}`;
 
+const generateSafeUserId = () => {
+  if (typeof window !== "undefined" && window.crypto?.randomUUID) {
+    return window.crypto.randomUUID();
+  }
+
+  return `guest-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+};
+
 const readStoredParticipant = (partyId: string): StoredPartyParticipant | null => {
   if (typeof window === "undefined") return null;
 
@@ -542,7 +550,6 @@ export default function ClientRoom({
     if (!inputName.trim() || isJoining) return;
 
     const trimmedName = inputName.trim();
-    const userId = crypto.randomUUID();
     const previousParticipant = readStoredParticipant(party.id);
     const previousInputName = inputName;
     const previousCurrentUser = currentUser;
@@ -554,48 +561,51 @@ export default function ClientRoom({
     const previousHasNotifiedOrganizer = hasNotifiedOrganizer;
     const previousShowJoinModal = showJoinModal;
 
-    await runWriteMutation({
-      setLoading: setIsJoining,
-      mutate: async () => {
-        const [{ count, error: countError }, { data: latestParty, error: partyError }] = await Promise.all([
-          supabase.from("party_members").select("*", { count: "exact", head: true }).eq("party_id", party.id),
-          supabase.from("parties").select("is_paid").eq("id", party.id).single(),
-        ]);
+    setIsJoining(true);
 
-        if (countError) throw countError;
-        if (partyError) throw partyError;
+    try {
+      const userId = generateSafeUserId();
+      const [{ count, error: countError }, { data: latestParty, error: partyError }] = await Promise.all([
+        supabase.from("party_members").select("*", { count: "exact", head: true }).eq("party_id", party.id),
+        supabase.from("parties").select("is_paid").eq("id", party.id).single(),
+      ]);
 
-        const isPaid = Boolean(latestParty?.is_paid);
-        setCurrentParty((prev) => ({ ...prev, is_paid: isPaid }));
+      if (countError) throw countError;
+      if (partyError) throw partyError;
 
-        if (!isPaid && (count ?? 0) >= FREE_GUEST_LIMIT) {
-          setPendingJoinName(trimmedName);
-          setJoinLimitReached(true);
-          setHasNotifiedOrganizer(false);
-          return;
-        }
+      const isPaid = Boolean(latestParty?.is_paid);
+      setCurrentParty((prev) => ({ ...prev, is_paid: isPaid }));
 
-        completeJoin(trimmedName, userId);
+      if (!isPaid && (count ?? 0) >= FREE_GUEST_LIMIT) {
+        setPendingJoinName(trimmedName);
+        setJoinLimitReached(true);
+        setHasNotifiedOrganizer(false);
+        return;
+      }
 
-        const { error } = await supabase
-          .from("party_members")
-          .insert([{ party_id: party.id, user_id: userId, user_name: trimmedName }]);
+      completeJoin(trimmedName, userId);
 
-        if (error) throw error;
-      },
-      rollback: () => {
-        writeStoredParticipant(party.id, previousParticipant);
-        setInputName(previousInputName);
-        setCurrentUser(previousCurrentUser);
-        setCurrentUserId(previousCurrentUserId);
-        setGuests(previousGuests);
-        setIsObserver(previousIsObserver);
-        setJoinLimitReached(previousJoinLimitReached);
-        setPendingJoinName(previousPendingJoinName);
-        setHasNotifiedOrganizer(previousHasNotifiedOrganizer);
-        setShowJoinModal(previousShowJoinModal);
-      },
-    });
+      const { error } = await supabase
+        .from("party_members")
+        .insert([{ party_id: party.id, user_id: userId, user_name: trimmedName }]);
+
+      if (error) throw error;
+    } catch (e) {
+      console.error(e);
+      writeStoredParticipant(party.id, previousParticipant);
+      setInputName(previousInputName);
+      setCurrentUser(previousCurrentUser);
+      setCurrentUserId(previousCurrentUserId);
+      setGuests(previousGuests);
+      setIsObserver(previousIsObserver);
+      setJoinLimitReached(previousJoinLimitReached);
+      setPendingJoinName(previousPendingJoinName);
+      setHasNotifiedOrganizer(previousHasNotifiedOrganizer);
+      setShowJoinModal(previousShowJoinModal);
+      window.alert("Ошибка: " + getErrorMessage(e));
+    } finally {
+      setIsJoining(false);
+    }
   };
 
   const handleMockPayment = async () => {

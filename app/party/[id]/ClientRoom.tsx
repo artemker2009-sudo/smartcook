@@ -2,7 +2,16 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { MessageCircle, Plus, SendHorizonal, Share2, Sparkles, Users, UtensilsCrossed } from "lucide-react";
+import {
+  Loader2,
+  MessageCircle,
+  Plus,
+  SendHorizonal,
+  Share2,
+  Sparkles,
+  Users,
+  UtensilsCrossed,
+} from "lucide-react";
 import { joinPartyAction } from "@/app/actions/party";
 
 const supabase = createClient(
@@ -582,8 +591,12 @@ export default function ClientRoom({
       .sort((a, b) => getGuestName(a).localeCompare(getGuestName(b), "ru"));
   }, [guests]);
 
-  const guestNames = useMemo(() => visibleGuests.map(getGuestName), [visibleGuests]);
   const currentParticipantIdentity = currentUserId || (currentUser ? `name:${normalizeName(currentUser)}` : null);
+  const stackedAvatarGuests = useMemo(
+    () => (visibleGuests.length > 3 ? visibleGuests.slice(0, 2) : visibleGuests.slice(0, 3)),
+    [visibleGuests],
+  );
+  const extraGuestCount = visibleGuests.length > 3 ? visibleGuests.length - stackedAvatarGuests.length : 0;
   const currentVoteMarkers = useMemo(
     () => [currentUserId, currentUser].filter(Boolean) as string[],
     [currentUserId, currentUser],
@@ -591,6 +604,33 @@ export default function ClientRoom({
   const hasCurrentUserVoted = useCallback(
     (votes?: string[] | null) => (votes ?? []).some((vote) => currentVoteMarkers.includes(vote)),
     [currentVoteMarkers],
+  );
+
+  const renderGuestAvatars = () => (
+    <div className="flex -space-x-2" aria-label={`Гостей: ${visibleGuests.length}`}>
+      {stackedAvatarGuests.map((guest) => {
+        const guestName = getGuestName(guest);
+        const isCurrentGuest = getGuestIdentity(guest) === currentParticipantIdentity;
+
+        return (
+          <div
+            key={getGuestIdentity(guest)}
+            title={isCurrentGuest ? `${guestName} (вы)` : guestName}
+            className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-gray-100 text-xs font-bold text-gray-700"
+          >
+            {guestName.charAt(0).toUpperCase()}
+          </div>
+        );
+      })}
+      {extraGuestCount > 0 && (
+        <div
+          title={`Еще ${extraGuestCount}`}
+          className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-gray-100 text-xs font-bold text-gray-700"
+        >
+          +{extraGuestCount}
+        </div>
+      )}
+    </div>
   );
 
   const shoppingList = useMemo(() => {
@@ -898,57 +938,55 @@ export default function ClientRoom({
 
   const renderMenuPanel = () => (
     <section className="space-y-4 p-4 pb-32">
-      {menuItems.length === 0 && (
-        <div className="space-y-4">
-          <button
-            type="button"
-            onClick={handleGenerateMenu}
-            disabled={isGenerating}
-            className="flex w-full items-center justify-center gap-2 rounded-full bg-black px-5 py-4 text-base font-semibold text-white shadow-lg transition-all hover:bg-zinc-800 disabled:opacity-80"
-          >
-            <Sparkles className="h-4 w-4" />
-            {isGenerating ? "✨ Шеф-повар составляет меню..." : "✨ Сгенерировать меню с ИИ (PRO)"}
-          </button>
-
-          {isGenerating && (
-            <div className="bg-zinc-100 rounded-3xl p-6 text-center animate-in fade-in slide-in-from-top-4 duration-500">
-              <div className="text-2xl mb-2">⏳</div>
-              <h3 className="font-semibold text-lg mb-1">Меню уже готовится</h3>
-              <p className="text-zinc-500 text-sm mb-4">
-                Нейросеть подбирает лучшие блюда. Пока вы ждете, пригласите друзей — они смогут добавлять свои идеи!
-              </p>
-              <button
-                type="button"
-                onClick={handleShare}
-                className="w-full rounded-2xl border border-zinc-200 bg-white px-6 py-3 font-medium text-black shadow-sm transition-colors hover:bg-zinc-50"
-              >
-                Поделиться ссылкой
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 gap-3">
+      <div className="space-y-2 rounded-3xl border border-black/5 bg-white p-4 shadow-sm">
+        <button
+          type="button"
+          onClick={handleGenerateMenu}
+          disabled={isGenerating}
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-black py-3 font-semibold text-white shadow-sm transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+          {isGenerating ? "Шеф-повар составляет меню..." : "Сгенерировать ИИ"}
+        </button>
         <button
           type="button"
           onClick={() => setShowAddDishModal(true)}
           disabled={!currentUserId || isAddingDish}
-          className="inline-flex items-center justify-center gap-2 rounded-3xl bg-zinc-100 px-4 py-4 text-sm font-medium text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex w-full items-center justify-center gap-2 bg-transparent py-2 text-sm font-medium text-gray-500 transition-colors hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isAddingDish ? (
-            "Добавляем..."
+            <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <>
               <Plus className="h-4 w-4" />
-              Добавить блюдо
+              Добавить вручную
             </>
           )}
         </button>
+      </div>
+
+      {isGenerating && (
+        <div className="animate-in fade-in slide-in-from-top-4 rounded-3xl bg-zinc-100 p-6 text-center duration-500">
+          <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin text-zinc-500" />
+          <h3 className="mb-1 text-lg font-semibold">Меню уже готовится</h3>
+          <p className="mb-4 text-sm text-zinc-500">
+            Нейросеть подбирает лучшие блюда. Пока вы ждете, пригласите друзей — они смогут добавлять свои идеи!
+          </p>
+          <button
+            type="button"
+            onClick={handleShare}
+            className="w-full rounded-2xl border border-zinc-200 bg-white px-6 py-3 font-medium text-black shadow-sm transition-colors hover:bg-zinc-50"
+          >
+            Поделиться ссылкой
+          </button>
+        </div>
+      )}
+
+      <div>
         <button
           type="button"
           onClick={handleShare}
-          className="inline-flex items-center justify-center gap-2 rounded-3xl border border-zinc-200 bg-white px-4 py-4 text-sm font-medium text-black shadow-sm transition hover:bg-zinc-50"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-3xl border border-zinc-200 bg-white px-4 py-4 text-sm font-medium text-black shadow-sm transition hover:bg-zinc-50"
         >
           <Share2 className="h-4 w-4" />
           Поделиться
@@ -989,8 +1027,14 @@ export default function ClientRoom({
                         disabled={!currentUserId || votingItemId === item.id}
                         className="flex items-center gap-1.5 bg-zinc-100 px-3 py-1.5 rounded-full shrink-0 active:scale-95 transition-transform disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        <span className="text-sm">{hasCurrentUserVoted(item.votes) ? "❤️" : "🤍"}</span>
-                        <span className="text-sm font-medium">{item.votes?.length || 0}</span>
+                        {votingItemId === item.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <>
+                            <span className="text-sm">{hasCurrentUserVoted(item.votes) ? "❤️" : "🤍"}</span>
+                            <span className="text-sm font-medium">{item.votes?.length || 0}</span>
+                          </>
+                        )}
                       </button>
                     </div>
                   </div>
@@ -1030,31 +1074,17 @@ export default function ClientRoom({
   );
 
   const renderChatPanel = () => (
-    <section className="m-4 flex h-[calc(100dvh-180px)] flex-col overflow-hidden rounded-3xl border border-black/5 bg-white shadow-sm">
+    <section className="m-4 flex h-[calc(100dvh-180px)] min-h-0 flex-col overflow-hidden rounded-3xl border border-black/5 bg-white shadow-sm">
       <div className="border-b border-zinc-100 p-4">
         <div className="flex items-center gap-2 text-base font-semibold tracking-tight text-black">
           <MessageCircle className="h-4 w-4" />
           Обсуждение
         </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {guestNames.length === 0 ? (
+        <div className="mt-3">
+          {visibleGuests.length === 0 ? (
             <span className="text-sm text-zinc-400">Пока никто не присоединился</span>
           ) : (
-            visibleGuests.map((guest) => {
-              const guestName = getGuestName(guest);
-
-              return (
-                <span
-                  key={getGuestIdentity(guest)}
-                  className={`rounded-full px-3 py-1.5 text-xs font-medium ${
-                    getGuestIdentity(guest) === currentParticipantIdentity ? "bg-black text-white" : "bg-zinc-100 text-zinc-500"
-                  }`}
-                >
-                  {guestName}
-                  {getGuestIdentity(guest) === currentParticipantIdentity ? " (вы)" : ""}
-                </span>
-              );
-            })
+            renderGuestAvatars()
           )}
         </div>
       </div>
@@ -1115,9 +1145,13 @@ export default function ClientRoom({
           <button
             type="submit"
             disabled={!newMessage.trim() || !currentUserId || isSendingMessage}
-            className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-black text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400"
+            className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-black text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <SendHorizonal className="h-4 w-4" />
+            {isSendingMessage ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <SendHorizonal className="h-4 w-4" />
+            )}
           </button>
         </div>
       </form>
@@ -1140,7 +1174,7 @@ export default function ClientRoom({
           <div className="min-w-0 text-center">
             <h1 className="truncate text-base font-semibold tracking-tight text-black">{party.title}</h1>
             <p className="text-sm font-medium text-zinc-500">
-              {party.title} • {party.guest_count ?? guestNames.length} персон
+              {party.guest_count ?? visibleGuests.length} персон
             </p>
           </div>
 
@@ -1177,32 +1211,7 @@ export default function ClientRoom({
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-zinc-500">Участники банкета</p>
                     {visibleGuests.length > 0 ? (
-                      <div className="mt-2 flex items-center">
-                        {visibleGuests.slice(0, visibleGuests.length > 4 ? 3 : 4).map((guest) => {
-                          const guestName = getGuestName(guest);
-                          const isCurrentGuest = getGuestIdentity(guest) === currentParticipantIdentity;
-
-                          return (
-                            <div
-                              key={getGuestIdentity(guest)}
-                              title={isCurrentGuest ? `${guestName} (вы)` : guestName}
-                              className={`flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-zinc-100 text-xs font-bold text-black -ml-2 first:ml-0 ${
-                                isCurrentGuest ? "ring-2 ring-black/10" : ""
-                              }`}
-                            >
-                              {guestName.charAt(0).toUpperCase()}
-                            </div>
-                          );
-                        })}
-                        {visibleGuests.length > 4 && (
-                          <div
-                            title={`Еще ${visibleGuests.length - 3}`}
-                            className="-ml-2 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-zinc-100 text-xs font-bold text-black"
-                          >
-                            +{visibleGuests.length - 3}
-                          </div>
-                        )}
-                      </div>
+                      <div className="mt-2">{renderGuestAvatars()}</div>
                     ) : (
                       <p className="truncate text-base font-semibold tracking-tight text-black">
                         Список гостей появится здесь
@@ -1270,9 +1279,16 @@ export default function ClientRoom({
                     type="button"
                     onClick={handleNotifyOrganizer}
                     disabled={isNotifyingOrganizer}
-                    className="w-full rounded-2xl bg-zinc-100 px-5 py-4 text-base font-medium text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-zinc-100 px-5 py-4 text-base font-medium text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {isNotifyingOrganizer ? "Отправляем сообщение..." : "Уведомить организатора"}
+                    {isNotifyingOrganizer ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Отправляем...
+                      </>
+                    ) : (
+                      "Уведомить организатора"
+                    )}
                   </button>
                   <button
                     type="button"
@@ -1322,9 +1338,16 @@ export default function ClientRoom({
                     type="submit"
                     disabled={!inputName.trim() || isJoining}
                     aria-busy={isJoining}
-                    className="w-full rounded-2xl bg-zinc-200 px-5 py-4 text-base font-medium text-black transition hover:bg-zinc-300 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400"
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-zinc-200 px-5 py-4 text-base font-medium text-black transition hover:bg-zinc-300 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {isJoining ? "Подключаем..." : "Войти"}
+                    {isJoining ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Подключаем...
+                      </>
+                    ) : (
+                      "Войти"
+                    )}
                   </button>
                 </form>
               </>
@@ -1363,17 +1386,26 @@ export default function ClientRoom({
 
             <div className="flex gap-2">
               <button
+                type="button"
                 onClick={() => setShowAddDishModal(false)}
                 className="flex-1 bg-zinc-100 text-black font-medium p-4 rounded-xl hover:bg-zinc-200 transition-colors"
               >
                 Отмена
               </button>
               <button
+                type="button"
                 onClick={handleAddCustomDish}
                 disabled={!newDishName.trim() || isAddingDish}
-                className="flex-1 bg-black text-white font-medium p-4 rounded-xl disabled:opacity-50 active:scale-95 transition-all"
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-black p-4 font-medium text-white transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isAddingDish ? "Добавляем..." : "Добавить"}
+                {isAddingDish ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Добавляем...
+                  </>
+                ) : (
+                  "Добавить"
+                )}
               </button>
             </div>
           </div>
@@ -1410,9 +1442,16 @@ export default function ClientRoom({
                 type="button"
                 onClick={handleSendSupport}
                 disabled={!supportText.trim() || !currentUser || isSendingSupport}
-                className="flex-1 rounded-2xl bg-black px-5 py-4 text-base font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-black px-5 py-4 text-base font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isSendingSupport ? "Отправляем..." : "Отправить"}
+                {isSendingSupport ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Отправляем...
+                  </>
+                ) : (
+                  "Отправить"
+                )}
               </button>
             </div>
           </div>
@@ -1494,9 +1533,16 @@ export default function ClientRoom({
               type="button"
               onClick={handleMockPayment}
               disabled={isProcessingPay}
-              className="w-full bg-black text-white text-lg font-medium p-4 rounded-2xl active:scale-95 transition-all flex items-center justify-center gap-2"
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-black p-4 text-lg font-medium text-white transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isProcessingPay ? "Обработка..." : "Стать спонсором банкета (Оплатить 29 ₽)"}
+              {isProcessingPay ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Обработка...
+                </>
+              ) : (
+                "Стать спонсором банкета (Оплатить 29 ₽)"
+              )}
             </button>
             
             <button

@@ -13,6 +13,7 @@ const MENU_CATEGORIES = ["Закуски", "Салаты", "Горячее", "Н
 const FREE_GUEST_LIMIT = 2;
 const ORGANIZER_ALERT_MESSAGE =
   "Кто-то хочет зайти, но лимит исчерпан! Организатор, обнови банкет до PRO.";
+const SUPABASE_TIMEOUT_MS = 12000;
 
 type MenuCategory = (typeof MENU_CATEGORIES)[number];
 
@@ -96,6 +97,16 @@ const getErrorMessage = (error: unknown) => {
   }
 };
 
+const getMutationAlertMessage = (error: unknown) => {
+  const message = getErrorMessage(error);
+
+  if (message.includes("превышено время ожидания")) {
+    return "Ошибка: превышено время ожидания. Проверьте интернет и попробуйте еще раз.";
+  }
+
+  return "Ошибка: " + message;
+};
+
 const normalizeName = (value?: string | null) => value?.trim().toLowerCase() ?? "";
 const getGuestName = (guest: PartyMember) => (guest.user_name ?? guest.name ?? "").trim();
 const getGuestIdentity = (guest: PartyMember) => guest.user_id?.trim() || `name:${normalizeName(getGuestName(guest))}`;
@@ -115,10 +126,62 @@ const generateSafeUserId = () => {
   return `guest-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 };
 
+const getSafeLocalStorage = () => {
+  if (typeof window === "undefined") return null;
+
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+};
+
+const safeStorageGetItem = (key: string) => {
+  try {
+    return getSafeLocalStorage()?.getItem(key) ?? null;
+  } catch {
+    return null;
+  }
+};
+
+const safeStorageSetItem = (key: string, value: string) => {
+  try {
+    getSafeLocalStorage()?.setItem(key, value);
+  } catch {
+    // Safari private mode and quota issues must not break the join flow.
+  }
+};
+
+const safeStorageRemoveItem = (key: string) => {
+  try {
+    getSafeLocalStorage()?.removeItem(key);
+  } catch {
+    // Ignore storage failures to keep UI responsive.
+  }
+};
+
+const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> => {
+  let timeoutId: number | undefined;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = window.setTimeout(() => {
+      reject(new Error(`${label}: превышено время ожидания (${Math.ceil(timeoutMs / 1000)} сек)`));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutId !== undefined) {
+      window.clearTimeout(timeoutId);
+    }
+  }
+};
+
 const readStoredParticipant = (partyId: string): StoredPartyParticipant | null => {
   if (typeof window === "undefined") return null;
 
-  const rawParticipant = localStorage.getItem(getPartyParticipantStorageKey(partyId));
+  const rawParticipant = safeStorageGetItem(getPartyParticipantStorageKey(partyId));
   if (rawParticipant) {
     try {
       const parsed = JSON.parse(rawParticipant) as Partial<StoredPartyParticipant>;
@@ -130,8 +193,8 @@ const readStoredParticipant = (partyId: string): StoredPartyParticipant | null =
     }
   }
 
-  const name = localStorage.getItem(getPartyNameStorageKey(partyId))?.trim();
-  const userId = localStorage.getItem(getPartyUserIdStorageKey(partyId))?.trim();
+  const name = safeStorageGetItem(getPartyNameStorageKey(partyId))?.trim();
+  const userId = safeStorageGetItem(getPartyUserIdStorageKey(partyId))?.trim();
 
   if (name && userId) {
     return { userId, name };
@@ -144,15 +207,15 @@ const writeStoredParticipant = (partyId: string, participant: StoredPartyPartici
   if (typeof window === "undefined") return;
 
   if (!participant) {
-    localStorage.removeItem(getPartyParticipantStorageKey(partyId));
-    localStorage.removeItem(getPartyNameStorageKey(partyId));
-    localStorage.removeItem(getPartyUserIdStorageKey(partyId));
+    safeStorageRemoveItem(getPartyParticipantStorageKey(partyId));
+    safeStorageRemoveItem(getPartyNameStorageKey(partyId));
+    safeStorageRemoveItem(getPartyUserIdStorageKey(partyId));
     return;
   }
 
-  localStorage.setItem(getPartyParticipantStorageKey(partyId), JSON.stringify(participant));
-  localStorage.setItem(getPartyNameStorageKey(partyId), participant.name);
-  localStorage.setItem(getPartyUserIdStorageKey(partyId), participant.userId);
+  safeStorageSetItem(getPartyParticipantStorageKey(partyId), JSON.stringify(participant));
+  safeStorageSetItem(getPartyNameStorageKey(partyId), participant.name);
+  safeStorageSetItem(getPartyUserIdStorageKey(partyId), participant.userId);
 };
 
 const formatTime = (value?: string | null) => {
@@ -186,7 +249,7 @@ export default function ClientRoom({
   initialMessages,
 }: ClientRoomProps) {
   const legacyStoredName =
-    typeof window === "undefined" ? "" : localStorage.getItem(getPartyNameStorageKey(party.id))?.trim() ?? "";
+    typeof window === "undefined" ? "" : safeStorageGetItem(getPartyNameStorageKey(party.id))?.trim() ?? "";
   const storedParticipant = readStoredParticipant(party.id);
   const storedName = storedParticipant?.name ?? legacyStoredName;
   const storedUserId = storedParticipant?.userId ?? null;
@@ -236,13 +299,17 @@ export default function ClientRoom({
   // Отправка аналитики
   const trackEvent = async (eventType: string) => {
     try {
-      await supabase.from("analytics_events").insert([
-        {
-          party_id: party.id,
-          user_name: currentUser || "anonymous",
-          event_type: eventType,
-        },
-      ]);
+      await withTimeout(
+        supabase.from("analytics_events").insert([
+          {
+            party_id: party.id,
+            user_name: currentUser || "anonymous",
+            event_type: eventType,
+          },
+        ]),
+        SUPABASE_TIMEOUT_MS,
+        "Не удалось отправить аналитику",
+      );
     } catch (e) {
       console.error("Analytics error", e);
     }
@@ -272,7 +339,7 @@ export default function ClientRoom({
       } catch (error) {
         console.error(error);
         rollback?.();
-        window.alert("Ошибка: " + getErrorMessage(error));
+        window.alert(getMutationAlertMessage(error));
       } finally {
         setLoading(false);
       }
@@ -326,18 +393,22 @@ export default function ClientRoom({
     await runWriteMutation({
       setLoading: setIsAddingDish,
       mutate: async () => {
-        const { error } = await supabase.from("party_items").insert([
-          {
-            party_id: party.id,
-            name: dishName,
-            category: newDishCategory,
-            ingredients: [],
-            votes: [currentUserId],
-          },
-        ]);
+        const { error } = await withTimeout(
+          supabase.from("party_items").insert([
+            {
+              party_id: party.id,
+              name: dishName,
+              category: newDishCategory,
+              ingredients: [],
+              votes: [currentUserId],
+            },
+          ]),
+          SUPABASE_TIMEOUT_MS,
+          "Не удалось добавить блюдо",
+        );
 
         if (error) throw error;
-        await refreshMenuItems();
+        await withTimeout(refreshMenuItems(), SUPABASE_TIMEOUT_MS, "Не удалось обновить меню");
       },
       rollback: () => {
         setMenuItems(previousItems);
@@ -362,7 +433,11 @@ export default function ClientRoom({
     await runWriteMutation({
       setLoading: (loading) => setVotingItemId(loading ? itemId : null),
       mutate: async () => {
-        const { error } = await supabase.from("party_items").update({ votes: newVotes }).eq("id", itemId);
+        const { error } = await withTimeout(
+          supabase.from("party_items").update({ votes: newVotes }).eq("id", itemId),
+          SUPABASE_TIMEOUT_MS,
+          "Не удалось обновить голос",
+        );
         if (error) throw error;
       },
       rollback: () => {
@@ -565,10 +640,14 @@ export default function ClientRoom({
 
     try {
       const userId = generateSafeUserId();
-      const [{ count, error: countError }, { data: latestParty, error: partyError }] = await Promise.all([
-        supabase.from("party_members").select("*", { count: "exact", head: true }).eq("party_id", party.id),
-        supabase.from("parties").select("is_paid").eq("id", party.id).single(),
-      ]);
+      const [{ count, error: countError }, { data: latestParty, error: partyError }] = await withTimeout(
+        Promise.all([
+          supabase.from("party_members").select("*", { count: "exact", head: true }).eq("party_id", party.id),
+          supabase.from("parties").select("is_paid").eq("id", party.id).single(),
+        ]),
+        SUPABASE_TIMEOUT_MS,
+        "Не удалось проверить доступ к банкету",
+      );
 
       if (countError) throw countError;
       if (partyError) throw partyError;
@@ -585,9 +664,13 @@ export default function ClientRoom({
 
       completeJoin(trimmedName, userId);
 
-      const { error } = await supabase
-        .from("party_members")
-        .insert([{ party_id: party.id, user_id: userId, user_name: trimmedName }]);
+      const { error } = await withTimeout(
+        supabase
+          .from("party_members")
+          .insert([{ party_id: party.id, user_id: userId, user_name: trimmedName }]),
+        SUPABASE_TIMEOUT_MS,
+        "Не удалось завершить вход",
+      );
 
       if (error) throw error;
     } catch (e) {
@@ -602,40 +685,69 @@ export default function ClientRoom({
       setPendingJoinName(previousPendingJoinName);
       setHasNotifiedOrganizer(previousHasNotifiedOrganizer);
       setShowJoinModal(previousShowJoinModal);
-      window.alert("Ошибка: " + getErrorMessage(e));
+      window.alert(getMutationAlertMessage(e));
     } finally {
       setIsJoining(false);
     }
   };
 
   const handleMockPayment = async () => {
+    const previousParticipant = readStoredParticipant(party.id);
+    const previousInputName = inputName;
+    const previousCurrentUser = currentUser;
+    const previousCurrentUserId = currentUserId;
+    const previousGuests = guests;
+    const previousIsObserver = isObserver;
+    const previousJoinLimitReached = joinLimitReached;
+    const previousPendingJoinName = pendingJoinName;
+    const previousHasNotifiedOrganizer = hasNotifiedOrganizer;
+    const previousShowJoinModal = showJoinModal;
+
     setIsProcessingPay(true);
 
     try {
       // Имитация задержки банка
       await new Promise((r) => setTimeout(r, 1500));
 
-      const { error: paymentError } = await supabase.from("parties").update({ is_paid: true }).eq("id", currentParty.id);
+      const { error: paymentError } = await withTimeout(
+        supabase.from("parties").update({ is_paid: true }).eq("id", currentParty.id),
+        SUPABASE_TIMEOUT_MS,
+        "Не удалось обработать оплату",
+      );
       if (paymentError) throw paymentError;
 
       if (inputName.trim() && !currentUser) {
         const name = inputName.trim();
-        const userId = crypto.randomUUID();
-        completeJoin(name, userId);
+        const userId = generateSafeUserId();
 
-        const { error: joinError } = await supabase
-          .from("party_members")
-          .insert([{ party_id: party.id, user_id: userId, user_name: name }]);
+        const { error: joinError } = await withTimeout(
+          supabase
+            .from("party_members")
+            .insert([{ party_id: party.id, user_id: userId, user_name: name }]),
+          SUPABASE_TIMEOUT_MS,
+          "Не удалось завершить вход после оплаты",
+        );
 
         if (joinError) throw joinError;
+        completeJoin(name, userId);
       }
 
       setCurrentParty((prev) => ({ ...prev, is_paid: true }));
-      await trackEvent("paywall_payment_success");
+      void trackEvent("paywall_payment_success");
       setShowPaywall(false);
     } catch (error) {
       console.error(error);
-      window.alert("Ошибка: " + getErrorMessage(error));
+      writeStoredParticipant(party.id, previousParticipant);
+      setInputName(previousInputName);
+      setCurrentUser(previousCurrentUser);
+      setCurrentUserId(previousCurrentUserId);
+      setGuests(previousGuests);
+      setIsObserver(previousIsObserver);
+      setJoinLimitReached(previousJoinLimitReached);
+      setPendingJoinName(previousPendingJoinName);
+      setHasNotifiedOrganizer(previousHasNotifiedOrganizer);
+      setShowJoinModal(previousShowJoinModal);
+      window.alert(getMutationAlertMessage(error));
     } finally {
       setIsProcessingPay(false);
     }
@@ -647,15 +759,24 @@ export default function ClientRoom({
     setIsNotifyingOrganizer(true);
 
     try {
-      await supabase.from("party_messages").insert([
-        {
-          party_id: party.id,
-          user_name: pendingJoinName || "Гость",
-          text: ORGANIZER_ALERT_MESSAGE,
-        },
-      ]);
+      const { error } = await withTimeout(
+        supabase.from("party_messages").insert([
+          {
+            party_id: party.id,
+            user_name: pendingJoinName || "Гость",
+            text: ORGANIZER_ALERT_MESSAGE,
+          },
+        ]),
+        SUPABASE_TIMEOUT_MS,
+        "Не удалось уведомить организатора",
+      );
+
+      if (error) throw error;
       setHasNotifiedOrganizer(true);
       setActiveTab("chat");
+    } catch (error) {
+      console.error(error);
+      window.alert(getMutationAlertMessage(error));
     } finally {
       setIsNotifyingOrganizer(false);
     }
@@ -681,9 +802,13 @@ export default function ClientRoom({
     await runWriteMutation({
       setLoading: setIsSendingMessage,
       mutate: async () => {
-        const { error } = await supabase
-          .from("party_messages")
-          .insert([{ party_id: party.id, user_id: currentUserId, user_name: currentUser, text }]);
+        const { error } = await withTimeout(
+          supabase
+            .from("party_messages")
+            .insert([{ party_id: party.id, user_id: currentUserId, user_name: currentUser, text }]),
+          SUPABASE_TIMEOUT_MS,
+          "Не удалось отправить сообщение",
+        );
 
         if (error) throw error;
       },
@@ -699,18 +824,26 @@ export default function ClientRoom({
     setIsSendingSupport(true);
 
     try {
-      await supabase.from("support_tickets").insert([
-        {
-          party_id: party.id,
-          user_name: currentUser,
-          message: supportText.trim(),
-        },
-      ]);
+      const nextSupportText = supportText.trim();
+      const { error } = await withTimeout(
+        supabase.from("support_tickets").insert([
+          {
+            party_id: party.id,
+            user_name: currentUser,
+            message: nextSupportText,
+          },
+        ]),
+        SUPABASE_TIMEOUT_MS,
+        "Не удалось отправить сообщение в поддержку",
+      );
+
+      if (error) throw error;
       setSupportText("");
       setShowSupport(false);
       alert("Сообщение отправлено! Мы скоро все починим.");
     } catch (e) {
       console.error(e);
+      alert(getMutationAlertMessage(e));
     } finally {
       setIsSendingSupport(false);
     }

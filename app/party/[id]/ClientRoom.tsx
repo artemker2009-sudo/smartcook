@@ -659,7 +659,7 @@ export default function ClientRoom({
       }
 
       setCurrentParty((prev) => ({ ...prev, is_paid: result.isPaid }));
-      completeJoin(trimmedName, userId);
+      completeJoin(trimmedName, result.userId);
     } catch (e) {
       console.error(e);
       writeStoredParticipant(party.id, previousParticipant);

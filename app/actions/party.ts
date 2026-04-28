@@ -11,11 +11,13 @@ const supabase = createClient(
 );
 
 export type JoinPartyActionResult =
-  | { success: true; isPaid: boolean }
+  | { success: true; isPaid: boolean; userId: string }
   | { success: false; reason: "limit_reached"; isPaid: false }
   | { success: false; error: string };
 
 const getActionErrorMessage = (error: unknown) => (error instanceof Error ? error.message : "Неизвестная ошибка сервера");
+const isDuplicatePartyMemberError = (error: { code?: string; message?: string } | null) =>
+  error?.code === "23505" || Boolean(error?.message?.includes("party_members_party_id_user_name_key"));
 
 export async function createPartyAction(title: string, guestCount: number, theme: string) {
   try {
@@ -52,15 +54,34 @@ export async function joinPartyAction(
   }
 
   try {
-    const [{ count, error: countError }, { data: party, error: partyError }] = await Promise.all([
+    const [
+      { count, error: countError },
+      { data: party, error: partyError },
+      { data: existingMember, error: existingMemberError },
+    ] = await Promise.all([
       supabase.from("party_members").select("*", { count: "exact", head: true }).eq("party_id", partyId),
       supabase.from("parties").select("is_paid").eq("id", partyId).single(),
+      supabase
+        .from("party_members")
+        .select("user_id")
+        .eq("party_id", partyId)
+        .eq("user_name", trimmedName)
+        .maybeSingle(),
     ]);
 
     if (countError) throw new Error(countError.message);
     if (partyError) throw new Error(partyError.message);
+    if (existingMemberError) throw new Error(existingMemberError.message);
 
     const isPaid = Boolean(party?.is_paid);
+    const existingUserId =
+      typeof existingMember?.user_id === "string" && existingMember.user_id.trim()
+        ? existingMember.user_id.trim()
+        : null;
+
+    if (existingUserId) {
+      return { success: true, isPaid, userId: existingUserId };
+    }
 
     if (!isPaid && (count ?? 0) >= FREE_GUEST_LIMIT) {
       return { success: false, reason: "limit_reached", isPaid: false };
@@ -70,9 +91,27 @@ export async function joinPartyAction(
       .from("party_members")
       .insert([{ party_id: partyId, user_id: trimmedUserId, user_name: trimmedName }]);
 
+    if (isDuplicatePartyMemberError(insertError)) {
+      const { data: duplicatedMember, error: duplicatedMemberError } = await supabase
+        .from("party_members")
+        .select("user_id")
+        .eq("party_id", partyId)
+        .eq("user_name", trimmedName)
+        .maybeSingle();
+
+      if (duplicatedMemberError) throw new Error(duplicatedMemberError.message);
+
+      const duplicatedUserId =
+        typeof duplicatedMember?.user_id === "string" && duplicatedMember.user_id.trim()
+          ? duplicatedMember.user_id.trim()
+          : trimmedUserId;
+
+      return { success: true, isPaid, userId: duplicatedUserId };
+    }
+
     if (insertError) throw new Error(insertError.message);
 
-    return { success: true, isPaid };
+    return { success: true, isPaid, userId: trimmedUserId };
   } catch (error) {
     console.error("Join Party Action Error:", error);
     return {

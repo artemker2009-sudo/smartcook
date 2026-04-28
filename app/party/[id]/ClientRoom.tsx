@@ -3,7 +3,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import {
-  Crown,
   Loader2,
   MessageCircle,
   Plus,
@@ -130,6 +129,7 @@ const getMessageIdentity = (message: PartyMessage) =>
 const getPartyParticipantStorageKey = (partyId: string) => `party_participant_${partyId}`;
 const getPartyNameStorageKey = (partyId: string) => `party_name_${partyId}`;
 const getPartyUserIdStorageKey = (partyId: string) => `party_user_id_${partyId}`;
+const getPartyAdminStorageKey = (partyId: string) => `party_admin_${partyId}`;
 
 const generateSafeUserId = () => {
   if (typeof window !== "undefined" && window.crypto?.randomUUID) {
@@ -562,6 +562,17 @@ export default function ClientRoom({
   }, [currentParty, getRoomDescription, isSavingRoomSettings]);
 
   useEffect(() => {
+    if (!currentUserId || currentParty.host_id) return;
+    if (safeStorageGetItem(getPartyAdminStorageKey(party.id)) !== "true") return;
+
+    const normalizedCurrentUserId = currentUserId.trim();
+    if (!normalizedCurrentUserId) return;
+
+    setCurrentParty((prev) => ({ ...prev, host_id: normalizedCurrentUserId }));
+    void supabase.from("parties").update({ host_id: normalizedCurrentUserId }).eq("id", party.id);
+  }, [currentParty.host_id, currentUserId, party.id]);
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, activeTab]);
 
@@ -612,7 +623,9 @@ export default function ClientRoom({
 
   const currentParticipantIdentity = currentUserId || (currentUser ? `name:${normalizeName(currentUser)}` : null);
   const roomDescription = getRoomDescription(currentParty);
-  const isAdmin = Boolean(currentUserId && currentParty.host_id && currentUserId === currentParty.host_id);
+  const roomHostId = currentParty.host_id?.trim() || null;
+  const currentViewerId = currentUserId?.trim() || null;
+  const isHost = Boolean(currentViewerId && roomHostId && currentViewerId === roomHostId);
   const stackedAvatarGuests = useMemo(
     () => (visibleGuests.length > 3 ? visibleGuests.slice(0, 2) : visibleGuests.slice(0, 3)),
     [visibleGuests],
@@ -867,7 +880,7 @@ export default function ClientRoom({
   };
 
   const updateRoomSettings = async () => {
-    if (!isAdmin || isSavingRoomSettings) return;
+    if (!isHost || isSavingRoomSettings) return;
 
     const nextTitle = roomTitleInput.trim();
     const nextDescription = roomDescriptionInput.trim();
@@ -1239,6 +1252,12 @@ export default function ClientRoom({
     </section>
   );
 
+  console.log("DEBUG ROLE:", {
+    currentUserId: currentViewerId,
+    roomHostId,
+    isHost: currentViewerId === roomHostId,
+  });
+
   return (
     <div className="min-h-[100dvh] bg-[#F5F5F7] text-black">
       <header className="sticky top-0 z-30 border-b border-black/5 bg-white/90 backdrop-blur-md">
@@ -1363,7 +1382,7 @@ export default function ClientRoom({
                 <div className="space-y-2">
                   {visibleGuests.map((guest) => {
                     const guestName = getGuestName(guest);
-                    const isOrganizer = Boolean(currentParty.host_id && guest.user_id === currentParty.host_id);
+                    const isOrganizer = Boolean(roomHostId && guest.user_id?.trim() === roomHostId);
 
                     return (
                       <div key={getGuestIdentity(guest)} className="flex items-center gap-3 rounded-2xl bg-zinc-50 p-3">
@@ -1374,9 +1393,8 @@ export default function ClientRoom({
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="truncate text-sm font-semibold text-black">{guestName}</span>
                             {isOrganizer && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
-                                <Crown className="h-3 w-3" />
-                                Организатор
+                              <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                                👑 Организатор
                               </span>
                             )}
                           </div>
@@ -1390,7 +1408,7 @@ export default function ClientRoom({
               )}
             </section>
 
-            {isAdmin && (
+            {isHost && (
               <section className="mt-6 border-t border-zinc-100 pt-5">
                 <h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-zinc-400">
                   Настройки комнаты

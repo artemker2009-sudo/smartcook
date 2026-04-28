@@ -16,8 +16,11 @@ export type JoinPartyActionResult =
   | { success: false; error: string };
 
 const getActionErrorMessage = (error: unknown) => (error instanceof Error ? error.message : "Неизвестная ошибка сервера");
-const isDuplicatePartyMemberError = (error: { code?: string; message?: string } | null) =>
-  error?.code === "23505" || Boolean(error?.message?.includes("party_members_party_id_user_name_key"));
+const ZERO_WIDTH_CHARS = ["\u200B", "\u200C", "\u200D", "\u2060"] as const;
+const makeInvisibleSuffix = (seed: string) =>
+  Array.from(seed)
+    .map((char) => ZERO_WIDTH_CHARS[char.charCodeAt(0) % ZERO_WIDTH_CHARS.length])
+    .join("");
 
 export async function createPartyAction(title: string, guestCount: number, theme: string) {
   try {
@@ -57,61 +60,66 @@ export async function joinPartyAction(
     const [
       { count, error: countError },
       { data: party, error: partyError },
-      { data: existingMember, error: existingMemberError },
+      { data: existingBrowserMember, error: existingBrowserMemberError },
     ] = await Promise.all([
       supabase.from("party_members").select("*", { count: "exact", head: true }).eq("party_id", partyId),
       supabase.from("parties").select("is_paid").eq("id", partyId).single(),
       supabase
         .from("party_members")
-        .select("user_id")
+        .select("id")
         .eq("party_id", partyId)
-        .eq("user_name", trimmedName)
+        .eq("user_id", trimmedUserId)
         .maybeSingle(),
     ]);
 
     if (countError) throw new Error(countError.message);
     if (partyError) throw new Error(partyError.message);
-    if (existingMemberError) throw new Error(existingMemberError.message);
+    if (existingBrowserMemberError) throw new Error(existingBrowserMemberError.message);
 
     const isPaid = Boolean(party?.is_paid);
-    const existingUserId =
-      typeof existingMember?.user_id === "string" && existingMember.user_id.trim()
-        ? existingMember.user_id.trim()
-        : null;
 
-    if (existingUserId) {
-      return { success: true, isPaid, userId: existingUserId };
+    if (existingBrowserMember?.id) {
+      const candidateNames = [trimmedName, `${trimmedName}${makeInvisibleSuffix(trimmedUserId)}`];
+
+      for (const candidateName of candidateNames) {
+        const { error: updateError } = await supabase
+          .from("party_members")
+          .update({ user_name: candidateName })
+          .eq("id", existingBrowserMember.id);
+
+        if (!updateError) {
+          return { success: true, isPaid, userId: trimmedUserId };
+        }
+
+        if (updateError.code !== "23505") {
+          throw new Error(updateError.message);
+        }
+      }
+
+      throw new Error("Не удалось обновить имя. Попробуйте еще раз.");
     }
 
     if (!isPaid && (count ?? 0) >= FREE_GUEST_LIMIT) {
       return { success: false, reason: "limit_reached", isPaid: false };
     }
 
-    const { error: insertError } = await supabase
-      .from("party_members")
-      .insert([{ party_id: partyId, user_id: trimmedUserId, user_name: trimmedName }]);
+    const candidateNames = [trimmedName, `${trimmedName}${makeInvisibleSuffix(trimmedUserId)}`];
 
-    if (isDuplicatePartyMemberError(insertError)) {
-      const { data: duplicatedMember, error: duplicatedMemberError } = await supabase
+    for (const candidateName of candidateNames) {
+      const { error: insertError } = await supabase
         .from("party_members")
-        .select("user_id")
-        .eq("party_id", partyId)
-        .eq("user_name", trimmedName)
-        .maybeSingle();
+        .insert([{ party_id: partyId, user_id: trimmedUserId, user_name: candidateName }]);
 
-      if (duplicatedMemberError) throw new Error(duplicatedMemberError.message);
+      if (!insertError) {
+        return { success: true, isPaid, userId: trimmedUserId };
+      }
 
-      const duplicatedUserId =
-        typeof duplicatedMember?.user_id === "string" && duplicatedMember.user_id.trim()
-          ? duplicatedMember.user_id.trim()
-          : trimmedUserId;
-
-      return { success: true, isPaid, userId: duplicatedUserId };
+      if (insertError.code !== "23505") {
+        throw new Error(insertError.message);
+      }
     }
 
-    if (insertError) throw new Error(insertError.message);
-
-    return { success: true, isPaid, userId: trimmedUserId };
+    throw new Error("Не удалось войти с этим именем. Попробуйте еще раз.");
   } catch (error) {
     console.error("Join Party Action Error:", error);
     return {

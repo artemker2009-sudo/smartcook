@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import {
+  Crown,
   Loader2,
   MessageCircle,
   Plus,
@@ -11,6 +12,7 @@ import {
   Sparkles,
   Users,
   UtensilsCrossed,
+  X,
 } from "lucide-react";
 import { joinPartyAction } from "@/app/actions/party";
 
@@ -29,8 +31,10 @@ type MenuCategory = (typeof MENU_CATEGORIES)[number];
 type Party = {
   id: string;
   title: string;
+  description?: string | null;
   theme?: string | null;
   guest_count?: number | null;
+  host_id?: string | null;
   is_paid?: boolean | null;
 };
 
@@ -280,6 +284,10 @@ export default function ClientRoom({
   const [showSupport, setShowSupport] = useState(false);
   const [supportText, setSupportText] = useState("");
   const [isSendingSupport, setIsSendingSupport] = useState(false);
+  const [showRoomInfo, setShowRoomInfo] = useState(false);
+  const [roomTitleInput, setRoomTitleInput] = useState(party.title);
+  const [roomDescriptionInput, setRoomDescriptionInput] = useState((party.description ?? party.theme ?? "").trim());
+  const [isSavingRoomSettings, setIsSavingRoomSettings] = useState(false);
 
   const [guests, setGuests] = useState<PartyMember[]>(() => {
     const baseGuests = initialMembers ?? [];
@@ -330,6 +338,11 @@ export default function ClientRoom({
     setMenuItems(nextItems);
     return nextItems;
   }, [party.id]);
+
+  const getRoomDescription = useCallback(
+    (room: Party) => (room.description ?? room.theme ?? "").trim(),
+    [],
+  );
 
   const runWriteMutation = useCallback(
     async ({
@@ -543,6 +556,12 @@ export default function ClientRoom({
   }, [currentParty.is_paid]);
 
   useEffect(() => {
+    if (isSavingRoomSettings) return;
+    setRoomTitleInput(currentParty.title);
+    setRoomDescriptionInput(getRoomDescription(currentParty));
+  }, [currentParty, getRoomDescription, isSavingRoomSettings]);
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, activeTab]);
 
@@ -592,6 +611,8 @@ export default function ClientRoom({
   }, [guests]);
 
   const currentParticipantIdentity = currentUserId || (currentUser ? `name:${normalizeName(currentUser)}` : null);
+  const roomDescription = getRoomDescription(currentParty);
+  const isAdmin = Boolean(currentUserId && currentParty.host_id && currentUserId === currentParty.host_id);
   const stackedAvatarGuests = useMemo(
     () => (visibleGuests.length > 3 ? visibleGuests.slice(0, 2) : visibleGuests.slice(0, 3)),
     [visibleGuests],
@@ -845,6 +866,66 @@ export default function ClientRoom({
     });
   };
 
+  const updateRoomSettings = async () => {
+    if (!isAdmin || isSavingRoomSettings) return;
+
+    const nextTitle = roomTitleInput.trim();
+    const nextDescription = roomDescriptionInput.trim();
+
+    if (!nextTitle) {
+      window.alert("Название банкета не может быть пустым.");
+      return;
+    }
+
+    const previousParty = currentParty;
+    const nextParty = {
+      ...currentParty,
+      title: nextTitle,
+      description: nextDescription || null,
+      theme: nextDescription || null,
+    };
+
+    setCurrentParty(nextParty);
+
+    await runWriteMutation({
+      setLoading: setIsSavingRoomSettings,
+      mutate: async () => {
+        const { error } = await withTimeout(
+          supabase
+            .from("parties")
+            .update({
+              title: nextTitle,
+              description: nextDescription || null,
+            })
+            .eq("id", currentParty.id),
+          SUPABASE_TIMEOUT_MS,
+          "Не удалось сохранить настройки комнаты",
+        );
+
+        if (!error) return;
+
+        const { error: fallbackError } = await withTimeout(
+          supabase
+            .from("parties")
+            .update({
+              title: nextTitle,
+              theme: nextDescription || null,
+            })
+            .eq("id", currentParty.id),
+          SUPABASE_TIMEOUT_MS,
+          "Не удалось сохранить настройки комнаты",
+        );
+
+        if (fallbackError) throw fallbackError;
+      },
+      rollback: () => {
+        setCurrentParty(previousParty);
+        setRoomTitleInput(previousParty.title);
+        setRoomDescriptionInput(getRoomDescription(previousParty));
+      },
+    });
+  };
+
   const handleSendSupport = async () => {
     if (!supportText.trim() || !currentUser) return;
 
@@ -878,8 +959,8 @@ export default function ClientRoom({
 
   const handleShare = async () => {
     const shareData = {
-      title: party.title,
-      text: `Присоединяйся к банкету «${party.title}»`,
+      title: currentParty.title,
+      text: `Присоединяйся к банкету «${currentParty.title}»`,
       url: window.location.href,
     };
 
@@ -910,8 +991,8 @@ export default function ClientRoom({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           partyId: party.id, 
-          theme: party.theme || party.title, 
-          guestCount: party.guest_count || 4 
+          theme: roomDescription || currentParty.title,
+          guestCount: currentParty.guest_count || 4
         })
       });
       
@@ -1172,9 +1253,9 @@ export default function ClientRoom({
           </button>
 
           <div className="min-w-0 text-center">
-            <h1 className="truncate text-base font-semibold tracking-tight text-black">{party.title}</h1>
-            <p className="text-sm font-medium text-zinc-500">
-              {party.guest_count ?? visibleGuests.length} персон
+            <h1 className="truncate text-base font-semibold tracking-tight text-black">{currentParty.title}</h1>
+            <p className="truncate text-sm font-medium text-zinc-500">
+              {roomDescription || `${currentParty.guest_count ?? visibleGuests.length} персон`}
             </p>
           </div>
 
@@ -1203,7 +1284,11 @@ export default function ClientRoom({
               </div>
             )}
             <div className="px-4 pt-4">
-              <div className="rounded-3xl border border-black/5 bg-white p-4 shadow-sm">
+              <button
+                type="button"
+                onClick={() => setShowRoomInfo(true)}
+                className="w-full cursor-pointer rounded-3xl border border-black/5 bg-white p-4 text-left shadow-sm transition-colors hover:bg-gray-50"
+              >
                 <div className="flex items-center gap-3">
                   <div className="rounded-2xl bg-zinc-100 p-3">
                     <Users className="h-5 w-5 text-zinc-500" />
@@ -1219,7 +1304,7 @@ export default function ClientRoom({
                     )}
                   </div>
                 </div>
-              </div>
+              </button>
             </div>
             {renderMenuPanel()}
           </>
@@ -1252,6 +1337,101 @@ export default function ClientRoom({
           </button>
         </div>
       </nav>
+
+      {showRoomInfo && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 backdrop-blur-md sm:items-center">
+          <div className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-t-3xl border border-black/5 bg-white p-6 shadow-2xl sm:rounded-3xl">
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">О банкете</p>
+                <h2 className="truncate text-2xl font-semibold tracking-tight text-black">{currentParty.title}</h2>
+                {roomDescription && <p className="mt-2 text-sm leading-6 text-zinc-500">{roomDescription}</p>}
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRoomInfo(false)}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 transition hover:bg-zinc-200 hover:text-black"
+                aria-label="Закрыть"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <section>
+              <h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-zinc-400">Участники</h3>
+              {visibleGuests.length > 0 ? (
+                <div className="space-y-2">
+                  {visibleGuests.map((guest) => {
+                    const guestName = getGuestName(guest);
+                    const isOrganizer = Boolean(currentParty.host_id && guest.user_id === currentParty.host_id);
+
+                    return (
+                      <div key={getGuestIdentity(guest)} className="flex items-center gap-3 rounded-2xl bg-zinc-50 p-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-sm font-bold text-zinc-700 shadow-sm">
+                          {guestName.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="truncate text-sm font-semibold text-black">{guestName}</span>
+                            {isOrganizer && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                                <Crown className="h-3 w-3" />
+                                Организатор
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="rounded-2xl bg-zinc-50 p-4 text-sm text-zinc-500">Пока никто не присоединился.</div>
+              )}
+            </section>
+
+            {isAdmin && (
+              <section className="mt-6 border-t border-zinc-100 pt-5">
+                <h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-zinc-400">
+                  Настройки комнаты
+                </h3>
+                <div className="space-y-3">
+                  <input
+                    type="text"
+                    value={roomTitleInput}
+                    onChange={(event) => setRoomTitleInput(event.target.value)}
+                    placeholder="Название банкета"
+                    className="w-full rounded-2xl bg-zinc-100 px-4 py-3 text-base text-black outline-none transition focus:bg-zinc-200"
+                  />
+                  <textarea
+                    value={roomDescriptionInput}
+                    onChange={(event) => setRoomDescriptionInput(event.target.value)}
+                    placeholder="Описание банкета"
+                    rows={4}
+                    className="w-full resize-none rounded-2xl bg-zinc-100 px-4 py-3 text-base text-black outline-none transition focus:bg-zinc-200"
+                  />
+                  <button
+                    type="button"
+                    onClick={updateRoomSettings}
+                    disabled={!roomTitleInput.trim() || isSavingRoomSettings}
+                    aria-busy={isSavingRoomSettings}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-black px-5 py-4 text-base font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isSavingRoomSettings ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Сохраняем...
+                      </>
+                    ) : (
+                      "Сохранить изменения"
+                    )}
+                  </button>
+                </div>
+              </section>
+            )}
+          </div>
+        </div>
+      )}
 
       {showJoinModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-md">

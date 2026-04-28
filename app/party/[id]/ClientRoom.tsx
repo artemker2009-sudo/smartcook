@@ -904,7 +904,7 @@ export default function ClientRoom({
             type="button"
             onClick={handleGenerateMenu}
             disabled={isGenerating}
-            className="w-full bg-black text-white font-medium p-4 rounded-3xl flex items-center justify-center gap-2 disabled:opacity-80 transition-all"
+            className="flex w-full items-center justify-center gap-2 rounded-full bg-black px-5 py-4 text-base font-semibold text-white shadow-lg transition-all hover:bg-zinc-800 disabled:opacity-80"
           >
             <Sparkles className="h-4 w-4" />
             {isGenerating ? "✨ Шеф-повар составляет меню..." : "✨ Сгенерировать меню с ИИ (PRO)"}
@@ -920,7 +920,7 @@ export default function ClientRoom({
               <button
                 type="button"
                 onClick={handleShare}
-                className="bg-white text-black font-medium px-6 py-3 rounded-2xl shadow-sm border border-black/5 hover:bg-zinc-50 transition-colors w-full"
+                className="w-full rounded-2xl border border-zinc-200 bg-white px-6 py-3 font-medium text-black shadow-sm transition-colors hover:bg-zinc-50"
               >
                 Поделиться ссылкой
               </button>
@@ -933,16 +933,22 @@ export default function ClientRoom({
         <button
           type="button"
           onClick={() => setShowAddDishModal(true)}
-          disabled={!currentUserId}
-          className="inline-flex items-center justify-center gap-2 rounded-3xl border border-black/5 bg-white px-4 py-4 text-sm font-medium text-black shadow-sm transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={!currentUserId || isAddingDish}
+          className="inline-flex items-center justify-center gap-2 rounded-3xl bg-zinc-100 px-4 py-4 text-sm font-medium text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <Plus className="h-4 w-4" />
-          Добавить блюдо
+          {isAddingDish ? (
+            "Добавляем..."
+          ) : (
+            <>
+              <Plus className="h-4 w-4" />
+              Добавить блюдо
+            </>
+          )}
         </button>
         <button
           type="button"
           onClick={handleShare}
-          className="inline-flex items-center justify-center gap-2 rounded-3xl border border-black/5 bg-white px-4 py-4 text-sm font-medium text-black shadow-sm transition hover:bg-zinc-50"
+          className="inline-flex items-center justify-center gap-2 rounded-3xl border border-zinc-200 bg-white px-4 py-4 text-sm font-medium text-black shadow-sm transition hover:bg-zinc-50"
         >
           <Share2 className="h-4 w-4" />
           Поделиться
@@ -1024,7 +1030,7 @@ export default function ClientRoom({
   );
 
   const renderChatPanel = () => (
-    <section className="m-4 flex h-[calc(100vh-180px)] flex-col overflow-hidden rounded-3xl border border-black/5 bg-white shadow-sm">
+    <section className="m-4 flex h-[calc(100dvh-180px)] flex-col overflow-hidden rounded-3xl border border-black/5 bg-white shadow-sm">
       <div className="border-b border-zinc-100 p-4">
         <div className="flex items-center gap-2 text-base font-semibold tracking-tight text-black">
           <MessageCircle className="h-4 w-4" />
@@ -1119,7 +1125,7 @@ export default function ClientRoom({
   );
 
   return (
-    <div className="min-h-screen bg-[#F5F5F7] text-black">
+    <div className="min-h-[100dvh] bg-[#F5F5F7] text-black">
       <header className="sticky top-0 z-30 border-b border-black/5 bg-white/90 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-4">
           <button
@@ -1168,11 +1174,40 @@ export default function ClientRoom({
                   <div className="rounded-2xl bg-zinc-100 p-3">
                     <Users className="h-5 w-5 text-zinc-500" />
                   </div>
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-zinc-500">Участники банкета</p>
-                    <p className="truncate text-base font-semibold tracking-tight text-black">
-                      {guestNames.length > 0 ? guestNames.join(", ") : "Список гостей появится здесь"}
-                    </p>
+                    {visibleGuests.length > 0 ? (
+                      <div className="mt-2 flex items-center">
+                        {visibleGuests.slice(0, visibleGuests.length > 4 ? 3 : 4).map((guest) => {
+                          const guestName = getGuestName(guest);
+                          const isCurrentGuest = getGuestIdentity(guest) === currentParticipantIdentity;
+
+                          return (
+                            <div
+                              key={getGuestIdentity(guest)}
+                              title={isCurrentGuest ? `${guestName} (вы)` : guestName}
+                              className={`flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-zinc-100 text-xs font-bold text-black -ml-2 first:ml-0 ${
+                                isCurrentGuest ? "ring-2 ring-black/10" : ""
+                              }`}
+                            >
+                              {guestName.charAt(0).toUpperCase()}
+                            </div>
+                          );
+                        })}
+                        {visibleGuests.length > 4 && (
+                          <div
+                            title={`Еще ${visibleGuests.length - 3}`}
+                            className="-ml-2 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-zinc-100 text-xs font-bold text-black"
+                          >
+                            +{visibleGuests.length - 3}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="truncate text-base font-semibold tracking-tight text-black">
+                        Список гостей появится здесь
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>

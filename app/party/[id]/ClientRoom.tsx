@@ -14,7 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { joinPartyAction } from "@/app/actions/party";
+import { joinPartyAction, sendPaywallChatAlertAction } from "@/app/actions/party";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -23,7 +23,7 @@ const supabase = createClient(
 
 const MENU_CATEGORIES = ["Закуски", "Салаты", "Горячее", "Напитки"] as const;
 const SUPABASE_TIMEOUT_MS = 12000;
-const PAYWALL_ALERT_MESSAGE = "Гость не может войти: лимит мест исчерпан. Расширьте тариф!";
+const PAYWALL_ALERT_MESSAGE_MARKER = "бесплатный лимит гостей уже закончился";
 
 type MenuCategory = (typeof MENU_CATEGORIES)[number];
 
@@ -551,7 +551,7 @@ export default function ClientRoom({
         (payload) => {
           const next = payload.new as PartyMessage;
 
-          if (next.text === PAYWALL_ALERT_MESSAGE) {
+          if (next.text.includes(PAYWALL_ALERT_MESSAGE_MARKER)) {
             showHostPaywallAlert(getMessageAuthor(next));
           }
 
@@ -902,28 +902,6 @@ export default function ClientRoom({
     void handleMockPayment();
   };
 
-  const sendPaywallBroadcast = async (guestName: string) => {
-    if (!roomChannelRef.current || !roomChannelReadyRef.current) return;
-
-    try {
-      const response = await withTimeout(
-        roomChannelRef.current.send({
-          type: "broadcast",
-          event: "paywall_alert",
-          payload: { guestName },
-        }),
-        3000,
-        "Не удалось отправить Broadcast",
-      );
-
-      if (response !== "ok") {
-        console.warn("Paywall broadcast returned status:", response);
-      }
-    } catch (error) {
-      console.warn("Paywall broadcast failed, database fallback was used:", error);
-    }
-  };
-
   const handleNotifyOrganizer = async () => {
     if (isNotifyingOrganizer || hasNotifiedOrganizer) return;
 
@@ -932,27 +910,19 @@ export default function ClientRoom({
 
     try {
       const guestName = pendingJoinName || inputName.trim() || "Гость";
-
-      const { error } = await withTimeout(
-        supabase.from("party_messages").insert([
-          {
-            party_id: party.id,
-            user_name: guestName,
-            text: PAYWALL_ALERT_MESSAGE,
-          },
-        ]),
+      const result = await withTimeout(
+        sendPaywallChatAlertAction(party.id, guestName),
         SUPABASE_TIMEOUT_MS,
-        "Не удалось уведомить организатора",
+        "Не удалось отправить сообщение в чат",
       );
 
-      if (error) throw error;
-      void sendPaywallBroadcast(guestName);
+      if (!result.success) throw new Error(result.error);
       await new Promise((resolve) => window.setTimeout(resolve, 1000));
       setHasNotifiedOrganizer(true);
     } catch (error) {
       console.error(error);
       setNotifyOrganizerError(
-        "Не удалось отправить уведомление. Проверьте интернет и попробуйте ещё раз.",
+        "Не удалось отправить сообщение в чат. Проверьте интернет и попробуйте ещё раз.",
       );
     } finally {
       setIsNotifyingOrganizer(false);
@@ -1631,7 +1601,7 @@ export default function ClientRoom({
 
                 {hasNotifiedOrganizer && (
                   <p className="text-center text-sm leading-6 text-zinc-500">
-                    Организатор получил уведомление. Можно подождать, пока он расширит тариф.
+                    Сообщение отправлено в общий чат. Участники увидят, что вам нужен Party Pass.
                   </p>
                 )}
                 {notifyOrganizerError && (

@@ -26,6 +26,8 @@ export type JoinPartyActionResult =
   | { success: false; error: "PAYWALL_REACHED"; isPaid: false }
   | { success: false; error: string };
 
+export type SendPaywallChatAlertActionResult = { success: true } | { success: false; error: string };
+
 const getActionErrorMessage = (error: unknown) => (error instanceof Error ? error.message : "Неизвестная ошибка сервера");
 const ZERO_WIDTH_CHARS = ["\u200B", "\u200C", "\u200D", "\u2060"] as const;
 const makeInvisibleSuffix = (seed: string) =>
@@ -154,5 +156,35 @@ export async function joinPartyAction(
       success: false,
       error: getActionErrorMessage(error),
     };
+  }
+}
+
+export async function sendPaywallChatAlertAction(
+  partyId: string,
+  guestName: string,
+): Promise<SendPaywallChatAlertActionResult> {
+  const trimmedName = guestName.trim();
+
+  if (!partyId || !trimmedName) {
+    return { success: false, error: "Не хватает данных для отправки сообщения" };
+  }
+
+  try {
+    const supabase = createServerSupabaseClient();
+    const { error } = await supabase.from("party_messages").insert([
+      {
+        party_id: partyId,
+        user_name: trimmedName,
+        text:
+          "Я хочу присоединиться к банкету, но бесплатный лимит гостей уже закончился. " +
+          "Ребята, активируйте Party Pass, и места станут безлимитными для всех 🙏",
+      },
+    ]);
+
+    if (error) throw new Error(error.message);
+    return { success: true };
+  } catch (error) {
+    console.error("Paywall Chat Alert Action Error:", error);
+    return { success: false, error: getActionErrorMessage(error) };
   }
 }

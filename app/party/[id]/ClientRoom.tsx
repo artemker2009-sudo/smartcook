@@ -932,6 +932,7 @@ export default function ClientRoom({
   };
 
   const handleCancelJoinLimit = () => {
+    writeStoredParticipant(party.id, null);
     setCurrentUser(null);
     setCurrentUserId(null);
     setIsObserver(false);
@@ -940,7 +941,8 @@ export default function ClientRoom({
     setPendingJoinName("");
     setHasNotifiedOrganizer(false);
     setNotifyOrganizerError("");
-    setShowJoinModal(false);
+    setShowPaywall(false);
+    setShowJoinModal(true);
   };
 
   const sendMessage = async (e: FormEvent<HTMLFormElement>) => {
@@ -1595,7 +1597,7 @@ export default function ClientRoom({
                     onClick={handleCancelJoinLimit}
                     className="w-full rounded-2xl border border-black/5 bg-white px-5 py-4 text-base font-medium text-black transition hover:bg-zinc-50"
                   >
-                    Отмена / Назад
+                    Назад к вводу имени
                   </button>
                 </div>
 

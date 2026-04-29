@@ -318,6 +318,7 @@ export default function ClientRoom({
   const [messages, setMessages] = useState<PartyMessage[]>(initialMessages ?? []);
   const [menuItems, setMenuItems] = useState<PartyItem[]>(initialItems ?? []);
   const [showAddDishModal, setShowAddDishModal] = useState(false);
+  const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
   const [newMessage, setNewMessage] = useState("");
   const [newDishName, setNewDishName] = useState("");
   const [newDishCategory, setNewDishCategory] = useState("Закуски");
@@ -680,7 +681,11 @@ export default function ClientRoom({
         },
         (payload) => {
           const deletedItem = payload.old as Partial<PartyItem>;
-          setMenuItems((prev) => prev.filter((item) => item.id !== deletedItem.id));
+          setMenuItems((prev) => {
+            const nextItems = prev.filter((item) => item.id !== deletedItem.id);
+            menuItemsRef.current = nextItems;
+            return nextItems;
+          });
         },
       )
       .on(
@@ -1162,7 +1167,7 @@ export default function ClientRoom({
     }
   };
 
-  const handleGenerateMenu = async () => {
+  const startGenerateMenu = async () => {
     if (generationInProgress) return;
 
     if (!currentParty.is_paid) {
@@ -1200,6 +1205,22 @@ export default function ClientRoom({
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const handleGenerateMenu = () => {
+    if (generationInProgress) return;
+
+    if (menuItemsRef.current.length > 0) {
+      setShowRegenerateConfirm(true);
+      return;
+    }
+
+    void startGenerateMenu();
+  };
+
+  const handleConfirmRegenerateMenu = () => {
+    setShowRegenerateConfirm(false);
+    void startGenerateMenu();
   };
 
   const renderMenuPanel = () => (
@@ -1788,6 +1809,48 @@ export default function ClientRoom({
                   </>
                 ) : (
                   "Добавить"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showRegenerateConfirm && (
+        <div
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="regenerate-menu-title"
+          aria-describedby="regenerate-menu-description"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+        >
+          <div className="w-full max-w-sm animate-in zoom-in-95 rounded-3xl bg-white p-6 shadow-2xl duration-200">
+            <h2 id="regenerate-menu-title" className="mb-2 text-xl font-bold text-black">Обновить меню?</h2>
+            <p id="regenerate-menu-description" className="mb-6 text-sm leading-6 text-zinc-500">
+              Внимание: текущий список блюд будет полностью удален и заменен новым. Это действие нельзя отменить.
+            </p>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowRegenerateConfirm(false)}
+                className="flex-1 rounded-xl bg-zinc-100 p-4 font-medium text-black transition-colors hover:bg-zinc-200"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmRegenerateMenu}
+                disabled={generationInProgress}
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-black p-4 font-medium text-white transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {generationInProgress ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Создаем...
+                  </>
+                ) : (
+                  "Удалить и создать"
                 )}
               </button>
             </div>

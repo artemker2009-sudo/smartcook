@@ -81,6 +81,15 @@ export async function POST(req: Request) {
 
     lockAcquired = true;
 
+    const { error: clearMenuError } = await supabase
+      .from('party_items')
+      .delete()
+      .eq('party_id', partyId);
+
+    if (clearMenuError) {
+      throw new Error(clearMenuError.message);
+    }
+
     const systemPrompt = `Ты профессиональный шеф-повар. Составь меню для банкета. 
     Тематика/Сценарий: "${theme}". 
     Количество гостей: ${guestCount}.

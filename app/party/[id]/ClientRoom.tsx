@@ -23,7 +23,7 @@ const supabase = createClient(
 
 const MENU_CATEGORIES = ["Закуски", "Салаты", "Горячее", "Напитки"] as const;
 const SUPABASE_TIMEOUT_MS = 12000;
-const BROADCAST_READY_TIMEOUT_MS = 5000;
+const PAYWALL_ALERT_MESSAGE = "Гость не может войти: лимит мест исчерпан. Расширьте тариф!";
 
 type MenuCategory = (typeof MENU_CATEGORIES)[number];
 
@@ -310,6 +310,7 @@ export default function ClientRoom({
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const roomChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const roomChannelReadyRef = useRef(false);
+  const lastPaywallAlertToastRef = useRef<{ guestName: string; shownAt: number } | null>(null);
   const CATEGORIES = ["Закуски", "Салаты", "Горячее", "Напитки"] as const;
   const roomHostId = currentParty.host_id?.trim() || null;
   const currentViewerId = currentUserId?.trim() || null;
@@ -371,23 +372,26 @@ export default function ClientRoom({
     [],
   );
 
-  const waitForRoomChannel = useCallback(async () => {
-    const startedAt = Date.now();
+  const showHostPaywallAlert = useCallback(
+    (guestName: string) => {
+      if (!isHost) return;
 
-    while (roomChannelRef.current && !roomChannelReadyRef.current) {
-      if (Date.now() - startedAt > BROADCAST_READY_TIMEOUT_MS) {
-        throw new Error("Realtime-канал комнаты не успел подключиться");
-      }
+      const normalizedGuestName = guestName.trim() || "Гость";
+      const lastAlert = lastPaywallAlertToastRef.current;
+      const now = Date.now();
 
-      await new Promise((resolve) => window.setTimeout(resolve, 100));
-    }
+      if (lastAlert?.guestName === normalizedGuestName && now - lastAlert.shownAt < 3000) return;
+      lastPaywallAlertToastRef.current = { guestName: normalizedGuestName, shownAt: now };
 
-    if (!roomChannelRef.current || !roomChannelReadyRef.current) {
-      throw new Error("Realtime-канал комнаты недоступен");
-    }
-
-    return roomChannelRef.current;
-  }, []);
+      toast(`Гость ${normalizedGuestName} не может войти (лимит мест). Расширьте тариф!`, {
+        action: {
+          label: "Оплатить",
+          onClick: () => setShowPaywall(true),
+        },
+      });
+    },
+    [isHost],
+  );
 
   const completeJoin = useCallback(
     (name: string, userId: string, guestData?: PartyMember) => {
@@ -545,8 +549,13 @@ export default function ClientRoom({
           filter: `party_id=eq.${party.id}`,
         },
         (payload) => {
+          const next = payload.new as PartyMessage;
+
+          if (next.text === PAYWALL_ALERT_MESSAGE) {
+            showHostPaywallAlert(getMessageAuthor(next));
+          }
+
           setMessages((prev) => {
-            const next = payload.new as PartyMessage;
             const exists = prev.some((message) => message.id && message.id === next.id);
             if (exists) return prev;
             return [...prev, next].sort((a, b) => {
@@ -596,12 +605,7 @@ export default function ClientRoom({
             ? payload.payload.guestName.trim()
             : "Гость";
 
-        toast(`Гость ${guestName} не может войти (лимит мест). Расширьте тариф!`, {
-          action: {
-            label: "Оплатить",
-            onClick: () => setShowPaywall(true),
-          },
-        });
+        showHostPaywallAlert(guestName);
       })
       .subscribe((status) => {
         roomChannelReadyRef.current = status === "SUBSCRIBED";
@@ -625,7 +629,7 @@ export default function ClientRoom({
       void supabase.removeChannel(channel);
       void supabase.removeChannel(partySubscription);
     };
-  }, [isHost, party.id, refreshMenuItems]);
+  }, [isHost, party.id, refreshMenuItems, showHostPaywallAlert]);
 
   useEffect(() => {
     if (!currentParty.is_paid) return;
@@ -898,6 +902,28 @@ export default function ClientRoom({
     void handleMockPayment();
   };
 
+  const sendPaywallBroadcast = async (guestName: string) => {
+    if (!roomChannelRef.current || !roomChannelReadyRef.current) return;
+
+    try {
+      const response = await withTimeout(
+        roomChannelRef.current.send({
+          type: "broadcast",
+          event: "paywall_alert",
+          payload: { guestName },
+        }),
+        3000,
+        "Не удалось отправить Broadcast",
+      );
+
+      if (response !== "ok") {
+        console.warn("Paywall broadcast returned status:", response);
+      }
+    } catch (error) {
+      console.warn("Paywall broadcast failed, database fallback was used:", error);
+    }
+  };
+
   const handleNotifyOrganizer = async () => {
     if (isNotifyingOrganizer || hasNotifiedOrganizer) return;
 
@@ -906,19 +932,21 @@ export default function ClientRoom({
 
     try {
       const guestName = pendingJoinName || inputName.trim() || "Гость";
-      const alertChannel = await waitForRoomChannel();
 
-      const response = await withTimeout(
-        alertChannel.send({
-          type: "broadcast",
-          event: "paywall_alert",
-          payload: { guestName },
-        }),
+      const { error } = await withTimeout(
+        supabase.from("party_messages").insert([
+          {
+            party_id: party.id,
+            user_name: guestName,
+            text: PAYWALL_ALERT_MESSAGE,
+          },
+        ]),
         SUPABASE_TIMEOUT_MS,
         "Не удалось уведомить организатора",
       );
 
-      if (response !== "ok") throw new Error("Supabase Broadcast вернул статус: " + response);
+      if (error) throw error;
+      void sendPaywallBroadcast(guestName);
       await new Promise((resolve) => window.setTimeout(resolve, 1000));
       setHasNotifiedOrganizer(true);
     } catch (error) {

@@ -41,12 +41,17 @@ const getErrorMessage = (error: unknown) => {
 };
 
 export async function POST(req: Request) {
+  let partyId: string | undefined;
+  let lockAcquired = false;
+
   try {
-    const { partyId, theme, guestCount } = await req.json();
+    const body = await req.json();
+    partyId = body.partyId;
+    const { theme, guestCount } = body;
 
     const { data: party, error: partyError } = await supabase
       .from('parties')
-      .select('is_paid')
+      .select('is_paid,is_generating')
       .eq('id', partyId)
       .single();
 
@@ -57,6 +62,24 @@ export async function POST(req: Request) {
     if (!party?.is_paid) {
       return NextResponse.json({ error: 'Необходима активация Party Pass' }, { status: 402 });
     }
+
+    if (party.is_generating) {
+      return NextResponse.json({ error: 'Уже генерируем' }, { status: 409 });
+    }
+
+    const { data: lockedParty, error: lockError } = await supabase
+      .from('parties')
+      .update({ is_generating: true })
+      .eq('id', partyId)
+      .eq('is_generating', false)
+      .select('id')
+      .single();
+
+    if (lockError || !lockedParty) {
+      return NextResponse.json({ error: 'Уже генерируем' }, { status: 409 });
+    }
+
+    lockAcquired = true;
 
     const systemPrompt = `Ты профессиональный шеф-повар. Составь меню для банкета. 
     Тематика/Сценарий: "${theme}". 
@@ -111,5 +134,16 @@ export async function POST(req: Request) {
   } catch (error: unknown) {
     console.error("AI Generation Error:", error);
     return NextResponse.json({ success: false, error: getErrorMessage(error) }, { status: 500 });
+  } finally {
+    if (partyId && lockAcquired) {
+      const { error: unlockError } = await supabase
+        .from('parties')
+        .update({ is_generating: false })
+        .eq('id', partyId);
+
+      if (unlockError) {
+        console.error("AI Generation Unlock Error:", unlockError);
+      }
+    }
   }
 }

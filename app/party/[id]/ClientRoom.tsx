@@ -35,6 +35,7 @@ type Party = {
   guest_count?: number | null;
   host_id?: string | null;
   is_paid?: boolean | null;
+  is_generating?: boolean | null;
 };
 
 type PartyMember = {
@@ -334,6 +335,7 @@ export default function ClientRoom({
   const roomHostId = currentParty.host_id?.trim() || null;
   const currentViewerId = currentUserId?.trim() || null;
   const isHost = Boolean(currentViewerId && roomHostId && currentViewerId === roomHostId);
+  const generationInProgress = isGenerating || Boolean(currentParty.is_generating);
 
   // Отправка аналитики
   const trackEvent = async (eventType: string) => {
@@ -738,7 +740,7 @@ export default function ClientRoom({
   }, [messages, activeTab]);
 
   useEffect(() => {
-    if (!isGenerating) return;
+    if (!generationInProgress) return;
 
     const intervalId = window.setInterval(() => {
       void supabase
@@ -758,7 +760,7 @@ export default function ClientRoom({
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [isGenerating, party.id, refreshMenuItems]);
+  }, [generationInProgress, party.id, refreshMenuItems]);
 
   const groupedItems = useMemo(
     () =>
@@ -1161,6 +1163,8 @@ export default function ClientRoom({
   };
 
   const handleGenerateMenu = async () => {
+    if (generationInProgress) return;
+
     if (!currentParty.is_paid) {
       setShowPaywall(true);
       void trackEvent("paywall_view_from_ai");
@@ -1180,7 +1184,8 @@ export default function ClientRoom({
       });
       
       if (!res.ok) {
-        throw new Error(`Ошибка сервера (${res.status}). Сервер перегружен, попробуйте еще раз.`);
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || `Ошибка сервера (${res.status}). Сервер перегружен, попробуйте еще раз.`);
       }
 
       const data = await res.json();
@@ -1189,12 +1194,9 @@ export default function ClientRoom({
       await refreshMenuItems();
       void trackEvent("ai_menu_generated_success");
     } catch (error: unknown) {
-      const latestItems = await refreshMenuItems();
-      if (latestItems.length > 0) {
-        return;
-      }
-
-      alert("Ошибка: " + getErrorMessage(error));
+      console.error("AI menu generation failed:", error);
+      await refreshMenuItems();
+      toast.error("Не удалось сгенерировать меню. Попробуйте еще раз.");
     } finally {
       setIsGenerating(false);
     }
@@ -1206,11 +1208,11 @@ export default function ClientRoom({
         <button
           type="button"
           onClick={handleGenerateMenu}
-          disabled={isGenerating}
+          disabled={generationInProgress}
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-black py-3 font-semibold text-white shadow-sm transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-          {isGenerating ? "Шеф-повар составляет меню..." : "Сгенерировать ИИ"}
+          {generationInProgress ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+          {generationInProgress ? "Шеф-повар думает..." : "Сгенерировать ИИ"}
         </button>
         <button
           type="button"
@@ -1229,7 +1231,7 @@ export default function ClientRoom({
         </button>
       </div>
 
-      {isGenerating && (
+      {generationInProgress && (
         <div className="animate-in fade-in slide-in-from-top-4 rounded-3xl bg-zinc-100 p-6 text-center duration-500">
           <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin text-zinc-500" />
           <h3 className="mb-1 text-lg font-semibold">Меню уже готовится</h3>

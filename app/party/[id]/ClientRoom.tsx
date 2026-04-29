@@ -23,6 +23,7 @@ const supabase = createClient(
 
 const MENU_CATEGORIES = ["Закуски", "Салаты", "Горячее", "Напитки"] as const;
 const SUPABASE_TIMEOUT_MS = 12000;
+const BROADCAST_READY_TIMEOUT_MS = 5000;
 
 type MenuCategory = (typeof MENU_CATEGORIES)[number];
 
@@ -285,6 +286,7 @@ export default function ClientRoom({
   const [pendingJoinName, setPendingJoinName] = useState("");
   const [isNotifyingOrganizer, setIsNotifyingOrganizer] = useState(false);
   const [hasNotifiedOrganizer, setHasNotifiedOrganizer] = useState(false);
+  const [notifyOrganizerError, setNotifyOrganizerError] = useState("");
   const [showSupport, setShowSupport] = useState(false);
   const [supportText, setSupportText] = useState("");
   const [isSendingSupport, setIsSendingSupport] = useState(false);
@@ -307,6 +309,7 @@ export default function ClientRoom({
   const [isGenerating, setIsGenerating] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const roomChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const roomChannelReadyRef = useRef(false);
   const CATEGORIES = ["Закуски", "Салаты", "Горячее", "Напитки"] as const;
   const roomHostId = currentParty.host_id?.trim() || null;
   const currentViewerId = currentUserId?.trim() || null;
@@ -368,6 +371,24 @@ export default function ClientRoom({
     [],
   );
 
+  const waitForRoomChannel = useCallback(async () => {
+    const startedAt = Date.now();
+
+    while (roomChannelRef.current && !roomChannelReadyRef.current) {
+      if (Date.now() - startedAt > BROADCAST_READY_TIMEOUT_MS) {
+        throw new Error("Realtime-канал комнаты не успел подключиться");
+      }
+
+      await new Promise((resolve) => window.setTimeout(resolve, 100));
+    }
+
+    if (!roomChannelRef.current || !roomChannelReadyRef.current) {
+      throw new Error("Realtime-канал комнаты недоступен");
+    }
+
+    return roomChannelRef.current;
+  }, []);
+
   const completeJoin = useCallback(
     (name: string, userId: string, guestData?: PartyMember) => {
       writeStoredParticipant(party.id, { name, userId });
@@ -378,6 +399,7 @@ export default function ClientRoom({
       setJoinLimitReached(false);
       setPendingJoinName("");
       setHasNotifiedOrganizer(false);
+      setNotifyOrganizerError("");
       setShowJoinModal(false);
       setGuests((prev) =>
         prev.some((guest) => getGuestIdentity(guest) === userId)
@@ -494,6 +516,7 @@ export default function ClientRoom({
           setJoinLimitReached(true);
           setShowJoinModal(true);
           setShowPaywall(false);
+          setNotifyOrganizerError("");
           return;
         }
 
@@ -580,7 +603,9 @@ export default function ClientRoom({
           },
         });
       })
-      .subscribe();
+      .subscribe((status) => {
+        roomChannelReadyRef.current = status === "SUBSCRIBED";
+      });
     roomChannelRef.current = channel;
 
     const partySubscription = supabase
@@ -596,6 +621,7 @@ export default function ClientRoom({
 
     return () => {
       roomChannelRef.current = null;
+      roomChannelReadyRef.current = false;
       void supabase.removeChannel(channel);
       void supabase.removeChannel(partySubscription);
     };
@@ -777,6 +803,7 @@ export default function ClientRoom({
           setShowJoinModal(true);
           setShowPaywall(false);
           setHasNotifiedOrganizer(false);
+          setNotifyOrganizerError("");
           return;
         }
 
@@ -875,16 +902,11 @@ export default function ClientRoom({
     if (isNotifyingOrganizer || hasNotifiedOrganizer) return;
 
     setIsNotifyingOrganizer(true);
+    setNotifyOrganizerError("");
 
     try {
       const guestName = pendingJoinName || inputName.trim() || "Гость";
-      let alertChannel = roomChannelRef.current;
-
-      if (!alertChannel) {
-        alertChannel = supabase.channel(`room:${party.id}`);
-        roomChannelRef.current = alertChannel;
-        alertChannel.subscribe();
-      }
+      const alertChannel = await waitForRoomChannel();
 
       const response = await withTimeout(
         alertChannel.send({
@@ -901,7 +923,9 @@ export default function ClientRoom({
       setHasNotifiedOrganizer(true);
     } catch (error) {
       console.error(error);
-      window.alert(getMutationAlertMessage(error));
+      setNotifyOrganizerError(
+        "Не удалось отправить уведомление. Проверьте интернет и попробуйте ещё раз.",
+      );
     } finally {
       setIsNotifyingOrganizer(false);
     }
@@ -915,6 +939,7 @@ export default function ClientRoom({
     setJoinLimitReached(false);
     setPendingJoinName("");
     setHasNotifiedOrganizer(false);
+    setNotifyOrganizerError("");
     setShowJoinModal(false);
   };
 
@@ -1579,6 +1604,11 @@ export default function ClientRoom({
                     Организатор получил уведомление. Можно подождать, пока он расширит тариф.
                   </p>
                 )}
+                {notifyOrganizerError && (
+                  <p className="rounded-2xl bg-red-50 px-4 py-3 text-center text-sm leading-6 text-red-600">
+                    {notifyOrganizerError}
+                  </p>
+                )}
               </div>
             ) : (
               <>
@@ -1603,6 +1633,7 @@ export default function ClientRoom({
                       setInputName(event.target.value);
                       setJoinLimitReached(false);
                       setHasNotifiedOrganizer(false);
+                      setNotifyOrganizerError("");
                     }}
                     placeholder="Введите ваше имя"
                     className="w-full rounded-2xl bg-zinc-100 px-5 py-4 text-base text-black outline-none transition focus:bg-zinc-200"

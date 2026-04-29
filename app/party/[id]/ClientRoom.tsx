@@ -23,6 +23,7 @@ const supabase = createClient(
 
 const MENU_CATEGORIES = ["Закуски", "Салаты", "Горячее", "Напитки"] as const;
 const SUPABASE_TIMEOUT_MS = 12000;
+const GENERATE_MENU_TIMEOUT_MS = 45000;
 const PAYWALL_ALERT_MESSAGE_MARKER = "бесплатный лимит гостей уже закончился";
 
 type MenuCategory = (typeof MENU_CATEGORIES)[number];
@@ -1176,17 +1177,25 @@ export default function ClientRoom({
       return;
     }
 
+    let timeoutId: number | undefined;
+
     try {
       setIsGenerating(true);
+      const controller = new AbortController();
+      timeoutId = window.setTimeout(() => controller.abort(), GENERATE_MENU_TIMEOUT_MS);
+
       const res = await fetch('/api/party/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({ 
           partyId: party.id, 
           theme: roomDescription || currentParty.title,
           guestCount: currentParty.guest_count || 4
         })
       });
+      window.clearTimeout(timeoutId);
+      timeoutId = undefined;
       
       if (!res.ok) {
         const data = await res.json().catch(() => null);
@@ -1201,14 +1210,21 @@ export default function ClientRoom({
     } catch (error: unknown) {
       console.error("AI menu generation failed:", error);
       await refreshMenuItems();
-      toast.error("Не удалось сгенерировать меню. Попробуйте еще раз.");
+      toast.error("Ошибка ИИ. Попробуйте еще раз");
     } finally {
+      if (timeoutId) window.clearTimeout(timeoutId);
       setIsGenerating(false);
     }
   };
 
   const handleGenerateMenu = () => {
     if (generationInProgress) return;
+
+    if (!currentParty.is_paid) {
+      setShowPaywall(true);
+      void trackEvent("paywall_view_from_ai");
+      return;
+    }
 
     if (menuItemsRef.current.length > 0) {
       setShowRegenerateConfirm(true);
@@ -1220,6 +1236,8 @@ export default function ClientRoom({
 
   const handleConfirmRegenerateMenu = () => {
     setShowRegenerateConfirm(false);
+    menuItemsRef.current = [];
+    setMenuItems([]);
     void startGenerateMenu();
   };
 
@@ -1289,7 +1307,17 @@ export default function ClientRoom({
             </span>
           </div>
 
-          {items.length === 0 ? (
+          {items.length === 0 && generationInProgress ? (
+            <div className="space-y-3" aria-label={`${category}: блюда готовятся`}>
+              {[0, 1].map((index) => (
+                <div key={index} className="animate-pulse rounded-[28px] bg-zinc-50 px-4 py-4">
+                  <div className="mb-3 h-4 w-2/3 rounded-full bg-zinc-200" />
+                  <div className="h-3 w-full rounded-full bg-zinc-200" />
+                  <div className="mt-2 h-3 w-4/5 rounded-full bg-zinc-200" />
+                </div>
+              ))}
+            </div>
+          ) : items.length === 0 ? (
             <p className="text-sm leading-6 text-zinc-400">Здесь появятся предложенные блюда...</p>
           ) : (
             <div className="space-y-3">

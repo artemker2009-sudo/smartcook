@@ -14,7 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { joinPartyAction, sendPaywallChatAlertAction } from "@/app/actions/party";
+import { joinPartyAction, sendPaywallChatAlertAction, togglePartyItemVoteAction } from "@/app/actions/party";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -239,6 +239,16 @@ const formatTime = (value?: string | null) => {
     minute: "2-digit",
   });
 };
+
+export function getGuestDeclension(count: number) {
+  const n = Math.abs(count) % 100;
+  const n1 = count % 10;
+
+  if (n > 10 && n < 20) return "гостей";
+  if (n1 > 1 && n1 < 5) return "гостя";
+  if (n1 === 1) return "гость";
+  return "гостей";
+}
 
 const parseIngredients = (ingredients?: PartyItem["ingredients"]) => {
   if (!ingredients) return [] as MenuIngredient[];
@@ -494,14 +504,14 @@ export default function ClientRoom({
     await runWriteMutation({
       setLoading: (loading) => setVotingItemId(loading ? itemId : null),
       mutate: async () => {
-        const { data, error } = await withTimeout(
-          supabase.from("party_items").update({ votes: nextVotes }).eq("id", itemId).select("*").single(),
+        const result = await withTimeout(
+          togglePartyItemVoteAction(party.id, itemId, currentUserId, currentUser),
           SUPABASE_TIMEOUT_MS,
           "Не удалось обновить голос",
         );
-        if (error) throw error;
+        if (!result.success) throw new Error(result.error);
 
-        const updatedItem = data as PartyItem;
+        const updatedItem = result.item as PartyItem;
         menuItemsRef.current = menuItemsRef.current.map((item) => (item.id === itemId ? updatedItem : item));
         setMenuItems((prev) => prev.map((item) => (item.id === itemId ? updatedItem : item)));
       },
@@ -772,13 +782,14 @@ export default function ClientRoom({
       .sort((a, b) => getGuestName(a).localeCompare(getGuestName(b), "ru"));
   }, [guests]);
 
+  const guestsCount = visibleGuests.length;
   const currentParticipantIdentity = currentUserId || (currentUser ? `name:${normalizeName(currentUser)}` : null);
   const roomDescription = getRoomDescription(currentParty);
   const stackedAvatarGuests = useMemo(
-    () => (visibleGuests.length > 3 ? visibleGuests.slice(0, 2) : visibleGuests.slice(0, 3)),
-    [visibleGuests],
+    () => (guestsCount > 3 ? visibleGuests.slice(0, 2) : visibleGuests.slice(0, 3)),
+    [guestsCount, visibleGuests],
   );
-  const extraGuestCount = visibleGuests.length > 3 ? visibleGuests.length - stackedAvatarGuests.length : 0;
+  const extraGuestCount = guestsCount > 3 ? guestsCount - stackedAvatarGuests.length : 0;
   const currentVoteMarkers = useMemo(
     () => [currentUserId, currentUser].filter(Boolean) as string[],
     [currentUserId, currentUser],
@@ -789,7 +800,7 @@ export default function ClientRoom({
   );
 
   const renderGuestAvatars = () => (
-    <div className="flex -space-x-2" aria-label={`Гостей: ${visibleGuests.length}`}>
+    <div className="flex -space-x-2" aria-label={`Гостей: ${guestsCount}`}>
       {stackedAvatarGuests.map((guest) => {
         const guestName = getGuestName(guest);
         const isCurrentGuest = getGuestIdentity(guest) === currentParticipantIdentity;
@@ -1362,7 +1373,10 @@ export default function ClientRoom({
         <div ref={messagesEndRef} />
       </div>
 
-      <form onSubmit={sendMessage} className="mt-auto shrink-0 border-t border-zinc-100 bg-white p-2">
+      <form
+        onSubmit={sendMessage}
+        className="sticky bottom-0 z-40 mt-auto shrink-0 border-t border-zinc-100 bg-white px-2 pb-safe pt-2"
+      >
         <div className="flex items-center gap-3">
           <input
             type="text"
@@ -1402,7 +1416,11 @@ export default function ClientRoom({
 
   return (
     <div className="flex min-h-[100dvh] flex-col bg-[#F5F5F7] text-black">
-      <header className="sticky top-0 z-30 shrink-0 border-b border-gray-100 bg-white/95 shadow-sm backdrop-blur-sm">
+      <header
+        className={`shrink-0 border-gray-100 ${
+          activeTab === "chat" ? "sticky top-0 z-50 border-b shadow-sm bg-white/95 backdrop-blur" : "relative"
+        }`}
+      >
         <div className="mx-auto max-w-3xl px-4 py-3">
           <div className="flex items-center justify-between gap-3">
             <button
@@ -1439,11 +1457,13 @@ export default function ClientRoom({
             <div className="min-w-0">
               <p className="text-xs font-medium text-zinc-400">Участники банкета</p>
               <p className="truncate text-sm font-semibold tracking-tight text-black">
-                {visibleGuests.length > 0 ? `${visibleGuests.length} гостей в комнате` : "Список гостей появится здесь"}
+                {guestsCount > 0
+                  ? `${guestsCount} ${getGuestDeclension(guestsCount)} в комнате`
+                  : "Список гостей появится здесь"}
               </p>
             </div>
             <div className="shrink-0">
-              {visibleGuests.length > 0 ? (
+              {guestsCount > 0 ? (
                 renderGuestAvatars()
               ) : (
                 <div className="rounded-2xl bg-white p-2 shadow-sm">

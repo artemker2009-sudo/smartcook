@@ -21,12 +21,25 @@ type PartyMemberData = {
   user_name?: string | null;
 };
 
+type PartyItemData = {
+  id: string;
+  party_id?: string;
+  name: string;
+  category?: string | null;
+  ingredients?: unknown;
+  votes?: string[] | null;
+  created_at?: string | null;
+};
+
 export type JoinPartyActionResult =
   | { success: true; isPaid: boolean; userId: string; guestData: PartyMemberData }
   | { success: false; error: "PAYWALL_REACHED"; isPaid: false }
   | { success: false; error: string };
 
 export type SendPaywallChatAlertActionResult = { success: true } | { success: false; error: string };
+export type TogglePartyItemVoteActionResult =
+  | { success: true; item: PartyItemData }
+  | { success: false; error: string };
 
 const getActionErrorMessage = (error: unknown) => (error instanceof Error ? error.message : "Неизвестная ошибка сервера");
 const ZERO_WIDTH_CHARS = ["\u200B", "\u200C", "\u200D", "\u2060"] as const;
@@ -34,6 +47,13 @@ const makeInvisibleSuffix = (seed: string) =>
   Array.from(seed)
     .map((char) => ZERO_WIDTH_CHARS[char.charCodeAt(0) % ZERO_WIDTH_CHARS.length])
     .join("");
+const toggleVotesForUser = (votes: string[] | null | undefined, userMarkers: string[], userId: string) => {
+  const currentVotes = votes ?? [];
+  const hasCurrentVote = currentVotes.some((vote) => userMarkers.includes(vote));
+  const votesWithoutCurrentUser = currentVotes.filter((vote) => !userMarkers.includes(vote));
+
+  return hasCurrentVote ? votesWithoutCurrentUser : [...votesWithoutCurrentUser, userId];
+};
 
 export async function createPartyAction(title: string, guestCount: number, theme: string) {
   try {
@@ -185,6 +205,54 @@ export async function sendPaywallChatAlertAction(
     return { success: true };
   } catch (error) {
     console.error("Paywall Chat Alert Action Error:", error);
+    return { success: false, error: getActionErrorMessage(error) };
+  }
+}
+
+export async function togglePartyItemVoteAction(
+  partyId: string,
+  itemId: string,
+  userId: string,
+  userName?: string | null,
+): Promise<TogglePartyItemVoteActionResult> {
+  const trimmedPartyId = partyId.trim();
+  const trimmedItemId = itemId.trim();
+  const trimmedUserId = userId.trim();
+  const trimmedUserName = userName?.trim() ?? "";
+
+  if (!trimmedPartyId || !trimmedItemId || !trimmedUserId) {
+    return { success: false, error: "Не хватает данных для обновления лайка" };
+  }
+
+  try {
+    const supabase = createServerSupabaseClient();
+    const { data: item, error: itemError } = await supabase
+      .from("party_items")
+      .select("*")
+      .eq("id", trimmedItemId)
+      .eq("party_id", trimmedPartyId)
+      .single();
+
+    if (itemError) throw new Error(itemError.message);
+    if (!item) throw new Error("Блюдо не найдено");
+
+    const userMarkers = [trimmedUserId, trimmedUserName].filter(Boolean);
+    const nextVotes = toggleVotesForUser(item.votes, userMarkers, trimmedUserId);
+
+    const { data: updatedItem, error: updateError } = await supabase
+      .from("party_items")
+      .update({ votes: nextVotes })
+      .eq("id", trimmedItemId)
+      .eq("party_id", trimmedPartyId)
+      .select("*")
+      .single();
+
+    if (updateError) throw new Error(updateError.message);
+    if (!updatedItem) throw new Error("БД не вернула обновленное блюдо");
+
+    return { success: true, item: updatedItem as PartyItemData };
+  } catch (error) {
+    console.error("Toggle Party Item Vote Action Error:", error);
     return { success: false, error: getActionErrorMessage(error) };
   }
 }

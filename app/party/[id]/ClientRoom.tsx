@@ -1324,21 +1324,7 @@ export default function ClientRoom({
   );
 
   const renderChatPanel = () => (
-    <section className="m-4 flex h-[calc(100dvh-180px)] min-h-0 flex-col overflow-hidden rounded-3xl border border-black/5 bg-white shadow-sm">
-      <div className="border-b border-zinc-100 p-4">
-        <div className="flex items-center gap-2 text-base font-semibold tracking-tight text-black">
-          <MessageCircle className="h-4 w-4" />
-          Обсуждение
-        </div>
-        <div className="mt-3">
-          {visibleGuests.length === 0 ? (
-            <span className="text-sm text-zinc-400">Пока никто не присоединился</span>
-          ) : (
-            renderGuestAvatars()
-          )}
-        </div>
-      </div>
-
+    <section className="flex h-full min-h-0 flex-col bg-white">
       <div className="flex-1 overflow-y-auto p-4">
         {messages.length === 0 ? (
           <div className="flex h-full items-center justify-center text-center text-sm text-zinc-400">
@@ -1371,12 +1357,12 @@ export default function ClientRoom({
                 </div>
               );
             })}
-            <div ref={messagesEndRef} />
           </div>
         )}
+        <div ref={messagesEndRef} />
       </div>
 
-      <form onSubmit={sendMessage} className="border-t border-zinc-100 bg-white p-4">
+      <form onSubmit={sendMessage} className="mt-auto shrink-0 border-t border-zinc-100 bg-white p-2">
         <div className="flex items-center gap-3">
           <input
             type="text"
@@ -1415,8 +1401,8 @@ export default function ClientRoom({
   });
 
   return (
-    <div className="min-h-[100dvh] bg-[#F5F5F7] text-black">
-      <header className="bg-white/95 backdrop-blur-sm border-b border-gray-100 shadow-sm">
+    <div className="flex min-h-[100dvh] flex-col bg-[#F5F5F7] text-black">
+      <header className="sticky top-0 z-30 shrink-0 border-b border-gray-100 bg-white/95 shadow-sm backdrop-blur-sm">
         <div className="mx-auto max-w-3xl px-4 py-3">
           <div className="flex items-center justify-between gap-3">
             <button
@@ -1469,7 +1455,11 @@ export default function ClientRoom({
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl pt-4 pb-28">
+      <main
+        className={`mx-auto w-full max-w-3xl ${
+          activeTab === "chat" ? "flex min-h-0 flex-1 flex-col pb-24" : "pt-4 pb-28"
+        }`}
+      >
         {activeTab === "menu" ? (
           <>
             {isObserver && (

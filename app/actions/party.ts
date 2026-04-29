@@ -19,7 +19,6 @@ type PartyMemberData = {
   party_id?: string;
   user_id?: string | null;
   user_name?: string | null;
-  created_at?: string | null;
 };
 
 export type JoinPartyActionResult =
@@ -82,7 +81,7 @@ export async function joinPartyAction(
       supabase.from("parties").select("is_paid").eq("id", partyId).single(),
       supabase
         .from("party_members")
-        .select("id, party_id, user_id, user_name, created_at")
+        .select("id, party_id, user_id, user_name")
         .eq("party_id", partyId)
         .eq("user_id", trimmedUserId)
         .maybeSingle(),
@@ -102,7 +101,7 @@ export async function joinPartyAction(
           .from("party_members")
           .update({ user_name: candidateName })
           .eq("id", existingBrowserMember.id)
-          .select("id, party_id, user_id, user_name, created_at")
+          .select("id, party_id, user_id, user_name")
           .single();
 
         if (!updateError) {
@@ -132,7 +131,7 @@ export async function joinPartyAction(
       const { data: insertedMember, error: insertError } = await supabase
         .from("party_members")
         .insert([{ party_id: partyId, user_id: trimmedUserId, user_name: candidateName }])
-        .select("id, party_id, user_id, user_name, created_at")
+        .select("id, party_id, user_id, user_name")
         .single();
 
       if (!insertError) {

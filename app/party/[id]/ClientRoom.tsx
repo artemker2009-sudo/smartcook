@@ -584,17 +584,68 @@ export default function ClientRoom({
       .on(
         "postgres_changes",
         {
-          event: "*",
+          event: "INSERT",
           schema: "public",
           table: "party_items",
           filter: `party_id=eq.${party.id}`,
         },
-        () => {
-          void refreshMenuItems().then((items) => {
-            if (items.length > 0) {
-              setIsGenerating(false);
+        (payload) => {
+          const nextItem = payload.new as PartyItem;
+
+          setMenuItems((prev) => {
+            const existingIndex = prev.findIndex((item) => item.id === nextItem.id);
+            if (existingIndex >= 0) {
+              return prev.map((item, index) => (index === existingIndex ? nextItem : item));
             }
+
+            const optimisticIndex = prev.findIndex(
+              (item) =>
+                item.id.startsWith("temp-") &&
+                item.name === nextItem.name &&
+                normalizeCategory(item.category) === normalizeCategory(nextItem.category),
+            );
+
+            if (optimisticIndex >= 0) {
+              return prev.map((item, index) => (index === optimisticIndex ? nextItem : item));
+            }
+
+            return [...prev, nextItem];
           });
+
+          setIsGenerating(false);
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "party_items",
+          filter: `party_id=eq.${party.id}`,
+        },
+        (payload) => {
+          const nextItem = payload.new as PartyItem;
+          setMenuItems((prev) => prev.map((item) => (item.id === nextItem.id ? nextItem : item)));
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "party_items",
+          filter: `party_id=eq.${party.id}`,
+        },
+        (payload) => {
+          const deletedItem = payload.old as Partial<PartyItem>;
+          setMenuItems((prev) => prev.filter((item) => item.id !== deletedItem.id));
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "parties", filter: `id=eq.${party.id}` },
+        (payload) => {
+          setCurrentParty(() => payload.new as Party);
         },
       )
       .on("broadcast", { event: "paywall_alert" }, (payload) => {
@@ -612,24 +663,12 @@ export default function ClientRoom({
       });
     roomChannelRef.current = channel;
 
-    const partySubscription = supabase
-      .channel("public:parties")
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "parties", filter: `id=eq.${party.id}` },
-        (payload) => {
-          setCurrentParty(payload.new as Party);
-        },
-      )
-      .subscribe();
-
     return () => {
       roomChannelRef.current = null;
       roomChannelReadyRef.current = false;
       void supabase.removeChannel(channel);
-      void supabase.removeChannel(partySubscription);
     };
-  }, [isHost, party.id, refreshMenuItems, showHostPaywallAlert]);
+  }, [isHost, party.id, showHostPaywallAlert]);
 
   useEffect(() => {
     if (!currentParty.is_paid) return;
@@ -1350,40 +1389,64 @@ export default function ClientRoom({
 
   return (
     <div className="min-h-[100dvh] bg-[#F5F5F7] text-black">
-      <header className="sticky top-0 z-30 border-b border-black/5 bg-white/90 backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-4">
-          <button
-            type="button"
-            onClick={() => window.history.back()}
-            className="inline-flex min-w-[76px] items-center gap-1 text-sm font-medium text-black transition hover:text-zinc-600"
-          >
-            <span aria-hidden="true">‹</span>
-            Назад
-          </button>
+      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100 shadow-sm">
+        <div className="mx-auto max-w-3xl px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => window.history.back()}
+              className="inline-flex min-w-[76px] items-center gap-1 text-sm font-medium text-black transition hover:text-zinc-600"
+            >
+              <span aria-hidden="true">‹</span>
+              Назад
+            </button>
 
-          <div className="min-w-0 text-center">
-            <h1 className="truncate text-base font-semibold tracking-tight text-black">{currentParty.title}</h1>
-            <p className="truncate text-sm font-medium text-zinc-500">
-              {roomDescription || `${currentParty.guest_count ?? visibleGuests.length} персон`}
-            </p>
+            <button type="button" onClick={() => setShowRoomInfo(true)} className="min-w-0 flex-1 text-center">
+              <h1 className="truncate text-base font-semibold tracking-tight text-black">{currentParty.title}</h1>
+              <p className="truncate text-sm font-medium text-zinc-500">
+                {roomDescription || `${currentParty.guest_count ?? visibleGuests.length} персон`}
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleShare}
+              className="inline-flex min-w-[76px] items-center justify-end gap-1 text-sm font-medium text-black transition hover:text-zinc-600"
+            >
+              <Share2 className="h-4 w-4" />
+              <span className="sr-only">Поделиться</span>
+            </button>
           </div>
 
           <button
             type="button"
-            onClick={handleShare}
-            className="inline-flex min-w-[76px] items-center justify-end gap-1 text-sm font-medium text-black transition hover:text-zinc-600"
+            onClick={() => setShowRoomInfo(true)}
+            className="mt-3 flex w-full items-center justify-between gap-3 rounded-2xl bg-zinc-50 px-3 py-2 text-left transition-colors hover:bg-zinc-100"
           >
-            <Share2 className="h-4 w-4" />
-            <span className="sr-only">Поделиться</span>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-zinc-400">Участники банкета</p>
+              <p className="truncate text-sm font-semibold tracking-tight text-black">
+                {visibleGuests.length > 0 ? `${visibleGuests.length} гостей в комнате` : "Список гостей появится здесь"}
+              </p>
+            </div>
+            <div className="shrink-0">
+              {visibleGuests.length > 0 ? (
+                renderGuestAvatars()
+              ) : (
+                <div className="rounded-2xl bg-white p-2 shadow-sm">
+                  <Users className="h-4 w-4 text-zinc-400" />
+                </div>
+              )}
+            </div>
           </button>
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl pb-28">
+      <main className="mx-auto max-w-3xl pt-4 pb-28">
         {activeTab === "menu" ? (
           <>
             {isObserver && (
-              <div className="px-4 pt-4">
+              <div className="px-4">
                 <div className="rounded-3xl border border-amber-200/70 bg-amber-50 p-4 shadow-sm">
                   <p className="text-sm font-semibold tracking-tight text-black">Режим наблюдателя</p>
                   <p className="mt-1 text-sm leading-6 text-zinc-600">
@@ -1392,29 +1455,6 @@ export default function ClientRoom({
                 </div>
               </div>
             )}
-            <div className="px-4 pt-4">
-              <button
-                type="button"
-                onClick={() => setShowRoomInfo(true)}
-                className="w-full cursor-pointer rounded-3xl border border-black/5 bg-white p-4 text-left shadow-sm transition-colors hover:bg-gray-50"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="rounded-2xl bg-zinc-100 p-3">
-                    <Users className="h-5 w-5 text-zinc-500" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-zinc-500">Участники банкета</p>
-                    {visibleGuests.length > 0 ? (
-                      <div className="mt-2">{renderGuestAvatars()}</div>
-                    ) : (
-                      <p className="truncate text-base font-semibold tracking-tight text-black">
-                        Список гостей появится здесь
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </button>
-            </div>
             {renderMenuPanel()}
           </>
         ) : (

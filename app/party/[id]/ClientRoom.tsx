@@ -266,10 +266,15 @@ export default function ClientRoom({
   const storedParticipant = readStoredParticipant(party.id);
   const storedName = storedParticipant?.name ?? legacyStoredName;
   const storedUserId = storedParticipant?.userId ?? null;
+  const storedParticipantIsConfirmed = Boolean(
+    storedUserId && initialMembers.some((guest) => getGuestIdentity(guest) === storedUserId),
+  );
 
-  const [currentUser, setCurrentUser] = useState<string | null>(storedName || null);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(storedUserId);
-  const [showJoinModal, setShowJoinModal] = useState(!storedName || !storedUserId);
+  const [currentUser, setCurrentUser] = useState<string | null>(storedParticipantIsConfirmed ? storedName || null : null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(
+    storedParticipantIsConfirmed ? storedUserId : null,
+  );
+  const [showJoinModal, setShowJoinModal] = useState(!storedParticipantIsConfirmed);
   const [inputName, setInputName] = useState(storedName);
   const [activeTab, setActiveTab] = useState<"menu" | "chat">("menu");
   const [showPaywall, setShowPaywall] = useState(false);
@@ -289,16 +294,7 @@ export default function ClientRoom({
   const [roomDescriptionInput, setRoomDescriptionInput] = useState((party.description ?? party.theme ?? "").trim());
   const [isSavingRoomSettings, setIsSavingRoomSettings] = useState(false);
 
-  const [guests, setGuests] = useState<PartyMember[]>(() => {
-    const baseGuests = initialMembers ?? [];
-    if (!storedName) return baseGuests;
-
-    const storedIdentity = storedUserId || `name:${normalizeName(storedName)}`;
-
-    return baseGuests.some((guest) => getGuestIdentity(guest) === storedIdentity)
-      ? baseGuests
-      : [...baseGuests, { party_id: party.id, user_id: storedUserId, user_name: storedName }];
-  });
+  const [guests, setGuests] = useState<PartyMember[]>(initialMembers ?? []);
   const [messages, setMessages] = useState<PartyMessage[]>(initialMessages ?? []);
   const [menuItems, setMenuItems] = useState<PartyItem[]>(initialItems ?? []);
   const [showAddDishModal, setShowAddDishModal] = useState(false);
@@ -370,7 +366,7 @@ export default function ClientRoom({
   );
 
   const completeJoin = useCallback(
-    (name: string, userId: string) => {
+    (name: string, userId: string, guestData?: PartyMember) => {
       writeStoredParticipant(party.id, { name, userId });
       setInputName(name);
       setCurrentUser(name);
@@ -383,7 +379,7 @@ export default function ClientRoom({
       setGuests((prev) =>
         prev.some((guest) => getGuestIdentity(guest) === userId)
           ? prev
-          : [...prev, { party_id: party.id, user_id: userId, user_name: name }],
+          : [...prev, guestData ?? { party_id: party.id, user_id: userId, user_name: name }],
       );
     },
     [party.id],
@@ -472,8 +468,43 @@ export default function ClientRoom({
     if (!storedUserId || !storedName) return;
     if (initialMembers.some((guest) => getGuestIdentity(guest) === storedUserId)) return;
 
-    void supabase.from("party_members").insert([{ party_id: party.id, user_id: storedUserId, user_name: storedName }]);
-  }, [initialMembers, party.id, storedName, storedUserId]);
+    let isCancelled = false;
+
+    void joinPartyAction(party.id, storedName, storedUserId)
+      .then((result) => {
+        if (isCancelled) return;
+
+        if (result.success) {
+          setCurrentParty((prev) => ({ ...prev, is_paid: result.isPaid }));
+          completeJoin(storedName, result.userId, result.guestData);
+          return;
+        }
+
+        if (result.error === "PAYWALL_REACHED") {
+          writeStoredParticipant(party.id, null);
+          setCurrentUser(null);
+          setCurrentUserId(null);
+          setGuests(initialMembers);
+          setCurrentParty((prev) => ({ ...prev, is_paid: false }));
+          setInputName(storedName);
+          setPendingJoinName(storedName);
+          setJoinLimitReached(true);
+          setShowJoinModal(true);
+          return;
+        }
+
+        console.error("Stored participant restore failed:", result.error);
+      })
+      .catch((error) => {
+        if (!isCancelled) {
+          console.error("Stored participant restore failed:", error);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [completeJoin, initialMembers, party.id, storedName, storedUserId]);
 
   useEffect(() => {
     const channel = supabase
@@ -721,10 +752,11 @@ export default function ClientRoom({
       );
 
       if (!result.success) {
-        if ("reason" in result && result.reason === "limit_reached") {
+        if (result.error === "PAYWALL_REACHED") {
           setCurrentParty((prev) => ({ ...prev, is_paid: false }));
           setPendingJoinName(trimmedName);
           setJoinLimitReached(true);
+          setShowPaywall(true);
           setHasNotifiedOrganizer(false);
           return;
         }
@@ -733,7 +765,7 @@ export default function ClientRoom({
       }
 
       setCurrentParty((prev) => ({ ...prev, is_paid: result.isPaid }));
-      completeJoin(trimmedName, result.userId);
+      completeJoin(trimmedName, result.userId, result.guestData);
     } catch (e) {
       console.error(e);
       writeStoredParticipant(party.id, previousParticipant);
@@ -781,16 +813,17 @@ export default function ClientRoom({
         const name = inputName.trim();
         const userId = generateSafeUserId();
 
-        const { error: joinError } = await withTimeout(
-          supabase
-            .from("party_members")
-            .insert([{ party_id: party.id, user_id: userId, user_name: name }]),
+        const joinResult = await withTimeout(
+          joinPartyAction(party.id, name, userId),
           SUPABASE_TIMEOUT_MS,
           "Не удалось завершить вход после оплаты",
         );
 
-        if (joinError) throw joinError;
-        completeJoin(name, userId);
+        if (!joinResult.success) {
+          throw new Error(joinResult.error === "PAYWALL_REACHED" ? "Лимит гостей все еще активен" : joinResult.error);
+        }
+
+        completeJoin(name, joinResult.userId, joinResult.guestData);
       }
 
       setCurrentParty((prev) => ({ ...prev, is_paid: true }));
@@ -1544,7 +1577,7 @@ export default function ClientRoom({
                         Подключаем...
                       </>
                     ) : (
-                      "Войти"
+                      "Присоединиться"
                     )}
                   </button>
                 </form>

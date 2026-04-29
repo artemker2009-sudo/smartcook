@@ -4,15 +4,28 @@ import { createClient } from '@supabase/supabase-js';
 
 const FREE_GUEST_LIMIT = 2;
 
-// Инициализируем клиент внутри серверного экшена
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const createServerSupabaseClient = () => {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!serviceRoleKey) {
+    throw new Error("SUPABASE_SERVICE_ROLE_KEY is required for party server actions");
+  }
+
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceRoleKey);
+};
+
+type PartyMemberData = {
+  id?: string;
+  party_id?: string;
+  user_id?: string | null;
+  user_name?: string | null;
+  name?: string | null;
+  created_at?: string | null;
+};
 
 export type JoinPartyActionResult =
-  | { success: true; isPaid: boolean; userId: string }
-  | { success: false; reason: "limit_reached"; isPaid: false }
+  | { success: true; isPaid: boolean; userId: string; guestData: PartyMemberData }
+  | { success: false; error: "PAYWALL_REACHED"; isPaid: false }
   | { success: false; error: string };
 
 const getActionErrorMessage = (error: unknown) => (error instanceof Error ? error.message : "Неизвестная ошибка сервера");
@@ -24,6 +37,8 @@ const makeInvisibleSuffix = (seed: string) =>
 
 export async function createPartyAction(title: string, guestCount: number, theme: string) {
   try {
+    const supabase = createServerSupabaseClient();
+
     const { data, error } = await supabase
       .from('parties')
       .insert([{ 
@@ -57,6 +72,8 @@ export async function joinPartyAction(
   }
 
   try {
+    const supabase = createServerSupabaseClient();
+
     const [
       { count, error: countError },
       { data: party, error: partyError },
@@ -66,7 +83,7 @@ export async function joinPartyAction(
       supabase.from("parties").select("is_paid").eq("id", partyId).single(),
       supabase
         .from("party_members")
-        .select("id")
+        .select("id, party_id, user_id, user_name, name, created_at")
         .eq("party_id", partyId)
         .eq("user_id", trimmedUserId)
         .maybeSingle(),
@@ -82,13 +99,20 @@ export async function joinPartyAction(
       const candidateNames = [trimmedName, `${trimmedName}${makeInvisibleSuffix(trimmedUserId)}`];
 
       for (const candidateName of candidateNames) {
-        const { error: updateError } = await supabase
+        const { data: updatedMember, error: updateError } = await supabase
           .from("party_members")
           .update({ user_name: candidateName })
-          .eq("id", existingBrowserMember.id);
+          .eq("id", existingBrowserMember.id)
+          .select("id, party_id, user_id, user_name, name, created_at")
+          .single();
 
         if (!updateError) {
-          return { success: true, isPaid, userId: trimmedUserId };
+          return {
+            success: true,
+            isPaid,
+            userId: trimmedUserId,
+            guestData: updatedMember,
+          };
         }
 
         if (updateError.code !== "23505") {
@@ -100,18 +124,24 @@ export async function joinPartyAction(
     }
 
     if (!isPaid && (count ?? 0) >= FREE_GUEST_LIMIT) {
-      return { success: false, reason: "limit_reached", isPaid: false };
+      return { success: false, error: "PAYWALL_REACHED", isPaid: false };
     }
 
     const candidateNames = [trimmedName, `${trimmedName}${makeInvisibleSuffix(trimmedUserId)}`];
 
     for (const candidateName of candidateNames) {
-      const { error: insertError } = await supabase
+      const { data: insertedMember, error: insertError } = await supabase
         .from("party_members")
-        .insert([{ party_id: partyId, user_id: trimmedUserId, user_name: candidateName }]);
+        .insert([{ party_id: partyId, user_id: trimmedUserId, user_name: candidateName }])
+        .select("id, party_id, user_id, user_name, name, created_at")
+        .single();
 
       if (!insertError) {
-        return { success: true, isPaid, userId: trimmedUserId };
+        return { success: true, isPaid, userId: trimmedUserId, guestData: insertedMember };
+      }
+
+      if (insertError.message === "PAYWALL_REACHED") {
+        return { success: false, error: "PAYWALL_REACHED", isPaid: false };
       }
 
       if (insertError.code !== "23505") {

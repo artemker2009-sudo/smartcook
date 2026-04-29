@@ -1472,7 +1472,6 @@ export default function ClientRoom({
                 <div className="space-y-2">
                   {visibleGuests.map((guest) => {
                     const guestName = getGuestName(guest);
-                    const isOrganizer = Boolean(roomHostId && guest.user_id?.trim() === roomHostId);
 
                     return (
                       <div key={getGuestIdentity(guest)} className="flex items-center gap-3 rounded-2xl bg-zinc-50 p-3">
@@ -1482,7 +1481,7 @@ export default function ClientRoom({
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="truncate text-sm font-semibold text-black">{guestName}</span>
-                            {isOrganizer && (
+                            {guest.user_id?.trim() === roomHostId && (
                               <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
                                 👑 Организатор
                               </span>

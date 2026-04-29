@@ -13,6 +13,7 @@ import {
   UtensilsCrossed,
   X,
 } from "lucide-react";
+import { toast } from "sonner";
 import { joinPartyAction } from "@/app/actions/party";
 
 const supabase = createClient(
@@ -21,8 +22,6 @@ const supabase = createClient(
 );
 
 const MENU_CATEGORIES = ["Закуски", "Салаты", "Горячее", "Напитки"] as const;
-const ORGANIZER_ALERT_MESSAGE =
-  "Кто-то хочет зайти, но лимит исчерпан! Организатор, обнови банкет до PRO.";
 const SUPABASE_TIMEOUT_MS = 12000;
 
 type MenuCategory = (typeof MENU_CATEGORIES)[number];
@@ -307,7 +306,11 @@ export default function ClientRoom({
   const [votingItemId, setVotingItemId] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const roomChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const CATEGORIES = ["Закуски", "Салаты", "Горячее", "Напитки"] as const;
+  const roomHostId = currentParty.host_id?.trim() || null;
+  const currentViewerId = currentUserId?.trim() || null;
+  const isHost = Boolean(currentViewerId && roomHostId && currentViewerId === roomHostId);
 
   // Отправка аналитики
   const trackEvent = async (eventType: string) => {
@@ -490,6 +493,7 @@ export default function ClientRoom({
           setPendingJoinName(storedName);
           setJoinLimitReached(true);
           setShowJoinModal(true);
+          setShowPaywall(false);
           return;
         }
 
@@ -508,7 +512,7 @@ export default function ClientRoom({
 
   useEffect(() => {
     const channel = supabase
-      .channel(`room-${party.id}`)
+      .channel(`room:${party.id}`)
       .on(
         "postgres_changes",
         {
@@ -561,7 +565,23 @@ export default function ClientRoom({
           });
         },
       )
+      .on("broadcast", { event: "paywall_alert" }, (payload) => {
+        if (!isHost) return;
+
+        const guestName =
+          typeof payload.payload?.guestName === "string" && payload.payload.guestName.trim()
+            ? payload.payload.guestName.trim()
+            : "Гость";
+
+        toast(`Гость ${guestName} не может войти (лимит мест). Расширьте тариф!`, {
+          action: {
+            label: "Оплатить",
+            onClick: () => setShowPaywall(true),
+          },
+        });
+      })
       .subscribe();
+    roomChannelRef.current = channel;
 
     const partySubscription = supabase
       .channel("public:parties")
@@ -575,10 +595,11 @@ export default function ClientRoom({
       .subscribe();
 
     return () => {
+      roomChannelRef.current = null;
       void supabase.removeChannel(channel);
       void supabase.removeChannel(partySubscription);
     };
-  }, [party.id, refreshMenuItems]);
+  }, [isHost, party.id, refreshMenuItems]);
 
   useEffect(() => {
     if (!currentParty.is_paid) return;
@@ -654,9 +675,6 @@ export default function ClientRoom({
 
   const currentParticipantIdentity = currentUserId || (currentUser ? `name:${normalizeName(currentUser)}` : null);
   const roomDescription = getRoomDescription(currentParty);
-  const roomHostId = currentParty.host_id?.trim() || null;
-  const currentViewerId = currentUserId?.trim() || null;
-  const isHost = Boolean(currentViewerId && roomHostId && currentViewerId === roomHostId);
   const stackedAvatarGuests = useMemo(
     () => (visibleGuests.length > 3 ? visibleGuests.slice(0, 2) : visibleGuests.slice(0, 3)),
     [visibleGuests],
@@ -756,7 +774,8 @@ export default function ClientRoom({
           setCurrentParty((prev) => ({ ...prev, is_paid: false }));
           setPendingJoinName(trimmedName);
           setJoinLimitReached(true);
-          setShowPaywall(true);
+          setShowJoinModal(true);
+          setShowPaywall(false);
           setHasNotifiedOrganizer(false);
           return;
         }
@@ -847,27 +866,39 @@ export default function ClientRoom({
     }
   };
 
+  const handlePaywallCheckout = () => {
+    console.log("Initiate checkout");
+    void handleMockPayment();
+  };
+
   const handleNotifyOrganizer = async () => {
-    if (isNotifyingOrganizer) return;
+    if (isNotifyingOrganizer || hasNotifiedOrganizer) return;
 
     setIsNotifyingOrganizer(true);
 
     try {
-      const { error } = await withTimeout(
-        supabase.from("party_messages").insert([
-          {
-            party_id: party.id,
-            user_name: pendingJoinName || "Гость",
-            text: ORGANIZER_ALERT_MESSAGE,
-          },
-        ]),
+      const guestName = pendingJoinName || inputName.trim() || "Гость";
+      let alertChannel = roomChannelRef.current;
+
+      if (!alertChannel) {
+        alertChannel = supabase.channel(`room:${party.id}`);
+        roomChannelRef.current = alertChannel;
+        alertChannel.subscribe();
+      }
+
+      const response = await withTimeout(
+        alertChannel.send({
+          type: "broadcast",
+          event: "paywall_alert",
+          payload: { guestName },
+        }),
         SUPABASE_TIMEOUT_MS,
         "Не удалось уведомить организатора",
       );
 
-      if (error) throw error;
+      if (response !== "ok") throw new Error("Supabase Broadcast вернул статус: " + response);
+      await new Promise((resolve) => window.setTimeout(resolve, 1000));
       setHasNotifiedOrganizer(true);
-      setActiveTab("chat");
     } catch (error) {
       console.error(error);
       window.alert(getMutationAlertMessage(error));
@@ -876,10 +907,11 @@ export default function ClientRoom({
     }
   };
 
-  const handleWatchOnly = () => {
+  const handleCancelJoinLimit = () => {
     setCurrentUser(null);
     setCurrentUserId(null);
-    setIsObserver(true);
+    setIsObserver(false);
+    setInputName("");
     setJoinLimitReached(false);
     setPendingJoinName("");
     setHasNotifiedOrganizer(false);
@@ -1501,18 +1533,30 @@ export default function ClientRoom({
                 <div className="space-y-3">
                   <button
                     type="button"
-                    onClick={() => setShowPaywall(true)}
-                    className="w-full rounded-2xl bg-black px-5 py-4 text-base font-medium text-white transition hover:bg-zinc-800"
+                    onClick={handlePaywallCheckout}
+                    disabled={isProcessingPay}
+                    aria-busy={isProcessingPay}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-black px-5 py-4 text-base font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    Стать спонсором банкета (Оплатить 29 ₽)
+                    {isProcessingPay ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Обработка...
+                      </>
+                    ) : (
+                      "Стать спонсором банкета (Оплатить 29 ₽)"
+                    )}
                   </button>
                   <button
                     type="button"
                     onClick={handleNotifyOrganizer}
-                    disabled={isNotifyingOrganizer}
+                    disabled={isNotifyingOrganizer || hasNotifiedOrganizer}
+                    aria-busy={isNotifyingOrganizer}
                     className="flex w-full items-center justify-center gap-2 rounded-2xl bg-zinc-100 px-5 py-4 text-base font-medium text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {isNotifyingOrganizer ? (
+                    {hasNotifiedOrganizer ? (
+                      "Уведомление отправлено ✅"
+                    ) : isNotifyingOrganizer ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
                         Отправляем...
@@ -1523,17 +1567,16 @@ export default function ClientRoom({
                   </button>
                   <button
                     type="button"
-                    onClick={handleWatchOnly}
+                    onClick={handleCancelJoinLimit}
                     className="w-full rounded-2xl border border-black/5 bg-white px-5 py-4 text-base font-medium text-black transition hover:bg-zinc-50"
                   >
-                    Просто смотреть
+                    Отмена / Назад
                   </button>
                 </div>
 
                 {hasNotifiedOrganizer && (
                   <p className="text-center text-sm leading-6 text-zinc-500">
-                    Сообщение отправлено в чат банкета. Можно подождать организатора или продолжить в режиме
-                    наблюдателя.
+                    Организатор получил уведомление. Можно подождать, пока он расширит тариф.
                   </p>
                 )}
               </div>

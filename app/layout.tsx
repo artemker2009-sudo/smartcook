@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/react";
 import { createClient } from "@supabase/supabase-js";
 import { headers } from "next/headers";
+import { Toaster } from "sonner";
 import "./globals.css";
 import YandexMetrika from "@/components/YandexMetrika"; // Импортируем компонент Метрики
 import { Suspense } from "react"; // Импортируем Suspense для корректной работы
@@ -120,6 +121,7 @@ export default async function RootLayout({
           children
         )}
         
+        <Toaster richColors position="top-center" />
         {/* Компонент аналитики Vercel */}
         <Analytics />
       </body>

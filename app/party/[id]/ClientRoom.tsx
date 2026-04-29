@@ -23,7 +23,7 @@ const supabase = createClient(
 
 const MENU_CATEGORIES = ["Закуски", "Салаты", "Горячее", "Напитки"] as const;
 const SUPABASE_TIMEOUT_MS = 12000;
-const GENERATE_MENU_TIMEOUT_MS = 45000;
+const GENERATE_MENU_TIMEOUT_MS = 65000;
 const PAYWALL_ALERT_MESSAGE_MARKER = "бесплатный лимит гостей уже закончился";
 
 type MenuCategory = (typeof MENU_CATEGORIES)[number];
@@ -1197,20 +1197,19 @@ export default function ClientRoom({
       window.clearTimeout(timeoutId);
       timeoutId = undefined;
       
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.error || `Ошибка сервера (${res.status}). Сервер перегружен, попробуйте еще раз.`);
+      const response = await res.json().catch(() => null);
+      if (!res.ok || !response?.success) {
+        toast.error(response?.error || `Ошибка сервера (${res.status}). Сервер перегружен, попробуйте еще раз.`);
+        await refreshMenuItems();
+        return;
       }
-
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error);
 
       await refreshMenuItems();
       void trackEvent("ai_menu_generated_success");
     } catch (error: unknown) {
       console.error("AI menu generation failed:", error);
       await refreshMenuItems();
-      toast.error("Ошибка ИИ. Попробуйте еще раз");
+      toast.error(error instanceof Error ? error.message : String(error));
     } finally {
       if (timeoutId) window.clearTimeout(timeoutId);
       setIsGenerating(false);

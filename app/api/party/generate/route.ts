@@ -1,9 +1,9 @@
+export const maxDuration = 60; // Позволит функции работать до 60 секунд.
+export const runtime = 'edge';
+
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { createClient } from '@supabase/supabase-js';
-
-export const runtime = 'edge';
-export const maxDuration = 60;
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -181,7 +181,7 @@ export async function POST(req: Request) {
         response_format: { type: "json_object" },
         temperature: 0.7,
       },
-      { timeout: 40000 },
+      { timeout: 55000 },
     );
     console.log("4. Ответ ИИ получен", { partyId });
 
@@ -206,7 +206,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true });
 
   } catch (error: unknown) {
-    console.error("AI Generation Error:", error);
+    console.error("AI GENERATION FAILED:", error);
 
     if (partyId && lockAcquired && menuCleared && previousItems.length > 0) {
       const itemsToRestore = previousItems.map((item) => ({
@@ -227,7 +227,12 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({ success: false, error: getErrorMessage(error) }, { status: 500 });
+    const errorMessage = getErrorMessage(error) || "Неизвестная ошибка ИИ";
+
+    return NextResponse.json(
+      { success: false, error: errorMessage, details: String(error) },
+      { status: 500 },
+    );
   } finally {
     if (partyId && lockAcquired) {
       console.log("FIN. Сбрасываем замок генерации", { partyId });

@@ -255,6 +255,14 @@ const parseIngredients = (ingredients?: PartyItem["ingredients"]) => {
   return Array.isArray(ingredients) ? ingredients : [];
 };
 
+const toggleVotesForUser = (votes: string[] | null | undefined, userMarkers: string[], userId: string) => {
+  const currentVotes = votes ?? [];
+  const hasCurrentVote = currentVotes.some((vote) => userMarkers.includes(vote));
+  const votesWithoutCurrentUser = currentVotes.filter((vote) => !userMarkers.includes(vote));
+
+  return hasCurrentVote ? votesWithoutCurrentUser : [...votesWithoutCurrentUser, userId];
+};
+
 export default function ClientRoom({
   party,
   initialItems,
@@ -308,6 +316,7 @@ export default function ClientRoom({
   const [votingItemId, setVotingItemId] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const menuItemsRef = useRef<PartyItem[]>(initialItems ?? []);
   const roomChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const roomChannelReadyRef = useRef(false);
   const lastPaywallAlertToastRef = useRef<{ guestName: string; shownAt: number } | null>(null);
@@ -338,6 +347,7 @@ export default function ClientRoom({
   const refreshMenuItems = useCallback(async () => {
     const { data } = await supabase.from("party_items").select("*").eq("party_id", party.id);
     const nextItems = (data as PartyItem[] | null) ?? [];
+    menuItemsRef.current = nextItems;
     setMenuItems(nextItems);
     return nextItems;
   }, [party.id]);
@@ -465,30 +475,46 @@ export default function ClientRoom({
     });
   };
 
-  const toggleVote = async (itemId: string, currentVotes: string[] | null) => {
-    if (!currentUserId) return;
-    const votes = currentVotes || [];
-    const currentUserMarkers = [currentUserId, currentUser].filter(Boolean) as string[];
-    const hasCurrentVote = votes.some((vote) => currentUserMarkers.includes(vote));
-    const newVotes = hasCurrentVote
-      ? votes.filter((vote) => !currentUserMarkers.includes(vote))
-      : [...votes.filter((vote) => !currentUserMarkers.includes(vote)), currentUserId];
-    const previousItems = menuItems;
+  const toggleVote = async (itemId: string) => {
+    if (!currentUserId || votingItemId === itemId) return;
 
-    setMenuItems((prev) => prev.map((item) => (item.id === itemId ? { ...item, votes: newVotes } : item)));
+    const currentUserMarkers = [currentUserId, currentUser].filter(Boolean) as string[];
+    const latestItem = menuItemsRef.current.find((item) => item.id === itemId);
+    if (!latestItem) return;
+
+    const previousVotes = latestItem.votes ?? null;
+    const nextVotes = toggleVotesForUser(previousVotes, currentUserMarkers, currentUserId);
+
+    const optimisticItems = menuItemsRef.current.map((item) =>
+      item.id === itemId ? { ...item, votes: nextVotes } : item,
+    );
+    menuItemsRef.current = optimisticItems;
+    setMenuItems(optimisticItems);
 
     await runWriteMutation({
       setLoading: (loading) => setVotingItemId(loading ? itemId : null),
       mutate: async () => {
-        const { error } = await withTimeout(
-          supabase.from("party_items").update({ votes: newVotes }).eq("id", itemId),
+        const { data, error } = await withTimeout(
+          supabase.from("party_items").update({ votes: nextVotes }).eq("id", itemId).select("*").single(),
           SUPABASE_TIMEOUT_MS,
           "Не удалось обновить голос",
         );
         if (error) throw error;
+
+        const updatedItem = data as PartyItem;
+        menuItemsRef.current = menuItemsRef.current.map((item) => (item.id === itemId ? updatedItem : item));
+        setMenuItems((prev) => prev.map((item) => (item.id === itemId ? updatedItem : item)));
       },
       rollback: () => {
-        setMenuItems(previousItems);
+        const rollbackItem = (item: PartyItem) => {
+          if (item.id !== itemId) return item;
+
+          const itemStillHasOptimisticVotes = JSON.stringify(item.votes ?? null) === JSON.stringify(nextVotes);
+          return itemStillHasOptimisticVotes ? { ...item, votes: previousVotes } : item;
+        };
+
+        menuItemsRef.current = menuItemsRef.current.map(rollbackItem);
+        setMenuItems((prev) => prev.map(rollbackItem));
       },
     });
   };
@@ -536,6 +562,10 @@ export default function ClientRoom({
       isCancelled = true;
     };
   }, [completeJoin, initialMembers, party.id, storedName, storedUserId]);
+
+  useEffect(() => {
+    menuItemsRef.current = menuItems;
+  }, [menuItems]);
 
   useEffect(() => {
     const channel = supabase
@@ -1246,17 +1276,14 @@ export default function ClientRoom({
                       </div>
                       <button
                         type="button"
-                        onClick={() => toggleVote(item.id, item.votes ?? null)}
+                        onClick={() => toggleVote(item.id)}
                         disabled={!currentUserId || votingItemId === item.id}
                         className="flex items-center gap-1.5 bg-zinc-100 px-3 py-1.5 rounded-full shrink-0 active:scale-95 transition-transform disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        {votingItemId === item.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <>
-                            <span className="text-sm">{hasCurrentUserVoted(item.votes) ? "❤️" : "🤍"}</span>
-                            <span className="text-sm font-medium">{item.votes?.length || 0}</span>
-                          </>
+                        <span className="text-sm">{hasCurrentUserVoted(item.votes) ? "❤️" : "🤍"}</span>
+                        <span className="text-sm font-medium">{item.votes?.length || 0}</span>
+                        {votingItemId === item.id && (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-zinc-400" />
                         )}
                       </button>
                     </div>
@@ -1389,7 +1416,7 @@ export default function ClientRoom({
 
   return (
     <div className="min-h-[100dvh] bg-[#F5F5F7] text-black">
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100 shadow-sm">
+      <header className="bg-white/95 backdrop-blur-sm border-b border-gray-100 shadow-sm">
         <div className="mx-auto max-w-3xl px-4 py-3">
           <div className="flex items-center justify-between gap-3">
             <button

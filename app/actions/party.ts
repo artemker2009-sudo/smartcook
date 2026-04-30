@@ -37,6 +37,7 @@ export type JoinPartyActionResult =
   | { success: false; error: string };
 
 export type SendPaywallChatAlertActionResult = { success: true } | { success: false; error: string };
+export type ActivatePartyPassActionResult = { success: true } | { success: false; error: string };
 export type TogglePartyItemVoteActionResult =
   | { success: true; item: PartyItemData }
   | { success: false; error: string };
@@ -205,6 +206,25 @@ export async function sendPaywallChatAlertAction(
     return { success: true };
   } catch (error) {
     console.error("Paywall Chat Alert Action Error:", error);
+    return { success: false, error: getActionErrorMessage(error) };
+  }
+}
+
+export async function activatePartyPassAction(partyId: string): Promise<ActivatePartyPassActionResult> {
+  const trimmedPartyId = partyId.trim();
+
+  if (!trimmedPartyId) {
+    return { success: false, error: "Не хватает данных для активации Party Pass" };
+  }
+
+  try {
+    const supabase = createServerSupabaseClient();
+    const { error } = await supabase.from("parties").update({ is_paid: true }).eq("id", trimmedPartyId);
+
+    if (error) throw new Error(error.message);
+    return { success: true };
+  } catch (error) {
+    console.error("Activate Party Pass Action Error:", error);
     return { success: false, error: getActionErrorMessage(error) };
   }
 }

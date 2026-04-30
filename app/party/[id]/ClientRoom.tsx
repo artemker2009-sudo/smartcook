@@ -14,7 +14,12 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { joinPartyAction, sendPaywallChatAlertAction, togglePartyItemVoteAction } from "@/app/actions/party";
+import {
+  activatePartyPassAction,
+  joinPartyAction,
+  sendPaywallChatAlertAction,
+  togglePartyItemVoteAction,
+} from "@/app/actions/party";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -945,6 +950,8 @@ export default function ClientRoom({
   };
 
   const handleMockPayment = async () => {
+    if (isProcessingPay) return;
+
     const previousParticipant = readStoredParticipant(party.id);
     const previousInputName = inputName;
     const previousCurrentUser = currentUser;
@@ -962,12 +969,12 @@ export default function ClientRoom({
       // Имитация задержки банка
       await new Promise((r) => setTimeout(r, 1500));
 
-      const { error: paymentError } = await withTimeout(
-        supabase.from("parties").update({ is_paid: true }).eq("id", currentParty.id),
+      const paymentResult = await withTimeout(
+        activatePartyPassAction(currentParty.id),
         SUPABASE_TIMEOUT_MS,
         "Не удалось обработать оплату",
       );
-      if (paymentError) throw paymentError;
+      if (!paymentResult.success) throw new Error(paymentResult.error);
 
       if (inputName.trim() && !currentUser) {
         const name = inputName.trim();
@@ -2236,7 +2243,7 @@ export default function ClientRoom({
             
             <button
               type="button"
-              onClick={handleMockPayment}
+              onClick={handlePaywallCheckout}
               disabled={isProcessingPay}
               className="flex w-full items-center justify-center gap-2 rounded-2xl bg-black p-4 text-lg font-medium text-white transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
             >

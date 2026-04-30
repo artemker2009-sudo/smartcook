@@ -26,7 +26,7 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
 );
 
-const MENU_CATEGORIES = ["Закуски", "Салаты", "Горячее", "Напитки"] as const;
+const MENU_CATEGORIES = ["Закуски", "Салаты", "Горячее", "Напитки", "Десерты"] as const;
 const SUPABASE_TIMEOUT_MS = 12000;
 const GENERATE_MENU_TIMEOUT_MS = 65000;
 const PAYWALL_ALERT_MESSAGE_MARKER = "бесплатный лимит гостей уже закончился";
@@ -361,7 +361,7 @@ export default function ClientRoom({
   const roomChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const roomChannelReadyRef = useRef(false);
   const lastPaywallAlertToastRef = useRef<{ guestName: string; shownAt: number } | null>(null);
-  const CATEGORIES = ["Закуски", "Салаты", "Горячее", "Напитки"] as const;
+  const CATEGORIES = MENU_CATEGORIES;
   const roomHostId = currentParty.host_id?.trim() || null;
   const currentViewerId = currentUserId?.trim() || null;
   const isHost = Boolean(currentViewerId && roomHostId && currentViewerId === roomHostId);
@@ -1231,10 +1231,14 @@ export default function ClientRoom({
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
         body: JSON.stringify({ 
-          partyId: party.id, 
-          theme: normalizedConfig.promptDescription || normalizedConfig.promptTitle || roomDescription || currentParty.title,
+          roomId: party.id,
+          title: normalizedConfig.promptTitle,
+          description: normalizedConfig.promptDescription,
+          tags: normalizedConfig.tags,
+          budget: normalizedConfig.budget,
+          mustHave: normalizedConfig.mustHave,
+          mustNotHave: normalizedConfig.mustNotHave,
           guestCount: currentParty.guest_count || 4,
-          aiConfig: normalizedConfig,
         })
       });
       window.clearTimeout(timeoutId);

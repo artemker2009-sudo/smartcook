@@ -125,6 +125,9 @@ const getErrorMessage = (error: unknown) => {
   }
 };
 
+const isAbortError = (error: unknown) =>
+  error instanceof DOMException ? error.name === "AbortError" : error instanceof Error && error.name === "AbortError";
+
 const getMutationAlertMessage = (error: unknown) => {
   const message = getErrorMessage(error);
 
@@ -1246,6 +1249,12 @@ export default function ClientRoom({
       
       const response = await res.json().catch(() => null);
       if (!res.ok || !response?.success) {
+        if (res.status === 504) {
+          toast.error("Время ожидания истекло или сервер перегружен.");
+          await refreshMenuItems();
+          return;
+        }
+
         toast.error(response?.error || `Ошибка сервера (${res.status}). Сервер перегружен, попробуйте еще раз.`);
         await refreshMenuItems();
         return;
@@ -1256,7 +1265,7 @@ export default function ClientRoom({
     } catch (error: unknown) {
       console.error("AI menu generation failed:", error);
       await refreshMenuItems();
-      toast.error(error instanceof Error ? error.message : String(error));
+      toast.error(isAbortError(error) ? "Время ожидания истекло или сервер перегружен." : getErrorMessage(error));
     } finally {
       if (timeoutId) window.clearTimeout(timeoutId);
       setIsGenerating(false);

@@ -275,7 +275,7 @@ export async function POST(req: Request) {
     menuCleared = true;
     console.log("2. Старое меню удалено", { partyId });
 
-    console.log("3. Запрос к ИИ отправлен", { partyId });
+    console.log("1. Отправляем запрос к ИИ...", { partyId });
     const completion = await openai.chat.completions.create(
       {
         model: "gpt-4o-mini",
@@ -285,7 +285,7 @@ export async function POST(req: Request) {
       },
       { timeout: 55000 },
     );
-    console.log("4. Ответ ИИ получен", { partyId });
+    console.log("2. Ответ от ИИ получен, парсим...", { partyId });
 
     const responseContent = completion.choices[0].message.content;
     const items = parseGeneratedMenu(responseContent);
@@ -301,22 +301,35 @@ export async function POST(req: Request) {
     }));
 
     // Сохраняем в Supabase
-    console.log("6. Сохраняем новое меню", { count: itemsToInsert.length });
-    let { error } = await supabase.from('party_items').insert(itemsToInsert);
+    console.log("3. Готов к вставке в БД:", itemsToInsert);
+    let { data: insertedItems, error: insertError } = await supabase
+      .from('party_items')
+      .insert(itemsToInsert)
+      .select();
 
-    if (error && isMissingDescriptionColumnError(error.message)) {
+    if (insertError && isMissingDescriptionColumnError(insertError.message)) {
       const compatibleItemsToInsert = itemsToInsert.map((item) => ({
         party_id: item.party_id,
         name: item.name,
         category: item.category,
         ingredients: item.ingredients,
       }));
-      const retryResult = await supabase.from('party_items').insert(compatibleItemsToInsert);
-      error = retryResult.error;
+      const retryResult = await supabase.from('party_items').insert(compatibleItemsToInsert).select();
+      insertedItems = retryResult.data;
+      insertError = retryResult.error;
     }
 
-    if (error) throw new Error(error.message);
-    console.log("7. Новое меню сохранено", { partyId });
+    if (insertError) {
+      console.error("SUPABASE INSERT ERROR:", insertError);
+      throw new Error(`Ошибка БД: ${insertError.message}`);
+    }
+
+    if (!insertedItems?.length) {
+      console.error("SUPABASE INSERT ERROR:", { message: "Insert completed without returned rows" });
+      throw new Error("Ошибка БД: меню не было сохранено");
+    }
+
+    console.log("4. Успешно сохранено в БД!", { partyId, count: insertedItems.length });
 
     return NextResponse.json({ success: true });
 

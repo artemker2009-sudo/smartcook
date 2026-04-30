@@ -50,6 +50,25 @@ const isMenuCategory = (value: string) =>
 const isMissingDescriptionColumnError = (errorMessage: string) =>
   /description/i.test(errorMessage) && /(column|schema|cache)/i.test(errorMessage);
 
+const extractJsonFromAiResponse = (responseContent: string) => {
+  let rawContent = responseContent;
+  rawContent = rawContent.replace(/```json/gi, "").replace(/```/g, "").trim();
+
+  const firstArrayBracket = rawContent.indexOf("[");
+  const lastArrayBracket = rawContent.lastIndexOf("]");
+  if (firstArrayBracket !== -1 && lastArrayBracket !== -1 && firstArrayBracket < lastArrayBracket) {
+    return rawContent.substring(firstArrayBracket, lastArrayBracket + 1);
+  }
+
+  const firstObjectBracket = rawContent.indexOf("{");
+  const lastObjectBracket = rawContent.lastIndexOf("}");
+  if (firstObjectBracket !== -1 && lastObjectBracket !== -1 && firstObjectBracket < lastObjectBracket) {
+    return rawContent.substring(firstObjectBracket, lastObjectBracket + 1);
+  }
+
+  return rawContent;
+};
+
 const getErrorMessage = (error: unknown) => {
   if (error instanceof Error && error.message === "AI_INVALID_RESPONSE") {
     return "ИИ вернул меню в неверном формате. Попробуйте перегенерировать меню.";
@@ -77,7 +96,8 @@ const parseGeneratedMenu = (responseContent: string | null): GeneratedMenuItem[]
   }
 
   try {
-    const parsedData = JSON.parse(responseContent) as GeneratedMenuItem[] | GeneratedMenuResponse;
+    const rawContent = extractJsonFromAiResponse(responseContent);
+    const parsedData = JSON.parse(rawContent) as GeneratedMenuItem[] | GeneratedMenuResponse;
     const items = Array.isArray(parsedData) ? parsedData : Array.isArray(parsedData.items) ? parsedData.items : [];
     const validItems = items.filter(
       (item) =>
@@ -106,6 +126,7 @@ const parseGeneratedMenu = (responseContent: string | null): GeneratedMenuItem[]
 
 export async function POST(req: Request) {
   let partyId: string | undefined;
+  let roomId: string | undefined;
   let lockAcquired = false;
   let menuCleared = false;
   let previousItems: PartyItemBackup[] = [];
@@ -113,7 +134,8 @@ export async function POST(req: Request) {
   try {
     console.log("0. Генерация меню запущена");
     const body = await req.json();
-    partyId = typeof body.roomId === "string" ? body.roomId : body.partyId;
+    roomId = typeof body.roomId === "string" ? body.roomId : body.partyId;
+    partyId = roomId;
     const { guestCount } = body;
     const aiConfig = (body.aiConfig ?? {}) as AiConfig;
     const title =
@@ -188,6 +210,7 @@ export async function POST(req: Request) {
 - Никогда не добавляй блюда или ингредиенты, которые явно попадают под "ИСКЛЮЧИТЬ".
 - Сгенерируй меню для ${normalizedGuestCount} гостей: 2-3 закуски, 2 салата, 1-2 горячих блюда, 2 напитка и 1 десерт, если это не конфликтует с запретами.
 
+ВЫВЕДИ ТОЛЬКО МАССИВ JSON. НИКАКИХ СЛОВ ПЕРЕД ИЛИ ПОСЛЕ. НИКАКИХ МАРКДАУН ОБЕРТОК.
 Верни ТОЛЬКО валидный JSON массив объектов. Без markdown-оберток (без \`\`\`json), без текста до или после. Схема объекта: { name: string, description: string, category: 'Закуски' | 'Салаты' | 'Горячее' | 'Напитки' | 'Десерты' }`;
 
     const { data: party, error: partyError } = await supabase
@@ -326,12 +349,12 @@ export async function POST(req: Request) {
       { status: 500 },
     );
   } finally {
-    if (partyId && lockAcquired) {
-      console.log("FIN. Сбрасываем замок генерации", { partyId });
+    if (roomId && lockAcquired) {
+      console.log("FIN. Сбрасываем замок генерации", { roomId });
       const { error: unlockError } = await supabase
         .from('parties')
         .update({ is_generating: false })
-        .eq('id', partyId);
+        .eq('id', roomId);
 
       if (unlockError) {
         console.error("AI Generation Unlock Error:", unlockError);

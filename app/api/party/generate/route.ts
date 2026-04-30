@@ -31,6 +31,15 @@ type PartyItemBackup = {
   votes?: string[] | null;
 };
 
+type AiConfig = {
+  promptTitle?: string;
+  promptDescription?: string;
+  tags?: string[];
+  budget?: string;
+  mustHave?: string;
+  mustNotHave?: string;
+};
+
 const getErrorMessage = (error: unknown) => {
   if (error instanceof Error && error.message) return error.message;
   if (error && typeof error === "object") {
@@ -91,6 +100,16 @@ export async function POST(req: Request) {
     const body = await req.json();
     partyId = body.partyId;
     const { theme, guestCount } = body;
+    const aiConfig = (body.aiConfig ?? {}) as AiConfig;
+    const promptTitle = typeof aiConfig.promptTitle === "string" ? aiConfig.promptTitle.trim() : "";
+    const promptDescription =
+      typeof aiConfig.promptDescription === "string" ? aiConfig.promptDescription.trim() : "";
+    const selectedTags = Array.isArray(aiConfig.tags)
+      ? aiConfig.tags.filter((tag): tag is string => typeof tag === "string" && Boolean(tag.trim()))
+      : [];
+    const budget = typeof aiConfig.budget === "string" ? aiConfig.budget.trim() : "";
+    const mustHave = typeof aiConfig.mustHave === "string" ? aiConfig.mustHave.trim() : "";
+    const mustNotHave = typeof aiConfig.mustNotHave === "string" ? aiConfig.mustNotHave.trim() : "";
 
     const { data: party, error: partyError } = await supabase
       .from('parties')
@@ -155,8 +174,13 @@ export async function POST(req: Request) {
     console.log("2. Старое меню удалено", { partyId });
 
     const systemPrompt = `Ты профессиональный шеф-повар. Составь меню для банкета. 
-    Тематика/Сценарий: "${theme}". 
+    Название события: "${promptTitle || theme}". 
+    Тематика/Сценарий: "${promptDescription || theme}". 
     Количество гостей: ${guestCount}.
+    Особенности и диетические предпочтения: ${selectedTags.length ? selectedTags.join(", ") : "не указаны"}.
+    Бюджет: ${budget || "не указан"}.
+    Обязательно добавить или учесть: ${mustHave || "нет жестких требований"}.
+    Исключить полностью: ${mustNotHave || "нет исключений"}.
     
     Верни СТРОГИЙ JSON в таком формате (без маркдауна и лишних слов):
     {

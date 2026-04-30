@@ -39,6 +39,15 @@ type Party = {
   is_generating?: boolean | null;
 };
 
+type AiConfig = {
+  promptTitle: string;
+  promptDescription: string;
+  tags: string[];
+  budget: string;
+  mustHave: string;
+  mustNotHave: string;
+};
+
 type PartyMember = {
   id?: string;
   party_id?: string;
@@ -132,6 +141,16 @@ const getPartyParticipantStorageKey = (partyId: string) => `party_participant_${
 const getPartyNameStorageKey = (partyId: string) => `party_name_${partyId}`;
 const getPartyUserIdStorageKey = (partyId: string) => `party_user_id_${partyId}`;
 const getPartyAdminStorageKey = (partyId: string) => `party_admin_${partyId}`;
+const AI_CONFIG_TAGS = ["Веган", "Без глютена", "Острое", "Без орехов", "Кето", "Без лактозы", "ПП"] as const;
+
+const getDefaultAiConfig = (room: Party): AiConfig => ({
+  promptTitle: room.title,
+  promptDescription: (room.theme ?? room.description ?? "").trim(),
+  tags: [],
+  budget: "",
+  mustHave: "",
+  mustNotHave: "",
+});
 
 const generateSafeUserId = () => {
   if (typeof window !== "undefined" && window.crypto?.randomUUID) {
@@ -320,6 +339,9 @@ export default function ClientRoom({
   const [menuItems, setMenuItems] = useState<PartyItem[]>(initialItems ?? []);
   const [showAddDishModal, setShowAddDishModal] = useState(false);
   const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
+  const [showAiConfigurator, setShowAiConfigurator] = useState(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [aiConfig, setAiConfig] = useState<AiConfig>(() => getDefaultAiConfig(party));
   const [newMessage, setNewMessage] = useState("");
   const [newDishName, setNewDishName] = useState("");
   const [newDishCategory, setNewDishCategory] = useState("Закуски");
@@ -1168,7 +1190,7 @@ export default function ClientRoom({
     }
   };
 
-  const startGenerateMenu = async () => {
+  const startGenerateMenu = async (config: AiConfig) => {
     if (generationInProgress) return;
 
     if (!currentParty.is_paid) {
@@ -1180,9 +1202,21 @@ export default function ClientRoom({
     let timeoutId: number | undefined;
 
     try {
+      setShowAiConfigurator(false);
+      menuItemsRef.current = [];
+      setMenuItems([]);
       setIsGenerating(true);
+      setCurrentParty((prev) => ({ ...prev, is_generating: true }));
       const controller = new AbortController();
       timeoutId = window.setTimeout(() => controller.abort(), GENERATE_MENU_TIMEOUT_MS);
+      const normalizedConfig: AiConfig = {
+        promptTitle: config.promptTitle.trim(),
+        promptDescription: config.promptDescription.trim(),
+        tags: config.tags,
+        budget: config.budget.trim(),
+        mustHave: config.mustHave.trim(),
+        mustNotHave: config.mustNotHave.trim(),
+      };
 
       const res = await fetch('/api/party/generate', {
         method: 'POST',
@@ -1190,8 +1224,9 @@ export default function ClientRoom({
         signal: controller.signal,
         body: JSON.stringify({ 
           partyId: party.id, 
-          theme: roomDescription || currentParty.title,
-          guestCount: currentParty.guest_count || 4
+          theme: normalizedConfig.promptDescription || normalizedConfig.promptTitle || roomDescription || currentParty.title,
+          guestCount: currentParty.guest_count || 4,
+          aiConfig: normalizedConfig,
         })
       });
       window.clearTimeout(timeoutId);
@@ -1213,6 +1248,7 @@ export default function ClientRoom({
     } finally {
       if (timeoutId) window.clearTimeout(timeoutId);
       setIsGenerating(false);
+      setCurrentParty((prev) => ({ ...prev, is_generating: false }));
     }
   };
 
@@ -1230,14 +1266,29 @@ export default function ClientRoom({
       return;
     }
 
-    void startGenerateMenu();
+    setShowAiConfigurator(true);
   };
 
   const handleConfirmRegenerateMenu = () => {
     setShowRegenerateConfirm(false);
-    menuItemsRef.current = [];
-    setMenuItems([]);
-    void startGenerateMenu();
+    setShowAiConfigurator(true);
+  };
+
+  const handleStartConfiguredGeneration = () => {
+    if (!aiConfig.promptTitle.trim() || generationInProgress) return;
+    void startGenerateMenu(aiConfig);
+  };
+
+  const toggleAiConfigTag = (tag: string) => {
+    setAiConfig((prev) => ({
+      ...prev,
+      tags: prev.tags.includes(tag) ? prev.tags.filter((item) => item !== tag) : [...prev.tags, tag],
+    }));
+  };
+
+  const handleResetAiConfig = () => {
+    setAiConfig(getDefaultAiConfig(currentParty));
+    setIsResetModalOpen(false);
   };
 
   const renderMenuPanel = () => (
@@ -1879,6 +1930,187 @@ export default function ClientRoom({
                 ) : (
                   "Удалить и создать"
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAiConfigurator && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/35 p-0 backdrop-blur-md sm:items-center sm:p-4">
+          <div className="flex h-[100dvh] w-full flex-col overflow-hidden rounded-t-[2rem] border border-white/60 bg-white/90 shadow-2xl animate-in slide-in-from-bottom-full duration-300 sm:h-auto sm:max-h-[92dvh] sm:max-w-2xl sm:rounded-[2rem] sm:zoom-in-95 sm:slide-in-from-bottom-0">
+            <div className="flex items-center justify-between gap-4 border-b border-black/5 px-5 py-4 sm:px-6">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">AI-конфигуратор</p>
+                <h2 className="mt-1 text-2xl font-semibold tracking-tight text-black">Настройка нейрошефа</h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsResetModalOpen(true)}
+                  className="rounded-full px-3 py-2 text-sm font-medium text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-800"
+                >
+                  Сбросить
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAiConfigurator(false)}
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 transition hover:bg-zinc-200 hover:text-black"
+                  aria-label="Закрыть настройку нейрошефа"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5 sm:px-6">
+              <section className="rounded-3xl border border-black/5 bg-white/70 p-4 shadow-sm">
+                <div className="mb-4">
+                  <h3 className="text-base font-semibold text-black">База</h3>
+                  <p className="mt-1 text-sm text-zinc-500">Обязательный минимум для точного меню.</p>
+                </div>
+                <div className="space-y-3">
+                  <label className="block">
+                    <span className="mb-1.5 block text-sm font-medium text-zinc-700">Название</span>
+                    <input
+                      type="text"
+                      value={aiConfig.promptTitle}
+                      onChange={(event) => setAiConfig((prev) => ({ ...prev, promptTitle: event.target.value }))}
+                      placeholder="Например: День рождения в итальянском стиле"
+                      className="w-full rounded-2xl border border-zinc-200 bg-white/80 px-4 py-3 text-base text-black outline-none transition focus:border-black focus:ring-4 focus:ring-black/10"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1.5 block text-sm font-medium text-zinc-700">Описание</span>
+                    <textarea
+                      value={aiConfig.promptDescription}
+                      onChange={(event) =>
+                        setAiConfig((prev) => ({ ...prev, promptDescription: event.target.value }))
+                      }
+                      placeholder="Опишите атмосферу, повод, формат подачи или вкусовые ожидания"
+                      rows={4}
+                      className="w-full resize-none rounded-2xl border border-zinc-200 bg-white/80 px-4 py-3 text-base text-black outline-none transition focus:border-black focus:ring-4 focus:ring-black/10"
+                    />
+                  </label>
+                </div>
+              </section>
+
+              <section className="rounded-3xl border border-black/5 bg-white/70 p-4 shadow-sm">
+                <h3 className="mb-3 text-base font-semibold text-black">Особенности</h3>
+                <div className="flex flex-wrap gap-2">
+                  {AI_CONFIG_TAGS.map((tag) => {
+                    const isActive = aiConfig.tags.includes(tag);
+
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => toggleAiConfigTag(tag)}
+                        className={`rounded-full border px-4 py-2 text-sm font-medium transition-all duration-200 active:scale-95 ${
+                          isActive
+                            ? "border-black bg-black text-white shadow-lg shadow-black/10"
+                            : "border-zinc-200 bg-white/80 text-zinc-600 hover:border-zinc-300 hover:bg-zinc-50"
+                        }`}
+                      >
+                        {tag}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <section className="rounded-3xl border border-black/5 bg-white/70 p-4 shadow-sm">
+                <h3 className="mb-3 text-base font-semibold text-black">Жесткие фильтры</h3>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-1.5 block text-sm font-medium text-zinc-700">Обязательно добавить</span>
+                    <input
+                      type="text"
+                      value={aiConfig.mustHave}
+                      onChange={(event) => setAiConfig((prev) => ({ ...prev, mustHave: event.target.value }))}
+                      placeholder="Например: рыба, сыр, ягоды"
+                      className="w-full rounded-2xl border border-zinc-200 bg-white/80 px-4 py-3 text-base text-black outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/15"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1.5 block text-sm font-medium text-zinc-700">Исключить</span>
+                    <input
+                      type="text"
+                      value={aiConfig.mustNotHave}
+                      onChange={(event) => setAiConfig((prev) => ({ ...prev, mustNotHave: event.target.value }))}
+                      placeholder="Например: свинина, кинза"
+                      className="w-full rounded-2xl border border-zinc-200 bg-white/80 px-4 py-3 text-base text-black outline-none transition focus:border-red-500 focus:ring-4 focus:ring-red-500/15"
+                    />
+                  </label>
+                </div>
+              </section>
+
+              <section className="rounded-3xl border border-black/5 bg-white/70 p-4 shadow-sm">
+                <label className="block">
+                  <span className="mb-1.5 block text-base font-semibold text-black">Бюджет</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={aiConfig.budget}
+                    onChange={(event) => setAiConfig((prev) => ({ ...prev, budget: event.target.value }))}
+                    placeholder="Например: 5000 руб (необязательно)"
+                    className="w-full rounded-2xl border border-zinc-200 bg-white/80 px-4 py-3 text-base text-black outline-none transition focus:border-black focus:ring-4 focus:ring-black/10"
+                  />
+                </label>
+              </section>
+            </div>
+
+            <div className="border-t border-black/5 bg-white/80 px-5 py-4 sm:px-6">
+              <button
+                type="button"
+                onClick={handleStartConfiguredGeneration}
+                disabled={!aiConfig.promptTitle.trim() || generationInProgress}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-b from-zinc-900 to-black py-4 text-base font-semibold text-white shadow-lg shadow-black/20 transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                {generationInProgress ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    Запускаем...
+                  </>
+                ) : (
+                  "Начать магию ✨"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isResetModalOpen && (
+        <div
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="reset-ai-config-title"
+          aria-describedby="reset-ai-config-description"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-md"
+        >
+          <div className="w-full max-w-sm animate-in zoom-in-95 rounded-3xl border border-white/50 bg-white p-6 shadow-2xl duration-200">
+            <h2 id="reset-ai-config-title" className="mb-2 text-xl font-semibold tracking-tight text-black">
+              Сбросить настройки?
+            </h2>
+            <p id="reset-ai-config-description" className="mb-6 text-sm leading-6 text-zinc-500">
+              Все введенные предпочтения, фильтры и бюджет будут удалены. Вы уверены?
+            </p>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setIsResetModalOpen(false)}
+                className="flex-1 rounded-xl bg-zinc-100 p-4 font-medium text-black transition-colors hover:bg-zinc-200"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                onClick={handleResetAiConfig}
+                className="flex-1 rounded-xl bg-red-600 p-4 font-medium text-white shadow-lg shadow-red-600/20 transition hover:bg-red-700 active:scale-95"
+              >
+                Сбросить
               </button>
             </div>
           </div>

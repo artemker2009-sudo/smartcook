@@ -347,6 +347,7 @@ export default function ClientRoom({
   const [showAiConfigurator, setShowAiConfigurator] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [aiConfig, setAiConfig] = useState<AiConfig>(() => getDefaultAiConfig(party));
+  const [customAiTagInput, setCustomAiTagInput] = useState("");
   const [newMessage, setNewMessage] = useState("");
   const [newDishName, setNewDishName] = useState("");
   const [newDishCategory, setNewDishCategory] = useState("Закуски");
@@ -1293,8 +1294,22 @@ export default function ClientRoom({
     }));
   };
 
+  const handleAddCustomAiConfigTag = (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
+
+    const nextTag = customAiTagInput.trim();
+    if (!nextTag) return;
+
+    setAiConfig((prev) => ({
+      ...prev,
+      tags: prev.tags.includes(nextTag) ? prev.tags : [...prev.tags, nextTag],
+    }));
+    setCustomAiTagInput("");
+  };
+
   const handleResetAiConfig = () => {
     setAiConfig(getDefaultAiConfig(currentParty));
+    setCustomAiTagInput("");
     setIsResetModalOpen(false);
   };
 
@@ -1944,12 +1959,12 @@ export default function ClientRoom({
       )}
 
       {showAiConfigurator && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/35 p-0 backdrop-blur-md sm:items-center sm:p-4">
-          <div className="flex h-[100dvh] w-full flex-col overflow-hidden rounded-t-[2rem] border border-white/60 bg-white/90 shadow-2xl animate-in slide-in-from-bottom-full duration-300 sm:h-auto sm:max-h-[92dvh] sm:max-w-2xl sm:rounded-[2rem] sm:zoom-in-95 sm:slide-in-from-bottom-0">
-            <div className="flex items-center justify-between gap-4 border-b border-black/5 px-5 py-4 sm:px-6">
+        <div className="fixed inset-0 z-50 h-[100dvh] w-full overflow-y-auto bg-gray-50">
+          <div className="flex min-h-[100dvh] w-full flex-col">
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-black/5 bg-white/90 px-5 py-4 backdrop-blur-md sm:px-6">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">AI-конфигуратор</p>
-                <h2 className="mt-1 text-2xl font-semibold tracking-tight text-black">Настройка нейрошефа</h2>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">ИИ-КОНФИГУРАТОР</p>
+                <h2 className="mt-1 text-2xl font-semibold tracking-tight text-black">Настройки генерации меню</h2>
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -1963,14 +1978,14 @@ export default function ClientRoom({
                   type="button"
                   onClick={() => setShowAiConfigurator(false)}
                   className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 transition hover:bg-zinc-200 hover:text-black"
-                  aria-label="Закрыть настройку нейрошефа"
+                  aria-label="Закрыть настройки генерации меню"
                 >
                   <X className="h-5 w-5" />
                 </button>
               </div>
             </div>
 
-            <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5 sm:px-6">
+            <div className="mx-auto w-full max-w-2xl flex-1 space-y-5 px-5 py-5 sm:px-6">
               <section className="rounded-3xl border border-black/5 bg-white/70 p-4 shadow-sm">
                 <div className="mb-4">
                   <h3 className="text-base font-semibold text-black">База</h3>
@@ -2005,7 +2020,7 @@ export default function ClientRoom({
               <section className="rounded-3xl border border-black/5 bg-white/70 p-4 shadow-sm">
                 <h3 className="mb-3 text-base font-semibold text-black">Особенности</h3>
                 <div className="flex flex-wrap gap-2">
-                  {AI_CONFIG_TAGS.map((tag) => {
+                  {[...AI_CONFIG_TAGS, ...aiConfig.tags.filter((tag) => !AI_CONFIG_TAGS.includes(tag as typeof AI_CONFIG_TAGS[number]))].map((tag) => {
                     const isActive = aiConfig.tags.includes(tag);
 
                     return (
@@ -2023,6 +2038,23 @@ export default function ClientRoom({
                       </button>
                     );
                   })}
+                  <form onSubmit={handleAddCustomAiConfigTag} className="flex min-w-[190px] flex-1 items-center gap-2">
+                    <input
+                      type="text"
+                      value={customAiTagInput}
+                      onChange={(event) => setCustomAiTagInput(event.target.value)}
+                      placeholder="Свой вариант..."
+                      className="min-w-0 flex-1 rounded-full border border-zinc-200 bg-white/80 px-4 py-2 text-sm text-black outline-none transition focus:border-black focus:ring-4 focus:ring-black/10"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!customAiTagInput.trim()}
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black text-lg font-semibold leading-none text-white shadow-lg shadow-black/10 transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                      aria-label="Добавить свой вариант"
+                    >
+                      +
+                    </button>
+                  </form>
                 </div>
               </section>
 
@@ -2067,7 +2099,8 @@ export default function ClientRoom({
               </section>
             </div>
 
-            <div className="border-t border-black/5 bg-white/80 px-5 py-4 sm:px-6">
+            <div className="sticky bottom-0 border-t border-black/5 bg-white/90 px-5 py-4 backdrop-blur-md sm:px-6">
+              <div className="mx-auto w-full max-w-2xl">
               <button
                 type="button"
                 onClick={handleStartConfiguredGeneration}
@@ -2080,9 +2113,10 @@ export default function ClientRoom({
                     Запускаем...
                   </>
                 ) : (
-                  "Начать магию ✨"
+                  "Сгенерировать меню"
                 )}
               </button>
+              </div>
             </div>
           </div>
         </div>

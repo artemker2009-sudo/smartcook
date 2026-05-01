@@ -31,6 +31,14 @@ type PartyItemData = {
   created_at?: string | null;
 };
 
+export type HubParty = {
+  id: string;
+  title: string | null;
+  theme: string | null;
+  created_at: string | null;
+  guest_count: number | null;
+};
+
 export type JoinPartyActionResult =
   | { success: true; isPaid: boolean; userId: string; guestData: PartyMemberData }
   | { success: false; error: "PAYWALL_REACHED"; isPaid: false }
@@ -80,6 +88,61 @@ export async function createPartyAction(title: string, guestCount: number, theme
     console.error("Server Action Error:", error);
     return { success: false, error: getActionErrorMessage(error) };
   }
+}
+
+export async function getHubParties(userId?: string | null, localIds?: string[]): Promise<HubParty[]> {
+  const trimmedUserId = userId?.trim();
+  const uniqueLocalIds = Array.from(
+    new Set((localIds ?? []).map((id) => id.trim()).filter(Boolean)),
+  );
+
+  if (!trimmedUserId && uniqueLocalIds.length === 0) {
+    return [];
+  }
+
+  const supabase = createServerSupabaseClient();
+  const selectColumns = "id, title, theme, created_at, guest_count";
+  const queries: PromiseLike<{ data: HubParty[] | null; error: { message: string } | null }>[] = [];
+
+  if (trimmedUserId) {
+    queries.push(
+      supabase
+        .from("parties")
+        .select(selectColumns)
+        .eq("host_id", trimmedUserId)
+        .order("created_at", { ascending: false }),
+    );
+  }
+
+  if (uniqueLocalIds.length > 0) {
+    queries.push(
+      supabase
+        .from("parties")
+        .select(selectColumns)
+        .in("id", uniqueLocalIds)
+        .order("created_at", { ascending: false }),
+    );
+  }
+
+  const results = await Promise.all(queries);
+  const partiesById = new Map<string, HubParty>();
+
+  for (const result of results) {
+    if (result.error) {
+      throw new Error(result.error.message);
+    }
+
+    for (const party of result.data ?? []) {
+      partiesById.set(party.id, party);
+    }
+  }
+
+  return Array.from(partiesById.values()).sort((a, b) => {
+    const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+
+    return bTime - aTime;
+  });
 }
 
 export async function bindPartyHostAction(partyId: string, hostId: string) {

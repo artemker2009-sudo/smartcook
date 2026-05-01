@@ -814,7 +814,7 @@ export default function Home() {
             <div className="menu-link" onClick={() => switchView('service')} style={{ background: activeView === 'service' ? '#f1f5f9' : 'transparent', color: activeView === 'service' ? '#0f172a' : '#475569', fontWeight: activeView === 'service' ? 800 : 600 }}>
                <Search size={22} color="#10b981" style={{flexShrink: 0}}/> Поиск
             </div> 
-            <a className="menu-link" href="/party/create" style={{ background: 'transparent', color: '#475569', fontWeight: 600, textDecoration: 'none' }}>
+            <a className="menu-link" href="/parties" style={{ background: 'transparent', color: '#475569', fontWeight: 600, textDecoration: 'none' }}>
                <PartyPopper size={22} color="#111111" style={{flexShrink: 0}}/> Банкеты
             </a>
             <div className="menu-link" onClick={() => switchView('feed')} style={{ background: activeView === 'feed' ? '#f1f5f9' : 'transparent', color: activeView === 'feed' ? '#0f172a' : '#475569', fontWeight: activeView === 'feed' ? 800 : 600 }}> 

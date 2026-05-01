@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from 'react';
-import { createPartyAction } from '@/app/actions/party'; // Путь может немного отличаться, проверь алиас
+import { useEffect, useState } from 'react';
+import type { User } from '@supabase/supabase-js';
+import { bindPartyHostAction, createPartyAction } from '@/app/actions/party'; // Путь может немного отличаться, проверь алиас
+import AuthModal from '@/components/modals/AuthModal';
+import { supabase } from '@/lib/supabase';
 
 const SCENARIOS = [
   { id: 'new_year', title: 'Новогодний стол', theme: 'Без суеты в последний момент', icon: '🎄' },
@@ -10,31 +13,151 @@ const SCENARIOS = [
   { id: 'birthday', title: 'День рождения', theme: 'Празднично и со вкусом', icon: '🎂' },
 ];
 
+const GUEST_PARTIES_STORAGE_KEY = 'smartcook_guest_parties';
+const PENDING_PARTY_STORAGE_KEY = 'smartcook_pending_party';
+
+const saveGuestPartyId = (partyId: string) => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(GUEST_PARTIES_STORAGE_KEY) || '[]');
+    const currentIds = Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === 'string') : [];
+    localStorage.setItem(GUEST_PARTIES_STORAGE_KEY, JSON.stringify([...new Set([...currentIds, partyId])]));
+  } catch {
+    localStorage.setItem(GUEST_PARTIES_STORAGE_KEY, JSON.stringify([partyId]));
+  }
+};
+
+const getErrorMessage = (error: unknown) => (error instanceof Error ? error.message : "Неизвестная ошибка");
+
 export default function CreatePartyPage() {
   const [selectedScenario, setSelectedScenario] = useState(SCENARIOS[0]);
   const [guestCount, setGuestCount] = useState(4);
   const [isLoading, setIsLoading] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [createdPartyId, setCreatedPartyId] = useState<string | null>(null);
+  const [showSaveChoice, setShowSaveChoice] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authUsername, setAuthUsername] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('register');
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState("");
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => setUser(session?.user || null));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user || null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const redirectToParty = (partyId: string) => {
+    localStorage.setItem(`party_admin_${partyId}`, 'true');
+    window.location.href = `/party/${partyId}`;
+  };
+
+  const bindHostAndRedirect = async (partyId: string, hostId: string) => {
+    const bindResult = await bindPartyHostAction(partyId, hostId);
+    if (!bindResult.success) throw new Error(bindResult.error);
+
+    localStorage.removeItem(PENDING_PARTY_STORAGE_KEY);
+    redirectToParty(partyId);
+  };
 
   const handleCreate = async () => {
     setIsLoading(true);
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const currentUser = session?.user || user;
+
       // Вызываем серверную функцию (никаких fetch-запросов с клиента!)
-      const result = await createPartyAction(selectedScenario.title, guestCount, selectedScenario.theme);
+      const result = await createPartyAction(selectedScenario.title, guestCount, selectedScenario.theme, currentUser?.id);
 
       if (!result.success || !result.partyId) {
         throw new Error(result.error);
       }
 
-      // Сохраняем флаг создателя в localStorage, чтобы в комнате дать права хоста
-      localStorage.setItem(`party_admin_${result.partyId}`, 'true');
+      if (currentUser?.id) {
+        redirectToParty(result.partyId);
+        return;
+      }
 
-      // Жесткий редирект для iOS
-      window.location.href = `/party/${result.partyId}`;
-
-    } catch (error: any) {
-      alert(`Ошибка при создании: ${error.message}`);
+      setCreatedPartyId(result.partyId);
+      setShowSaveChoice(true);
       setIsLoading(false);
+
+    } catch (error) {
+      alert(`Ошибка при создании: ${getErrorMessage(error)}`);
+      setIsLoading(false);
+    }
+  };
+
+  const handleLoginChoice = () => {
+    if (!createdPartyId) return;
+
+    localStorage.setItem(PENDING_PARTY_STORAGE_KEY, createdPartyId);
+    setAuthMode('register');
+    setAuthError("");
+    setShowSaveChoice(false);
+    setIsAuthModalOpen(true);
+  };
+
+  const handleIncognitoChoice = () => {
+    if (!createdPartyId) return;
+
+    saveGuestPartyId(createdPartyId);
+    redirectToParty(createdPartyId);
+  };
+
+  const handleAuth = async () => {
+    if (!authUsername.trim() || authPassword.length < 6) {
+      setAuthError("Введите логин и пароль (мин. 6 символов)");
+      return;
+    }
+
+    const safeUsername = authUsername.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+    if (safeUsername.length < 4) {
+      setAuthError("Логин: только a-z, 0-9, _ (мин. 4 символа)");
+      return;
+    }
+
+    setAuthLoading(true);
+    setAuthError("");
+    const dummyEmail = `${safeUsername}@smartcook.app`;
+
+    try {
+      const authResult = authMode === 'register'
+        ? await supabase.auth.signUp({
+            email: dummyEmail,
+            password: authPassword,
+            options: { data: { full_name: authUsername.trim(), username: safeUsername } },
+          })
+        : await supabase.auth.signInWithPassword({ email: dummyEmail, password: authPassword });
+
+      if (authResult.error) {
+        if (authResult.error.message.includes('already registered') || authResult.error.message.includes('User already exists')) {
+          setAuthError("Этот Username уже занят! Выберите другой или войдите.");
+          return;
+        }
+
+        if (authResult.error.message.includes('Invalid login credentials')) {
+          setAuthError("Неверный Username или пароль!");
+          return;
+        }
+
+        throw authResult.error;
+      }
+
+      const partyId = createdPartyId || localStorage.getItem(PENDING_PARTY_STORAGE_KEY);
+      const authUser = authResult.data.user;
+      if (!partyId || !authUser?.id) throw new Error("Не удалось сохранить комнату после входа");
+
+      await bindHostAndRedirect(partyId, authUser.id);
+    } catch (error) {
+      setAuthError("Ошибка: " + getErrorMessage(error));
+    } finally {
+      setAuthLoading(false);
     }
   };
 
@@ -87,6 +210,65 @@ export default function CreatePartyPage() {
           {isLoading ? 'Создаем...' : 'Создать меню'}
         </button>
       </div>
+
+      {showSaveChoice && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 backdrop-blur-md sm:items-center">
+          <div className="w-full max-w-md animate-in slide-in-from-bottom-6 rounded-t-3xl border border-white/60 bg-white p-6 shadow-2xl sm:rounded-3xl sm:zoom-in-95">
+            <div className="mb-6">
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-orange-400">Сохранение комнаты</p>
+                <h2 className="text-3xl font-black tracking-tight text-black">Где будем хранить рецепты? 🍳</h2>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <button
+                type="button"
+                onClick={handleLoginChoice}
+                className="w-full rounded-3xl bg-gradient-to-br from-orange-400 via-rose-500 to-fuchsia-600 p-5 text-left text-white shadow-xl shadow-rose-500/25 transition active:scale-[0.99]"
+              >
+                <span className="block text-lg font-black">Войти / Создать аккаунт</span>
+                <span className="mt-2 block text-sm leading-6 text-white/85">
+                  Твой банкет будет доступен с любого устройства и никогда не потеряется.
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleIncognitoChoice}
+                className="w-full rounded-3xl border border-zinc-200 bg-white p-5 text-left transition hover:bg-zinc-50 active:scale-[0.99]"
+              >
+                <span className="block text-lg font-black text-black">Остаться инкогнито 🥷</span>
+                <span className="mt-2 block text-sm leading-6 text-zinc-500">
+                  Сохраним только в этом браузере. Если почистишь кэш — комната сгорит 🫠
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => {
+          setIsAuthModalOpen(false);
+          if (createdPartyId) setShowSaveChoice(true);
+        }}
+        authMode={authMode}
+        setAuthMode={setAuthMode}
+        authUsername={authUsername}
+        setAuthUsername={setAuthUsername}
+        authPassword={authPassword}
+        setAuthPassword={setAuthPassword}
+        authLoading={authLoading}
+        handleAuth={handleAuth}
+      />
+
+      {authError && (
+        <div className="fixed left-4 right-4 top-4 z-[100001] mx-auto max-w-md rounded-2xl bg-red-50 px-4 py-3 text-center text-sm font-medium text-red-600 shadow-lg">
+          {authError}
+        </div>
+      )}
     </div>
   );
 }

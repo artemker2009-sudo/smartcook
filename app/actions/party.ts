@@ -56,16 +56,18 @@ const toggleVotesForUser = (votes: string[] | null | undefined, userMarkers: str
   return hasCurrentVote ? votesWithoutCurrentUser : [...votesWithoutCurrentUser, userId];
 };
 
-export async function createPartyAction(title: string, guestCount: number, theme: string) {
+export async function createPartyAction(title: string, guestCount: number, theme: string, hostId?: string | null) {
   try {
     const supabase = createServerSupabaseClient();
+    const trimmedHostId = hostId?.trim();
 
     const { data, error } = await supabase
       .from('parties')
       .insert([{ 
         title, 
         guest_count: guestCount, 
-        theme 
+        theme,
+        ...(trimmedHostId ? { host_id: trimmedHostId } : {}),
       }])
       .select()
       .single();
@@ -76,6 +78,26 @@ export async function createPartyAction(title: string, guestCount: number, theme
     return { success: true, partyId: data.id };
   } catch (error) {
     console.error("Server Action Error:", error);
+    return { success: false, error: getActionErrorMessage(error) };
+  }
+}
+
+export async function bindPartyHostAction(partyId: string, hostId: string) {
+  const trimmedPartyId = partyId.trim();
+  const trimmedHostId = hostId.trim();
+
+  if (!trimmedPartyId || !trimmedHostId) {
+    return { success: false, error: "Не хватает данных для сохранения организатора" };
+  }
+
+  try {
+    const supabase = createServerSupabaseClient();
+    const { error } = await supabase.from("parties").update({ host_id: trimmedHostId }).eq("id", trimmedPartyId);
+
+    if (error) throw new Error(error.message);
+    return { success: true };
+  } catch (error) {
+    console.error("Bind Party Host Action Error:", error);
     return { success: false, error: getActionErrorMessage(error) };
   }
 }

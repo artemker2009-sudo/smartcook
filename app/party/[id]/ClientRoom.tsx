@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type User } from "@supabase/supabase-js";
 import {
   Loader2,
   MessageCircle,
@@ -16,10 +16,12 @@ import {
 import { toast } from "sonner";
 import {
   activatePartyPassAction,
+  bindPartyHostAction,
   joinPartyAction,
   sendPaywallChatAlertAction,
   togglePartyItemVoteAction,
 } from "@/app/actions/party";
+import AuthModal from "@/components/modals/AuthModal";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -30,6 +32,7 @@ const MENU_CATEGORIES = ["Закуски", "Салаты", "Горячее", "Г
 const SUPABASE_TIMEOUT_MS = 12000;
 const GENERATE_MENU_TIMEOUT_MS = 65000;
 const PAYWALL_ALERT_MESSAGE_MARKER = "бесплатный лимит гостей уже закончился";
+const ONBOARDING_STORAGE_KEY = "has_seen_onboarding";
 
 type MenuCategory = (typeof MENU_CATEGORIES)[number];
 
@@ -345,6 +348,14 @@ export default function ClientRoom({
   const [roomTitleInput, setRoomTitleInput] = useState(party.title);
   const [roomDescriptionInput, setRoomDescriptionInput] = useState((party.description ?? party.theme ?? "").trim());
   const [isSavingRoomSettings, setIsSavingRoomSettings] = useState(false);
+  const [authUser, setAuthUser] = useState<User | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authUsername, setAuthUsername] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authMode, setAuthMode] = useState<"login" | "register">("register");
+  const [authLoading, setAuthLoading] = useState(false);
+  const [showPaymentWarning, setShowPaymentWarning] = useState(false);
+  const [showWelcomeOnboarding, setShowWelcomeOnboarding] = useState(false);
 
   const [guests, setGuests] = useState<PartyMember[]>(initialMembers ?? []);
   const [messages, setMessages] = useState<PartyMessage[]>(initialMessages ?? []);
@@ -393,6 +404,14 @@ export default function ClientRoom({
       console.error("Analytics error", e);
     }
   };
+
+  const getAuthenticatedParticipantId = useCallback(() => authUser?.id?.trim() || null, [authUser]);
+
+  const openRoomAuth = useCallback(() => {
+    setAuthMode("register");
+    setShowPaymentWarning(false);
+    setIsAuthModalOpen(true);
+  }, []);
 
   const refreshMenuItems = useCallback(async () => {
     const { data } = await supabase.from("party_items").select("*").eq("party_id", party.id);
@@ -568,6 +587,31 @@ export default function ClientRoom({
       },
     });
   };
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!isCancelled) setAuthUser(session?.user || null);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthUser(session?.user || null);
+    });
+
+    return () => {
+      isCancelled = true;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (showJoinModal || !currentUserId) return;
+    if (safeStorageGetItem(getPartyAdminStorageKey(party.id)) !== "true") return;
+    if (safeStorageGetItem(ONBOARDING_STORAGE_KEY) === "true") return;
+
+    setShowWelcomeOnboarding(true);
+  }, [currentUserId, party.id, showJoinModal]);
 
   useEffect(() => {
     if (!storedUserId || !storedName) return;
@@ -767,15 +811,13 @@ export default function ClientRoom({
   }, [currentParty, getRoomDescription, isSavingRoomSettings]);
 
   useEffect(() => {
-    if (!currentUserId || currentParty.host_id) return;
+    const hostCandidateId = authUser?.id?.trim() || currentUserId?.trim();
+    if (!hostCandidateId || currentParty.host_id) return;
     if (safeStorageGetItem(getPartyAdminStorageKey(party.id)) !== "true") return;
 
-    const normalizedCurrentUserId = currentUserId.trim();
-    if (!normalizedCurrentUserId) return;
-
-    setCurrentParty((prev) => ({ ...prev, host_id: normalizedCurrentUserId }));
-    void supabase.from("parties").update({ host_id: normalizedCurrentUserId }).eq("id", party.id);
-  }, [currentParty.host_id, currentUserId, party.id]);
+    setCurrentParty((prev) => ({ ...prev, host_id: hostCandidateId }));
+    void bindPartyHostAction(party.id, hostCandidateId);
+  }, [authUser, currentParty.host_id, currentUserId, party.id]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -924,7 +966,9 @@ export default function ClientRoom({
     setIsJoining(true);
 
     try {
-      const userId = generateSafeUserId();
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = getAuthenticatedParticipantId() || session?.user?.id?.trim() || generateSafeUserId();
+      if (session?.user && !authUser) setAuthUser(session.user);
       const result = await withTimeout(
         joinPartyAction(party.id, trimmedName, userId),
         SUPABASE_TIMEOUT_MS,
@@ -995,7 +1039,9 @@ export default function ClientRoom({
 
       if (inputName.trim() && !currentUser) {
         const name = inputName.trim();
-        const userId = generateSafeUserId();
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = getAuthenticatedParticipantId() || session?.user?.id?.trim() || generateSafeUserId();
+        if (session?.user && !authUser) setAuthUser(session.user);
 
         const joinResult = await withTimeout(
           joinPartyAction(party.id, name, userId),
@@ -1032,8 +1078,93 @@ export default function ClientRoom({
   };
 
   const handlePaywallCheckout = () => {
-    console.log("Initiate checkout");
+    if (!authUser) {
+      setShowPaymentWarning(true);
+      return;
+    }
+
     void handleMockPayment();
+  };
+
+  const handleRiskyGuestPayment = () => {
+    setShowPaymentWarning(false);
+    void handleMockPayment();
+  };
+
+  const handleCloseWelcomeOnboarding = () => {
+    safeStorageSetItem(ONBOARDING_STORAGE_KEY, "true");
+    setShowWelcomeOnboarding(false);
+  };
+
+  const handleAuth = async () => {
+    if (!authUsername.trim() || authPassword.length < 6) {
+      toast.error("Введите логин и пароль (мин. 6 символов)");
+      return;
+    }
+
+    const safeUsername = authUsername.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
+    if (safeUsername.length < 4) {
+      toast.error("Логин: только a-z, 0-9, _ (мин. 4 символа)");
+      return;
+    }
+
+    setAuthLoading(true);
+    const dummyEmail = `${safeUsername}@smartcook.app`;
+
+    try {
+      const authResult =
+        authMode === "register"
+          ? await supabase.auth.signUp({
+              email: dummyEmail,
+              password: authPassword,
+              options: { data: { full_name: authUsername.trim(), username: safeUsername } },
+            })
+          : await supabase.auth.signInWithPassword({ email: dummyEmail, password: authPassword });
+
+      if (authResult.error) {
+        if (authResult.error.message.includes("already registered") || authResult.error.message.includes("User already exists")) {
+          toast.error("Этот Username уже занят! Выберите другой или войдите.");
+          return;
+        }
+
+        if (authResult.error.message.includes("Invalid login credentials")) {
+          toast.error("Неверный Username или пароль!");
+          return;
+        }
+
+        throw authResult.error;
+      }
+
+      const nextAuthUser = authResult.data.user;
+      if (!nextAuthUser?.id) throw new Error("Не удалось получить пользователя после входа");
+
+      setAuthUser(nextAuthUser);
+      setIsAuthModalOpen(false);
+      toast.success("Комната сохранена в аккаунте");
+
+      if (currentUser?.trim()) {
+        const joinResult = await withTimeout(
+          joinPartyAction(party.id, currentUser.trim(), nextAuthUser.id),
+          SUPABASE_TIMEOUT_MS,
+          "Не удалось обновить участника после входа",
+        );
+
+        if (joinResult.success) {
+          completeJoin(currentUser.trim(), joinResult.userId, joinResult.guestData);
+        }
+      }
+
+      if (safeStorageGetItem(getPartyAdminStorageKey(party.id)) === "true") {
+        const bindResult = await bindPartyHostAction(party.id, nextAuthUser.id);
+        if (!bindResult.success) throw new Error(bindResult.error);
+        setCurrentParty((prev) => ({ ...prev, host_id: nextAuthUser.id }));
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error(getMutationAlertMessage(error));
+    } finally {
+      setAuthLoading(false);
+    }
   };
 
   const handleNotifyOrganizer = async () => {
@@ -1697,6 +1828,88 @@ export default function ClientRoom({
           </button>
         </div>
       </nav>
+
+      {showWelcomeOnboarding && (
+        <div className="fixed inset-0 z-[58] flex items-end justify-center bg-black/50 p-4 backdrop-blur-md sm:items-center">
+          <div className="w-full max-w-md animate-in slide-in-from-bottom-6 rounded-t-3xl border border-white/60 bg-white p-6 shadow-2xl sm:rounded-3xl sm:zoom-in-95">
+            <div className="mb-6 text-center">
+              <div className="mb-3 text-5xl">🍽️</div>
+              <h2 className="text-3xl font-black tracking-tight text-black">Добро пожаловать в банкет!</h2>
+              <p className="mt-2 text-sm leading-6 text-zinc-500">Вот как выжать максимум из комнаты.</p>
+            </div>
+
+            <div className="space-y-3">
+              {[
+                {
+                  icon: "✨",
+                  title: "Магия ИИ",
+                  text: "Нажми «Сгенерировать меню», расскажи про аллергии, и нейросеть накроет на стол.",
+                },
+                {
+                  icon: "👯",
+                  title: "Зови друзей",
+                  text: "Кидай ссылку братве. Они смогут зайти, лайкать блюда и добавлять свои идеи.",
+                },
+                {
+                  icon: "✍️",
+                  title: "Ручной контроль",
+                  text: "ИИ — это круто, но мамин рецепт оливье никто не отменял. Добавляй свои блюда вручную!",
+                },
+              ].map((item) => (
+                <div key={item.title} className="flex gap-3 rounded-3xl bg-zinc-50 p-4">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-2xl shadow-sm">
+                    {item.icon}
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-black">{item.title}</h3>
+                    <p className="mt-1 text-sm leading-6 text-zinc-500">{item.text}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={handleCloseWelcomeOnboarding}
+              className="mt-6 w-full rounded-2xl bg-gradient-to-br from-zinc-900 to-black px-5 py-4 text-base font-bold text-white shadow-lg shadow-black/20 transition active:scale-[0.99]"
+            >
+              Понял-принял, погнали! 🚀
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showPaymentWarning && (
+        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/60 p-4 backdrop-blur-md sm:items-center">
+          <div className="w-full max-w-md animate-in slide-in-from-bottom-6 rounded-t-3xl border border-white/60 bg-white p-6 shadow-2xl sm:rounded-3xl sm:zoom-in-95">
+            <div className="mb-6 text-center">
+              <div className="mb-4 text-5xl">💸</div>
+              <h2 className="text-3xl font-black tracking-tight text-black">Оу, вы достали кошелек! 💸</h2>
+              <p className="mt-3 text-sm leading-6 text-zinc-500">
+                Шеф настоятельно рекомендует войти в аккаунт. Иначе, если вы закроете браузер, ваши оплаченные
+                генерации превратятся в тыкву. А мы этого очень не хотим!
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={openRoomAuth}
+              className="w-full rounded-2xl bg-gradient-to-br from-orange-400 via-rose-500 to-fuchsia-600 px-5 py-4 text-base font-bold text-white shadow-xl shadow-rose-500/25 transition active:scale-[0.99]"
+            >
+              Войти в аккаунт (Несгораемый сейф)
+            </button>
+
+            <button
+              type="button"
+              onClick={handleRiskyGuestPayment}
+              disabled={isProcessingPay}
+              className="mt-4 w-full rounded-2xl bg-transparent px-4 py-3 text-sm font-semibold text-zinc-500 underline-offset-4 transition hover:text-black hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Я рисковый парень, продолжить инкогнито
+            </button>
+          </div>
+        </div>
+      )}
 
       {showRoomInfo && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 backdrop-blur-md sm:items-center">
@@ -2404,6 +2617,19 @@ export default function ClientRoom({
           </div>
         </div>
       )}
+
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        authMode={authMode}
+        setAuthMode={setAuthMode}
+        authUsername={authUsername}
+        setAuthUsername={setAuthUsername}
+        authPassword={authPassword}
+        setAuthPassword={setAuthPassword}
+        authLoading={authLoading}
+        handleAuth={handleAuth}
+      />
     </div>
   );
 }

@@ -1668,10 +1668,10 @@ export default function ClientRoom({
   );
 
   const renderChatPanel = () => (
-    <section className="flex h-full min-h-0 flex-col bg-white">
-      <div className="flex-1 overflow-y-auto p-4">
+    <section className="flex h-[calc(100dvh-180px)] min-h-0 flex-col bg-white">
+      <div className="flex flex-1 flex-col justify-end overflow-y-auto p-4">
         {messages.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-center text-sm text-zinc-400">
+          <div className="flex min-h-full items-center justify-center text-center text-sm text-zinc-400">
             Пока сообщений нет
           </div>
         ) : (
@@ -1706,17 +1706,25 @@ export default function ClientRoom({
         <div ref={messagesEndRef} />
       </div>
 
-      <form onSubmit={sendMessage} className="shrink-0 border-t border-zinc-100 bg-white p-4">
+      <form onSubmit={sendMessage} className="mt-auto shrink-0 border-t border-zinc-100 bg-white p-4">
         <div className="flex items-end gap-3">
-          <button
-            type="button"
-            onClick={() => {}}
-            className="inline-flex h-12 w-10 shrink-0 items-center justify-center text-gray-400 transition-colors hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
+          <input
+            type="file"
+            id="chat-attachment"
+            accept="image/*,video/*"
+            className="hidden"
             disabled={!currentUserId}
+          />
+          <label
+            htmlFor="chat-attachment"
+            className={`inline-flex h-12 w-10 shrink-0 items-center justify-center text-gray-400 transition-colors hover:text-gray-600 ${
+              !currentUserId ? "cursor-not-allowed opacity-50" : "cursor-pointer"
+            }`}
+            aria-disabled={!currentUserId}
             aria-label="Прикрепить файл"
           >
             <Paperclip className="h-5 w-5" />
-          </button>
+          </label>
           <textarea
             ref={messageInputRef}
             rows={1}
@@ -1867,7 +1875,7 @@ export default function ClientRoom({
 
       {showWelcomeOnboarding && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md bg-black/40">
-          <div className="w-full max-w-md animate-in zoom-in-95 overflow-hidden rounded-3xl border border-white/60 bg-white p-6 shadow-2xl">
+          <div className="max-h-[85dvh] w-full max-w-md animate-in zoom-in-95 overflow-y-auto rounded-3xl border border-white/60 bg-white p-6 shadow-2xl">
             <div className="mb-6 text-center">
               <div className="mb-3 text-5xl">🍽️</div>
               <h2 className="text-3xl font-black tracking-tight text-black">Добро пожаловать в банкет!</h2>
@@ -1904,13 +1912,15 @@ export default function ClientRoom({
               ))}
             </div>
 
-            <button
-              type="button"
-              onClick={handleCloseWelcomeOnboarding}
-              className="mt-6 w-full rounded-2xl bg-gradient-to-br from-zinc-900 to-black px-5 py-4 text-base font-bold text-white shadow-lg shadow-black/20 transition active:scale-[0.99]"
-            >
-              Понял-принял, погнали! 🚀
-            </button>
+            <div className="sticky bottom-0 bg-white pt-4">
+              <button
+                type="button"
+                onClick={handleCloseWelcomeOnboarding}
+                className="w-full rounded-2xl bg-gradient-to-br from-zinc-900 to-black px-5 py-4 text-base font-bold text-white shadow-lg shadow-black/20 transition active:scale-[0.99]"
+              >
+                Понял-принял, погнали! 🚀
+              </button>
+            </div>
           </div>
         </div>
       )}

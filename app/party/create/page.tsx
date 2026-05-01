@@ -1,18 +1,49 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import type { User } from '@supabase/supabase-js';
-import { ChevronLeft, Loader2, Sparkles, UsersRound } from 'lucide-react';
+import { Cake, ChevronLeft, Flame, Loader2, TreePine, Users, UsersRound, type LucideIcon } from 'lucide-react';
 import { bindPartyHostAction, createPartyAction } from '@/app/actions/party';
 import AuthModal from '@/components/modals/AuthModal';
 import { supabase } from '@/lib/supabase';
 
-const SCENARIOS = [
-  { id: 'new_year', title: 'Новогодний стол', theme: 'Без суеты в последний момент', icon: '🎄' },
-  { id: 'bbq', title: 'Шашлыки на даче', theme: 'Мясо, гарниры и удобство', icon: '🥩' },
-  { id: 'family', title: 'Семейный ужин', theme: 'Теплый стол на каждый вкус', icon: '👨‍👩‍👧‍👦' },
-  { id: 'birthday', title: 'День рождения', theme: 'Празднично и со вкусом', icon: '🎂' },
+type Scenario = {
+  id: string;
+  title: string;
+  theme: string;
+  Icon: LucideIcon;
+  iconClassName: string;
+};
+
+const SCENARIOS: Scenario[] = [
+  {
+    id: 'new_year',
+    title: 'Новогодний стол',
+    theme: 'Без суеты в последний момент',
+    Icon: TreePine,
+    iconClassName: 'bg-emerald-100 text-emerald-700',
+  },
+  {
+    id: 'bbq',
+    title: 'Шашлыки на даче',
+    theme: 'Мясо, гарниры и удобство',
+    Icon: Flame,
+    iconClassName: 'bg-orange-100 text-orange-600',
+  },
+  {
+    id: 'family',
+    title: 'Семейный ужин',
+    theme: 'Теплый стол на каждый вкус',
+    Icon: Users,
+    iconClassName: 'bg-blue-100 text-blue-600',
+  },
+  {
+    id: 'birthday',
+    title: 'День рождения',
+    theme: 'Празднично и со вкусом',
+    Icon: Cake,
+    iconClassName: 'bg-rose-100 text-rose-600',
+  },
 ];
 
 const GUEST_PARTIES_STORAGE_KEY = 'smartcook_guest_parties';
@@ -32,11 +63,10 @@ const getErrorMessage = (error: unknown) => (error instanceof Error ? error.mess
 
 export default function CreatePartyPage() {
   const router = useRouter();
-  const [selectedScenario, setSelectedScenario] = useState<(typeof SCENARIOS)[number] | null>(SCENARIOS[0]);
+  const [selectedScenario, setSelectedScenario] = useState<Scenario | null>(SCENARIOS[0]);
   const [customReason, setCustomReason] = useState("");
   const [guestCount, setGuestCount] = useState<string | number>(4);
   const [isLoading, setIsLoading] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
   const [createdPartyId, setCreatedPartyId] = useState<string | null>(null);
   const [showSaveChoice, setShowSaveChoice] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -46,15 +76,6 @@ export default function CreatePartyPage() {
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState("");
   const [createError, setCreateError] = useState("");
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => setUser(session?.user || null));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user || null);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
 
   const normalizedGuestCount = guestCount === "" ? 0 : Number(guestCount);
   const customTitle = customReason.trim();
@@ -83,7 +104,7 @@ export default function CreatePartyPage() {
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const currentUser = session?.user || user;
+      const currentUser = session?.user ?? null;
 
       const result = await createPartyAction(partyTitle, normalizedGuestCount, partyTheme, currentUser?.id);
 
@@ -192,10 +213,6 @@ export default function CreatePartyPage() {
             </button>
 
             <div className="mt-8">
-              <p className="mb-3 inline-flex items-center gap-2 rounded-full bg-zinc-950 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em] text-white">
-                <Sparkles size={14} />
-                Smart setup
-              </p>
               <h1 className="text-4xl font-black tracking-[-0.04em]">Организовать банкет</h1>
               <p className="mt-3 max-w-sm text-sm leading-6 text-zinc-500">
                 Выберите сценарий, задайте гостей, а SmartCook соберет комнату для совместного меню.
@@ -235,11 +252,9 @@ export default function CreatePartyPage() {
                   aria-pressed={isSelected}
                 >
                   <span
-                    className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-2xl transition-colors ${
-                      isSelected ? 'bg-zinc-950' : 'bg-zinc-100 group-hover:bg-orange-50'
-                    }`}
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${scenario.iconClassName}`}
                   >
-                    {scenario.icon}
+                    <scenario.Icon size={22} strokeWidth={2.4} />
                   </span>
                   <span className="min-w-0">
                     <span className="block text-lg font-black tracking-tight">{scenario.title}</span>

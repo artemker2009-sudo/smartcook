@@ -130,24 +130,20 @@ function PartyCard({ party, onRequestDelete }: { party: HubParty; onRequestDelet
       }}
       className="group relative flex min-h-[208px] cursor-pointer flex-col justify-between rounded-[28px] border border-white/80 bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.07)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_70px_rgba(15,23,42,0.12)]"
     >
-      <button
-        type="button"
-        onClick={(event) => {
-          event.stopPropagation();
-          onRequestDelete(party);
-        }}
-        className={`absolute right-4 top-4 z-10 ${cardActionButtonClass}`}
-        aria-label="Открыть действия банкета"
-      >
-        <MoreHorizontal size={20} />
-      </button>
-
       <div>
-        <div className="mb-5 flex items-start justify-between gap-4">
+        <div className="mb-5 flex items-center justify-between gap-4">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-orange-50 text-2xl">🍽️</div>
-          <span className={`mr-12 ${cardActionButtonClass} group-hover:bg-zinc-200 group-hover:text-zinc-950`}>
-            <ChevronRight size={20} />
-          </span>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onRequestDelete(party);
+            }}
+            className={cardActionButtonClass}
+            aria-label="Открыть действия банкета"
+          >
+            <MoreHorizontal size={20} />
+          </button>
         </div>
         <h2 className="truncate text-2xl font-black tracking-tight text-zinc-950">
           {party.title?.trim() || "Без названия"}

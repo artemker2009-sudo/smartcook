@@ -32,7 +32,7 @@ const MENU_CATEGORIES = ["Закуски", "Салаты", "Горячее", "Г
 const SUPABASE_TIMEOUT_MS = 12000;
 const GENERATE_MENU_TIMEOUT_MS = 65000;
 const PAYWALL_ALERT_MESSAGE_MARKER = "бесплатный лимит гостей уже закончился";
-const ONBOARDING_STORAGE_KEY = "has_seen_onboarding";
+const getOnboardingStorageKey = (partyId: string) => `onboarding_seen_${partyId}`;
 
 type MenuCategory = (typeof MENU_CATEGORIES)[number];
 
@@ -607,8 +607,7 @@ export default function ClientRoom({
 
   useEffect(() => {
     if (showJoinModal || !currentUserId) return;
-    if (safeStorageGetItem(getPartyAdminStorageKey(party.id)) !== "true") return;
-    if (safeStorageGetItem(ONBOARDING_STORAGE_KEY) === "true") return;
+    if (safeStorageGetItem(getOnboardingStorageKey(party.id)) === "true") return;
 
     setShowWelcomeOnboarding(true);
   }, [currentUserId, party.id, showJoinModal]);
@@ -1092,7 +1091,7 @@ export default function ClientRoom({
   };
 
   const handleCloseWelcomeOnboarding = () => {
-    safeStorageSetItem(ONBOARDING_STORAGE_KEY, "true");
+    safeStorageSetItem(getOnboardingStorageKey(party.id), "true");
     setShowWelcomeOnboarding(false);
   };
 

@@ -325,11 +325,11 @@ export default function CreatePartyPage() {
 
       {showSaveChoice && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 backdrop-blur-md sm:items-center">
-          <div className="w-full max-w-md animate-in slide-in-from-bottom-6 rounded-t-3xl border border-white/60 bg-white p-6 shadow-2xl sm:rounded-3xl sm:zoom-in-95">
+          <div className="w-full max-w-md animate-in slide-in-from-bottom-6 overflow-hidden rounded-3xl border border-white/60 bg-white p-6 shadow-2xl sm:zoom-in-95">
             <div className="mb-6">
               <div>
                 <p className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-orange-400">Сохранение комнаты</p>
-                <h2 className="text-3xl font-black tracking-tight text-black">Где будем хранить рецепты? 🍳</h2>
+                <h2 className="text-3xl font-black tracking-tight text-black">Где сохраним этот банкет? 🥂</h2>
               </div>
             </div>
 

@@ -1,10 +1,11 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, type FormEvent, type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient, type User } from "@supabase/supabase-js";
 import {
   Loader2,
   MessageCircle,
+  Paperclip,
   Plus,
   SendHorizonal,
   Share2,
@@ -376,6 +377,7 @@ export default function ClientRoom({
   const [votingItemId, setVotingItemId] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const messageInputRef = useRef<HTMLTextAreaElement | null>(null);
   const menuItemsRef = useRef<PartyItem[]>(initialItems ?? []);
   const roomChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const roomChannelReadyRef = useRef(false);
@@ -450,6 +452,13 @@ export default function ClientRoom({
     },
     [],
   );
+
+  const resizeMessageInput = useCallback((input: HTMLTextAreaElement) => {
+    input.style.height = "auto";
+    const nextHeight = Math.min(input.scrollHeight, 120);
+    input.style.height = `${nextHeight}px`;
+    input.style.overflowY = input.scrollHeight > 120 ? "auto" : "hidden";
+  }, []);
 
   const showHostPaywallAlert = useCallback(
     (guestName: string) => {
@@ -821,6 +830,12 @@ export default function ClientRoom({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, activeTab]);
+
+  useEffect(() => {
+    if (messageInputRef.current) {
+      resizeMessageInput(messageInputRef.current);
+    }
+  }, [newMessage, resizeMessageInput]);
 
   useEffect(() => {
     if (!generationInProgress) return;
@@ -1231,6 +1246,20 @@ export default function ClientRoom({
         setNewMessage(text);
       },
     });
+  };
+
+  const handleMessageInputChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
+    setNewMessage(event.target.value);
+    resizeMessageInput(event.target);
+  };
+
+  const handleMessageInputKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== "Enter" || event.shiftKey) return;
+
+    event.preventDefault();
+    if (!newMessage.trim() || !currentUserId || isSendingMessage) return;
+
+    event.currentTarget.form?.requestSubmit();
   };
 
   const updateRoomSettings = async () => {
@@ -1677,15 +1706,23 @@ export default function ClientRoom({
         <div ref={messagesEndRef} />
       </div>
 
-      <form
-        onSubmit={sendMessage}
-        className="sticky bottom-0 z-40 mt-auto shrink-0 border-t border-zinc-100 bg-white px-2 pb-safe pt-2"
-      >
-        <div className="flex items-center gap-3">
-          <input
-            type="text"
+      <form onSubmit={sendMessage} className="shrink-0 border-t border-zinc-100 bg-white p-4">
+        <div className="flex items-end gap-3">
+          <button
+            type="button"
+            onClick={() => {}}
+            className="inline-flex h-12 w-10 shrink-0 items-center justify-center text-gray-400 transition-colors hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={!currentUserId}
+            aria-label="Прикрепить файл"
+          >
+            <Paperclip className="h-5 w-5" />
+          </button>
+          <textarea
+            ref={messageInputRef}
+            rows={1}
             value={newMessage}
-            onChange={(event) => setNewMessage(event.target.value)}
+            onChange={handleMessageInputChange}
+            onKeyDown={handleMessageInputKeyDown}
             placeholder={
               currentUser
                 ? "Написать сообщение..."
@@ -1694,7 +1731,7 @@ export default function ClientRoom({
                   : "Сначала укажите ваше имя"
             }
             disabled={!currentUserId}
-            className="h-12 flex-1 rounded-2xl bg-zinc-100 px-4 text-sm text-black outline-none transition focus:bg-zinc-200 disabled:cursor-not-allowed disabled:text-zinc-400"
+            className="max-h-[120px] min-h-12 flex-1 resize-none overflow-hidden rounded-2xl bg-zinc-100 px-4 py-3 text-sm leading-6 text-black outline-none transition focus:bg-zinc-200 disabled:cursor-not-allowed disabled:text-zinc-400"
           />
           <button
             type="submit"
@@ -1781,7 +1818,7 @@ export default function ClientRoom({
 
       <main
         className={`mx-auto w-full max-w-3xl ${
-          activeTab === "chat" ? "flex min-h-0 flex-1 flex-col pb-24" : "pt-4 pb-28"
+          activeTab === "chat" ? "flex min-h-0 flex-1 flex-col overflow-hidden pb-24" : "pt-4 pb-28"
         }`}
       >
         {activeTab === "menu" ? (
@@ -1829,8 +1866,8 @@ export default function ClientRoom({
       </nav>
 
       {showWelcomeOnboarding && (
-        <div className="fixed inset-0 z-[58] flex items-end justify-center bg-black/50 p-4 backdrop-blur-md sm:items-center">
-          <div className="w-full max-w-md animate-in slide-in-from-bottom-6 rounded-t-3xl border border-white/60 bg-white p-6 shadow-2xl sm:rounded-3xl sm:zoom-in-95">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md bg-black/40">
+          <div className="w-full max-w-md animate-in zoom-in-95 overflow-hidden rounded-3xl border border-white/60 bg-white p-6 shadow-2xl">
             <div className="mb-6 text-center">
               <div className="mb-3 text-5xl">🍽️</div>
               <h2 className="text-3xl font-black tracking-tight text-black">Добро пожаловать в банкет!</h2>

@@ -250,14 +250,13 @@ export default function PartiesHubPage() {
   };
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[#f5f5f7] px-4 pb-8 pt-24 text-zinc-950 sm:px-6 sm:pt-28 lg:px-8">
+    <main className="min-h-screen overflow-hidden bg-[#f5f5f7] px-4 pb-8 pt-20 text-zinc-950 sm:px-6 sm:pt-24 lg:px-8">
       <AppNavigation activeSection="parties" />
       <div className="pointer-events-none fixed inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_top,rgba(251,146,60,0.22),transparent_62%)]" />
 
       <div className="relative mx-auto max-w-6xl">
         <header className="mb-8 flex flex-col gap-3 sm:mb-10 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="mb-3 text-xs font-bold uppercase tracking-[0.24em] text-orange-500">SmartCook Hub</p>
             <h1 className="text-4xl font-black tracking-[-0.04em] text-zinc-950 sm:text-6xl">Мои банкеты</h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-zinc-500">
               Все ваши банкетные комнаты в одном месте: личные, сохраненные в браузере и недавние гостевые.

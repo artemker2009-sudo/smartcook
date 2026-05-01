@@ -57,6 +57,9 @@ const formatGuests = (guestCount: number | null) => {
   return `${guestCount} ${noun}`;
 };
 
+const cardActionButtonClass =
+  "flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-50 text-zinc-500 shadow-sm ring-1 ring-zinc-100 transition-colors hover:bg-zinc-200 hover:text-zinc-950";
+
 function HubSkeleton() {
   return (
     <>
@@ -89,13 +92,17 @@ function CreatePartyCard() {
       <div className="absolute -right-12 -top-12 h-36 w-36 rounded-full border border-white/15" />
       <div className="relative z-10 flex h-full w-full flex-col justify-between">
         <div className="flex items-center justify-between">
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 backdrop-blur">
-            <Plus size={24} strokeWidth={2.6} />
+          <div className="flex items-center gap-3">
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 backdrop-blur">
+              <Plus size={24} strokeWidth={2.6} />
+            </span>
+            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-white/65">Новый стол</p>
+          </div>
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white transition-colors group-hover:bg-white/25">
+            <ChevronRight size={20} />
           </span>
-          <ChevronRight className="transition group-hover:translate-x-1" size={22} />
         </div>
         <div>
-          <p className="mb-2 text-sm font-semibold uppercase tracking-[0.22em] text-white/55">Новый стол</p>
           <h2 className="text-2xl font-black tracking-tight">Создать новый банкет</h2>
           <p className="mt-3 max-w-xs text-sm leading-6 text-white/70">
             Запустите меню, пригласите гостей и соберите блюда без хаоса в чатах.
@@ -129,7 +136,7 @@ function PartyCard({ party, onRequestDelete }: { party: HubParty; onRequestDelet
           event.stopPropagation();
           onRequestDelete(party);
         }}
-        className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-zinc-50 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-950"
+        className={`absolute right-4 top-4 z-10 ${cardActionButtonClass}`}
         aria-label="Открыть действия банкета"
       >
         <MoreHorizontal size={20} />
@@ -138,8 +145,8 @@ function PartyCard({ party, onRequestDelete }: { party: HubParty; onRequestDelet
       <div>
         <div className="mb-5 flex items-start justify-between gap-4">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-orange-50 text-2xl">🍽️</div>
-          <span className="mr-11 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-zinc-50 text-zinc-400 transition group-hover:bg-zinc-950 group-hover:text-white">
-            <ChevronRight size={18} />
+          <span className={`mr-12 ${cardActionButtonClass} group-hover:bg-zinc-200 group-hover:text-zinc-950`}>
+            <ChevronRight size={20} />
           </span>
         </div>
         <h2 className="truncate text-2xl font-black tracking-tight text-zinc-950">
@@ -247,7 +254,7 @@ export default function PartiesHubPage() {
   };
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[#f5f5f7] px-4 py-8 text-zinc-950 sm:px-6 lg:px-8">
+    <main className="min-h-screen overflow-hidden bg-[#f5f5f7] px-4 pb-8 pt-24 text-zinc-950 sm:px-6 sm:pt-28 lg:px-8">
       <AppNavigation activeSection="parties" />
       <div className="pointer-events-none fixed inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_top,rgba(251,146,60,0.22),transparent_62%)]" />
 

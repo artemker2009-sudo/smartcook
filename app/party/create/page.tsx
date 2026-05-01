@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { User } from '@supabase/supabase-js';
-import { ChevronLeft } from 'lucide-react';
-import { bindPartyHostAction, createPartyAction } from '@/app/actions/party'; // Путь может немного отличаться, проверь алиас
+import { ChevronLeft, Loader2, Sparkles, UsersRound } from 'lucide-react';
+import { bindPartyHostAction, createPartyAction } from '@/app/actions/party';
 import AuthModal from '@/components/modals/AuthModal';
 import { supabase } from '@/lib/supabase';
 
@@ -45,6 +45,7 @@ export default function CreatePartyPage() {
   const [authMode, setAuthMode] = useState<'login' | 'register'>('register');
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState("");
+  const [createError, setCreateError] = useState("");
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => setUser(session?.user || null));
@@ -78,12 +79,12 @@ export default function CreatePartyPage() {
     if (isCreateDisabled) return;
 
     setIsLoading(true);
+    setCreateError("");
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const currentUser = session?.user || user;
 
-      // Вызываем серверную функцию (никаких fetch-запросов с клиента!)
       const result = await createPartyAction(partyTitle, normalizedGuestCount, partyTheme, currentUser?.id);
 
       if (!result.success || !result.partyId) {
@@ -100,7 +101,7 @@ export default function CreatePartyPage() {
       setIsLoading(false);
 
     } catch (error) {
-      alert(`Ошибка при создании: ${getErrorMessage(error)}`);
+      setCreateError(`Ошибка при создании: ${getErrorMessage(error)}`);
       setIsLoading(false);
     }
   };
@@ -174,74 +175,136 @@ export default function CreatePartyPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F7F7F7] p-4 font-sans text-black pb-24">
-      <div className="max-w-md mx-auto space-y-6 pt-8">
+    <div className="min-h-screen overflow-hidden bg-[#f5f5f7] px-4 pb-24 pt-5 font-sans text-zinc-950">
+      <div className="pointer-events-none fixed inset-x-0 top-0 h-80 bg-[radial-gradient(circle_at_top_left,rgba(251,146,60,0.24),transparent_44%),radial-gradient(circle_at_top_right,rgba(244,63,94,0.18),transparent_42%)]" />
+      <div className="relative mx-auto max-w-md space-y-8">
+        <header className="relative overflow-hidden rounded-[32px] border border-white/70 bg-white/80 p-5 shadow-[0_20px_70px_rgba(15,23,42,0.08)] backdrop-blur">
+          <div className="absolute -right-12 -top-16 h-40 w-40 rounded-full bg-orange-200/50 blur-2xl" />
+          <div className="absolute -bottom-20 left-10 h-36 w-36 rounded-full bg-rose-200/45 blur-2xl" />
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => router.push('/parties')}
+              className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-sm font-bold text-zinc-700 shadow-sm ring-1 ring-zinc-200 transition hover:bg-white active:scale-[0.98]"
+            >
+              <ChevronLeft size={18} />
+              Назад
+            </button>
+
+            <div className="mt-8">
+              <p className="mb-3 inline-flex items-center gap-2 rounded-full bg-zinc-950 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em] text-white">
+                <Sparkles size={14} />
+                Smart setup
+              </p>
+              <h1 className="text-4xl font-black tracking-[-0.04em]">Организовать банкет</h1>
+              <p className="mt-3 max-w-sm text-sm leading-6 text-zinc-500">
+                Выберите сценарий, задайте гостей, а SmartCook соберет комнату для совместного меню.
+              </p>
+            </div>
+          </div>
+        </header>
+
+        <section className="space-y-4">
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-orange-500">Шаг 1</p>
+              <h2 className="mt-1 text-xl font-black tracking-tight">Выберите сценарий</h2>
+            </div>
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-zinc-400 shadow-sm ring-1 ring-zinc-100">
+              {selectedScenario ? "Выбрано" : "Свой повод"}
+            </span>
+          </div>
+
+          <div className="grid gap-3">
+            {SCENARIOS.map((scenario) => {
+              const isSelected = selectedScenario?.id === scenario.id;
+
+              return (
+                <button
+                  key={scenario.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedScenario(scenario);
+                    setCustomReason("");
+                  }}
+                  className={`group flex cursor-pointer items-center gap-4 rounded-[24px] border p-4 text-left transition-all duration-200 active:scale-[0.99] ${
+                    isSelected
+                      ? 'border-zinc-950 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.10)] ring-2 ring-zinc-950'
+                      : 'border-white/80 bg-white/65 shadow-sm hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_14px_36px_rgba(15,23,42,0.08)]'
+                  }`}
+                  aria-pressed={isSelected}
+                >
+                  <span
+                    className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-2xl transition-colors ${
+                      isSelected ? 'bg-zinc-950' : 'bg-zinc-100 group-hover:bg-orange-50'
+                    }`}
+                  >
+                    {scenario.icon}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-lg font-black tracking-tight">{scenario.title}</span>
+                    <span className="mt-1 block text-sm leading-5 text-zinc-500">{scenario.theme}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <label className="block">
+            <span className="mb-2 block text-sm font-bold text-zinc-600">Или свой повод</span>
+            <input
+              type="text"
+              value={customReason}
+              onChange={(e) => {
+                setCustomReason(e.target.value);
+                setSelectedScenario(null);
+                setCreateError("");
+              }}
+              placeholder="Например: ужин для команды"
+              className="w-full rounded-[22px] border border-white/80 bg-white px-5 py-4 text-base font-semibold outline-none shadow-sm transition-all placeholder:text-zinc-400 focus:border-zinc-950 focus:ring-2 focus:ring-zinc-950"
+            />
+          </label>
+        </section>
+
+        <section className="space-y-4 rounded-[28px] border border-white/80 bg-white/85 p-5 shadow-[0_18px_60px_rgba(15,23,42,0.06)] backdrop-blur">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-orange-500">Шаг 2</p>
+            <h2 className="mt-1 text-xl font-black tracking-tight">На сколько персон готовим?</h2>
+          </div>
+          <div className="relative">
+            <UsersRound className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" size={20} />
+            <input
+              type="number"
+              min="1"
+              max="100"
+              inputMode="numeric"
+              value={guestCount}
+              onChange={(e) => {
+                setGuestCount(e.target.value === "" ? "" : Number(e.target.value));
+                setCreateError("");
+              }}
+              className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 py-4 pl-12 pr-4 text-xl font-black outline-none transition-all focus:border-zinc-950 focus:bg-white focus:ring-2 focus:ring-zinc-950"
+            />
+          </div>
+          {(!Number.isFinite(normalizedGuestCount) || normalizedGuestCount <= 0) && (
+            <p className="text-sm font-semibold text-red-500">Укажите хотя бы одного гостя.</p>
+          )}
+        </section>
+
+        {createError && (
+          <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">
+            {createError}
+          </div>
+        )}
+
         <button
           type="button"
-          onClick={() => router.push('/parties')}
-          className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-zinc-700 shadow-sm ring-1 ring-zinc-200 transition hover:bg-zinc-50 active:scale-[0.98]"
-        >
-          <ChevronLeft size={18} />
-          Назад
-        </button>
-
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight mb-2">Организовать банкет</h1>
-          <p className="text-zinc-500 text-sm">Выберите повод и количество гостей.</p>
-        </div>
-
-        <div className="space-y-3">
-          <h2 className="text-lg font-medium">1. Выберите сценарий</h2>
-          <div className="grid gap-3">
-            {SCENARIOS.map((scenario) => (
-              <button
-                key={scenario.id}
-                onClick={() => {
-                  setSelectedScenario(scenario);
-                  setCustomReason("");
-                }}
-                className={`flex flex-col items-start p-4 rounded-2xl border-2 transition-all text-left ${
-                  selectedScenario?.id === scenario.id
-                    ? 'border-black bg-white shadow-sm' 
-                    : 'border-transparent bg-white/60 hover:bg-white'
-                }`}
-              >
-                <span className="text-2xl mb-2">{scenario.icon}</span>
-                <span className="font-semibold text-lg">{scenario.title}</span>
-                <span className="text-sm text-zinc-500">{scenario.theme}</span>
-              </button>
-            ))}
-          </div>
-          <input
-            type="text"
-            value={customReason}
-            onChange={(e) => {
-              setCustomReason(e.target.value);
-              setSelectedScenario(null);
-            }}
-            placeholder="Или впишите свой повод..."
-            className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-4 text-base font-medium outline-none transition-colors placeholder:text-zinc-400 focus:border-black"
-          />
-        </div>
-
-        <div className="space-y-3 bg-white p-4 rounded-2xl border border-zinc-100">
-          <h2 className="text-lg font-medium">2. На сколько персон готовим?</h2>
-          <input
-            type="number"
-            min="1"
-            max="100"
-            value={guestCount}
-            onChange={(e) => setGuestCount(e.target.value === "" ? "" : Number(e.target.value))}
-            className="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-4 text-xl font-medium outline-none focus:border-black transition-colors"
-          />
-        </div>
-
-        <button
           onClick={handleCreate}
           disabled={isCreateDisabled}
-          className="w-full bg-black text-white font-medium text-lg p-4 rounded-2xl active:scale-[0.98] transition-all disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400 disabled:active:scale-100 mt-4"
+          className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-[24px] bg-zinc-950 p-5 text-lg font-black text-white shadow-[0_20px_55px_rgba(9,9,11,0.22)] transition-all hover:-translate-y-0.5 hover:bg-black hover:shadow-[0_24px_65px_rgba(9,9,11,0.28)] active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400 disabled:shadow-none disabled:hover:translate-y-0 disabled:active:scale-100"
         >
-          {isLoading ? 'Создаем...' : 'Создать меню'}
+          {isLoading && <Loader2 size={20} className="animate-spin" />}
+          {isLoading ? 'Создаем комнату...' : 'Создать меню'}
         </button>
       </div>
 

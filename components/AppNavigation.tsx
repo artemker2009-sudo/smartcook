@@ -26,7 +26,7 @@ export default function AppNavigation({ activeSection }: AppNavigationProps) {
       <button
         type="button"
         onClick={() => setIsMenuOpen(true)}
-        className="fixed left-5 top-2.5 z-50 flex h-11 w-11 items-center justify-center rounded-full border-0 bg-white p-0 shadow-[0_4px_12px_rgba(0,0,0,0.1)]"
+        className="fixed left-5 top-2.5 z-50 flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border-0 bg-white p-0 shadow-[0_4px_12px_rgba(0,0,0,0.1)]"
         aria-label="Открыть меню"
       >
         <Menu size={24} color="#111" />
@@ -53,7 +53,7 @@ export default function AppNavigation({ activeSection }: AppNavigationProps) {
               <button
                 type="button"
                 onClick={() => setIsMenuOpen(false)}
-                className="border-0 bg-transparent p-0"
+                className="cursor-pointer border-0 bg-transparent p-0"
                 aria-label="Закрыть меню"
               >
                 <X size={24} />
@@ -74,6 +74,11 @@ export default function AppNavigation({ activeSection }: AppNavigationProps) {
                     background: isActive ? "#f1f5f9" : "transparent",
                     color: isActive ? "#0f172a" : "#475569",
                     fontWeight: isActive ? 800 : 600,
+                    fontSize: "16px",
+                    gap: "14px",
+                    padding: "14px 16px",
+                    borderRadius: "16px",
+                    marginBottom: "4px",
                     textDecoration: "none",
                   }}
                 >

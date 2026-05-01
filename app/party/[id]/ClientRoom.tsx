@@ -26,7 +26,7 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
 );
 
-const MENU_CATEGORIES = ["Закуски", "Салаты", "Горячее", "Напитки", "Десерты"] as const;
+const MENU_CATEGORIES = ["Закуски", "Салаты", "Горячее", "Гарниры", "Напитки", "Десерты"] as const;
 const SUPABASE_TIMEOUT_MS = 12000;
 const GENERATE_MENU_TIMEOUT_MS = 65000;
 const PAYWALL_ALERT_MESSAGE_MARKER = "бесплатный лимит гостей уже закончился";
@@ -47,6 +47,7 @@ type Party = {
 type AiConfig = {
   promptTitle: string;
   promptDescription: string;
+  categories: string[];
   tags: string[];
   budget: string;
   mustHave: string;
@@ -102,9 +103,9 @@ type ClientRoomProps = {
 const isMenuCategory = (value: string): value is MenuCategory =>
   MENU_CATEGORIES.includes(value as MenuCategory);
 
-const normalizeCategory = (category?: string | null): MenuCategory => {
+const normalizeCategory = (category?: string | null): string => {
   if (category === "Горячее блюдо") return "Горячее";
-  if (category && isMenuCategory(category)) return category;
+  if (category?.trim()) return category.trim();
   return "Закуски";
 };
 
@@ -150,10 +151,13 @@ const getPartyNameStorageKey = (partyId: string) => `party_name_${partyId}`;
 const getPartyUserIdStorageKey = (partyId: string) => `party_user_id_${partyId}`;
 const getPartyAdminStorageKey = (partyId: string) => `party_admin_${partyId}`;
 const AI_CONFIG_TAGS = ["Веган", "Без глютена", "Острое", "Без орехов", "Кето", "Без лактозы", "ПП"] as const;
+const AI_CONFIG_CATEGORY_OPTIONS = ["Закуски", "Салаты", "Горячее", "Гарниры", "Напитки", "Десерты"] as const;
+const DEFAULT_AI_CONFIG_CATEGORIES = ["Закуски", "Горячее", "Напитки"];
 
 const getDefaultAiConfig = (room: Party): AiConfig => ({
   promptTitle: room.title,
   promptDescription: (room.theme ?? room.description ?? "").trim(),
+  categories: [...DEFAULT_AI_CONFIG_CATEGORIES],
   tags: [],
   budget: "",
   mustHave: "",
@@ -350,6 +354,7 @@ export default function ClientRoom({
   const [showAiConfigurator, setShowAiConfigurator] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [aiConfig, setAiConfig] = useState<AiConfig>(() => getDefaultAiConfig(party));
+  const [customAiCategoryInput, setCustomAiCategoryInput] = useState("");
   const [customAiTagInput, setCustomAiTagInput] = useState("");
   const [newMessage, setNewMessage] = useState("");
   const [newDishName, setNewDishName] = useState("");
@@ -800,11 +805,19 @@ export default function ClientRoom({
   }, [generationInProgress, party.id, refreshMenuItems]);
 
   const groupedItems = useMemo(
-    () =>
-      MENU_CATEGORIES.map((category) => ({
+    () => {
+      const categories = [
+        ...MENU_CATEGORIES,
+        ...menuItems
+          .map((item) => normalizeCategory(item.category))
+          .filter((category) => !isMenuCategory(category)),
+      ].filter((category, index, list) => list.indexOf(category) === index);
+
+      return categories.map((category) => ({
         category,
         items: menuItems.filter((item) => normalizeCategory(item.category) === category),
-      })),
+      }));
+    },
     [menuItems],
   );
 
@@ -1223,6 +1236,7 @@ export default function ClientRoom({
       const normalizedConfig: AiConfig = {
         promptTitle: config.promptTitle.trim(),
         promptDescription: config.promptDescription.trim(),
+        categories: config.categories.map((category) => category.trim()).filter(Boolean),
         tags: config.tags,
         budget: config.budget.trim(),
         mustHave: config.mustHave.trim(),
@@ -1237,6 +1251,7 @@ export default function ClientRoom({
           roomId: party.id,
           title: normalizedConfig.promptTitle,
           description: normalizedConfig.promptDescription,
+          categories: normalizedConfig.categories,
           tags: normalizedConfig.tags,
           budget: normalizedConfig.budget,
           mustHave: normalizedConfig.mustHave,
@@ -1296,8 +1311,30 @@ export default function ClientRoom({
   };
 
   const handleStartConfiguredGeneration = () => {
-    if (!aiConfig.promptTitle.trim() || generationInProgress) return;
+    if (!aiConfig.promptTitle.trim() || aiConfig.categories.length === 0 || generationInProgress) return;
     void startGenerateMenu(aiConfig);
+  };
+
+  const toggleAiConfigCategory = (category: string) => {
+    setAiConfig((prev) => ({
+      ...prev,
+      categories: prev.categories.includes(category)
+        ? prev.categories.filter((item) => item !== category)
+        : [...prev.categories, category],
+    }));
+  };
+
+  const handleAddCustomAiConfigCategory = (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
+
+    const nextCategory = customAiCategoryInput.trim();
+    if (!nextCategory) return;
+
+    setAiConfig((prev) => ({
+      ...prev,
+      categories: prev.categories.includes(nextCategory) ? prev.categories : [...prev.categories, nextCategory],
+    }));
+    setCustomAiCategoryInput("");
   };
 
   const toggleAiConfigTag = (tag: string) => {
@@ -1322,6 +1359,7 @@ export default function ClientRoom({
 
   const handleResetAiConfig = () => {
     setAiConfig(getDefaultAiConfig(currentParty));
+    setCustomAiCategoryInput("");
     setCustomAiTagInput("");
     setIsResetModalOpen(false);
   };
@@ -2031,6 +2069,55 @@ export default function ClientRoom({
               </section>
 
               <section className="rounded-3xl border border-black/5 bg-white/70 p-4 shadow-sm">
+                <h3 className="mb-3 text-base font-semibold text-black">Что в меню?</h3>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    ...AI_CONFIG_CATEGORY_OPTIONS,
+                    ...aiConfig.categories.filter(
+                      (category) => !AI_CONFIG_CATEGORY_OPTIONS.includes(category as typeof AI_CONFIG_CATEGORY_OPTIONS[number]),
+                    ),
+                  ].map((category) => {
+                    const isActive = aiConfig.categories.includes(category);
+
+                    return (
+                      <button
+                        key={category}
+                        type="button"
+                        onClick={() => toggleAiConfigCategory(category)}
+                        className={`rounded-full border px-4 py-2 text-sm font-medium transition-all duration-200 active:scale-95 ${
+                          isActive
+                            ? "border-black bg-black text-white shadow-lg shadow-black/10"
+                            : "border-zinc-200 bg-white/80 text-zinc-600 hover:border-zinc-300 hover:bg-zinc-50"
+                        }`}
+                      >
+                        {category}
+                      </button>
+                    );
+                  })}
+                  <form onSubmit={handleAddCustomAiConfigCategory} className="flex min-w-[190px] flex-1 items-center gap-2">
+                    <input
+                      type="text"
+                      value={customAiCategoryInput}
+                      onChange={(event) => setCustomAiCategoryInput(event.target.value)}
+                      placeholder="Свой вариант..."
+                      className="min-w-0 flex-1 rounded-full border border-zinc-200 bg-white/80 px-4 py-2 text-sm text-black outline-none transition focus:border-black focus:ring-4 focus:ring-black/10"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!customAiCategoryInput.trim()}
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black text-lg font-semibold leading-none text-white shadow-lg shadow-black/10 transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                      aria-label="Добавить свою категорию"
+                    >
+                      +
+                    </button>
+                  </form>
+                </div>
+                {aiConfig.categories.length === 0 && (
+                  <p className="mt-3 text-sm text-red-500">Выберите хотя бы одну категорию, чтобы ИИ знал, что генерировать.</p>
+                )}
+              </section>
+
+              <section className="rounded-3xl border border-black/5 bg-white/70 p-4 shadow-sm">
                 <h3 className="mb-3 text-base font-semibold text-black">Особенности</h3>
                 <div className="flex flex-wrap gap-2">
                   {[...AI_CONFIG_TAGS, ...aiConfig.tags.filter((tag) => !AI_CONFIG_TAGS.includes(tag as typeof AI_CONFIG_TAGS[number]))].map((tag) => {
@@ -2117,7 +2204,7 @@ export default function ClientRoom({
               <button
                 type="button"
                 onClick={handleStartConfiguredGeneration}
-                disabled={!aiConfig.promptTitle.trim() || generationInProgress}
+                disabled={!aiConfig.promptTitle.trim() || aiConfig.categories.length === 0 || generationInProgress}
                 className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-b from-zinc-900 to-black py-4 text-base font-semibold text-white shadow-lg shadow-black/20 transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-45"
               >
                 {generationInProgress ? (

@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import type { User } from '@supabase/supabase-js';
+import { ChevronLeft } from 'lucide-react';
 import { bindPartyHostAction, createPartyAction } from '@/app/actions/party'; // Путь может немного отличаться, проверь алиас
 import AuthModal from '@/components/modals/AuthModal';
 import { supabase } from '@/lib/supabase';
@@ -29,8 +31,10 @@ const saveGuestPartyId = (partyId: string) => {
 const getErrorMessage = (error: unknown) => (error instanceof Error ? error.message : "Неизвестная ошибка");
 
 export default function CreatePartyPage() {
-  const [selectedScenario, setSelectedScenario] = useState(SCENARIOS[0]);
-  const [guestCount, setGuestCount] = useState(4);
+  const router = useRouter();
+  const [selectedScenario, setSelectedScenario] = useState<(typeof SCENARIOS)[number] | null>(SCENARIOS[0]);
+  const [customReason, setCustomReason] = useState("");
+  const [guestCount, setGuestCount] = useState<string | number>(4);
   const [isLoading, setIsLoading] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [createdPartyId, setCreatedPartyId] = useState<string | null>(null);
@@ -51,6 +55,12 @@ export default function CreatePartyPage() {
     return () => subscription.unsubscribe();
   }, []);
 
+  const normalizedGuestCount = guestCount === "" ? 0 : Number(guestCount);
+  const customTitle = customReason.trim();
+  const partyTitle = customTitle || selectedScenario?.title || "";
+  const partyTheme = customTitle ? "Свой повод" : selectedScenario?.theme || "";
+  const isCreateDisabled = isLoading || !partyTitle || !Number.isFinite(normalizedGuestCount) || normalizedGuestCount <= 0;
+
   const redirectToParty = (partyId: string) => {
     localStorage.setItem(`party_admin_${partyId}`, 'true');
     window.location.href = `/party/${partyId}`;
@@ -65,6 +75,8 @@ export default function CreatePartyPage() {
   };
 
   const handleCreate = async () => {
+    if (isCreateDisabled) return;
+
     setIsLoading(true);
 
     try {
@@ -72,7 +84,7 @@ export default function CreatePartyPage() {
       const currentUser = session?.user || user;
 
       // Вызываем серверную функцию (никаких fetch-запросов с клиента!)
-      const result = await createPartyAction(selectedScenario.title, guestCount, selectedScenario.theme, currentUser?.id);
+      const result = await createPartyAction(partyTitle, normalizedGuestCount, partyTheme, currentUser?.id);
 
       if (!result.success || !result.partyId) {
         throw new Error(result.error);
@@ -164,6 +176,15 @@ export default function CreatePartyPage() {
   return (
     <div className="min-h-screen bg-[#F7F7F7] p-4 font-sans text-black pb-24">
       <div className="max-w-md mx-auto space-y-6 pt-8">
+        <button
+          type="button"
+          onClick={() => router.push('/parties')}
+          className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-zinc-700 shadow-sm ring-1 ring-zinc-200 transition hover:bg-zinc-50 active:scale-[0.98]"
+        >
+          <ChevronLeft size={18} />
+          Назад
+        </button>
+
         <div>
           <h1 className="text-3xl font-bold tracking-tight mb-2">Организовать банкет</h1>
           <p className="text-zinc-500 text-sm">Выберите повод и количество гостей.</p>
@@ -175,9 +196,12 @@ export default function CreatePartyPage() {
             {SCENARIOS.map((scenario) => (
               <button
                 key={scenario.id}
-                onClick={() => setSelectedScenario(scenario)}
+                onClick={() => {
+                  setSelectedScenario(scenario);
+                  setCustomReason("");
+                }}
                 className={`flex flex-col items-start p-4 rounded-2xl border-2 transition-all text-left ${
-                  selectedScenario.id === scenario.id 
+                  selectedScenario?.id === scenario.id
                     ? 'border-black bg-white shadow-sm' 
                     : 'border-transparent bg-white/60 hover:bg-white'
                 }`}
@@ -188,6 +212,16 @@ export default function CreatePartyPage() {
               </button>
             ))}
           </div>
+          <input
+            type="text"
+            value={customReason}
+            onChange={(e) => {
+              setCustomReason(e.target.value);
+              setSelectedScenario(null);
+            }}
+            placeholder="Или впишите свой повод..."
+            className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-4 text-base font-medium outline-none transition-colors placeholder:text-zinc-400 focus:border-black"
+          />
         </div>
 
         <div className="space-y-3 bg-white p-4 rounded-2xl border border-zinc-100">
@@ -197,15 +231,15 @@ export default function CreatePartyPage() {
             min="1"
             max="100"
             value={guestCount}
-            onChange={(e) => setGuestCount(parseInt(e.target.value) || 1)}
+            onChange={(e) => setGuestCount(e.target.value === "" ? "" : Number(e.target.value))}
             className="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-4 text-xl font-medium outline-none focus:border-black transition-colors"
           />
         </div>
 
         <button
           onClick={handleCreate}
-          disabled={isLoading}
-          className="w-full bg-black text-white font-medium text-lg p-4 rounded-2xl active:scale-[0.98] transition-transform disabled:opacity-50 disabled:active:scale-100 mt-4"
+          disabled={isCreateDisabled}
+          className="w-full bg-black text-white font-medium text-lg p-4 rounded-2xl active:scale-[0.98] transition-all disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400 disabled:active:scale-100 mt-4"
         >
           {isLoading ? 'Создаем...' : 'Создать меню'}
         </button>

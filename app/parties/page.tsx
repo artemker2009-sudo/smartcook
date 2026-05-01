@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { CalendarDays, ChevronRight, Plus, UsersRound } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { CalendarDays, ChevronRight, Loader2, MoreHorizontal, Plus, UsersRound } from "lucide-react";
 
-import { getHubParties, type HubParty } from "@/app/actions/party";
+import { deletePartyAction, getHubParties, type HubParty } from "@/app/actions/party";
+import AppNavigation from "@/components/AppNavigation";
 import { supabase } from "@/lib/supabase";
 
 const GUEST_PARTIES_STORAGE_KEY = "smartcook_guest_parties";
@@ -24,6 +26,15 @@ const readLocalPartyIds = () => {
       : [];
   } catch {
     return [];
+  }
+};
+
+const removeLocalPartyId = (partyId: string) => {
+  try {
+    const nextIds = readLocalPartyIds().filter((id) => id !== partyId);
+    localStorage.setItem(GUEST_PARTIES_STORAGE_KEY, JSON.stringify(nextIds));
+  } catch {
+    localStorage.setItem(GUEST_PARTIES_STORAGE_KEY, JSON.stringify([]));
   }
 };
 
@@ -95,18 +106,39 @@ function CreatePartyCard() {
   );
 }
 
-function PartyCard({ party }: { party: HubParty }) {
+function PartyCard({ party, onRequestDelete }: { party: HubParty; onRequestDelete: (party: HubParty) => void }) {
+  const router = useRouter();
   const guests = formatGuests(party.guest_count);
 
   return (
-    <Link
-      href={`/party/${party.id}`}
-      className="group flex min-h-[208px] flex-col justify-between rounded-[28px] border border-white/80 bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.07)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_70px_rgba(15,23,42,0.12)]"
+    <article
+      role="button"
+      tabIndex={0}
+      onClick={() => router.push(`/party/${party.id}`)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          router.push(`/party/${party.id}`);
+        }
+      }}
+      className="group relative flex min-h-[208px] cursor-pointer flex-col justify-between rounded-[28px] border border-white/80 bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.07)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_70px_rgba(15,23,42,0.12)]"
     >
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onRequestDelete(party);
+        }}
+        className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-zinc-50 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-950"
+        aria-label="Открыть действия банкета"
+      >
+        <MoreHorizontal size={20} />
+      </button>
+
       <div>
         <div className="mb-5 flex items-start justify-between gap-4">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-orange-50 text-2xl">🍽️</div>
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-zinc-50 text-zinc-400 transition group-hover:bg-zinc-950 group-hover:text-white">
+          <span className="mr-11 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-zinc-50 text-zinc-400 transition group-hover:bg-zinc-950 group-hover:text-white">
             <ChevronRight size={18} />
           </span>
         </div>
@@ -133,7 +165,7 @@ function PartyCard({ party }: { party: HubParty }) {
           </span>
         )}
       </div>
-    </Link>
+    </article>
   );
 }
 
@@ -141,6 +173,9 @@ export default function PartiesHubPage() {
   const [parties, setParties] = useState<HubParty[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [partyToDelete, setPartyToDelete] = useState<HubParty | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   useEffect(() => {
     let isCancelled = false;
@@ -187,8 +222,33 @@ export default function PartiesHubPage() {
     };
   }, []);
 
+  const handleConfirmDelete = async () => {
+    if (!partyToDelete) return;
+
+    setIsDeleting(true);
+    setDeleteError("");
+
+    try {
+      const result = await deletePartyAction(partyToDelete.id);
+
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+
+      removeLocalPartyId(partyToDelete.id);
+      setParties((currentParties) => currentParties.filter((party) => party.id !== partyToDelete.id));
+      setPartyToDelete(null);
+    } catch (deleteError) {
+      console.error("Party delete error:", deleteError);
+      setDeleteError(deleteError instanceof Error ? deleteError.message : "Не удалось удалить банкет.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <main className="min-h-screen overflow-hidden bg-[#f5f5f7] px-4 py-8 text-zinc-950 sm:px-6 lg:px-8">
+      <AppNavigation activeSection="parties" />
       <div className="pointer-events-none fixed inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_top,rgba(251,146,60,0.22),transparent_62%)]" />
 
       <div className="relative mx-auto max-w-6xl">
@@ -210,7 +270,11 @@ export default function PartiesHubPage() {
 
         <section className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           <CreatePartyCard />
-          {isLoading ? <HubSkeleton /> : parties.map((party) => <PartyCard key={party.id} party={party} />)}
+          {isLoading ? (
+            <HubSkeleton />
+          ) : (
+            parties.map((party) => <PartyCard key={party.id} party={party} onRequestDelete={setPartyToDelete} />)
+          )}
         </section>
 
         {!isLoading && parties.length === 0 && (
@@ -223,6 +287,48 @@ export default function PartiesHubPage() {
           </section>
         )}
       </div>
+
+      {partyToDelete && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/35 px-4 backdrop-blur-md">
+          <div className="w-full max-w-sm scale-100 rounded-[32px] border border-white/70 bg-white/95 p-6 text-center shadow-[0_24px_80px_rgba(15,23,42,0.24)]">
+            <h2 className="text-2xl font-black tracking-tight text-zinc-950">Удалить банкет?</h2>
+            <p className="mt-3 text-sm leading-6 text-zinc-500">
+              Это действие безвозвратно. Меню, чат и список гостей будут стерты навсегда.
+            </p>
+
+            {deleteError && (
+              <div className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">
+                {deleteError}
+              </div>
+            )}
+
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isDeleting) {
+                    setPartyToDelete(null);
+                    setDeleteError("");
+                  }
+                }}
+                disabled={isDeleting}
+                className="rounded-2xl bg-zinc-100 px-4 py-3 text-sm font-bold text-zinc-700 transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                className="flex items-center justify-center gap-2 rounded-2xl bg-red-500 px-4 py-3 text-sm font-bold text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {isDeleting && <Loader2 size={16} className="animate-spin" />}
+                Да, удалить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

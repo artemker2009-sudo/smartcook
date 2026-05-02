@@ -4,6 +4,7 @@ import { type ChangeEvent, type FormEvent, type KeyboardEvent, useCallback, useE
 import { useRouter } from "next/navigation";
 import { createClient, type User } from "@supabase/supabase-js";
 import {
+  Heart,
   Loader2,
   MessageCircle,
   Paperclip,
@@ -11,7 +12,6 @@ import {
   SendHorizonal,
   Share2,
   Sparkles,
-  Users,
   UtensilsCrossed,
   X,
 } from "lucide-react";
@@ -78,6 +78,7 @@ type PartyItem = {
   id: string;
   party_id?: string;
   name: string;
+  description?: string | null;
   category?: string | null;
   ingredients?: MenuIngredient[] | string | null;
   votes?: string[] | null;
@@ -301,6 +302,20 @@ const parseIngredients = (ingredients?: PartyItem["ingredients"]) => {
   }
 
   return Array.isArray(ingredients) ? ingredients : [];
+};
+
+const formatMenuIngredient = (ingredient: MenuIngredient) =>
+  [ingredient.name, ingredient.amount, ingredient.unit].filter((part) => part !== undefined && part !== null && part !== "").join(" ");
+
+const getMenuItemDescription = (item: PartyItem) => {
+  const description = item.description?.trim();
+  if (description) return description;
+
+  const ingredients = parseIngredients(item.ingredients)
+    .map(formatMenuIngredient)
+    .filter(Boolean);
+
+  return ingredients.length > 0 ? ingredients.join(", ") : "Участники смогут оценить это блюдо и обсудить детали в чате.";
 };
 
 const toggleVotesForUser = (votes: string[] | null | undefined, userMarkers: string[], userId: string) => {
@@ -892,14 +907,8 @@ export default function ClientRoom({
       .sort((a, b) => getGuestName(a).localeCompare(getGuestName(b), "ru"));
   }, [guests]);
 
-  const guestsCount = visibleGuests.length;
   const currentParticipantIdentity = currentUserId || (currentUser ? `name:${normalizeName(currentUser)}` : null);
   const roomDescription = getRoomDescription(currentParty);
-  const stackedAvatarGuests = useMemo(
-    () => (guestsCount > 3 ? visibleGuests.slice(0, 2) : visibleGuests.slice(0, 3)),
-    [guestsCount, visibleGuests],
-  );
-  const extraGuestCount = guestsCount > 3 ? guestsCount - stackedAvatarGuests.length : 0;
   const currentVoteMarkers = useMemo(
     () => [currentUserId, currentUser].filter(Boolean) as string[],
     [currentUserId, currentUser],
@@ -907,33 +916,6 @@ export default function ClientRoom({
   const hasCurrentUserVoted = useCallback(
     (votes?: string[] | null) => (votes ?? []).some((vote) => currentVoteMarkers.includes(vote)),
     [currentVoteMarkers],
-  );
-
-  const renderGuestAvatars = () => (
-    <div className="flex -space-x-2" aria-label={`Гостей: ${guestsCount}`}>
-      {stackedAvatarGuests.map((guest) => {
-        const guestName = getGuestName(guest);
-        const isCurrentGuest = getGuestIdentity(guest) === currentParticipantIdentity;
-
-        return (
-          <div
-            key={getGuestIdentity(guest)}
-            title={isCurrentGuest ? `${guestName} (вы)` : guestName}
-            className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-gray-100 text-xs font-bold text-gray-700"
-          >
-            {guestName.charAt(0).toUpperCase()}
-          </div>
-        );
-      })}
-      {extraGuestCount > 0 && (
-        <div
-          title={`Еще ${extraGuestCount}`}
-          className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-gray-100 text-xs font-bold text-gray-700"
-        >
-          +{extraGuestCount}
-        </div>
-      )}
-    </div>
   );
 
   const shoppingList = useMemo(() => {
@@ -1525,149 +1507,158 @@ export default function ClientRoom({
     setIsResetModalOpen(false);
   };
 
-  const renderMenuPanel = () => (
-    <section className="space-y-4 p-4 pb-32">
-      <div className="space-y-2 rounded-3xl border border-black/5 bg-white p-4 shadow-sm">
-        <button
-          type="button"
-          onClick={handleGenerateMenu}
-          disabled={generationInProgress}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-black py-3 font-semibold text-white shadow-sm transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {generationInProgress ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-          {generationInProgress ? "Шеф-повар думает..." : "Сгенерировать ИИ"}
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowAddDishModal(true)}
-          disabled={!currentUserId || isAddingDish}
-          className="flex w-full items-center justify-center gap-2 bg-transparent py-2 text-sm font-medium text-gray-500 transition-colors hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {isAddingDish ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <>
-              <Plus className="h-4 w-4" />
-              Добавить вручную
-            </>
-          )}
-        </button>
-      </div>
+  const renderMenuPanel = () => {
+    const hasMenuItems = menuItems.length > 0;
+    const nonEmptyGroups = groupedItems.filter(({ items }) => items.length > 0);
 
-      {generationInProgress && (
-        <div className="animate-in fade-in slide-in-from-top-4 rounded-3xl bg-zinc-100 p-6 text-center duration-500">
-          <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin text-zinc-500" />
-          <h3 className="mb-1 text-lg font-semibold">Меню уже готовится</h3>
-          <p className="mb-4 text-sm text-zinc-500">
-            Нейросеть подбирает лучшие блюда. Пока вы ждете, пригласите друзей — они смогут добавлять свои идеи!
-          </p>
-          <button
-            type="button"
-            onClick={handleShare}
-            className="w-full rounded-2xl border border-zinc-200 bg-white px-6 py-3 font-medium text-black shadow-sm transition-colors hover:bg-zinc-50"
-          >
-            Поделиться ссылкой
-          </button>
-        </div>
-      )}
-
-      <div>
-        <button
-          type="button"
-          onClick={handleShare}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-3xl border border-zinc-200 bg-white px-4 py-4 text-sm font-medium text-black shadow-sm transition hover:bg-zinc-50"
-        >
-          <Share2 className="h-4 w-4" />
-          Поделиться
-        </button>
-      </div>
-
-      {groupedItems.map(({ category, items }) => (
-        <article key={category} className="rounded-3xl border border-black/5 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="text-xl font-semibold tracking-tight text-black">{category}</h2>
-            <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-500">
-              {items.length}
-            </span>
+    return (
+      <section className="space-y-5 px-4 pb-32 pt-4">
+        {generationInProgress && (
+          <div className="animate-in fade-in slide-in-from-top-4 rounded-3xl border border-white/70 bg-white/80 p-5 text-center shadow-sm backdrop-blur duration-500">
+            <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin text-zinc-500" />
+            <h3 className="mb-1 text-lg font-semibold text-gray-900">Меню уже готовится</h3>
+            <p className="mb-4 text-sm leading-6 text-gray-500">
+              Нейросеть подбирает лучшие блюда. Пока вы ждете, пригласите друзей — они смогут добавлять свои идеи.
+            </p>
+            <button
+              type="button"
+              onClick={handleShare}
+              className="w-full rounded-2xl border border-gray-200 bg-white px-6 py-3 font-medium text-black shadow-sm transition-colors hover:bg-gray-50"
+            >
+              Поделиться ссылкой
+            </button>
           </div>
+        )}
 
-          {items.length === 0 && generationInProgress ? (
-            <div className="space-y-3" aria-label={`${category}: блюда готовятся`}>
-              {[0, 1].map((index) => (
-                <div key={index} className="animate-pulse rounded-[28px] bg-zinc-50 px-4 py-4">
-                  <div className="mb-3 h-4 w-2/3 rounded-full bg-zinc-200" />
-                  <div className="h-3 w-full rounded-full bg-zinc-200" />
-                  <div className="mt-2 h-3 w-4/5 rounded-full bg-zinc-200" />
-                </div>
-              ))}
+        {!hasMenuItems ? (
+          <div className="flex min-h-[calc(100dvh-220px)] items-center justify-center">
+            <div className="w-full rounded-[32px] border border-white/70 bg-white/85 p-6 text-center shadow-sm backdrop-blur">
+              <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-amber-100 via-rose-100 to-fuchsia-100 text-rose-500 shadow-inner">
+                <UtensilsCrossed className="h-9 w-9" />
+              </div>
+              <h2 className="text-2xl font-bold tracking-tight text-gray-900">Стол пока пуст</h2>
+              <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-gray-500">
+                Сгенерируйте идеальное меню с помощью ИИ или добавьте любимые блюда вручную.
+              </p>
+              <div className="mt-7 space-y-3">
+                <button
+                  type="button"
+                  onClick={handleGenerateMenu}
+                  disabled={generationInProgress}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-zinc-900 to-black px-5 py-4 font-bold text-white shadow-xl shadow-black/15 transition hover:scale-[1.01] hover:shadow-black/20 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {generationInProgress ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  {generationInProgress ? "Шеф-повар думает..." : "Сгенерировать меню ✨"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAddDishModal(true)}
+                  disabled={!currentUserId || isAddingDish}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white px-5 py-4 font-semibold text-gray-900 shadow-sm transition hover:bg-gray-50 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isAddingDish ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                  Добавить вручную
+                </button>
+              </div>
             </div>
-          ) : items.length === 0 ? (
-            <p className="text-sm leading-6 text-zinc-400">Здесь появятся предложенные блюда...</p>
-          ) : (
-            <div className="space-y-3">
-              {items.map((item) => {
-                const ingredients = parseIngredients(item.ingredients);
+          </div>
+        ) : (
+          <>
+            <div className="grid gap-3 rounded-3xl border border-white/70 bg-white/80 p-3 shadow-sm backdrop-blur sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={handleGenerateMenu}
+                disabled={generationInProgress}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-black px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {generationInProgress ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {generationInProgress ? "Готовим..." : "Сгенерировать ИИ"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAddDishModal(true)}
+                disabled={!currentUserId || isAddingDish}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white px-4 py-3 font-semibold text-gray-900 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isAddingDish ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                Добавить вручную
+              </button>
+            </div>
 
-                return (
-                  <div key={item.id ?? `${category}-${item.name}`} className="rounded-[28px] bg-zinc-50 px-4 py-4">
-                    <div className="flex justify-between items-start gap-4">
-                      <div className="flex-1">
-                        <div className="text-black font-medium">{item.name}</div>
+            {nonEmptyGroups.map(({ category, items }) => (
+              <section key={category}>
+                <h2 className="mt-6 mb-3 text-xs font-bold uppercase tracking-wider text-gray-400">{category}</h2>
+                <div className="space-y-3">
+                  {items.map((item) => {
+                    const isLiked = hasCurrentUserVoted(item.votes);
 
-                        {ingredients.length > 0 && (
-                          <div className="text-sm text-zinc-500 mt-1">
-                            {ingredients.map((ing) => `${ing.name} ${ing.amount} ${ing.unit}`).join(", ")}
-                          </div>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => toggleVote(item.id)}
-                        disabled={!currentUserId || votingItemId === item.id}
-                        className="flex items-center gap-1.5 bg-zinc-100 px-3 py-1.5 rounded-full shrink-0 active:scale-95 transition-transform disabled:cursor-not-allowed disabled:opacity-50"
+                    return (
+                      <article
+                        key={item.id ?? `${category}-${item.name}`}
+                        className="rounded-2xl border border-gray-50 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
                       >
-                        <span className="text-sm">{hasCurrentUserVoted(item.votes) ? "❤️" : "🤍"}</span>
-                        <span className="text-sm font-medium">{item.votes?.length || 0}</span>
-                        {votingItemId === item.id && (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin text-zinc-400" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0 flex-1">
+                            <h3 className="font-semibold text-gray-900">{item.name}</h3>
+                            <p className="mt-1 line-clamp-2 text-sm leading-6 text-gray-500">
+                              {getMenuItemDescription(item)}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => toggleVote(item.id)}
+                            disabled={!currentUserId || votingItemId === item.id}
+                            className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-sm font-semibold transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 ${
+                              isLiked ? "bg-red-50 text-red-500" : "bg-gray-50 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                            }`}
+                            aria-label={isLiked ? "Убрать лайк" : "Поставить лайк"}
+                          >
+                            <Heart className={`h-4 w-4 ${isLiked ? "fill-current" : ""}`} />
+                            <span>{item.votes?.length || 0}</span>
+                            {votingItemId === item.id && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
+          </>
+        )}
+
+        {hasMenuItems && (
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                if (currentParty.is_paid) {
+                  setShowShoppingList(true);
+                  void trackEvent("shopping_list_opened");
+                } else {
+                  setShowPaywall(true);
+                  void trackEvent("paywall_view_from_cart");
+                }
+              }}
+              className="w-full bg-white text-black font-medium p-4 rounded-3xl flex items-center justify-center gap-2 shadow-sm border border-black/5 active:scale-95 transition-transform"
+            >
+              <span>🛒</span> {currentParty.is_paid ? "Показать список покупок" : "Открыть список покупок (PRO)"}
+            </button>
+
+            <div className="mt-6 border-t border-zinc-100 pt-6">
+              <button
+                type="button"
+                onClick={() => setShowSupport(true)}
+                className="flex w-full items-center justify-center gap-2 rounded-3xl bg-zinc-50 p-4 text-sm font-medium text-zinc-500 transition-colors hover:bg-zinc-100"
+              >
+                💬 Сообщить о проблеме
+              </button>
             </div>
-          )}
-        </article>
-      ))}
-
-      <button
-        type="button"
-        onClick={() => {
-          if (currentParty.is_paid) {
-            setShowShoppingList(true);
-            void trackEvent("shopping_list_opened");
-          } else {
-            setShowPaywall(true);
-            void trackEvent("paywall_view_from_cart");
-          }
-        }}
-        className="w-full bg-white text-black font-medium p-4 rounded-3xl flex items-center justify-center gap-2 shadow-sm border border-black/5 active:scale-95 transition-transform"
-      >
-        <span>🛒</span> {currentParty.is_paid ? "Показать список покупок" : "Открыть список покупок (PRO)"}
-      </button>
-
-      <div className="mt-6 border-t border-zinc-100 pt-6">
-        <button
-          type="button"
-          onClick={() => setShowSupport(true)}
-          className="flex w-full items-center justify-center gap-2 rounded-3xl bg-zinc-50 p-4 text-sm font-medium text-zinc-500 transition-colors hover:bg-zinc-100"
-        >
-          💬 Сообщить о проблеме
-        </button>
-      </div>
+          </>
+        )}
     </section>
-  );
+    );
+  };
 
   const renderChatPanel = () => (
     <section className="flex h-[calc(100dvh-180px)] min-h-0 flex-col bg-white">
@@ -1767,11 +1758,7 @@ export default function ClientRoom({
 
   return (
     <div className="flex min-h-[100dvh] flex-col bg-[#F5F5F7] text-black">
-      <header
-        className={`shrink-0 border-gray-100 ${
-          activeTab === "chat" ? "sticky top-0 z-50 border-b shadow-sm bg-white/95 backdrop-blur" : "relative"
-        }`}
-      >
+      <header className="sticky top-0 z-40 shrink-0 border-b border-gray-100 bg-white/80 backdrop-blur-md">
         <div className="mx-auto max-w-3xl px-4 py-3">
           <div className="flex items-center justify-between gap-3">
             <button
@@ -1784,10 +1771,7 @@ export default function ClientRoom({
             </button>
 
             <button type="button" onClick={() => setShowRoomInfo(true)} className="min-w-0 flex-1 text-center">
-              <h1 className="truncate text-base font-semibold tracking-tight text-black">{currentParty.title}</h1>
-              <p className="truncate text-sm font-medium text-zinc-500">
-                {roomDescription || `${currentParty.guest_count ?? visibleGuests.length} персон`}
-              </p>
+              <h1 className="truncate text-lg font-bold tracking-tight text-black">{currentParty.title}</h1>
             </button>
 
             <button
@@ -1799,30 +1783,6 @@ export default function ClientRoom({
               <span className="sr-only">Поделиться</span>
             </button>
           </div>
-
-          <button
-            type="button"
-            onClick={() => setShowRoomInfo(true)}
-            className="mt-3 flex w-full items-center justify-between gap-3 rounded-2xl bg-zinc-50 px-3 py-2 text-left transition-colors hover:bg-zinc-100"
-          >
-            <div className="min-w-0">
-              <p className="text-xs font-medium text-zinc-400">Участники банкета</p>
-              <p className="truncate text-sm font-semibold tracking-tight text-black">
-                {guestsCount > 0
-                  ? `${guestsCount} ${getGuestDeclension(guestsCount)} в комнате`
-                  : "Список гостей появится здесь"}
-              </p>
-            </div>
-            <div className="shrink-0">
-              {guestsCount > 0 ? (
-                renderGuestAvatars()
-              ) : (
-                <div className="rounded-2xl bg-white p-2 shadow-sm">
-                  <Users className="h-4 w-4 text-zinc-400" />
-                </div>
-              )}
-            </div>
-          </button>
         </div>
       </header>
 
@@ -1850,13 +1810,13 @@ export default function ClientRoom({
         )}
       </main>
 
-      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-black/5 bg-white/90 backdrop-blur-md">
-        <div className="mx-auto grid max-w-3xl grid-cols-2 px-6 pb-8 pt-3">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 w-full border-t border-gray-200 bg-white/90 backdrop-blur-lg">
+        <div className="mx-auto grid max-w-3xl grid-cols-2 px-6 pb-safe pt-2">
           <button
             type="button"
             onClick={() => setActiveTab("menu")}
-            className={`flex flex-col items-center justify-center gap-1 text-sm font-medium transition ${
-              activeTab === "menu" ? "text-black" : "text-zinc-400"
+            className={`flex flex-col items-center justify-center gap-1 rounded-2xl py-2 text-xs font-semibold transition ${
+              activeTab === "menu" ? "text-black" : "text-gray-400"
             }`}
           >
             <UtensilsCrossed className="h-5 w-5" />
@@ -1865,8 +1825,8 @@ export default function ClientRoom({
           <button
             type="button"
             onClick={() => setActiveTab("chat")}
-            className={`flex flex-col items-center justify-center gap-1 text-sm font-medium transition ${
-              activeTab === "chat" ? "text-black" : "text-zinc-400"
+            className={`flex flex-col items-center justify-center gap-1 rounded-2xl py-2 text-xs font-semibold transition ${
+              activeTab === "chat" ? "text-black" : "text-gray-400"
             }`}
           >
             <MessageCircle className="h-5 w-5" />

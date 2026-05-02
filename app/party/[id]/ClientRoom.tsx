@@ -135,6 +135,31 @@ const getErrorMessage = (error: unknown) => {
 const isAbortError = (error: unknown) =>
   error instanceof DOMException ? error.name === "AbortError" : error instanceof Error && error.name === "AbortError";
 
+const copyTextToClipboard = async (text: string) => {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Падаем в DOM fallback для браузеров с ограниченным Clipboard API.
+    }
+  }
+
+  const textArea = document.createElement("textarea");
+  textArea.value = text;
+  textArea.setAttribute("readonly", "");
+  textArea.style.position = "fixed";
+  textArea.style.opacity = "0";
+  document.body.appendChild(textArea);
+  textArea.select();
+
+  try {
+    return document.execCommand("copy");
+  } finally {
+    document.body.removeChild(textArea);
+  }
+};
+
 const getMutationAlertMessage = (error: unknown) => {
   const message = getErrorMessage(error);
 
@@ -288,6 +313,16 @@ export function getGuestDeclension(count: number) {
   if (n1 === 1) return "гость";
   return "гостей";
 }
+
+const getParticipantDeclension = (count: number) => {
+  const n = Math.abs(count) % 100;
+  const n1 = count % 10;
+
+  if (n > 10 && n < 20) return "участников";
+  if (n1 > 1 && n1 < 5) return "участника";
+  if (n1 === 1) return "участник";
+  return "участников";
+};
 
 const parseIngredients = (ingredients?: PartyItem["ingredients"]) => {
   if (!ingredients) return [] as MenuIngredient[];
@@ -909,6 +944,7 @@ export default function ClientRoom({
 
   const currentParticipantIdentity = currentUserId || (currentUser ? `name:${normalizeName(currentUser)}` : null);
   const roomDescription = getRoomDescription(currentParty);
+  const roomParticipantsLabel = `${visibleGuests.length} ${getParticipantDeclension(visibleGuests.length)}`;
   const currentVoteMarkers = useMemo(
     () => [currentUserId, currentUser].filter(Boolean) as string[],
     [currentUserId, currentUser],
@@ -1344,16 +1380,25 @@ export default function ClientRoom({
       url: window.location.href,
     };
 
-    try {
-      if (navigator.share) {
+    if (navigator.share) {
+      try {
         await navigator.share(shareData);
         return;
+      } catch (error) {
+        if (isAbortError(error)) return;
       }
+    }
 
-      await navigator.clipboard.writeText(shareData.url);
-      window.alert("Ссылка скопирована в буфер обмена.");
+    try {
+      await copyTextToClipboard(shareData.url);
+      toast.success("Ссылка скопирована");
     } catch {
-      // Игнорируем отмену шаринга и недоступность API.
+      const copied = await copyTextToClipboard(shareData.url).catch(() => false);
+      if (copied) {
+        toast.success("Ссылка скопирована");
+      } else {
+        window.alert("Не удалось скопировать ссылку. Скопируйте адрес из строки браузера.");
+      }
     }
   };
 
@@ -1770,8 +1815,14 @@ export default function ClientRoom({
               Назад
             </button>
 
-            <button type="button" onClick={() => setShowRoomInfo(true)} className="min-w-0 flex-1 text-center">
-              <h1 className="truncate text-lg font-bold tracking-tight text-black">{currentParty.title}</h1>
+            <button
+              type="button"
+              onClick={() => setShowRoomInfo(true)}
+              className="min-w-0 flex-1 cursor-pointer rounded-2xl px-2 py-1 text-center transition-opacity hover:bg-zinc-50 active:opacity-70"
+              aria-label={`Открыть информацию о банкете: ${currentParty.title}, ${roomParticipantsLabel}`}
+            >
+              <h1 className="truncate text-lg font-bold leading-tight tracking-tight text-black">{currentParty.title}</h1>
+              <p className="truncate text-xs font-medium leading-4 text-gray-500">{roomParticipantsLabel}</p>
             </button>
 
             <button
@@ -2150,6 +2201,7 @@ export default function ClientRoom({
               {CATEGORIES.map((cat) => (
                 <button
                   key={cat}
+                  type="button"
                   onClick={() => setNewDishCategory(cat)}
                   className={`p-3 rounded-xl text-sm font-medium transition-colors ${
                     newDishCategory === cat ? "bg-black text-white" : "bg-zinc-100 text-black hover:bg-zinc-200"

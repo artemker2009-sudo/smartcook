@@ -1,6 +1,7 @@
 "use client";
 
 import { type ChangeEvent, type FormEvent, type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient, type User } from "@supabase/supabase-js";
 import {
   Loader2,
@@ -316,6 +317,7 @@ export default function ClientRoom({
   initialMembers,
   initialMessages,
 }: ClientRoomProps) {
+  const router = useRouter();
   const legacyStoredName =
     typeof window === "undefined" ? "" : safeStorageGetItem(getPartyNameStorageKey(party.id))?.trim() ?? "";
   const storedParticipant = readStoredParticipant(party.id);
@@ -1774,7 +1776,7 @@ export default function ClientRoom({
           <div className="flex items-center justify-between gap-3">
             <button
               type="button"
-              onClick={() => window.history.back()}
+              onClick={() => router.push("/parties")}
               className="inline-flex min-w-[76px] items-center gap-1 text-sm font-medium text-black transition hover:text-zinc-600"
             >
               <span aria-hidden="true">‹</span>

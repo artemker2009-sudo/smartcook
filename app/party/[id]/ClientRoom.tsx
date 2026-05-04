@@ -1981,7 +1981,7 @@ export default function ClientRoom({
 
       <main
         className={`mx-auto w-full max-w-3xl ${
-          activeTab === "chat" ? "flex min-h-0 flex-1 flex-col overflow-hidden pb-24" : "pt-4 pb-28"
+          activeTab === "chat" ? "flex min-h-0 flex-1 flex-col overflow-hidden" : "pt-4 pb-28"
         }`}
       >
         {activeTab === "menu" ? (
@@ -2003,7 +2003,7 @@ export default function ClientRoom({
         )}
       </main>
 
-      <nav className="fixed bottom-0 left-0 right-0 z-40 w-full border-t border-gray-200 bg-white/90 backdrop-blur-lg">
+      <nav className="sticky bottom-0 z-40 w-full shrink-0 border-t border-gray-200 bg-white/90 backdrop-blur-lg">
         <div className="mx-auto grid max-w-3xl grid-cols-2 px-6 pb-safe pt-2">
           <button
             type="button"

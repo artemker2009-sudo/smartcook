@@ -124,6 +124,11 @@ const normalizeCategory = (category?: string | null): string => {
 const getChatPhotoUrl = (text: string) =>
   text.startsWith(CHAT_PHOTO_MESSAGE_PREFIX) ? text.slice(CHAT_PHOTO_MESSAGE_PREFIX.length).trim() : null;
 
+const getChatPhotoDisplaySrc = (url: string) => {
+  if (url.startsWith("blob:") || url.startsWith("data:")) return url;
+  return `/api/party/chat-photo/image?url=${encodeURIComponent(url)}`;
+};
+
 const sortPartyMessages = (items: PartyMessage[]) =>
   [...items].sort((a, b) => {
     const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
@@ -1836,6 +1841,7 @@ export default function ClientRoom({
               const isOwn = currentParticipantIdentity ? getMessageIdentity(message) === currentParticipantIdentity : false;
               const chatPhotoUrl = getChatPhotoUrl(message.text);
               const chatPhotoDisplayUrl = message.local_photo_url ?? chatPhotoUrl;
+              const chatPhotoSrc = chatPhotoDisplayUrl ? getChatPhotoDisplaySrc(chatPhotoDisplayUrl) : null;
 
               return (
                 <div
@@ -1850,12 +1856,14 @@ export default function ClientRoom({
                       } ${!chatPhotoDisplayUrl && isOwn ? "bg-black text-white" : "bg-zinc-100 text-black"
                       }`}
                     >
-                      {chatPhotoDisplayUrl ? (
+                      {chatPhotoDisplayUrl && chatPhotoSrc ? (
                         <a href={chatPhotoUrl ?? chatPhotoDisplayUrl} target="_blank" rel="noreferrer" className="block">
                           <img
-                            src={chatPhotoDisplayUrl}
+                            src={chatPhotoSrc}
                             alt="Фото из чата"
-                            className="max-h-72 w-full rounded-[20px] object-cover"
+                            loading="eager"
+                            decoding="sync"
+                            className="aspect-[4/3] w-full rounded-[20px] object-cover"
                           />
                         </a>
                       ) : (

@@ -97,6 +97,7 @@ type PartyMessage = {
   user_name?: string | null;
   text: string;
   created_at?: string | null;
+  local_photo_url?: string;
 };
 
 type StoredPartyParticipant = {
@@ -122,6 +123,13 @@ const normalizeCategory = (category?: string | null): string => {
 
 const getChatPhotoUrl = (text: string) =>
   text.startsWith(CHAT_PHOTO_MESSAGE_PREFIX) ? text.slice(CHAT_PHOTO_MESSAGE_PREFIX.length).trim() : null;
+
+const sortPartyMessages = (items: PartyMessage[]) =>
+  [...items].sort((a, b) => {
+    const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+    return aTime - bTime;
+  });
 
 const getErrorMessage = (error: unknown) => {
   if (error instanceof Error && error.message) return error.message;
@@ -759,13 +767,15 @@ export default function ClientRoom({
           }
 
           setMessages((prev) => {
-            const exists = prev.some((message) => message.id && message.id === next.id);
-            if (exists) return prev;
-            return [...prev, next].sort((a, b) => {
-              const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
-              const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
-              return aTime - bTime;
-            });
+            const existingIndex = prev.findIndex((message) => message.id && message.id === next.id);
+            if (existingIndex >= 0) {
+              return sortPartyMessages(
+                prev.map((message, index) =>
+                  index === existingIndex ? { ...next, local_photo_url: message.local_photo_url } : message,
+                ),
+              );
+            }
+            return sortPartyMessages([...prev, next]);
           });
         },
       )
@@ -1320,6 +1330,7 @@ export default function ClientRoom({
     await runWriteMutation({
       setLoading: setIsSendingMessage,
       mutate: async () => {
+        const localPhotoUrl = URL.createObjectURL(file);
         const formData = new FormData();
         formData.append("partyId", party.id);
         formData.append("userId", currentUserId);
@@ -1348,16 +1359,21 @@ export default function ClientRoom({
             throw new Error("Фото сохранено, но сервер не вернул сообщение");
           }
 
+          const sentMessage: PartyMessage = { ...result.message, local_photo_url: localPhotoUrl };
           setMessages((prev) => {
-            const exists = prev.some((message) => message.id && message.id === result.message?.id);
-            if (exists) return prev;
-            return [...prev, result.message].sort((a, b) => {
-              const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
-              const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
-              return aTime - bTime;
-            });
+            const existingIndex = prev.findIndex((message) => message.id && message.id === sentMessage.id);
+            if (existingIndex >= 0) {
+              return sortPartyMessages(
+                prev.map((message, index) =>
+                  index === existingIndex ? { ...sentMessage, local_photo_url: message.local_photo_url ?? localPhotoUrl } : message,
+                ),
+              );
+            }
+            return sortPartyMessages([...prev, sentMessage]);
           });
+          window.setTimeout(() => URL.revokeObjectURL(localPhotoUrl), 120000);
         } catch (error) {
+          URL.revokeObjectURL(localPhotoUrl);
           if (isAbortError(error)) {
             throw new Error("Не удалось отправить фото: превышено время ожидания (30 сек)");
           }
@@ -1819,6 +1835,7 @@ export default function ClientRoom({
               const author = getMessageAuthor(message);
               const isOwn = currentParticipantIdentity ? getMessageIdentity(message) === currentParticipantIdentity : false;
               const chatPhotoUrl = getChatPhotoUrl(message.text);
+              const chatPhotoDisplayUrl = message.local_photo_url ?? chatPhotoUrl;
 
               return (
                 <div
@@ -1829,14 +1846,14 @@ export default function ClientRoom({
                     <span className="mb-1 px-1 text-xs text-zinc-400">{isOwn ? "Вы" : author || "Гость"}</span>
                     <div
                       className={`rounded-[24px] ${
-                        chatPhotoUrl ? "w-64 max-w-[70vw] overflow-hidden p-1" : "px-4 py-3"
-                      } ${isOwn ? "bg-black text-white" : "bg-zinc-100 text-black"
+                        chatPhotoDisplayUrl ? "w-64 max-w-[70vw] overflow-hidden bg-zinc-100 p-1 text-zinc-500" : "px-4 py-3"
+                      } ${!chatPhotoDisplayUrl && isOwn ? "bg-black text-white" : "bg-zinc-100 text-black"
                       }`}
                     >
-                      {chatPhotoUrl ? (
-                        <a href={chatPhotoUrl} target="_blank" rel="noreferrer" className="block">
+                      {chatPhotoDisplayUrl ? (
+                        <a href={chatPhotoUrl ?? chatPhotoDisplayUrl} target="_blank" rel="noreferrer" className="block">
                           <img
-                            src={chatPhotoUrl}
+                            src={chatPhotoDisplayUrl}
                             alt="Фото из чата"
                             className="max-h-72 w-full rounded-[20px] object-cover"
                           />

@@ -23,7 +23,6 @@ import {
   joinPartyAction,
   sendPaywallChatAlertAction,
   togglePartyItemVoteAction,
-  uploadPartyChatPhotoAction,
 } from "@/app/actions/party";
 import AuthModal from "@/components/modals/AuthModal";
 
@@ -36,6 +35,7 @@ const MENU_CATEGORIES = ["Закуски", "Салаты", "Горячее", "Г
 const SUPABASE_TIMEOUT_MS = 12000;
 const ADD_DISH_TIMEOUT_MS = 30000;
 const CHAT_PHOTO_UPLOAD_TIMEOUT_MS = 30000;
+const CHAT_PHOTO_MAX_BYTES = 8 * 1024 * 1024;
 const GENERATE_MENU_TIMEOUT_MS = 65000;
 const CHAT_PHOTO_MESSAGE_PREFIX = "__party_chat_photo__:";
 const PAYWALL_ALERT_MESSAGE_MARKER = "бесплатный лимит гостей уже закончился";
@@ -1312,38 +1312,42 @@ export default function ClientRoom({
       return;
     }
 
+    if (file.size > CHAT_PHOTO_MAX_BYTES) {
+      toast.error("Фото слишком большое. Максимум 8 МБ");
+      return;
+    }
+
     await runWriteMutation({
       setLoading: setIsSendingMessage,
       mutate: async () => {
         const formData = new FormData();
         formData.append("partyId", party.id);
         formData.append("userId", currentUserId);
+        formData.append("userName", currentUser);
         formData.append("file", file);
 
-        const uploadResult = await withTimeout(
-          uploadPartyChatPhotoAction(formData),
-          CHAT_PHOTO_UPLOAD_TIMEOUT_MS,
-          "Не удалось загрузить фото",
-        );
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), CHAT_PHOTO_UPLOAD_TIMEOUT_MS);
 
-        if (!uploadResult.success) {
-          throw new Error(uploadResult.error || "Не удалось загрузить фото");
+        try {
+          const response = await fetch("/api/party/chat-photo", {
+            method: "POST",
+            body: formData,
+            signal: controller.signal,
+          });
+          const result = (await response.json().catch(() => null)) as { error?: string } | null;
+
+          if (!response.ok) {
+            throw new Error(result?.error || "Не удалось отправить фото");
+          }
+        } catch (error) {
+          if (isAbortError(error)) {
+            throw new Error("Не удалось отправить фото: превышено время ожидания (30 сек)");
+          }
+          throw error;
+        } finally {
+          window.clearTimeout(timeoutId);
         }
-
-        const { error } = await withTimeout(
-          supabase.from("party_messages").insert([
-            {
-              party_id: party.id,
-              user_id: currentUserId,
-              user_name: currentUser,
-              text: `${CHAT_PHOTO_MESSAGE_PREFIX}${uploadResult.url}`,
-            },
-          ]),
-          SUPABASE_TIMEOUT_MS,
-          "Не удалось отправить фото",
-        );
-
-        if (error) throw error;
       },
     });
   };

@@ -3,8 +3,6 @@
 import { createClient } from '@supabase/supabase-js';
 
 const FREE_GUEST_LIMIT = 2;
-const PARTY_CHAT_PHOTO_BUCKET = "recipe_photos";
-const PARTY_CHAT_PHOTO_MAX_BYTES = 8 * 1024 * 1024;
 
 const createServerSupabaseClient = () => {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -51,22 +49,11 @@ export type ActivatePartyPassActionResult = { success: true } | { success: false
 export type AddPartyItemActionResult =
   | { success: true; item: PartyItemData }
   | { success: false; error: string };
-export type UploadPartyChatPhotoActionResult =
-  | { success: true; url: string }
-  | { success: false; error: string };
 export type TogglePartyItemVoteActionResult =
   | { success: true; item: PartyItemData }
   | { success: false; error: string };
 
 const getActionErrorMessage = (error: unknown) => (error instanceof Error ? error.message : "Неизвестная ошибка сервера");
-const getPartyChatPhotoExtension = (file: File) => {
-  const fileExtension = file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "");
-  if (fileExtension) return fileExtension;
-  if (file.type === "image/png") return "png";
-  if (file.type === "image/webp") return "webp";
-  if (file.type === "image/gif") return "gif";
-  return "jpg";
-};
 const ZERO_WIDTH_CHARS = ["\u200B", "\u200C", "\u200D", "\u2060"] as const;
 const makeInvisibleSuffix = (seed: string) =>
   Array.from(seed)
@@ -422,67 +409,6 @@ export async function addPartyItemAction(
     return { success: true, item: insertedItem as PartyItemData };
   } catch (error) {
     console.error("Add Party Item Action Error:", error);
-    return { success: false, error: getActionErrorMessage(error) };
-  }
-}
-
-export async function uploadPartyChatPhotoAction(formData: FormData): Promise<UploadPartyChatPhotoActionResult> {
-  const partyId = String(formData.get("partyId") ?? "").trim();
-  const userId = String(formData.get("userId") ?? "").trim();
-  const file = formData.get("file");
-
-  if (!partyId || !userId) {
-    return { success: false, error: "Не хватает данных для загрузки фото" };
-  }
-
-  if (!(file instanceof File) || file.size === 0) {
-    return { success: false, error: "Выберите фото для отправки" };
-  }
-
-  if (!file.type.startsWith("image/")) {
-    return { success: false, error: "Можно отправлять только изображения" };
-  }
-
-  if (file.size > PARTY_CHAT_PHOTO_MAX_BYTES) {
-    return { success: false, error: "Фото слишком большое. Максимум 8 МБ" };
-  }
-
-  try {
-    const supabase = createServerSupabaseClient();
-    const extension = getPartyChatPhotoExtension(file);
-    const filePath = `party-chat/${partyId}/${userId}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
-    const fileBuffer = await file.arrayBuffer();
-
-    console.log("1. Загружаем фото чата:", {
-      partyId,
-      userId,
-      filePath,
-      size: file.size,
-      type: file.type,
-    });
-
-    const { error: uploadError } = await supabase.storage
-      .from(PARTY_CHAT_PHOTO_BUCKET)
-      .upload(filePath, fileBuffer, {
-        contentType: file.type,
-        cacheControl: "3600",
-      });
-
-    if (uploadError) {
-      console.error("Supabase chat photo upload error:", uploadError);
-      throw new Error("Supabase Storage Error: " + JSON.stringify(uploadError));
-    }
-
-    const { data } = supabase.storage.from(PARTY_CHAT_PHOTO_BUCKET).getPublicUrl(filePath);
-
-    if (!data.publicUrl) {
-      throw new Error("Supabase Storage Error: public URL was not returned");
-    }
-
-    console.log("2. Фото чата загружено:", { partyId, filePath, publicUrl: data.publicUrl });
-    return { success: true, url: data.publicUrl };
-  } catch (error) {
-    console.error("Upload Party Chat Photo Action Error:", error);
     return { success: false, error: getActionErrorMessage(error) };
   }
 }

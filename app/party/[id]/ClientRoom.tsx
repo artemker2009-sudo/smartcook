@@ -1335,11 +1335,28 @@ export default function ClientRoom({
             body: formData,
             signal: controller.signal,
           });
-          const result = (await response.json().catch(() => null)) as { error?: string } | null;
+          const result = (await response.json().catch(() => null)) as {
+            error?: string;
+            message?: PartyMessage;
+          } | null;
 
           if (!response.ok) {
             throw new Error(result?.error || "Не удалось отправить фото");
           }
+
+          if (!result?.message) {
+            throw new Error("Фото сохранено, но сервер не вернул сообщение");
+          }
+
+          setMessages((prev) => {
+            const exists = prev.some((message) => message.id && message.id === result.message?.id);
+            if (exists) return prev;
+            return [...prev, result.message].sort((a, b) => {
+              const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+              const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+              return aTime - bTime;
+            });
+          });
         } catch (error) {
           if (isAbortError(error)) {
             throw new Error("Не удалось отправить фото: превышено время ожидания (30 сек)");

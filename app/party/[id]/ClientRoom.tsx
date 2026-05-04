@@ -1829,7 +1829,7 @@ export default function ClientRoom({
                     <span className="mb-1 px-1 text-xs text-zinc-400">{isOwn ? "Вы" : author || "Гость"}</span>
                     <div
                       className={`rounded-[24px] ${
-                        chatPhotoUrl ? "max-w-[260px] overflow-hidden p-1" : "px-4 py-3"
+                        chatPhotoUrl ? "w-64 max-w-[70vw] overflow-hidden p-1" : "px-4 py-3"
                       } ${isOwn ? "bg-black text-white" : "bg-zinc-100 text-black"
                       }`}
                     >

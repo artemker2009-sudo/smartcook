@@ -554,55 +554,67 @@ export default function ClientRoom({
     [party.id],
   );
 
-  const handleAddCustomDish = async () => {
-    if (!newDishName.trim() || !currentUserId) return;
+  const resetAddDishForm = useCallback(() => {
+    setNewDishName("");
+    setNewDishCategory("Закуски");
+  }, []);
+
+  const handleAddCustomDish = async (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
+    if (!newDishName.trim() || !currentUserId || isAddingDish) return;
 
     const dishName = newDishName.trim();
-    const previousItems = menuItems;
-    const previousDishName = newDishName;
-    const previousShowModal = showAddDishModal;
+    const previousItems = menuItemsRef.current;
     const optimisticId = `temp-${Date.now()}`;
+    const optimisticItem: PartyItem = {
+      id: optimisticId,
+      party_id: party.id,
+      name: dishName,
+      category: newDishCategory,
+      ingredients: [],
+      votes: [currentUserId],
+    };
 
+    setIsAddingDish(true);
+    menuItemsRef.current = [...previousItems, optimisticItem];
+    setMenuItems(menuItemsRef.current);
+
+    try {
+      const { error } = await withTimeout(
+        supabase.from("party_items").insert([
+          {
+            party_id: party.id,
+            name: dishName,
+            category: newDishCategory,
+            ingredients: [],
+            votes: [currentUserId],
+          },
+        ]),
+        SUPABASE_TIMEOUT_MS,
+        "Не удалось добавить блюдо",
+      );
+
+      if (error) {
+        throw new Error(error.message || "База данных отклонила добавление блюда");
+      }
+
+      await withTimeout(refreshMenuItems(), SUPABASE_TIMEOUT_MS, "Не удалось обновить меню");
+      resetAddDishForm();
+      setShowAddDishModal(false);
+      toast.success("Блюдо добавлено");
+    } catch (error) {
+      console.error("Manual dish add failed:", error);
+      toast.error(getErrorMessage(error));
+      menuItemsRef.current = previousItems;
+      setMenuItems(previousItems);
+    } finally {
+      setIsAddingDish(false);
+    }
+  };
+
+  const handleCloseAddDishModal = () => {
+    if (isAddingDish) return;
     setShowAddDishModal(false);
-    setNewDishName("");
-    setMenuItems((prev) => [
-      ...prev,
-      {
-        id: optimisticId,
-        party_id: party.id,
-        name: dishName,
-        category: newDishCategory,
-        ingredients: [],
-        votes: [currentUserId],
-      },
-    ]);
-
-    await runWriteMutation({
-      setLoading: setIsAddingDish,
-      mutate: async () => {
-        const { error } = await withTimeout(
-          supabase.from("party_items").insert([
-            {
-              party_id: party.id,
-              name: dishName,
-              category: newDishCategory,
-              ingredients: [],
-              votes: [currentUserId],
-            },
-          ]),
-          SUPABASE_TIMEOUT_MS,
-          "Не удалось добавить блюдо",
-        );
-
-        if (error) throw error;
-        await withTimeout(refreshMenuItems(), SUPABASE_TIMEOUT_MS, "Не удалось обновить меню");
-      },
-      rollback: () => {
-        setMenuItems(previousItems);
-        setNewDishName(previousDishName);
-        setShowAddDishModal(previousShowModal);
-      },
-    });
   };
 
   const toggleVote = async (itemId: string) => {
@@ -2185,7 +2197,10 @@ export default function ClientRoom({
 
       {showAddDishModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+          <form
+            onSubmit={handleAddCustomDish}
+            className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-in zoom-in-95 duration-200"
+          >
             <h2 className="text-xl font-bold mb-2">Добавить свое блюдо</h2>
             <p className="text-sm text-zinc-500 mb-6">Блюдо сразу появится в общем меню для всех участников.</p>
 
@@ -2215,14 +2230,14 @@ export default function ClientRoom({
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => setShowAddDishModal(false)}
-                className="flex-1 bg-zinc-100 text-black font-medium p-4 rounded-xl hover:bg-zinc-200 transition-colors"
+                onClick={handleCloseAddDishModal}
+                disabled={isAddingDish}
+                className="flex-1 bg-zinc-100 text-black font-medium p-4 rounded-xl hover:bg-zinc-200 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Отмена
               </button>
               <button
-                type="button"
-                onClick={handleAddCustomDish}
+                type="submit"
                 disabled={!newDishName.trim() || isAddingDish}
                 className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-black p-4 font-medium text-white transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -2236,7 +2251,7 @@ export default function ClientRoom({
                 )}
               </button>
             </div>
-          </div>
+          </form>
         </div>
       )}
 

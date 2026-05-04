@@ -592,10 +592,16 @@ export default function ClientRoom({
         throw new Error(result.error || "База данных отклонила добавление блюда");
       }
 
-      await withTimeout(refreshMenuItems(), SUPABASE_TIMEOUT_MS, "Не удалось обновить меню");
+      const nextItems = menuItemsRef.current.map((item) => (item.id === optimisticId ? result.item : item));
+      menuItemsRef.current = nextItems;
+      setMenuItems(nextItems);
       resetAddDishForm();
       setShowAddDishModal(false);
       toast.success("Блюдо добавлено");
+
+      refreshMenuItems().catch((refreshError) => {
+        console.warn("Menu refresh after manual dish add failed:", refreshError);
+      });
     } catch (error) {
       console.error("Manual dish add failed:", error);
       toast.error(getErrorMessage(error));
@@ -785,7 +791,9 @@ export default function ClientRoom({
           setMenuItems((prev) => {
             const existingIndex = prev.findIndex((item) => item.id === nextItem.id);
             if (existingIndex >= 0) {
-              return prev.map((item, index) => (index === existingIndex ? nextItem : item));
+              const nextItems = prev.map((item, index) => (index === existingIndex ? nextItem : item));
+              menuItemsRef.current = nextItems;
+              return nextItems;
             }
 
             const optimisticIndex = prev.findIndex(
@@ -796,10 +804,14 @@ export default function ClientRoom({
             );
 
             if (optimisticIndex >= 0) {
-              return prev.map((item, index) => (index === optimisticIndex ? nextItem : item));
+              const nextItems = prev.map((item, index) => (index === optimisticIndex ? nextItem : item));
+              menuItemsRef.current = nextItems;
+              return nextItems;
             }
 
-            return [...prev, nextItem];
+            const nextItems = [...prev, nextItem];
+            menuItemsRef.current = nextItems;
+            return nextItems;
           });
 
           setIsGenerating(false);
@@ -815,7 +827,11 @@ export default function ClientRoom({
         },
         (payload) => {
           const nextItem = payload.new as PartyItem;
-          setMenuItems((prev) => prev.map((item) => (item.id === nextItem.id ? nextItem : item)));
+          setMenuItems((prev) => {
+            const nextItems = prev.map((item) => (item.id === nextItem.id ? nextItem : item));
+            menuItemsRef.current = nextItems;
+            return nextItems;
+          });
         },
       )
       .on(

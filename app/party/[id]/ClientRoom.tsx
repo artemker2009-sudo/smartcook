@@ -23,6 +23,7 @@ import {
   joinPartyAction,
   sendPaywallChatAlertAction,
   togglePartyItemVoteAction,
+  uploadPartyChatPhotoAction,
 } from "@/app/actions/party";
 import AuthModal from "@/components/modals/AuthModal";
 
@@ -34,7 +35,9 @@ const supabase = createClient(
 const MENU_CATEGORIES = ["Закуски", "Салаты", "Горячее", "Гарниры", "Напитки", "Десерты"] as const;
 const SUPABASE_TIMEOUT_MS = 12000;
 const ADD_DISH_TIMEOUT_MS = 30000;
+const CHAT_PHOTO_UPLOAD_TIMEOUT_MS = 30000;
 const GENERATE_MENU_TIMEOUT_MS = 65000;
+const CHAT_PHOTO_MESSAGE_PREFIX = "__party_chat_photo__:";
 const PAYWALL_ALERT_MESSAGE_MARKER = "бесплатный лимит гостей уже закончился";
 const getOnboardingStorageKey = (partyId: string) => `onboarding_seen_${partyId}`;
 
@@ -116,6 +119,9 @@ const normalizeCategory = (category?: string | null): string => {
   if (category?.trim()) return category.trim();
   return "Закуски";
 };
+
+const getChatPhotoUrl = (text: string) =>
+  text.startsWith(CHAT_PHOTO_MESSAGE_PREFIX) ? text.slice(CHAT_PHOTO_MESSAGE_PREFIX.length).trim() : null;
 
 const getErrorMessage = (error: unknown) => {
   if (error instanceof Error && error.message) return error.message;
@@ -432,6 +438,7 @@ export default function ClientRoom({
   const [isGenerating, setIsGenerating] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const messageInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const chatAttachmentInputRef = useRef<HTMLInputElement | null>(null);
   const menuItemsRef = useRef<PartyItem[]>(initialItems ?? []);
   const roomChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const roomChannelReadyRef = useRef(false);
@@ -1290,6 +1297,57 @@ export default function ClientRoom({
     });
   };
 
+  const sendChatPhoto = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file || isSendingMessage) return;
+    if (!currentUser || !currentUserId) {
+      toast.error("Сначала укажите ваше имя");
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Можно отправлять только фото");
+      return;
+    }
+
+    await runWriteMutation({
+      setLoading: setIsSendingMessage,
+      mutate: async () => {
+        const formData = new FormData();
+        formData.append("partyId", party.id);
+        formData.append("userId", currentUserId);
+        formData.append("file", file);
+
+        const uploadResult = await withTimeout(
+          uploadPartyChatPhotoAction(formData),
+          CHAT_PHOTO_UPLOAD_TIMEOUT_MS,
+          "Не удалось загрузить фото",
+        );
+
+        if (!uploadResult.success) {
+          throw new Error(uploadResult.error || "Не удалось загрузить фото");
+        }
+
+        const { error } = await withTimeout(
+          supabase.from("party_messages").insert([
+            {
+              party_id: party.id,
+              user_id: currentUserId,
+              user_name: currentUser,
+              text: `${CHAT_PHOTO_MESSAGE_PREFIX}${uploadResult.url}`,
+            },
+          ]),
+          SUPABASE_TIMEOUT_MS,
+          "Не удалось отправить фото",
+        );
+
+        if (error) throw error;
+      },
+    });
+  };
+
   const handleMessageInputChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
     setNewMessage(event.target.value);
     resizeMessageInput(event.target);
@@ -1728,7 +1786,7 @@ export default function ClientRoom({
   };
 
   const renderChatPanel = () => (
-    <section className="flex h-[calc(100dvh-180px)] min-h-0 flex-col bg-white">
+    <section className="flex min-h-0 flex-1 flex-col bg-white">
       <div className="flex flex-1 flex-col justify-end overflow-y-auto p-4">
         {messages.length === 0 ? (
           <div className="flex min-h-full items-center justify-center text-center text-sm text-zinc-400">
@@ -1739,6 +1797,7 @@ export default function ClientRoom({
             {messages.map((message, index) => {
               const author = getMessageAuthor(message);
               const isOwn = currentParticipantIdentity ? getMessageIdentity(message) === currentParticipantIdentity : false;
+              const chatPhotoUrl = getChatPhotoUrl(message.text);
 
               return (
                 <div
@@ -1748,11 +1807,22 @@ export default function ClientRoom({
                   <div className={`flex max-w-[85%] flex-col ${isOwn ? "items-end" : "items-start"}`}>
                     <span className="mb-1 px-1 text-xs text-zinc-400">{isOwn ? "Вы" : author || "Гость"}</span>
                     <div
-                      className={`rounded-[24px] px-4 py-3 ${
-                        isOwn ? "bg-black text-white" : "bg-zinc-100 text-black"
+                      className={`rounded-[24px] ${
+                        chatPhotoUrl ? "max-w-[260px] overflow-hidden p-1" : "px-4 py-3"
+                      } ${isOwn ? "bg-black text-white" : "bg-zinc-100 text-black"
                       }`}
                     >
-                      <p className="whitespace-pre-wrap break-words text-sm leading-6">{message.text}</p>
+                      {chatPhotoUrl ? (
+                        <a href={chatPhotoUrl} target="_blank" rel="noreferrer" className="block">
+                          <img
+                            src={chatPhotoUrl}
+                            alt="Фото из чата"
+                            className="max-h-72 w-full rounded-[20px] object-cover"
+                          />
+                        </a>
+                      ) : (
+                        <p className="whitespace-pre-wrap break-words text-sm leading-6">{message.text}</p>
+                      )}
                       <div className={`mt-2 text-[11px] ${isOwn ? "text-zinc-300" : "text-zinc-400"}`}>
                         {formatTime(message.created_at)}
                       </div>
@@ -1769,22 +1839,26 @@ export default function ClientRoom({
       <form onSubmit={sendMessage} className="mt-auto shrink-0 border-t border-zinc-100 bg-white p-4">
         <div className="flex items-end gap-3">
           <input
+            ref={chatAttachmentInputRef}
             type="file"
             id="chat-attachment"
-            accept="image/*,video/*"
+            accept="image/*"
             className="hidden"
             disabled={!currentUserId}
+            onChange={sendChatPhoto}
           />
-          <label
-            htmlFor="chat-attachment"
+          <button
+            type="button"
+            onClick={() => chatAttachmentInputRef.current?.click()}
+            disabled={!currentUserId || isSendingMessage}
             className={`inline-flex h-12 w-10 shrink-0 items-center justify-center text-gray-400 transition-colors hover:text-gray-600 ${
-              !currentUserId ? "cursor-not-allowed opacity-50" : "cursor-pointer"
+              !currentUserId || isSendingMessage ? "cursor-not-allowed opacity-50" : ""
             }`}
             aria-disabled={!currentUserId}
             aria-label="Прикрепить файл"
           >
-            <Paperclip className="h-5 w-5" />
-          </label>
+            {isSendingMessage ? <Loader2 className="h-5 w-5 animate-spin" /> : <Paperclip className="h-5 w-5" />}
+          </button>
           <textarea
             ref={messageInputRef}
             rows={1}

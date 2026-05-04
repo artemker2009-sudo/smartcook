@@ -18,6 +18,7 @@ import {
 import { toast } from "sonner";
 import {
   activatePartyPassAction,
+  addPartyItemAction,
   bindPartyHostAction,
   joinPartyAction,
   sendPaywallChatAlertAction,
@@ -32,6 +33,7 @@ const supabase = createClient(
 
 const MENU_CATEGORIES = ["Закуски", "Салаты", "Горячее", "Гарниры", "Напитки", "Десерты"] as const;
 const SUPABASE_TIMEOUT_MS = 12000;
+const ADD_DISH_TIMEOUT_MS = 30000;
 const GENERATE_MENU_TIMEOUT_MS = 65000;
 const PAYWALL_ALERT_MESSAGE_MARKER = "бесплатный лимит гостей уже закончился";
 const getOnboardingStorageKey = (partyId: string) => `onboarding_seen_${partyId}`;
@@ -580,22 +582,14 @@ export default function ClientRoom({
     setMenuItems(menuItemsRef.current);
 
     try {
-      const { error } = await withTimeout(
-        supabase.from("party_items").insert([
-          {
-            party_id: party.id,
-            name: dishName,
-            category: newDishCategory,
-            ingredients: [],
-            votes: [currentUserId],
-          },
-        ]),
-        SUPABASE_TIMEOUT_MS,
+      const result = await withTimeout(
+        addPartyItemAction(party.id, dishName, newDishCategory, currentUserId),
+        ADD_DISH_TIMEOUT_MS,
         "Не удалось добавить блюдо",
       );
 
-      if (error) {
-        throw new Error(error.message || "База данных отклонила добавление блюда");
+      if (!result.success) {
+        throw new Error(result.error || "База данных отклонила добавление блюда");
       }
 
       await withTimeout(refreshMenuItems(), SUPABASE_TIMEOUT_MS, "Не удалось обновить меню");

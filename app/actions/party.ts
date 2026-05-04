@@ -46,6 +46,9 @@ export type JoinPartyActionResult =
 
 export type SendPaywallChatAlertActionResult = { success: true } | { success: false; error: string };
 export type ActivatePartyPassActionResult = { success: true } | { success: false; error: string };
+export type AddPartyItemActionResult =
+  | { success: true; item: PartyItemData }
+  | { success: false; error: string };
 export type TogglePartyItemVoteActionResult =
   | { success: true; item: PartyItemData }
   | { success: false; error: string };
@@ -336,6 +339,76 @@ export async function activatePartyPassAction(partyId: string): Promise<Activate
     return { success: true };
   } catch (error) {
     console.error("Activate Party Pass Action Error:", error);
+    return { success: false, error: getActionErrorMessage(error) };
+  }
+}
+
+export async function addPartyItemAction(
+  partyId: string,
+  name: string,
+  category: string,
+  userId: string,
+): Promise<AddPartyItemActionResult> {
+  const trimmedPartyId = partyId.trim();
+  const trimmedName = name.trim();
+  const trimmedCategory = category.trim();
+  const trimmedUserId = userId.trim();
+
+  if (!trimmedPartyId || !trimmedName || !trimmedCategory || !trimmedUserId) {
+    return { success: false, error: "Не хватает данных для добавления блюда" };
+  }
+
+  const payload = {
+    party_id: trimmedPartyId,
+    name: trimmedName,
+    category: trimmedCategory,
+    ingredients: [],
+    votes: [trimmedUserId],
+  };
+
+  console.log("1. Начинаем добавление блюда:", payload);
+
+  try {
+    const supabase = createServerSupabaseClient();
+
+    console.log("1.1. Проверяем банкет для добавления блюда:", { partyId: trimmedPartyId, userId: trimmedUserId });
+    const { data: party, error: partyError } = await supabase
+      .from("parties")
+      .select("id")
+      .eq("id", trimmedPartyId)
+      .single();
+
+    if (partyError) {
+      console.error("Supabase party lookup error:", partyError);
+      throw new Error("Supabase Error: " + JSON.stringify(partyError));
+    }
+
+    if (!party) {
+      throw new Error("Supabase Error: PARTY_NOT_FOUND");
+    }
+
+    console.log("2. Отправляем запрос в Supabase...");
+    const { data: insertedItem, error: insertError } = await supabase
+      .from("party_items")
+      .insert([payload])
+      .select("*")
+      .single();
+
+    console.log("3. Ответ Supabase при добавлении блюда:", { insertedItem, insertError });
+
+    if (insertError) {
+      console.error("Supabase insert party_items error:", insertError);
+      throw new Error("Supabase Error: " + JSON.stringify(insertError));
+    }
+
+    if (!insertedItem) {
+      throw new Error("Supabase Error: insert completed without returned row");
+    }
+
+    console.log("4. Блюдо добавлено в Supabase:", insertedItem);
+    return { success: true, item: insertedItem as PartyItemData };
+  } catch (error) {
+    console.error("Add Party Item Action Error:", error);
     return { success: false, error: getActionErrorMessage(error) };
   }
 }

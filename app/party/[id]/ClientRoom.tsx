@@ -1830,8 +1830,8 @@ export default function ClientRoom({
   };
 
   const renderChatPanel = () => (
-    <section className="flex min-h-0 flex-1 flex-col bg-white">
-      <div className="flex flex-1 flex-col justify-end overflow-y-auto p-4">
+    <section className="flex h-full min-h-0 flex-1 flex-col bg-white">
+      <div className="flex min-h-0 flex-1 flex-col justify-end overflow-y-auto overscroll-contain p-4">
         {messages.length === 0 ? (
           <div className="flex min-h-full items-center justify-center text-center text-sm text-zinc-400">
             Пока сообщений нет
@@ -1889,7 +1889,7 @@ export default function ClientRoom({
         <div ref={messagesEndRef} />
       </div>
 
-      <form onSubmit={sendMessage} className="mt-auto shrink-0 border-t border-zinc-100 bg-white p-4">
+      <form onSubmit={sendMessage} className="sticky bottom-0 z-10 mt-auto shrink-0 border-t border-zinc-100 bg-white/95 p-4 backdrop-blur-xl">
         <div className="flex items-end gap-3">
           <input
             ref={chatAttachmentInputRef}
@@ -1951,7 +1951,7 @@ export default function ClientRoom({
   });
 
   return (
-    <div className="flex min-h-[100dvh] flex-col bg-[#F5F5F7] text-black">
+    <div className="flex h-[100dvh] overflow-hidden flex-col bg-[#F5F5F7] text-black">
       <header className="sticky top-0 z-40 shrink-0 border-b border-gray-100 bg-white/80 backdrop-blur-md">
         <div className="mx-auto max-w-3xl px-4 py-3">
           <div className="flex items-center justify-between gap-3">
@@ -1987,8 +1987,8 @@ export default function ClientRoom({
       </header>
 
       <main
-        className={`mx-auto w-full max-w-3xl ${
-          activeTab === "chat" ? "flex min-h-0 flex-1 flex-col overflow-hidden" : "pt-4 pb-28"
+        className={`mx-auto min-h-0 flex-1 w-full max-w-3xl ${
+          activeTab === "chat" ? "flex flex-col overflow-hidden" : "overflow-y-auto pt-4 pb-28"
         }`}
       >
         {activeTab === "menu" ? (
@@ -2010,7 +2010,7 @@ export default function ClientRoom({
         )}
       </main>
 
-      <nav className="sticky bottom-0 z-40 w-full shrink-0 border-t border-gray-200 bg-white/90 backdrop-blur-lg">
+      <nav className="z-40 w-full shrink-0 border-t border-gray-200 bg-white/90 backdrop-blur-lg">
         <div className="mx-auto grid max-w-3xl grid-cols-2 px-6 pb-safe pt-2">
           <button
             type="button"

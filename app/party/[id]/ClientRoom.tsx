@@ -25,6 +25,7 @@ import {
   togglePartyItemVoteAction,
 } from "@/app/actions/party";
 import AuthModal from "@/components/modals/AuthModal";
+import FullScreenImage from "@/components/modals/FullScreenImage";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -430,6 +431,7 @@ export default function ClientRoom({
   const [authLoading, setAuthLoading] = useState(false);
   const [showPaymentWarning, setShowPaymentWarning] = useState(false);
   const [showWelcomeOnboarding, setShowWelcomeOnboarding] = useState(false);
+  const [expandedChatPhoto, setExpandedChatPhoto] = useState<string | null>(null);
 
   const [guests, setGuests] = useState<PartyMember[]>(initialMembers ?? []);
   const [messages, setMessages] = useState<PartyMessage[]>(initialMessages ?? []);
@@ -1857,7 +1859,12 @@ export default function ClientRoom({
                       }`}
                     >
                       {chatPhotoDisplayUrl && chatPhotoSrc ? (
-                        <a href={chatPhotoUrl ?? chatPhotoDisplayUrl} target="_blank" rel="noreferrer" className="block">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedChatPhoto(chatPhotoSrc)}
+                          className="block w-full cursor-zoom-in text-left"
+                          aria-label="Открыть фото"
+                        >
                           <img
                             src={chatPhotoSrc}
                             alt="Фото из чата"
@@ -1865,7 +1872,7 @@ export default function ClientRoom({
                             decoding="sync"
                             className="aspect-[4/3] w-full rounded-[20px] object-cover"
                           />
-                        </a>
+                        </button>
                       ) : (
                         <p className="whitespace-pre-wrap break-words text-sm leading-6">{message.text}</p>
                       )}
@@ -2027,6 +2034,8 @@ export default function ClientRoom({
           </button>
         </div>
       </nav>
+
+      <FullScreenImage imageUrl={expandedChatPhoto} onClose={() => setExpandedChatPhoto(null)} />
 
       {showWelcomeOnboarding && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md bg-black/40">

@@ -40,6 +40,8 @@ const CHAT_PHOTO_MAX_BYTES = 8 * 1024 * 1024;
 const GENERATE_MENU_TIMEOUT_MS = 65000;
 const CHAT_PHOTO_MESSAGE_PREFIX = "__party_chat_photo__:";
 const PAYWALL_ALERT_MESSAGE_MARKER = "бесплатный лимит гостей уже закончился";
+const TELEGRAM_CHANNEL_URL = "https://t.me/smartcook2026";
+const TELEGRAM_CHANNEL_NAME = "SmartCook";
 const getOnboardingStorageKey = (partyId: string) => `onboarding_seen_${partyId}`;
 
 type MenuCategory = (typeof MENU_CATEGORIES)[number];
@@ -407,7 +409,8 @@ export default function ClientRoom({
   const [inputName, setInputName] = useState(storedName);
   const [activeTab, setActiveTab] = useState<"menu" | "chat">("menu");
   const [showPaywall, setShowPaywall] = useState(false);
-  const [isProcessingPay, setIsProcessingPay] = useState(false);
+  const [isActivatingTelegramAccess, setIsActivatingTelegramAccess] = useState(false);
+  const [hasOpenedTelegramChannel, setHasOpenedTelegramChannel] = useState(false);
   const [currentParty, setCurrentParty] = useState(party);
   const [showShoppingList, setShowShoppingList] = useState(false);
   const [isObserver, setIsObserver] = useState(false);
@@ -429,7 +432,6 @@ export default function ClientRoom({
   const [authPassword, setAuthPassword] = useState("");
   const [authMode, setAuthMode] = useState<"login" | "register">("register");
   const [authLoading, setAuthLoading] = useState(false);
-  const [showPaymentWarning, setShowPaymentWarning] = useState(false);
   const [showWelcomeOnboarding, setShowWelcomeOnboarding] = useState(false);
   const [expandedChatPhoto, setExpandedChatPhoto] = useState<string | null>(null);
 
@@ -484,12 +486,6 @@ export default function ClientRoom({
   };
 
   const getAuthenticatedParticipantId = useCallback(() => authUser?.id?.trim() || null, [authUser]);
-
-  const openRoomAuth = useCallback(() => {
-    setAuthMode("register");
-    setShowPaymentWarning(false);
-    setIsAuthModalOpen(true);
-  }, []);
 
   const refreshMenuItems = useCallback(async () => {
     const { data } = await supabase.from("party_items").select("*").eq("party_id", party.id);
@@ -547,9 +543,9 @@ export default function ClientRoom({
       if (lastAlert?.guestName === normalizedGuestName && now - lastAlert.shownAt < 3000) return;
       lastPaywallAlertToastRef.current = { guestName: normalizedGuestName, shownAt: now };
 
-      toast(`Гость ${normalizedGuestName} не может войти (лимит мест). Расширьте тариф!`, {
+      toast(`Гость ${normalizedGuestName} не может войти (лимит мест). Откройте доступ через канал!`, {
         action: {
-          label: "Оплатить",
+          label: "Открыть",
           onClick: () => setShowPaywall(true),
         },
       });
@@ -1090,8 +1086,20 @@ export default function ClientRoom({
     }
   };
 
-  const handleMockPayment = async () => {
-    if (isProcessingPay) return;
+  const handleOpenTelegramChannel = () => {
+    setHasOpenedTelegramChannel(true);
+    void trackEvent("telegram_channel_opened");
+    window.open(TELEGRAM_CHANNEL_URL, "_blank", "noopener,noreferrer");
+  };
+
+  const handleActivateTelegramAccess = async () => {
+    if (isActivatingTelegramAccess) return;
+
+    if (!hasOpenedTelegramChannel) {
+      handleOpenTelegramChannel();
+      toast.message("Подпишитесь на канал и вернитесь сюда, чтобы открыть доступ.");
+      return;
+    }
 
     const previousParticipant = readStoredParticipant(party.id);
     const previousInputName = inputName;
@@ -1104,18 +1112,15 @@ export default function ClientRoom({
     const previousHasNotifiedOrganizer = hasNotifiedOrganizer;
     const previousShowJoinModal = showJoinModal;
 
-    setIsProcessingPay(true);
+    setIsActivatingTelegramAccess(true);
 
     try {
-      // Имитация задержки банка
-      await new Promise((r) => setTimeout(r, 1500));
-
-      const paymentResult = await withTimeout(
+      const subscriptionResult = await withTimeout(
         activatePartyPassAction(currentParty.id),
         SUPABASE_TIMEOUT_MS,
-        "Не удалось обработать оплату",
+        "Не удалось открыть доступ",
       );
-      if (!paymentResult.success) throw new Error(paymentResult.error);
+      if (!subscriptionResult.success) throw new Error(subscriptionResult.error);
 
       if (inputName.trim() && !currentUser) {
         const name = inputName.trim();
@@ -1126,19 +1131,20 @@ export default function ClientRoom({
         const joinResult = await withTimeout(
           joinPartyAction(party.id, name, userId),
           SUPABASE_TIMEOUT_MS,
-          "Не удалось завершить вход после оплаты",
+          "Не удалось завершить вход после подписки",
         );
 
         if (!joinResult.success) {
-          throw new Error(joinResult.error === "PAYWALL_REACHED" ? "Лимит гостей все еще активен" : joinResult.error);
+          throw new Error(joinResult.error === "PAYWALL_REACHED" ? "Доступ еще не активирован" : joinResult.error);
         }
 
         completeJoin(name, joinResult.userId, joinResult.guestData);
       }
 
       setCurrentParty((prev) => ({ ...prev, is_paid: true }));
-      void trackEvent("paywall_payment_success");
+      void trackEvent("telegram_subscription_access_success");
       setShowPaywall(false);
+      toast.success("Доступ открыт. Спасибо за подписку!");
     } catch (error) {
       console.error(error);
       writeStoredParticipant(party.id, previousParticipant);
@@ -1153,22 +1159,8 @@ export default function ClientRoom({
       setShowJoinModal(previousShowJoinModal);
       window.alert(getMutationAlertMessage(error));
     } finally {
-      setIsProcessingPay(false);
+      setIsActivatingTelegramAccess(false);
     }
-  };
-
-  const handlePaywallCheckout = () => {
-    if (!authUser) {
-      setShowPaymentWarning(true);
-      return;
-    }
-
-    void handleMockPayment();
-  };
-
-  const handleRiskyGuestPayment = () => {
-    setShowPaymentWarning(false);
-    void handleMockPayment();
   };
 
   const handleCloseWelcomeOnboarding = () => {
@@ -1531,7 +1523,7 @@ export default function ClientRoom({
 
     if (!currentParty.is_paid) {
       setShowPaywall(true);
-      void trackEvent("paywall_view_from_ai");
+      void trackEvent("telegram_access_view_from_ai");
       return;
     }
 
@@ -1605,7 +1597,7 @@ export default function ClientRoom({
 
     if (!currentParty.is_paid) {
       setShowPaywall(true);
-      void trackEvent("paywall_view_from_ai");
+      void trackEvent("telegram_access_view_from_ai");
       return;
     }
 
@@ -1806,12 +1798,12 @@ export default function ClientRoom({
                   void trackEvent("shopping_list_opened");
                 } else {
                   setShowPaywall(true);
-                  void trackEvent("paywall_view_from_cart");
+                  void trackEvent("telegram_access_view_from_cart");
                 }
               }}
               className="w-full bg-white text-black font-medium p-4 rounded-3xl flex items-center justify-center gap-2 shadow-sm border border-black/5 active:scale-95 transition-transform"
             >
-              <span>🛒</span> {currentParty.is_paid ? "Показать список покупок" : "Открыть список покупок (PRO)"}
+              <span>🛒</span> {currentParty.is_paid ? "Показать список покупок" : "Открыть список покупок через канал"}
             </button>
 
             <div className="mt-6 border-t border-zinc-100 pt-6">
@@ -1922,7 +1914,7 @@ export default function ClientRoom({
               currentUser
                 ? "Написать сообщение..."
                 : isObserver
-                  ? "Режим наблюдателя: чат доступен после Party Pass"
+                  ? "Режим наблюдателя: чат доступен после подписки на канал"
                   : "Сначала укажите ваше имя"
             }
             disabled={!currentUserId}
@@ -1998,7 +1990,7 @@ export default function ClientRoom({
                 <div className="rounded-3xl border border-amber-200/70 bg-amber-50 p-4 shadow-sm">
                   <p className="text-sm font-semibold tracking-tight text-black">Режим наблюдателя</p>
                   <p className="mt-1 text-sm leading-6 text-zinc-600">
-                    Вы можете смотреть меню и чат. Голосование и сообщения откроются после Party Pass.
+                    Вы можете смотреть меню и чат. Голосование и сообщения откроются после подписки на канал.
                   </p>
                 </div>
               </div>
@@ -2085,38 +2077,6 @@ export default function ClientRoom({
                 Понял-принял, погнали! 🚀
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {showPaymentWarning && (
-        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/60 p-4 backdrop-blur-md sm:items-center">
-          <div className="w-full max-w-md animate-in slide-in-from-bottom-6 rounded-t-3xl border border-white/60 bg-white p-6 shadow-2xl sm:rounded-3xl sm:zoom-in-95">
-            <div className="mb-6 text-center">
-              <div className="mb-4 text-5xl">💸</div>
-              <h2 className="text-3xl font-black tracking-tight text-black">Оу, вы достали кошелек! 💸</h2>
-              <p className="mt-3 text-sm leading-6 text-zinc-500">
-                Шеф настоятельно рекомендует войти в аккаунт. Иначе, если вы закроете браузер, ваши оплаченные
-                генерации превратятся в тыкву. А мы этого очень не хотим!
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={openRoomAuth}
-              className="w-full rounded-2xl bg-gradient-to-br from-orange-400 via-rose-500 to-fuchsia-600 px-5 py-4 text-base font-bold text-white shadow-xl shadow-rose-500/25 transition active:scale-[0.99]"
-            >
-              Войти в аккаунт (Несгораемый сейф)
-            </button>
-
-            <button
-              type="button"
-              onClick={handleRiskyGuestPayment}
-              disabled={isProcessingPay}
-              className="mt-4 w-full rounded-2xl bg-transparent px-4 py-3 text-sm font-semibold text-zinc-500 underline-offset-4 transition hover:text-black hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Я рисковый парень, продолжить инкогнито
-            </button>
           </div>
         </div>
       )}
@@ -2219,30 +2179,42 @@ export default function ClientRoom({
           <div className="w-full max-w-md rounded-3xl border border-black/5 bg-white p-8 shadow-sm">
             {joinLimitReached ? (
               <div className="space-y-5">
-                <div className="text-center">
-                  <div className="mb-4 text-4xl">🥂</div>
-                  <h2 className="text-3xl font-semibold tracking-tight text-black">Лимит гостей исчерпан</h2>
+                <div className="rounded-[28px] border border-zinc-100 bg-gradient-to-b from-white to-zinc-50 p-5 text-center shadow-sm">
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-black text-3xl shadow-xl shadow-black/15">
+                    🥂
+                  </div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-zinc-400">
+                    Бесплатный лимит
+                  </p>
+                  <h2 className="text-3xl font-semibold tracking-tight text-black">Мест больше нет</h2>
                   <p className="mt-3 text-sm leading-6 text-zinc-500">
-                    Упс! Этот банкет сейчас в бесплатном режиме (лимит 2 гостя). Чтобы вы могли зайти и
-                    участвовать в обсуждении, нужно активировать Party Pass.
+                    Чтобы открыть вход, подпишитесь на Telegram-канал {TELEGRAM_CHANNEL_NAME}. После
+                    подтверждения безлимит гостей, чат и голосование станут доступны всем участникам банкета.
                   </p>
                 </div>
 
                 <div className="space-y-3">
                   <button
                     type="button"
-                    onClick={handlePaywallCheckout}
-                    disabled={isProcessingPay}
-                    aria-busy={isProcessingPay}
-                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-black px-5 py-4 text-base font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    onClick={handleOpenTelegramChannel}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-black px-5 py-4 text-base font-semibold text-white shadow-xl shadow-black/15 transition hover:bg-zinc-900 active:scale-[0.99]"
                   >
-                    {isProcessingPay ? (
+                    Открыть канал {TELEGRAM_CHANNEL_NAME}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleActivateTelegramAccess}
+                    disabled={isActivatingTelegramAccess}
+                    aria-busy={isActivatingTelegramAccess}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl border border-black/5 bg-zinc-100 px-5 py-4 text-base font-medium text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isActivatingTelegramAccess ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        Обработка...
+                        Открываем доступ...
                       </>
                     ) : (
-                      "Стать спонсором банкета (Оплатить 29 ₽)"
+                      "Я подписался, открыть доступ"
                     )}
                   </button>
                   <button
@@ -2250,7 +2222,7 @@ export default function ClientRoom({
                     onClick={handleNotifyOrganizer}
                     disabled={isNotifyingOrganizer || hasNotifiedOrganizer}
                     aria-busy={isNotifyingOrganizer}
-                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-zinc-100 px-5 py-4 text-base font-medium text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-5 py-4 text-base font-medium text-black ring-1 ring-black/5 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {hasNotifiedOrganizer ? (
                       "Уведомление отправлено ✅"
@@ -2274,7 +2246,7 @@ export default function ClientRoom({
 
                 {hasNotifiedOrganizer && (
                   <p className="text-center text-sm leading-6 text-zinc-500">
-                    Сообщение отправлено в общий чат. Участники увидят, что вам нужен Party Pass.
+                    Сообщение отправлено в общий чат. Участники увидят, что вам нужен доступ через канал.
                   </p>
                 )}
                 {notifyOrganizerError && (
@@ -2772,59 +2744,72 @@ export default function ClientRoom({
       )}
 
       {showPaywall && (
-        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-md sm:p-4 transition-all">
-          <div className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300">
-            <div className="flex justify-center mb-4">
-              <div className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center text-3xl shadow-lg">
-                👑
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 backdrop-blur-md transition-all sm:items-center sm:p-4">
+          <div className="w-full animate-in slide-in-from-bottom-full rounded-t-[32px] border border-white/60 bg-white p-6 shadow-2xl duration-300 sm:max-w-md sm:rounded-[32px] sm:slide-in-from-bottom-0 sm:zoom-in-95">
+            <div className="mb-5 rounded-[28px] border border-zinc-100 bg-gradient-to-b from-white via-zinc-50 to-white p-5 text-center shadow-sm">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-black text-3xl shadow-xl shadow-black/15">
+                📣
+              </div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-zinc-400">Доступ через Telegram</p>
+              <h2 className="text-3xl font-semibold tracking-tight text-black">Подпишитесь на {TELEGRAM_CHANNEL_NAME}</h2>
+              <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-zinc-500">
+                Подписка на канал помогает проекту расти, а вам открывает ИИ-меню,
+                список покупок и безлимит гостей для всего банкета.
+              </p>
+            </div>
+
+            <div className="mb-6 grid gap-2">
+              <div className="flex items-center gap-3 rounded-2xl bg-zinc-50 px-4 py-3">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-700">✓</span>
+                <span className="text-sm font-medium text-zinc-800">ИИ-генерация меню под ваш банкет</span>
+              </div>
+              <div className="flex items-center gap-3 rounded-2xl bg-zinc-50 px-4 py-3">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-700">✓</span>
+                <span className="text-sm font-medium text-zinc-800">Умный список покупок</span>
+              </div>
+              <div className="flex items-center gap-3 rounded-2xl bg-zinc-50 px-4 py-3">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-700">✓</span>
+                <span className="text-sm font-medium text-zinc-800">Безлимит гостей, сообщений и голосов</span>
               </div>
             </div>
 
-            <h2 className="text-2xl font-bold text-center mb-2 tracking-tight">Party Pass</h2>
-            <p className="text-center text-zinc-500 text-sm mb-6">
-              Вы можете оплатить доступ сами, чтобы помочь организатору, или подождать, пока это сделает
-              он. Party Pass открывает ИИ-генерацию, список покупок и безлимит гостей для ВСЕХ участников
-              этого банкета.
-            </p>
-
-            <div className="space-y-3 mb-8">
-              <div className="flex items-center gap-3">
-                <span className="text-green-500 text-xl">✓</span>
-                <span className="text-sm font-medium">Моментальная ИИ-генерация меню</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-green-500 text-xl">✓</span>
-                <span className="text-sm font-medium">Умный список покупок</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-green-500 text-xl">✓</span>
-                <span className="text-sm font-medium">Безлимитное количество гостей</span>
-              </div>
-            </div>
-            
             <button
               type="button"
-              onClick={handlePaywallCheckout}
-              disabled={isProcessingPay}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-black p-4 text-lg font-medium text-white transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={handleOpenTelegramChannel}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-black p-4 text-base font-semibold text-white shadow-xl shadow-black/15 transition-all hover:bg-zinc-900 active:scale-[0.99]"
             >
-              {isProcessingPay ? (
+              Открыть канал {TELEGRAM_CHANNEL_NAME}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleActivateTelegramAccess}
+              disabled={isActivatingTelegramAccess}
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-zinc-100 p-4 text-base font-semibold text-black transition-all hover:bg-zinc-200 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isActivatingTelegramAccess ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Обработка...
+                  Открываем доступ...
                 </>
               ) : (
-                "Стать спонсором банкета (Оплатить 29 ₽)"
+                "Я подписался, открыть доступ"
               )}
             </button>
-            
+
+            {!hasOpenedTelegramChannel && (
+              <p className="mt-3 text-center text-xs leading-5 text-zinc-400">
+                Сначала откройте канал и подпишитесь, затем вернитесь в банкет.
+              </p>
+            )}
+
             <button
               type="button"
               onClick={() => {
                 setShowPaywall(false);
-                void trackEvent("paywall_cancelled");
+                void trackEvent("telegram_access_cancelled");
               }}
-              className="w-full mt-3 text-zinc-400 text-sm font-medium p-3 hover:text-black transition-colors"
+              className="mt-3 w-full p-3 text-sm font-medium text-zinc-400 transition-colors hover:text-black"
             >
               Отмена
             </button>

@@ -312,7 +312,7 @@ export async function sendPaywallChatAlertAction(
         user_name: trimmedName,
         text:
           "Я хочу присоединиться к банкету, но бесплатный лимит гостей уже закончился. " +
-          "Ребята, активируйте Party Pass, и места станут безлимитными для всех 🙏",
+          "Ребята, откройте доступ через канал SmartCook, и места станут безлимитными для всех 🙏",
       },
     ]);
 
@@ -328,7 +328,7 @@ export async function activatePartyPassAction(partyId: string): Promise<Activate
   const trimmedPartyId = partyId.trim();
 
   if (!trimmedPartyId) {
-    return { success: false, error: "Не хватает данных для активации Party Pass" };
+    return { success: false, error: "Не хватает данных для открытия доступа" };
   }
 
   try {
@@ -338,7 +338,7 @@ export async function activatePartyPassAction(partyId: string): Promise<Activate
     if (error) throw new Error(error.message);
     return { success: true };
   } catch (error) {
-    console.error("Activate Party Pass Action Error:", error);
+    console.error("Activate Telegram Access Action Error:", error);
     return { success: false, error: getActionErrorMessage(error) };
   }
 }

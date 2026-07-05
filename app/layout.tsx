@@ -6,6 +6,7 @@ import { Toaster } from "sonner";
 import "./globals.css";
 import YandexMetrika from "@/components/YandexMetrika"; // Импортируем компонент Метрики
 import Footer from "@/components/Footer";
+import OnboardingModal from "@/components/modals/OnboardingModal";
 import { Suspense } from "react"; // Импортируем Suspense для корректной работы
 
 // 1. Настройки внешнего вида (PWA, цвета, масштаб)
@@ -122,6 +123,7 @@ export default async function RootLayout({
           <>
             {children}
             {!isAdminRoute && <Footer />}
+            {!isAdminRoute && <OnboardingModal />}
           </>
         )}
 

@@ -1521,12 +1521,6 @@ export default function ClientRoom({
   const startGenerateMenu = async (config: AiConfig) => {
     if (generationInProgress) return;
 
-    if (!currentParty.is_paid) {
-      setShowPaywall(true);
-      void trackEvent("telegram_access_view_from_ai");
-      return;
-    }
-
     let timeoutId: number | undefined;
 
     try {
@@ -1598,12 +1592,6 @@ export default function ClientRoom({
 
   const handleGenerateMenu = () => {
     if (generationInProgress) return;
-
-    if (!currentParty.is_paid) {
-      setShowPaywall(true);
-      void trackEvent("telegram_access_view_from_ai");
-      return;
-    }
 
     if (menuItemsRef.current.length > 0) {
       setShowRegenerateConfirm(true);

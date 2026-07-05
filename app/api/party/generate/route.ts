@@ -239,16 +239,12 @@ export async function POST(req: Request) {
 
     const { data: party, error: partyError } = await supabase
       .from('parties')
-      .select('is_paid,is_generating')
+      .select('is_generating')
       .eq('id', partyId)
       .single();
 
     if (partyError) {
       throw new Error(partyError.message);
-    }
-
-    if (!party?.is_paid) {
-      return NextResponse.json({ error: 'Необходима активация Party Pass' }, { status: 402 });
     }
 
     if (party.is_generating) {

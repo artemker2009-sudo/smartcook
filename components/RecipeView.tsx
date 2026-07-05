@@ -18,6 +18,7 @@ import {
   Camera,
   X,
 } from "lucide-react";
+import DonateButton from "@/components/DonateButton";
 
 interface RecipeViewProps {
   recipe: any;
@@ -535,6 +536,10 @@ export default function RecipeView({
             <div className="step-text">{cleanText(step)}</div>
           </div>
         ))}
+      </div>
+
+      <div style={{ textAlign: "center" }}>
+        <DonateButton variant="inline" />
       </div>
 
       <div

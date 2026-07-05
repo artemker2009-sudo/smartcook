@@ -4,6 +4,8 @@ import { useEffect } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import Script from "next/script";
 
+export const YANDEX_METRIKA_ID = 107027665;
+
 export default function YandexMetrika() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -15,7 +17,7 @@ export default function YandexMetrika() {
     // @ts-ignore
     if (typeof window !== "undefined" && window.ym) {
       // @ts-ignore
-      window.ym(107027665, "hit", url);
+      window.ym(YANDEX_METRIKA_ID, "hit", url);
     }
   }, [pathname, searchParams]);
 
@@ -28,7 +30,7 @@ export default function YandexMetrika() {
         k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})
         (window, document, "script", "https://mc.yandex.ru/metrika/tag.js", "ym");
 
-        ym(107027665, "init", {
+        ym(${YANDEX_METRIKA_ID}, "init", {
              clickmap:true,
              trackLinks:true,
              accurateTrackBounce:true,

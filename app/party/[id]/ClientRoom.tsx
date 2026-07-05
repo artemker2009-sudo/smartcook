@@ -1547,9 +1547,13 @@ export default function ClientRoom({
         mustNotHave: config.mustNotHave.trim(),
       };
 
+      const { data: { session: aiSession } } = await supabase.auth.getSession();
       const res = await fetch('/api/party/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(aiSession?.access_token ? { Authorization: `Bearer ${aiSession.access_token}` } : {}),
+        },
         signal: controller.signal,
         body: JSON.stringify({ 
           roomId: party.id,

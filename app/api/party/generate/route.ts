@@ -4,6 +4,7 @@ export const runtime = 'edge';
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { createClient } from '@supabase/supabase-js';
+import { checkAndConsumeAiRateLimit, rateLimitResponse } from '@/lib/rateLimit';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -191,6 +192,9 @@ export async function POST(req: Request) {
     if (!partyId) {
       throw new Error("ID банкета обязателен");
     }
+
+    const rateLimit = await checkAndConsumeAiRateLimit(req, "party-generate");
+    if (!rateLimit.ok) return rateLimitResponse(rateLimit);
 
     const normalizedGuestCount = Number.isFinite(Number(guestCount)) ? Number(guestCount) : 4;
     const categories = selectedCategories

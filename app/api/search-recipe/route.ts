@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
+import { checkAndConsumeAiRateLimit, rateLimitResponse } from "@/lib/rateLimit";
+import { isStringListTooLong, isTextTooLong } from "@/lib/inputLimits";
 
 const openai = new OpenAI({ 
   apiKey: (process.env.OPENAI_API_KEY || "").trim() 
@@ -18,6 +20,13 @@ export async function POST(req: Request) {
     if (!query || query.trim().length < 2) {
        return NextResponse.json({ error: "Введите название блюда" }, { status: 400 });
     }
+
+    if (isTextTooLong(query) || isStringListTooLong(allergies) || isStringListTooLong(dislikes)) {
+      return NextResponse.json({ error: "Слишком длинный запрос" }, { status: 400 });
+    }
+
+    const rateLimit = await checkAndConsumeAiRateLimit(req, "search-recipe");
+    if (!rateLimit.ok) return rateLimitResponse(rateLimit);
 
     let dietaryInstructions = "";
     if ((allergies && allergies.length > 0) || (dislikes && dislikes.length > 0)) {

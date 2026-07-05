@@ -122,6 +122,23 @@ export default function Home() {
     toastTimerRef.current = setTimeout(() => setToast(null), 5000);
   };
 
+  // Прикрепляем токен сессии к AI-запросам, чтобы бэкенд мог считать лимит
+  // генераций по аккаунту, а не только по IP.
+  const getAuthHeaders = async (): Promise<Record<string, string>> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
+  };
+
+  // Если сервер ответил 429 — лимит генераций исчерпан. Показываем дружелюбное
+  // сообщение вместо технической ошибки и не даём коду идти в catch как "Ошибка: ...".
+  const handleRateLimitedResponse = (response: Response, json: any): boolean => {
+    if (response.status === 429) {
+      showToast(json?.error || "Вы сгенерировали максимум на сегодня. Возвращайтесь завтра!", undefined, 'error');
+      return true;
+    }
+    return false;
+  };
+
   // === ВСЕ ВАЖНЫЕ ФУНКЦИИ ИГРЫ ===
   const getRestaurantCost = (lvl: number) => {
     // Новые цены от Артема: 1->2: 10k, 2->3: 50k, 3->4: 200k, 4->5: 600k, 5->6: 1.5m
@@ -584,18 +601,18 @@ export default function Home() {
     if (!file) return; setAnalyzing(true); setRecipe(null); 
     try { 
       const formData = new FormData(); formData.append("image", file); formData.append("mode", cookingMode); formData.append("allergies", allergies.join(', ')); formData.append("dislikes", dislikes.join(', '));
-      const response = await fetch("/api/analyze", { method: "POST", body: formData }); 
-      const json = await response.json(); if (json.error) throw new Error(json.error);  
-      setAnalysisResult(json.data); 
+      const response = await fetch("/api/analyze", { method: "POST", headers: await getAuthHeaders(), body: formData });
+      const json = await response.json(); if (handleRateLimitedResponse(response, json)) return; if (json.error) throw new Error(json.error);
+      setAnalysisResult(json.data);
     } catch (err: any) { showToast("Ошибка: " + err.message, undefined, 'error'); } finally { setAnalyzing(false); } 
   }; 
 
-  const handleRegenerate = async () => { 
-    if (!analysisResult) return; setIsRegenerating(true); 
-    try { 
-      const response = await fetch("/api/regenerate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ingredients: analysisResult.ingredients }) }); 
-      const json = await response.json(); if (json.error) throw new Error(json.error); 
-      setAnalysisResult({ ...analysisResult, dishes: json.dishes }); 
+  const handleRegenerate = async () => {
+    if (!analysisResult) return; setIsRegenerating(true);
+    try {
+      const response = await fetch("/api/regenerate", { method: "POST", headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) }, body: JSON.stringify({ ingredients: analysisResult.ingredients }) });
+      const json = await response.json(); if (handleRateLimitedResponse(response, json)) return; if (json.error) throw new Error(json.error);
+      setAnalysisResult({ ...analysisResult, dishes: json.dishes });
     } catch (err: any) { showToast("Ошибка", undefined, 'error'); } finally { setIsRegenerating(false); } 
   }; 
 
@@ -613,9 +630,9 @@ export default function Home() {
     if (!analysisResult || !userId) return; setSelectedDish(dishName); setLoadingRecipe(true); setRecipe(null); setIsHistoryView(false); setFromFeed(false); setServings(1);  
     window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); 
     try { 
-      const response = await fetch("/api/recipe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ dish: dishName, ingredients: analysisResult.ingredients, sessionId: userId, allergies, dislikes }) }); 
-      const json = await response.json(); if (json.error) throw new Error(json.error);  
-      setRecipe({ ...json.recipe, id: json.recipe.id, is_favorite: false, ingredients: analysisResult.ingredients });  
+      const response = await fetch("/api/recipe", { method: "POST", headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) }, body: JSON.stringify({ dish: dishName, ingredients: analysisResult.ingredients, sessionId: userId, allergies, dislikes }) });
+      const json = await response.json(); if (handleRateLimitedResponse(response, json)) return; if (json.error) throw new Error(json.error);
+      setRecipe({ ...json.recipe, id: json.recipe.id, is_favorite: false, ingredients: analysisResult.ingredients });
       if (userId) fetchMyRecipes(userId);
       handleRewardForRecipe();
     } catch (err: any) { showToast("Ошибка: " + err.message, undefined, 'error'); } finally { setLoadingRecipe(false); } 
@@ -624,10 +641,10 @@ export default function Home() {
   const handleSmartVariant = async () => { 
     setLoadingRecipe(true); setIsHistoryView(false); setFromFeed(false); setServings(1);  
     try { 
-      if (analysisResult) { 
-        const response = await fetch("/api/regenerate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ingredients: analysisResult.ingredients }) }); 
-        const json = await response.json(); if (json.error) throw new Error(json.error); 
-        const newDishes = json.dishes.filter((d: string) => d !== selectedDish); 
+      if (analysisResult) {
+        const response = await fetch("/api/regenerate", { method: "POST", headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) }, body: JSON.stringify({ ingredients: analysisResult.ingredients }) });
+        const json = await response.json(); if (handleRateLimitedResponse(response, json)) return; if (json.error) throw new Error(json.error);
+        const newDishes = json.dishes.filter((d: string) => d !== selectedDish);
         setAnalysisResult({ ...analysisResult, dishes: json.dishes }); 
         await getRecipeFromPhoto(newDishes.length > 0 ? newDishes[0] : json.dishes[0]); 
       } else if (searchMode === 'text' && textQuery) { 
@@ -639,8 +656,8 @@ export default function Home() {
   const handleTextSearch = async () => { 
     if (!textQuery.trim() || !userId) return; setLoadingRecipe(true); setRecipe(null); setAnalysisResult(null); setIsHistoryView(false); setFromFeed(false); setServings(1);  
     try { 
-      const response = await fetch("/api/search-recipe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query: textQuery, sessionId: userId, allergies, dislikes }) }); 
-      const json = await response.json(); if (!response.ok) throw new Error(json.error || "Ошибка поиска"); 
+      const response = await fetch("/api/search-recipe", { method: "POST", headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) }, body: JSON.stringify({ query: textQuery, sessionId: userId, allergies, dislikes }) });
+      const json = await response.json(); if (handleRateLimitedResponse(response, json)) return; if (!response.ok) throw new Error(json.error || "Ошибка поиска");
       setRecipe({ ...json.recipe, id: json.recipe.id, is_favorite: false, missing_ingredients: json.recipe.missing_ingredients || [] });  
       if (userId) fetchMyRecipes(userId);
       handleRewardForRecipe();
@@ -651,8 +668,8 @@ export default function Home() {
     const currentContext = activeView === 'daily' ? (dailyRecipe as any) : recipe; 
     if (!question.trim() || !currentContext) return; setAsking(true); setAnswer(null); 
     try { 
-      const response = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: question, recipeContext: currentContext }) }); 
-      const json = await response.json(); if (json.error) throw new Error(json.error); setAnswer(json.answer); 
+      const response = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) }, body: JSON.stringify({ question: question, recipeContext: currentContext }) });
+      const json = await response.json(); if (handleRateLimitedResponse(response, json)) return; if (json.error) throw new Error(json.error); setAnswer(json.answer);
     } catch (err: any) { showToast("Ошибка", undefined, 'error'); } finally { setAsking(false); } 
   }; 
 

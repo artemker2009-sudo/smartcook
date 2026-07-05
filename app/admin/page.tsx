@@ -10,7 +10,6 @@ import {
   Sparkles,
   Wrench,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
 
 type AnalyticsEvent = {
   party_id?: string | null;
@@ -142,6 +141,8 @@ const getEventMeta = (eventType?: string | null) => {
 export default function AdminPage() {
   const [password, setPassword] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>("management");
   const [isMaintenance, setIsMaintenance] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -158,109 +159,78 @@ export default function AdminPage() {
   const [supportError, setSupportError] = useState("");
   const [closingTicketId, setClosingTicketId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!isAuthenticated) {
-      return;
-    }
+  const loadDashboard = async () => {
+    setIsLoading(true);
+    setIsAnalyticsLoading(true);
+    setIsSupportLoading(true);
+    setErrorMessage("");
+    setAnalyticsError("");
+    setSupportError("");
 
-    const loadMaintenanceStatus = async () => {
-      setIsLoading(true);
-      setErrorMessage("");
+    try {
+      const response = await fetch("/api/admin/dashboard", { cache: "no-store" });
 
-      const { data, error } = await supabase
-        .from("site_settings")
-        .select("is_maintenance")
-        .eq("id", 1)
-        .single();
-
-      if (error) {
-        setErrorMessage("Не удалось загрузить статус режима обслуживания.");
-        setIsLoading(false);
+      if (response.status === 401) {
+        setIsAuthenticated(false);
         return;
       }
 
-      setIsMaintenance(Boolean(data?.is_maintenance));
-      setIsLoading(false);
-    };
-
-    loadMaintenanceStatus();
-  }, [isAuthenticated]);
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      return;
-    }
-
-    const loadAnalytics = async () => {
-      setIsAnalyticsLoading(true);
-      setAnalyticsError("");
-
-      const [partiesResult, recentEventsResult] = await Promise.all([
-        supabase.from("parties").select("*"),
-        supabase
-          .from("analytics_events")
-          .select("party_id, user_name, event_type, created_at")
-          .order("created_at", { ascending: false })
-          .limit(50),
-      ]);
-
-      if (partiesResult.error || recentEventsResult.error) {
-        setAnalyticsError("Не удалось загрузить аналитику.");
-        setIsAnalyticsLoading(false);
-        return;
+      if (!response.ok) {
+        throw new Error("Не удалось загрузить данные админки");
       }
 
-      const parties = (partiesResult.data as PartyRecord[] | null) ?? [];
-      const recentEvents = (recentEventsResult.data as AnalyticsEvent[] | null) ?? [];
+      const data = await response.json();
 
+      setIsMaintenance(Boolean(data.isMaintenance));
       setStats({
-        parties,
-        recentEvents,
+        parties: (data.parties as PartyRecord[] | null) ?? [],
+        recentEvents: (data.recentEvents as AnalyticsEvent[] | null) ?? [],
       });
+      setSupportTickets((data.supportTickets as SupportTicket[] | null) ?? []);
+      setIsAuthenticated(true);
+    } catch (error) {
+      console.error("Ошибка загрузки админки", error);
+      setErrorMessage("Не удалось загрузить статус режима обслуживания.");
+      setAnalyticsError("Не удалось загрузить аналитику.");
+      setSupportError("Не удалось загрузить обращения.");
+    } finally {
+      setIsLoading(false);
       setIsAnalyticsLoading(false);
-    };
-
-    void loadAnalytics();
-  }, [isAuthenticated]);
+      setIsSupportLoading(false);
+    }
+  };
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      return;
-    }
+    const checkSession = async () => {
+      await loadDashboard();
+      setIsCheckingSession(false);
+    };
 
-    const loadSupportTickets = async () => {
-      setIsSupportLoading(true);
-      setSupportError("");
+    void checkSession();
+  }, []);
 
-      const { data, error } = await supabase
-        .from("support_tickets")
-        .select("*")
-        .order("created_at", { ascending: false });
+  const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsLoggingIn(true);
+    setErrorMessage("");
 
-      if (error) {
-        setSupportError("Не удалось загрузить обращения.");
-        setIsSupportLoading(false);
+    try {
+      const response = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+
+      if (!response.ok) {
+        setErrorMessage(response.status === 429 ? "Слишком много попыток. Попробуйте позже." : "Неверный пароль.");
         return;
       }
 
-      setSupportTickets((data as SupportTicket[] | null) ?? []);
-      setIsSupportLoading(false);
-    };
-
-    void loadSupportTickets();
-  }, [isAuthenticated]);
-
-  const handleLogin = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    if (password === "Artem.ker.09") {
-      setIsAuthenticated(true);
       setPassword("");
-      setErrorMessage("");
-      return;
+      await loadDashboard();
+    } finally {
+      setIsLoggingIn(false);
     }
-
-    setErrorMessage("Неверный пароль.");
   };
 
   const handleToggleMaintenance = async () => {
@@ -269,19 +239,24 @@ export default function AdminPage() {
     setIsUpdating(true);
     setErrorMessage("");
 
-    const { error } = await supabase
-      .from("site_settings")
-      .update({ is_maintenance: nextValue })
-      .eq("id", 1);
+    try {
+      const response = await fetch("/api/admin/maintenance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isMaintenance: nextValue }),
+      });
 
-    if (error) {
+      if (!response.ok) {
+        throw new Error("Не удалось обновить режим обслуживания");
+      }
+
+      setIsMaintenance(nextValue);
+    } catch (error) {
+      console.error("Ошибка обновления режима обслуживания", error);
       setErrorMessage("Не удалось обновить режим обслуживания.");
+    } finally {
       setIsUpdating(false);
-      return;
     }
-
-    setIsMaintenance(nextValue);
-    setIsUpdating(false);
   };
 
   const handleDeleteParty = async () => {
@@ -290,10 +265,14 @@ export default function AdminPage() {
     setIsDeleting(true);
 
     try {
-      const { error } = await supabase.from("parties").delete().eq("id", deleteConfirmId);
+      const response = await fetch("/api/admin/parties", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: deleteConfirmId }),
+      });
 
-      if (error) {
-        throw error;
+      if (!response.ok) {
+        throw new Error("Не удалось удалить банкет");
       }
 
       setStats((currentStats) => ({
@@ -313,10 +292,14 @@ export default function AdminPage() {
     setClosingTicketId(id);
 
     try {
-      const { error } = await supabase.from("support_tickets").update({ status: "closed" }).eq("id", id);
+      const response = await fetch("/api/admin/support-tickets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
 
-      if (error) {
-        throw error;
+      if (!response.ok) {
+        throw new Error("Не удалось закрыть обращение");
       }
 
       setSupportTickets((currentTickets) =>
@@ -341,6 +324,14 @@ export default function AdminPage() {
       return rightTime - leftTime;
     });
   const activeTabMeta = TABS.find((tab) => tab.id === activeTab) ?? TABS[0];
+
+  if (isCheckingSession) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-zinc-50 px-6 py-10 text-zinc-900">
+        <p className="text-sm text-zinc-500">Проверяем сессию...</p>
+      </main>
+    );
+  }
 
   if (!isAuthenticated) {
     return (
@@ -367,7 +358,8 @@ export default function AdminPage() {
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             placeholder="Введите пароль"
-            className="w-full rounded-2xl border border-zinc-100 bg-zinc-50 px-5 py-4 text-base text-zinc-900 outline-none transition focus:border-transparent focus:bg-white focus:ring-2 focus:ring-black"
+            disabled={isLoggingIn}
+            className="w-full rounded-2xl border border-zinc-100 bg-zinc-50 px-5 py-4 text-base text-zinc-900 outline-none transition focus:border-transparent focus:bg-white focus:ring-2 focus:ring-black disabled:opacity-60"
           />
 
           {errorMessage ? (
@@ -376,9 +368,10 @@ export default function AdminPage() {
 
           <button
             type="submit"
-            className="mt-6 w-full rounded-2xl bg-black py-4 text-base font-medium text-white transition hover:bg-zinc-800 active:scale-[0.99]"
+            disabled={isLoggingIn}
+            className="mt-6 w-full rounded-2xl bg-black py-4 text-base font-medium text-white transition hover:bg-zinc-800 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Войти
+            {isLoggingIn ? "Проверяем..." : "Войти"}
           </button>
         </form>
       </main>

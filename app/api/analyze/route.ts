@@ -1,21 +1,36 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { checkAndConsumeAiRateLimit, rateLimitResponse } from "@/lib/rateLimit";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+const ANALYZE_PHOTO_MAX_BYTES = 10 * 1024 * 1024;
+const MAX_TEXT_FIELD_LENGTH = 500;
 
 export async function POST(req: Request) {
   try {
     const formData = await req.formData();
     const file = formData.get("image") as File;
     const mode = formData.get("mode") as string || 'strict';
-    const allergies = formData.get("allergies") as string || '';
-    const dislikes = formData.get("dislikes") as string || '';
+    const allergies = ((formData.get("allergies") as string) || '').slice(0, MAX_TEXT_FIELD_LENGTH);
+    const dislikes = ((formData.get("dislikes") as string) || '').slice(0, MAX_TEXT_FIELD_LENGTH);
 
     if (!file) {
       return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
     }
+
+    if (!file.type.startsWith("image/")) {
+      return NextResponse.json({ error: "Можно загружать только изображения" }, { status: 400 });
+    }
+
+    if (file.size > ANALYZE_PHOTO_MAX_BYTES) {
+      return NextResponse.json({ error: "Файл слишком большой. Максимум 10 МБ" }, { status: 413 });
+    }
+
+    const rateLimit = await checkAndConsumeAiRateLimit(req, "analyze");
+    if (!rateLimit.ok) return rateLimitResponse(rateLimit);
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);

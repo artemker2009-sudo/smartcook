@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { checkAndConsumeAiRateLimit, rateLimitResponse } from "@/lib/rateLimit";
+import { isStringListTooLong } from "@/lib/inputLimits";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -12,6 +14,13 @@ export async function POST(req: Request) {
     if (!ingredients || ingredients.length === 0) {
       return NextResponse.json({ error: "Нет ингредиентов" }, { status: 400 });
     }
+
+    if (isStringListTooLong(ingredients)) {
+      return NextResponse.json({ error: "Слишком длинный список ингредиентов" }, { status: 400 });
+    }
+
+    const rateLimit = await checkAndConsumeAiRateLimit(req, "regenerate");
+    if (!rateLimit.ok) return rateLimitResponse(rateLimit);
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",

@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import RecipeView from "@/components/RecipeView";
 import Button from "@/components/ui/Button";
+import HeroLanding from "@/components/HeroLanding";
 
 interface ServiceViewProps {
   isHistoryView: boolean;
@@ -161,14 +162,13 @@ export default function ServiceView({
     <>
       {!isHistoryView && fromFeed === false && !isSharedView && (
         <>
-          <div className="hero">
-            <h1 className="brand-name">SmartCook</h1>
-            <div className="brand-sub">Ваш личный AI Шеф-повар</div>
-            {currentHoliday && (
-              <div
-                className="animate-fade-in"
-                style={{
-                  background: currentHoliday.gradient,
+          <HeroLanding handleFileChange={handleFileChange} setSearchMode={setSearchMode} />
+
+          {currentHoliday && (
+            <div
+              className="animate-fade-in"
+              style={{
+                background: currentHoliday.gradient,
                   color: "white",
                   padding: "var(--space-4)",
                   borderRadius: "var(--radius-md)",
@@ -226,7 +226,6 @@ export default function ServiceView({
                 </div>
               </div>
             )}
-          </div>
 
           <div className="daily-teaser" onClick={() => switchView("daily")}>
             <div
@@ -250,9 +249,16 @@ export default function ServiceView({
               >
                 Рецепт дня
               </div>
-              <div style={{ fontWeight: "var(--font-weight-semibold)", fontSize: "var(--font-size-body)", color: "var(--color-text)" }}>
-                {dailyRecipe ? dailyRecipe.title : "Секрет от шефа..."}
-              </div>
+              {dailyRecipe ? (
+                <div style={{ fontWeight: "var(--font-weight-semibold)", fontSize: "var(--font-size-body)", color: "var(--color-text)" }}>
+                  {dailyRecipe.title}
+                </div>
+              ) : (
+                <div
+                  className="sc-skel"
+                  style={{ height: "18px", width: "70%", marginTop: "var(--space-1)" }}
+                />
+              )}
             </div>
             <ArrowRight size={20} color="var(--color-text-muted)" />
           </div>
@@ -386,7 +392,7 @@ export default function ServiceView({
             </button>
           </div>
 
-          <div className="card">
+          <div className="card" id="sc-search-card">
             {searchMode === "photo" ? (
               <>
                 {!file ? (

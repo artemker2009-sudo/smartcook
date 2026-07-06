@@ -78,6 +78,187 @@ body {
 }
 .brand-sub { font-size: var(--font-size-body); color: var(--color-text-secondary); font-weight: var(--font-weight-regular); }
 
+/* --- HERO LANDING (первый экран, этап 4) --- */
+.hero-landing { margin-top: var(--space-4); margin-bottom: var(--space-4); }
+.hero-brand {
+  text-align: center;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--color-accent);
+  margin-bottom: var(--space-2);
+}
+.hero-headline {
+  text-align: center;
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.2;
+  letter-spacing: -0.5px;
+  color: var(--color-text);
+  margin: 0 0 var(--space-2) 0;
+}
+.hero-subhead {
+  text-align: center;
+  font-size: var(--font-size-body);
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+  margin: 0 auto var(--space-4) auto;
+  max-width: 340px;
+}
+.hero-cta-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.hero-cta {
+  min-height: 56px;
+  text-decoration: none;
+}
+
+/* --- CSS-АНИМАЦИЯ ПРОЦЕССА (фото → распознавание → рецепт) --- */
+.process-stage {
+  position: relative;
+  height: 210px;               /* фиксируем высоту → нет layout shift */
+  margin-top: var(--space-4);
+}
+.proc-scene {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Базовое состояние = статичный финальный кадр (для prefers-reduced-motion) */
+.proc-photo { opacity: 0; }
+.proc-recipe { opacity: 1; }
+.proc-chip { opacity: 0; }
+
+.proc-photo-card {
+  position: relative;
+  width: 210px;
+  height: 176px;
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.proc-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+  color: var(--color-text-secondary);
+}
+.proc-photo-grid span {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-surface);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+.proc-chip {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  white-space: nowrap;
+}
+.proc-chip svg { color: var(--color-accent); flex-shrink: 0; }
+.proc-chip b { color: var(--color-accent); font-weight: var(--font-weight-semibold); }
+.proc-chip-1 { top: 10px; left: -8px; }
+.proc-chip-2 { top: 66px; right: -12px; }
+.proc-chip-3 { bottom: 12px; left: 4px; }
+
+.proc-recipe-card {
+  width: 230px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-3);
+}
+.proc-recipe-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-accent);
+  margin-bottom: var(--space-2);
+}
+.proc-recipe-title {
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+.proc-recipe-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-3);
+}
+.proc-skel-lines { display: flex; flex-direction: column; gap: var(--space-2); }
+.proc-skel { height: 10px; border-radius: var(--radius-full); background: var(--color-bg-subtle); }
+.proc-skel:nth-child(1) { width: 100%; }
+.proc-skel:nth-child(2) { width: 85%; }
+.proc-skel:nth-child(3) { width: 60%; }
+
+@keyframes procPhoto {
+  0%   { opacity: 0; transform: scale(0.96); }
+  5%   { opacity: 1; transform: scale(1); }
+  56%  { opacity: 1; transform: scale(1); }
+  63%  { opacity: 0; transform: scale(1.02); }
+  100% { opacity: 0; }
+}
+@keyframes procRecipe {
+  0%, 60% { opacity: 0; transform: translateY(10px); }
+  68%     { opacity: 1; transform: translateY(0); }
+  92%     { opacity: 1; transform: translateY(0); }
+  100%    { opacity: 0; transform: translateY(-6px); }
+}
+@keyframes procChip1 {
+  0%, 28%   { opacity: 0; transform: translateY(6px) scale(0.92); }
+  33%, 100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes procChip2 {
+  0%, 36%   { opacity: 0; transform: translateY(6px) scale(0.92); }
+  41%, 100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes procChip3 {
+  0%, 44%   { opacity: 0; transform: translateY(6px) scale(0.92); }
+  49%, 100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes skelPulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.5; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .proc-photo   { animation: procPhoto 8s ease-in-out infinite; }
+  .proc-recipe  { animation: procRecipe 8s ease-in-out infinite; }
+  .proc-chip-1  { animation: procChip1 8s ease-in-out infinite; }
+  .proc-chip-2  { animation: procChip2 8s ease-in-out infinite; }
+  .proc-chip-3  { animation: procChip3 8s ease-in-out infinite; }
+  .proc-skel, .sc-skel { animation: skelPulse 1.6s ease-in-out infinite; }
+}
+
+/* --- SKELETON (пульсирующие плашки вместо спиннеров) --- */
+.sc-skel { background: var(--color-bg-subtle); border-radius: var(--radius-full); }
+
 /* --- КАРТОЧКИ --- */
 .card {
   background: var(--color-surface); border-radius: var(--radius-md); padding: var(--space-4);

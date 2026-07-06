@@ -5,6 +5,8 @@ import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { createClient } from '@supabase/supabase-js';
 import { checkAndConsumeAiRateLimit, rateLimitResponse } from '@/lib/rateLimit';
+import { isTrustedOrigin, originBlockedResponse } from '@/lib/originGuard';
+import { isStringListTooLong, isTextTooLong, MAX_LONG_TEXT_LENGTH } from '@/lib/inputLimits';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -132,6 +134,8 @@ export async function POST(req: Request) {
   let previousItems: PartyItemBackup[] = [];
 
   try {
+    if (!isTrustedOrigin(req)) return originBlockedResponse();
+
     console.log("0. Генерация меню запущена");
     const body = await req.json();
     roomId = typeof body.roomId === "string" ? body.roomId : body.partyId;
@@ -191,6 +195,18 @@ export async function POST(req: Request) {
 
     if (!partyId) {
       throw new Error("ID банкета обязателен");
+    }
+
+    if (
+      isTextTooLong(title, MAX_LONG_TEXT_LENGTH) ||
+      isTextTooLong(description, MAX_LONG_TEXT_LENGTH) ||
+      isTextTooLong(budget, MAX_LONG_TEXT_LENGTH) ||
+      isTextTooLong(mustHave, MAX_LONG_TEXT_LENGTH) ||
+      isTextTooLong(mustNotHave, MAX_LONG_TEXT_LENGTH) ||
+      isStringListTooLong(selectedTags) ||
+      isStringListTooLong(selectedCategories)
+    ) {
+      return NextResponse.json({ success: false, error: "Слишком длинные поля запроса" }, { status: 400 });
     }
 
     const rateLimit = await checkAndConsumeAiRateLimit(req, "party-generate");

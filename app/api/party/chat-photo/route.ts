@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { checkAndConsumeAiRateLimit, rateLimitResponse } from "@/lib/rateLimit";
+import { isTrustedOrigin, originBlockedResponse } from "@/lib/originGuard";
 
 const PARTY_CHAT_PHOTO_BUCKET = "recipe_photos";
 const PARTY_CHAT_PHOTO_MAX_BYTES = 8 * 1024 * 1024;
@@ -30,6 +32,8 @@ const getErrorMessage = (error: unknown) => (error instanceof Error ? error.mess
 
 export async function POST(request: Request) {
   try {
+    if (!isTrustedOrigin(request)) return originBlockedResponse();
+
     const formData = await request.formData();
     const partyId = String(formData.get("partyId") ?? "").trim();
     const userId = String(formData.get("userId") ?? "").trim();
@@ -51,6 +55,9 @@ export async function POST(request: Request) {
     if (file.size > PARTY_CHAT_PHOTO_MAX_BYTES) {
       return NextResponse.json({ error: "Фото слишком большое. Максимум 8 МБ" }, { status: 413 });
     }
+
+    const rateLimit = await checkAndConsumeAiRateLimit(request, "party-chat-photo");
+    if (!rateLimit.ok) return rateLimitResponse(rateLimit);
 
     const supabase = createServerSupabaseClient();
     const extension = getPhotoExtension(file);

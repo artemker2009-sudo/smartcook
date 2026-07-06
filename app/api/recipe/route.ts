@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
 import { checkAndConsumeAiRateLimit, rateLimitResponse } from "@/lib/rateLimit";
 import { isStringListTooLong, isTextTooLong } from "@/lib/inputLimits";
+import { isTrustedOrigin, originBlockedResponse } from "@/lib/originGuard";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -15,6 +16,8 @@ const supabase = createClient(
 
 export async function POST(req: Request) {
   try {
+    if (!isTrustedOrigin(req)) return originBlockedResponse();
+
     const { dish, ingredients, sessionId, allergies, dislikes } = await req.json();
 
     if (!dish) {

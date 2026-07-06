@@ -192,7 +192,7 @@ export default function Game(props: any) {
           ) : (
             <div style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
               {leaderboard.map((lbUser: any, idx: number) => {
-                const { isDev, devBadge, restBadge } = getUserBadges(lbUser.user_id, lbUser.restaurant_level);
+                const { isDev, devBadge, restBadge } = getUserBadges(null, lbUser.restaurant_level, lbUser.is_dev);
                 return (
                   <div key={idx} style={{display: 'flex', alignItems: 'center', gap: '12px', background: idx === 0 ? '#fffbeb' : idx === 1 ? '#f8fafc' : idx === 2 ? '#fff1f2' : 'white', padding: '12px', borderRadius: '16px', border: idx < 3 ? `1px solid ${idx === 0 ? '#fde68a' : idx === 1 ? '#e2e8f0' : '#fecdd3'}` : '1px solid #f1f5f9'}}>
                      <div style={{width: '24px', fontWeight: 900, color: idx === 0 ? '#d97706' : idx === 1 ? '#64748b' : idx === 2 ? '#be123c' : '#9ca3af', fontSize: '16px', textAlign: 'center', flexShrink: 0}}>

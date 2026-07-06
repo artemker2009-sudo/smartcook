@@ -4,6 +4,9 @@ export const MAX_TEXT_LENGTH = 500;
 export const MAX_LIST_ITEMS = 30;
 export const MAX_LIST_ITEM_LENGTH = 100;
 
+// Более длинные, но всё еще ограниченные поля (описание банкета, пожелания и т.п.).
+export const MAX_LONG_TEXT_LENGTH = 1000;
+
 export function isTextTooLong(value: unknown, maxLength = MAX_TEXT_LENGTH): boolean {
   return typeof value === "string" && value.length > maxLength;
 }

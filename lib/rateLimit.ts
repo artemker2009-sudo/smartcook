@@ -25,7 +25,8 @@ type RateLimitWindow = "hour" | "day";
 
 export type RateLimitResult =
   | { ok: true }
-  | { ok: false; window: RateLimitWindow; scope: "ip" | "user" };
+  | { ok: false; window: RateLimitWindow; scope: "ip" | "user" }
+  | { ok: false; window: "error"; scope: "error" };
 
 function getClientIp(req: Request): string {
   const forwarded = req.headers.get("x-forwarded-for");
@@ -52,7 +53,9 @@ async function getVerifiedUserId(req: Request): Promise<string | null> {
   }
 }
 
-async function countEvents(identifier: string, sinceMs: number): Promise<number> {
+// null означает "не удалось посчитать" (сбой БД/отсутствие таблицы и т.п.) —
+// отличаем от 0 событий, чтобы не спутать сбой с "лимит не исчерпан".
+async function countEvents(identifier: string, sinceMs: number): Promise<number | null> {
   const since = new Date(Date.now() - sinceMs).toISOString();
   const { count, error } = await supabaseAdmin
     .from("ai_rate_limit_events")
@@ -60,12 +63,14 @@ async function countEvents(identifier: string, sinceMs: number): Promise<number>
     .eq("identifier", identifier)
     .gte("created_at", since);
 
-  if (error) {
-    // Не роняем генерацию из-за сбоя базы — просто пропускаем запрос.
-    console.error("[rateLimit] count query failed", error.message);
-    return 0;
+  // На HEAD-запросах шлюз Supabase иногда возвращает 204 без тела и без error
+  // даже для несуществующей/недоступной таблицы (count при этом остается null).
+  // Поэтому null-count тоже считаем сбоем, а не "0 событий".
+  if (error || count === null) {
+    console.error("[rateLimit] count query failed", error?.message ?? "count came back null");
+    return null;
   }
-  return count ?? 0;
+  return count;
 }
 
 async function checkIdentifier(
@@ -73,9 +78,14 @@ async function checkIdentifier(
   scope: "ip" | "user",
 ): Promise<RateLimitResult> {
   const hourly = await countEvents(identifier, HOUR_MS);
+  // Сбой БД (например, таблица лимитов недоступна) — блокируем запрос вместо
+  // того, чтобы молча пропускать его без счетчика. Отказ в генерации дешевле,
+  // чем неограниченные вызовы OpenAI при сбое инфраструктуры.
+  if (hourly === null) return { ok: false, window: "error", scope: "error" };
   if (hourly >= RATE_LIMIT_PER_HOUR) return { ok: false, window: "hour", scope };
 
   const daily = await countEvents(identifier, DAY_MS);
+  if (daily === null) return { ok: false, window: "error", scope: "error" };
   if (daily >= RATE_LIMIT_PER_DAY) return { ok: false, window: "day", scope };
 
   return { ok: true };
@@ -85,8 +95,8 @@ function logRateLimitHit(info: {
   route: string;
   ip: string;
   userId: string | null;
-  scope: "ip" | "user";
-  window: RateLimitWindow;
+  scope: "ip" | "user" | "error";
+  window: RateLimitWindow | "error";
 }) {
   console.warn(
     `[RATE_LIMIT_HIT] route=${info.route} scope=${info.scope} window=${info.window} ip=${info.ip} user=${info.userId ?? "-"}`,
@@ -136,6 +146,15 @@ export async function checkAndConsumeAiRateLimit(
 }
 
 export function rateLimitResponse(result: Extract<RateLimitResult, { ok: false }>) {
+  if (result.window === "error") {
+    // Сбой инфраструктуры лимитера — честно говорим об ошибке, а не врем
+    // про превышенный лимит, но всё равно отказываем в генерации.
+    return NextResponse.json(
+      { error: "Сервис временно недоступен. Попробуйте через минуту.", code: "RATE_LIMIT_UNAVAILABLE" },
+      { status: 503 },
+    );
+  }
+
   return NextResponse.json(
     {
       error: RATE_LIMIT_MESSAGES[result.window],

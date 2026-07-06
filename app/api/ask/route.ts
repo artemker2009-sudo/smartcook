@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { checkAndConsumeAiRateLimit, rateLimitResponse } from "@/lib/rateLimit";
-import { isTextTooLong } from "@/lib/inputLimits";
+import { isStringListTooLong, isTextTooLong } from "@/lib/inputLimits";
+import { isTrustedOrigin, originBlockedResponse } from "@/lib/originGuard";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -9,14 +10,21 @@ const openai = new OpenAI({
 
 export async function POST(req: Request) {
   try {
+    if (!isTrustedOrigin(req)) return originBlockedResponse();
+
     const { question, recipeContext } = await req.json();
 
     if (!question || !recipeContext) {
       return NextResponse.json({ error: "Нет вопроса или контекста" }, { status: 400 });
     }
 
-    if (isTextTooLong(question)) {
-      return NextResponse.json({ error: "Слишком длинный вопрос" }, { status: 400 });
+    if (
+      isTextTooLong(question) ||
+      isTextTooLong(recipeContext.title) ||
+      isStringListTooLong(recipeContext.ingredients, 50, 200) ||
+      isStringListTooLong(recipeContext.steps, 30, 1000)
+    ) {
+      return NextResponse.json({ error: "Слишком длинный вопрос или контекст рецепта" }, { status: 400 });
     }
 
     const rateLimit = await checkAndConsumeAiRateLimit(req, "ask");

@@ -23,6 +23,7 @@ import {
   joinPartyAction,
   sendPaywallChatAlertAction,
   togglePartyItemVoteAction,
+  updatePartyRoomSettingsAction,
 } from "@/app/actions/party";
 import AuthModal from "@/components/modals/AuthModal";
 import FullScreenImage from "@/components/modals/FullScreenImage";
@@ -1422,33 +1423,15 @@ export default function ClientRoom({
     await runWriteMutation({
       setLoading: setIsSavingRoomSettings,
       mutate: async () => {
-        const { error } = await withTimeout(
-          supabase
-            .from("parties")
-            .update({
-              title: nextTitle,
-              description: nextDescription || null,
-            })
-            .eq("id", currentParty.id),
-          SUPABASE_TIMEOUT_MS,
-          "Не удалось сохранить настройки комнаты",
-        );
+        if (!roomHostId) {
+          throw new Error("Только организатор может менять настройки банкета");
+        }
 
-        if (!error) return;
+        const result = await updatePartyRoomSettingsAction(currentParty.id, roomHostId, nextTitle, nextDescription);
 
-        const { error: fallbackError } = await withTimeout(
-          supabase
-            .from("parties")
-            .update({
-              title: nextTitle,
-              theme: nextDescription || null,
-            })
-            .eq("id", currentParty.id),
-          SUPABASE_TIMEOUT_MS,
-          "Не удалось сохранить настройки комнаты",
-        );
-
-        if (fallbackError) throw fallbackError;
+        if (!result.success) {
+          throw new Error(result.error || "Не удалось сохранить настройки комнаты");
+        }
       },
       rollback: () => {
         setCurrentParty(previousParty);

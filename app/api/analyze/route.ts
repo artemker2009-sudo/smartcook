@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { checkAndConsumeAiRateLimit, rateLimitResponse } from "@/lib/rateLimit";
+import { isTrustedOrigin, originBlockedResponse } from "@/lib/originGuard";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -11,6 +12,8 @@ const MAX_TEXT_FIELD_LENGTH = 500;
 
 export async function POST(req: Request) {
   try {
+    if (!isTrustedOrigin(req)) return originBlockedResponse();
+
     const formData = await req.formData();
     const file = formData.get("image") as File;
     const mode = formData.get("mode") as string || 'strict';

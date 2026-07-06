@@ -178,8 +178,8 @@ export default function Home() {
     }
   };
 
-  const getUserBadges = (uid: string | undefined | null, level?: number) => {
-    const isDev = uid === DEVELOPER_ID;
+  const getUserBadges = (uid: string | undefined | null, level?: number, isDevOverride?: boolean) => {
+    const isDev = isDevOverride !== undefined ? isDevOverride : uid === DEVELOPER_ID;
     const safeLevel = level || 1;
     const titles = ['Ларёк 🌭', 'Закусочная 🍔', 'Кафе ☕️', 'Ресторан 🍽', 'Мишленовский ресторан ⭐️', 'Сеть ресторанов 👑'];
     
@@ -252,7 +252,8 @@ export default function Home() {
     photosFeed.forEach(p => { if (p.user_id) uids.add(p.user_id); });
     postComments.forEach(c => { if (c.user_id) uids.add(c.user_id); });
     if (uids.size > 0) {
-      supabase.from('game_progress').select('user_id, restaurant_level').in('user_id', Array.from(uids)).then(({data, error}) => {
+      // Узкое публичное view (только user_id + restaurant_level) — см. supabase_game_progress_rls.sql
+      supabase.from('game_public_levels').select('user_id, restaurant_level').in('user_id', Array.from(uids)).then(({data, error}) => {
           if (data && !error) { const levels: Record<string, number> = {}; data.forEach(d => levels[d.user_id] = d.restaurant_level); setUserLevels(prev => ({...prev, ...levels})); }
         });
     }
@@ -342,7 +343,8 @@ export default function Home() {
   // СОРТИРОВКА ТОЛЬКО ПО КУКАМ
   useEffect(() => {
     if (gameTab === 'leaderboard') {
-      supabase.from('game_progress').select('*').order('cooks', { ascending: false }).then(({data}) => { if (data) setLeaderboard(data); });
+      // Публичное view без user_id/energy/click_power и т.п. — см. supabase_game_progress_rls.sql
+      supabase.from('game_leaderboard').select('*').order('cooks', { ascending: false }).then(({data}) => { if (data) setLeaderboard(data); });
     }
   }, [gameTab]);
 

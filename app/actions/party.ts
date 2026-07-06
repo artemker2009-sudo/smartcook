@@ -194,6 +194,46 @@ export async function bindPartyHostAction(partyId: string, hostId: string) {
   }
 }
 
+export async function updatePartyRoomSettingsAction(
+  partyId: string,
+  hostId: string,
+  title: string,
+  description: string | null,
+) {
+  const trimmedPartyId = partyId.trim();
+  const trimmedHostId = hostId.trim();
+  const trimmedTitle = title.trim();
+
+  if (!trimmedPartyId || !trimmedHostId || !trimmedTitle) {
+    return { success: false, error: "Не хватает данных для сохранения настроек" };
+  }
+
+  try {
+    const supabase = createServerSupabaseClient();
+    const { data: party, error: partyError } = await supabase
+      .from("parties")
+      .select("host_id")
+      .eq("id", trimmedPartyId)
+      .single();
+
+    if (partyError) throw new Error(partyError.message);
+    if (!party?.host_id || party.host_id !== trimmedHostId) {
+      return { success: false, error: "Только организатор может менять настройки банкета" };
+    }
+
+    const { error } = await supabase
+      .from("parties")
+      .update({ title: trimmedTitle, theme: description?.trim() || null })
+      .eq("id", trimmedPartyId);
+
+    if (error) throw new Error(error.message);
+    return { success: true };
+  } catch (error) {
+    console.error("Update Party Room Settings Action Error:", error);
+    return { success: false, error: getActionErrorMessage(error) };
+  }
+}
+
 export async function joinPartyAction(
   partyId: string,
   userName: string,

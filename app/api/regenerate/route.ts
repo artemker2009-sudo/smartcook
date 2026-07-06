@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { checkAndConsumeAiRateLimit, rateLimitResponse } from "@/lib/rateLimit";
 import { isStringListTooLong } from "@/lib/inputLimits";
+import { isTrustedOrigin, originBlockedResponse } from "@/lib/originGuard";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -9,6 +10,8 @@ const openai = new OpenAI({
 
 export async function POST(req: Request) {
   try {
+    if (!isTrustedOrigin(req)) return originBlockedResponse();
+
     const { ingredients } = await req.json();
 
     if (!ingredients || ingredients.length === 0) {

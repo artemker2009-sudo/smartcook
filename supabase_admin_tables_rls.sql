@@ -5,10 +5,13 @@
 -- the public anon key so a visitor can no longer read/mutate admin data by
 -- calling Supabase straight from devtools with the (necessarily public) anon key.
 
--- parties: guests still need to SELECT (view a party page) and UPDATE room
--- settings (title/description) as the host, so we only block DELETE for
--- anon/authenticated — deletion now only happens via deletePartyAction /
--- /api/admin/parties, both of which use the service role key.
+-- parties: guests still need to SELECT (view a party page), so that stays
+-- open. UPDATE and DELETE are now fully blocked for anon/authenticated —
+-- the previous "Allow room host updates" policy used `using (true)` with no
+-- actual host check, which let ANYONE flip is_paid to true on any banquet or
+-- rewrite its title directly via the anon key. Room settings now go through
+-- updatePartyRoomSettingsAction and payment through activatePartyPassAction,
+-- both server actions using the service role key with a real host check.
 alter table public.parties enable row level security;
 
 drop policy if exists "Allow read access to parties" on public.parties;
@@ -19,12 +22,14 @@ to anon, authenticated
 using (true);
 
 drop policy if exists "Allow room host updates to parties" on public.parties;
-create policy "Allow room host updates to parties"
+
+drop policy if exists "Block direct client party updates" on public.parties;
+create policy "Block direct client party updates"
 on public.parties
+as restrictive
 for update
 to anon, authenticated
-using (true)
-with check (true);
+using (false);
 
 drop policy if exists "Block direct client party deletes" on public.parties;
 create policy "Block direct client party deletes"

@@ -7,22 +7,22 @@ export default function Footer() {
 
       <section
         style={{
-          marginTop: "20px",
-          padding: "20px",
-          background: "#f9fafb",
-          borderRadius: "16px",
-          color: "#6b7280",
-          fontSize: "14px",
+          marginTop: "var(--space-3)",
+          padding: "var(--space-3)",
+          background: "var(--color-bg-subtle)",
+          borderRadius: "var(--radius-sm)",
+          color: "var(--color-text-secondary)",
+          fontSize: "var(--font-size-caption)",
           lineHeight: "1.6",
           textAlign: "left",
         }}
       >
         <h2
           style={{
-            fontSize: "18px",
-            color: "#1f2937",
-            marginBottom: "10px",
-            fontWeight: "700",
+            fontSize: "var(--font-size-body)",
+            color: "var(--color-text)",
+            marginBottom: "var(--space-2)",
+            fontWeight: "var(--font-weight-semibold)",
           }}
         >
           SmartCook: Генератор рецептов по фото

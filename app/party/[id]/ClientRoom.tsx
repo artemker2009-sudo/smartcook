@@ -1671,7 +1671,7 @@ export default function ClientRoom({
         {!hasMenuItems ? (
           <div className="flex min-h-[calc(100dvh-220px)] items-center justify-center">
             <div className="w-full rounded-[32px] border border-white/70 bg-white/85 p-6 text-center shadow-sm backdrop-blur">
-              <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-amber-100 via-rose-100 to-fuchsia-100 text-rose-500 shadow-inner">
+              <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 shadow-inner">
                 <UtensilsCrossed className="h-9 w-9" />
               </div>
               <h2 className="text-2xl font-bold tracking-tight text-gray-900">Стол пока пуст</h2>
@@ -1964,7 +1964,7 @@ export default function ClientRoom({
           <>
             {isObserver && (
               <div className="px-4">
-                <div className="rounded-3xl border border-amber-200/70 bg-amber-50 p-4 shadow-sm">
+                <div className="rounded-3xl border border-zinc-200 bg-zinc-50 p-4 shadow-sm">
                   <p className="text-sm font-semibold tracking-tight text-black">Режим наблюдателя</p>
                   <p className="mt-1 text-sm leading-6 text-zinc-600">
                     Вы можете смотреть меню и чат. Голосование и сообщения откроются после подписки на канал.
@@ -2093,7 +2093,7 @@ export default function ClientRoom({
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="truncate text-sm font-semibold text-black">{guestName}</span>
                             {guest.user_id?.trim() === roomHostId && (
-                              <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                              <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
                                 👑 Организатор
                               </span>
                             )}

@@ -1,6 +1,7 @@
 import React from "react";
 import { User, Edit3, LogOut, Settings, ChevronRight, Heart, Clock, Flame, Trash2, MessageCircle, Camera, Cookie, Store, History, ChefHat, HeartCrack } from "lucide-react";
 import Button from "@/components/ui/Button";
+import { FEATURE_RESTAURANT_GAME } from "@/lib/features";
 
 export default function Profile(props: any) {
   const {
@@ -19,7 +20,7 @@ export default function Profile(props: any) {
             <User size={40} color="var(--color-text-muted)" />
           </div>
           <h2 style={{fontSize: 'var(--font-size-title)', fontWeight: 'var(--font-weight-semibold)', marginBottom: 'var(--space-2)', color: 'var(--color-text)'}}>Личный кабинет</h2>
-          <p style={{color: 'var(--color-text-secondary)', marginBottom: 'var(--space-4)', lineHeight: 1.5}}>Войдите, чтобы сохранять любимые рецепты, историю генераций и управлять своим рестораном.</p>
+          <p style={{color: 'var(--color-text-secondary)', marginBottom: 'var(--space-4)', lineHeight: 1.5}}>Войдите, чтобы сохранять любимые рецепты и историю генераций.</p>
           <Button variant="primary" onClick={() => setIsAuthModalOpen(true)} style={{maxWidth: '250px', margin: '0 auto'}}>Войти / Регистрация</Button>
         </div>
       ) : (
@@ -58,6 +59,7 @@ export default function Profile(props: any) {
                 </button>
               </div>
 
+              {FEATURE_RESTAURANT_GAME && (
               <div style={{display: 'flex', background: 'var(--color-bg)', padding: 'var(--space-3)', borderRadius: 'var(--radius-sm)', gap: 'var(--space-3)', border: '1px solid var(--color-border)'}}>
                 <div style={{flex: 1, textAlign: 'center'}}>
                    <div style={{fontSize: 'var(--font-size-heading)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-accent)', marginBottom: 'var(--space-1)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-1)'}}>{formatCooks(cooks)} <Cookie size={18} /></div>
@@ -69,6 +71,7 @@ export default function Profile(props: any) {
                    <div style={{fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)', fontWeight: 'var(--font-weight-medium)'}}>Уровень</div>
                 </div>
               </div>
+              )}
             </div>
           </div>
 

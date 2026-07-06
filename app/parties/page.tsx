@@ -86,28 +86,24 @@ function CreatePartyCard() {
   return (
     <Link
       href="/party/create"
-      className="group relative flex min-h-[208px] overflow-hidden rounded-[28px] bg-zinc-950 p-6 text-white shadow-[0_24px_70px_rgba(9,9,11,0.22)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_28px_80px_rgba(9,9,11,0.28)]"
+      className="group relative flex min-h-[208px] flex-col justify-between overflow-hidden rounded-[28px] border border-zinc-200 bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.07)] transition duration-300 hover:-translate-y-1 hover:border-emerald-300 hover:shadow-[0_24px_70px_rgba(5,150,105,0.14)]"
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(251,146,60,0.55),transparent_36%),radial-gradient(circle_at_bottom_right,rgba(244,63,94,0.5),transparent_34%)]" />
-      <div className="absolute -right-12 -top-12 h-36 w-36 rounded-full border border-white/15" />
-      <div className="relative z-10 flex h-full w-full flex-col justify-between">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 backdrop-blur">
-              <Plus size={24} strokeWidth={2.6} />
-            </span>
-            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-white/65">Новый стол</p>
-          </div>
-          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white transition-colors group-hover:bg-white/25">
-            <ChevronRight size={20} />
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+            <Plus size={24} strokeWidth={2.6} />
           </span>
+          <p className="text-sm font-semibold uppercase tracking-[0.22em] text-emerald-600">Новый стол</p>
         </div>
-        <div>
-          <h2 className="text-2xl font-black tracking-tight">Создать новый банкет</h2>
-          <p className="mt-3 max-w-xs text-sm leading-6 text-white/70">
-            Запустите меню, пригласите гостей и соберите блюда без хаоса в чатах.
-          </p>
-        </div>
+        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 transition-colors group-hover:bg-emerald-100">
+          <ChevronRight size={20} />
+        </span>
+      </div>
+      <div>
+        <h2 className="text-2xl font-black tracking-tight text-zinc-950">Создать новый банкет</h2>
+        <p className="mt-3 max-w-xs text-sm leading-6 text-zinc-500">
+          Запустите меню, пригласите гостей и соберите блюда без хаоса в чатах.
+        </p>
       </div>
     </Link>
   );
@@ -132,7 +128,7 @@ function PartyCard({ party, onRequestDelete }: { party: HubParty; onRequestDelet
     >
       <div>
         <div className="mb-5 flex items-center justify-between gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-orange-50 text-2xl">🍽️</div>
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-2xl">🍽️</div>
           <button
             type="button"
             onClick={(event) => {
@@ -250,9 +246,9 @@ export default function PartiesHubPage() {
   };
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[#f5f5f7] px-4 pb-8 pt-20 text-zinc-950 sm:px-6 sm:pt-24 lg:px-8">
+    <main className="min-h-screen overflow-hidden bg-[#faf9f7] px-4 pb-8 pt-20 text-zinc-950 sm:px-6 sm:pt-24 lg:px-8">
       <AppNavigation activeSection="parties" />
-      <div className="pointer-events-none fixed inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_top,rgba(251,146,60,0.22),transparent_62%)]" />
+      <div className="pointer-events-none fixed inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_top,rgba(5,150,105,0.06),transparent_62%)]" />
 
       <div className="relative mx-auto max-w-6xl">
         <header className="mb-8 flex flex-col gap-3 sm:mb-10 sm:flex-row sm:items-end sm:justify-between">
@@ -281,7 +277,7 @@ export default function PartiesHubPage() {
 
         {!isLoading && parties.length === 0 && (
           <section className="mt-8 rounded-[32px] border border-dashed border-zinc-200 bg-white/70 px-6 py-14 text-center shadow-[0_18px_60px_rgba(15,23,42,0.05)] backdrop-blur">
-            <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-3xl bg-orange-50 text-4xl">🍽️</div>
+            <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-3xl bg-emerald-50 text-4xl">🍽️</div>
             <h2 className="text-2xl font-black tracking-tight text-zinc-950">У вас пока нет ни одного банкета.</h2>
             <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-zinc-500">
               Самое время это исправить! Создайте первую комнату и соберите меню вместе с гостями.

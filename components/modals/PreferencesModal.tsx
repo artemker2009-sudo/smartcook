@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { X, PlusCircle, SlidersHorizontal } from "lucide-react";
+import { X, Plus, SlidersHorizontal, Ban, ThumbsDown } from "lucide-react";
 
 interface PreferencesModalProps {
   isOpen: boolean;
@@ -92,23 +92,26 @@ export default function PreferencesModal({
           </p>
 
           <div style={{marginBottom: 'var(--space-4)'}}>
-            <div style={{fontSize: 'var(--font-size-body)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-danger)', marginBottom: 'var(--space-2)'}}>Аллергии (Строго исключить)</div>
+            <div style={{fontSize: 'var(--font-size-body)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text)', marginBottom: 'var(--space-2)', display: 'flex', alignItems: 'center', gap: 'var(--space-2)'}}>
+              <Ban size={17} color="var(--color-danger)" /> Аллергии <span style={{fontSize: 'var(--font-size-caption)', color: 'var(--color-text-muted)', fontWeight: 'var(--font-weight-regular)'}}>— строго исключить</span>
+            </div>
             <div style={{display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)', marginBottom: 'var(--space-2)'}}>
               {allergies.map((item, idx) => (
-                <span key={idx} style={{background: 'var(--color-danger-subtle)', color: 'var(--color-danger)', padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-full)', fontSize: 'var(--font-size-caption)', fontWeight: 'var(--font-weight-medium)', display: 'flex', alignItems: 'center', gap: '5px'}}>
+                <span key={idx} style={{background: 'var(--color-surface)', color: 'var(--color-danger)', border: '1px solid var(--color-danger)', padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-full)', fontSize: 'var(--font-size-caption)', fontWeight: 'var(--font-weight-medium)', display: 'flex', alignItems: 'center', gap: '5px'}}>
                   {item} <X size={14} onClick={() => removeAllergy(idx)} style={{cursor: 'pointer'}}/>
                 </span>
               ))}
             </div>
             <div style={{display: 'flex', gap: 'var(--space-2)'}}>
               <input type="text" placeholder="Например: орехи" value={newAllergy} onChange={e => setNewAllergy(e.target.value)} onKeyPress={e => e.key === 'Enter' && addAllergy()} style={{flex: 1, padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)', outline: 'none', fontSize: 'var(--font-size-caption)', boxSizing: 'border-box'}} />
-              <button onClick={addAllergy} style={{background: 'var(--color-danger)', color: 'white', border: 'none', padding: '0 var(--space-4)', borderRadius: 'var(--radius-sm)', fontWeight: 'var(--font-weight-semibold)'}}><PlusCircle size={20}/></button>
+              <button onClick={addAllergy} aria-label="Добавить аллерген" style={{background: 'var(--color-bg-subtle)', color: 'var(--color-accent)', border: '1px solid var(--color-border)', padding: '0 var(--space-4)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', display: 'flex', alignItems: 'center'}}><Plus size={20}/></button>
             </div>
-            <p style={{fontSize: 'var(--font-size-caption)', color: 'var(--color-text-muted)', marginTop: 'var(--space-1)', marginBottom: 0}}>После каждого продукта нажмите кнопку <span style={{fontWeight: 'var(--font-weight-semibold)'}}>+</span></p>
           </div>
 
           <div style={{marginBottom: 'var(--space-4)'}}>
-            <div style={{fontSize: 'var(--font-size-body)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-warning)', marginBottom: 'var(--space-2)'}}>Не люблю (По возможности без этого)</div>
+            <div style={{fontSize: 'var(--font-size-body)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text)', marginBottom: 'var(--space-2)', display: 'flex', alignItems: 'center', gap: 'var(--space-2)'}}>
+              <ThumbsDown size={17} color="var(--color-warning)" /> Не люблю <span style={{fontSize: 'var(--font-size-caption)', color: 'var(--color-text-muted)', fontWeight: 'var(--font-weight-regular)'}}>— по возможности без этого</span>
+            </div>
             <div style={{display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)', marginBottom: 'var(--space-2)'}}>
               {dislikes.map((item, idx) => (
                 <span key={idx} style={{background: 'var(--color-warning-subtle)', color: 'var(--color-warning)', padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-full)', fontSize: 'var(--font-size-caption)', fontWeight: 'var(--font-weight-medium)', display: 'flex', alignItems: 'center', gap: '5px'}}>
@@ -118,9 +121,8 @@ export default function PreferencesModal({
             </div>
             <div style={{display: 'flex', gap: 'var(--space-2)'}}>
               <input type="text" placeholder="Например: лук" value={newDislike} onChange={e => setNewDislike(e.target.value)} onKeyPress={e => e.key === 'Enter' && addDislike()} style={{flex: 1, padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)', outline: 'none', fontSize: 'var(--font-size-caption)', boxSizing: 'border-box'}} />
-              <button onClick={addDislike} style={{background: 'var(--color-warning)', color: 'white', border: 'none', padding: '0 var(--space-4)', borderRadius: 'var(--radius-sm)', fontWeight: 'var(--font-weight-semibold)'}}><PlusCircle size={20}/></button>
+              <button onClick={addDislike} aria-label="Добавить продукт" style={{background: 'var(--color-bg-subtle)', color: 'var(--color-accent)', border: '1px solid var(--color-border)', padding: '0 var(--space-4)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', display: 'flex', alignItems: 'center'}}><Plus size={20}/></button>
             </div>
-            <p style={{fontSize: 'var(--font-size-caption)', color: 'var(--color-text-muted)', marginTop: 'var(--space-1)', marginBottom: 0}}>После каждого продукта нажмите кнопку <span style={{fontWeight: 'var(--font-weight-semibold)'}}>+</span></p>
           </div>
 
           <button onClick={handleClose} className="btn-primary">Готово</button>

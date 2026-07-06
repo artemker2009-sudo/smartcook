@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { CheckCircle, Flame, Globe, Menu, PartyPopper, Search, Store, User, X } from "lucide-react";
+import { FEATURE_RESTAURANT_GAME } from "@/lib/features";
 
 type AppNavigationProps = {
   activeSection?: "parties" | "service" | "profile" | "feed" | "game" | "daily" | "about";
@@ -13,7 +14,10 @@ const navItems = [
   { id: "service", label: "Поиск", href: "/", icon: Search },
   { id: "parties", label: "Банкеты", href: "/parties", icon: PartyPopper },
   { id: "feed", label: "Лента", href: "/", icon: Globe },
-  { id: "game", label: "Мой ресторан", href: "/", icon: Store },
+  // Пункт «Мой ресторан» — игровой, скрыт за фиче-флагом (этап 4.2).
+  ...(FEATURE_RESTAURANT_GAME
+    ? ([{ id: "game", label: "Мой ресторан", href: "/", icon: Store }] as const)
+    : []),
   { id: "daily", label: "Рецепт дня", href: "/", icon: Flame },
   { id: "about", label: "О проекте", href: "/", icon: CheckCircle },
 ] as const;

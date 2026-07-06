@@ -7,6 +7,7 @@ import { Menu, X, Flame, Search, CheckCircle, Sparkles, Globe, User, Store, Part
 import type { AnalysisData, RecipeData, DBRecipe, DailyRecipeType, HolidayType, DBComment } from "@/lib/types";
 import { DEVELOPER_ID, scaleAmount, formatCooks, cleanText, formatTime, formatCalories, getCroppedImg } from "@/lib/utils";
 import { shareOrCopy } from "@/lib/share";
+import { FEATURE_RESTAURANT_GAME } from "@/lib/features";
 
 import Profile from "@/components/Profile";
 import DailyRecipe from "@/components/DailyRecipe";
@@ -184,7 +185,10 @@ export default function Home() {
     const safeLevel = level || 1;
     const titles = ['Ларёк', 'Закусочная', 'Кафе', 'Ресторан', 'Мишленовский ресторан', 'Сеть ресторанов'];
 
-    const restBadge = <span key="rest" style={{fontSize: 'var(--font-size-caption)', background: 'var(--color-bg-subtle)', color: 'var(--color-text-secondary)', padding: 'var(--space-1) var(--space-2)', borderRadius: 'var(--radius-full)', fontWeight: 'var(--font-weight-semibold)', display: 'inline-flex', alignItems: 'center', lineHeight: 1}}>{titles[Math.min(safeLevel - 1, 5)]}</span>;
+    // Бэйдж уровня ресторана — игровой, скрыт за фиче-флагом (этап 4.2).
+    const restBadge = FEATURE_RESTAURANT_GAME
+      ? <span key="rest" style={{fontSize: 'var(--font-size-caption)', background: 'var(--color-bg-subtle)', color: 'var(--color-text-secondary)', padding: 'var(--space-1) var(--space-2)', borderRadius: 'var(--radius-full)', fontWeight: 'var(--font-weight-semibold)', display: 'inline-flex', alignItems: 'center', lineHeight: 1}}>{titles[Math.min(safeLevel - 1, 5)]}</span>
+      : null;
     const devBadge = isDev ? <span key="dev" style={{fontSize: 'var(--font-size-caption)', background: 'var(--color-text)', color: 'white', padding: 'var(--space-1) var(--space-2)', borderRadius: 'var(--radius-full)', fontWeight: 'var(--font-weight-semibold)', display: 'inline-flex', alignItems: 'center', gap: 'var(--space-1)', lineHeight: 1}}><Code2 size={12} /> Разработчик</span> : null;
 
     return { isDev, devBadge, restBadge };
@@ -249,6 +253,7 @@ export default function Home() {
   useEffect(() => { if (activeView === 'feed') fetchPhotosFeed(photosSort); }, [activeView, photosSort]);
 
   useEffect(() => {
+    if (!FEATURE_RESTAURANT_GAME) return; // игровые уровни скрыты (этап 4.2)
     const uids = new Set<string>();
     photosFeed.forEach(p => { if (p.user_id) uids.add(p.user_id); });
     postComments.forEach(c => { if (c.user_id) uids.add(c.user_id); });
@@ -261,6 +266,7 @@ export default function Home() {
   }, [photosFeed, postComments]);
 
   useEffect(() => {
+    if (!FEATURE_RESTAURANT_GAME) return; // прогресс игры не грузим (этап 4.2)
     if (user) {
       supabase.from('game_progress').select('*').eq('user_id', user.id).single()
       .then(({data, error}) => {
@@ -298,6 +304,7 @@ export default function Home() {
   }, [user]);
 
   useEffect(() => {
+    if (!FEATURE_RESTAURANT_GAME) return; // прогресс игры не сохраняем (этап 4.2)
     if (typeof window !== 'undefined') {
       localStorage.setItem('sc_cooks', cooks.toString()); localStorage.setItem('sc_clickPower', clickPower.toString());
       localStorage.setItem('sc_passiveIncome', passiveIncome.toString()); localStorage.setItem('sc_restLevel', restaurantLevel.toString());
@@ -319,9 +326,10 @@ export default function Home() {
   }, [cooks, clickPower, passiveIncome, restaurantLevel, energy, user]);
 
   useEffect(() => {
-    const interval = setInterval(() => { 
-      setEnergy(prev => prev < maxEnergy ? prev + 1 : maxEnergy); 
-      if (actualPassiveIncome > 0) setCooks(prev => prev + actualPassiveIncome); 
+    if (!FEATURE_RESTAURANT_GAME) return; // без игры энергия/пассивный доход не тикают
+    const interval = setInterval(() => {
+      setEnergy(prev => prev < maxEnergy ? prev + 1 : maxEnergy);
+      if (actualPassiveIncome > 0) setCooks(prev => prev + actualPassiveIncome);
     }, 1000);
     return () => clearInterval(interval);
   }, [actualPassiveIncome, maxEnergy]);
@@ -343,6 +351,7 @@ export default function Home() {
 
   // СОРТИРОВКА ТОЛЬКО ПО КУКАМ
   useEffect(() => {
+    if (!FEATURE_RESTAURANT_GAME) return; // лидерборд скрыт (этап 4.2)
     if (gameTab === 'leaderboard') {
       // Публичное view без user_id/energy/click_power и т.п. — см. supabase_game_progress_rls.sql
       supabase.from('game_leaderboard').select('*').order('cooks', { ascending: false }).then(({data}) => { if (data) setLeaderboard(data); });
@@ -572,8 +581,9 @@ export default function Home() {
           if (latestPost) await fetch('/api/telegram-mod', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ postId: latestPost.id, recipeTitle: postTitleContext, userName: userName, comment: userComment, photoUrl: publicUrlData.publicUrl }) }); 
       } catch (tgErr) {} 
 
-      showToast("Фото на проверке у шефа! +1000 куков!", <Sparkles size={18} color="var(--color-accent)" />); 
-      setCooks(prev => prev + 1000); setUserPhotoFile(null); setUserPhotoPreview(null); setUserComment(""); setStandaloneTitle(""); setIsStandaloneUploadOpen(false); 
+      showToast(FEATURE_RESTAURANT_GAME ? "Фото на проверке у шефа! +1000 куков!" : "Фото на проверке у шефа!", <Sparkles size={18} color="var(--color-accent)" />);
+      if (FEATURE_RESTAURANT_GAME) setCooks(prev => prev + 1000);
+      setUserPhotoFile(null); setUserPhotoPreview(null); setUserComment(""); setStandaloneTitle(""); setIsStandaloneUploadOpen(false);
     } catch (err: any) { showToast("Ошибка отправки: " + err.message, undefined, 'error'); } finally { setIsUploadingPhoto(false); } 
   }; 
 
@@ -628,6 +638,7 @@ export default function Home() {
   }; 
 
   const handleRewardForRecipe = () => {
+    if (!FEATURE_RESTAURANT_GAME) return; // награды-куки отключены (этап 4.2)
     const today = new Date().toLocaleDateString();
     const lastGen = localStorage.getItem('sc_last_gen_date');
     if (lastGen !== today) {
@@ -846,9 +857,11 @@ export default function Home() {
             <div className="menu-link" onClick={() => switchView('feed')} style={{ background: activeView === 'feed' ? 'var(--color-accent-subtle)' : 'transparent', color: activeView === 'feed' ? 'var(--color-accent)' : 'var(--color-text-secondary)', fontWeight: activeView === 'feed' ? 'var(--font-weight-semibold)' : 'var(--font-weight-medium)' }}>
                <Globe size={22} style={{flexShrink: 0}}/> Лента
             </div>
+            {FEATURE_RESTAURANT_GAME && (
             <div className="menu-link" onClick={() => switchView('game')} style={{ background: activeView === 'game' ? 'var(--color-accent-subtle)' : 'transparent', color: activeView === 'game' ? 'var(--color-accent)' : 'var(--color-text-secondary)', fontWeight: activeView === 'game' ? 'var(--font-weight-semibold)' : 'var(--font-weight-medium)' }}>
                <Store size={22} style={{flexShrink: 0}}/> Мой ресторан
             </div>
+            )}
             <div className="menu-link" onClick={() => switchView('daily')} style={{ background: activeView === 'daily' ? 'var(--color-accent-subtle)' : 'transparent', color: activeView === 'daily' ? 'var(--color-accent)' : 'var(--color-text-secondary)', fontWeight: activeView === 'daily' ? 'var(--font-weight-semibold)' : 'var(--font-weight-medium)' }}>
                <Flame size={22} style={{flexShrink: 0}}/> Рецепт дня
             </div>
@@ -883,7 +896,7 @@ export default function Home() {
         />
       )}
 
-      {activeView === 'game' && (
+      {FEATURE_RESTAURANT_GAME && activeView === 'game' && (
         <Game 
           user={user} setIsAuthModalOpen={setIsAuthModalOpen} restaurantLevel={restaurantLevel} gameTab={gameTab} setGameTab={setGameTab} 
           floatingClicks={floatingClicks} cooks={cooks} formatCooks={formatCooks} passiveIncome={passiveIncome} 

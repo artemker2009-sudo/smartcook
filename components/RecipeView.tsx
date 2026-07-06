@@ -437,12 +437,11 @@ export default function RecipeView({
       {itemsToBuy.length > 0 && (
         <div
           style={{
-            background: "var(--color-warning-subtle)",
-            border: "1px solid var(--color-warning)",
-            borderRadius: "var(--radius-sm)",
-            padding: "var(--space-3)",
+            background: "var(--color-surface)",
+            border: "1px solid var(--color-border)",
+            borderRadius: "var(--radius-md)",
+            padding: "var(--space-4)",
             margin: "var(--space-4) 0",
-            color: "var(--color-warning)",
           }}
         >
           <div
@@ -450,11 +449,12 @@ export default function RecipeView({
               display: "flex",
               alignItems: "center",
               gap: "var(--space-2)",
-              marginBottom: "var(--space-2)",
+              marginBottom: "var(--space-3)",
               fontWeight: "var(--font-weight-semibold)",
+              color: "var(--color-text)",
             }}
           >
-            <ShoppingCart size={20} />{" "}
+            <ShoppingCart size={20} color="var(--color-accent)" />{" "}
             {searchMode === "text" || fromFeed || isSharedView
               ? "Нужно купить:"
               : "Нужно докупить:"}
@@ -464,7 +464,7 @@ export default function RecipeView({
               display: "flex",
               flexWrap: "wrap",
               gap: "var(--space-2)",
-              marginBottom: "var(--space-2)",
+              marginBottom: "var(--space-3)",
             }}
           >
             {itemsToBuy.map((item: string, idx: number) => (
@@ -478,34 +478,36 @@ export default function RecipeView({
                 style={{
                   background: "var(--color-surface)",
                   padding: "var(--space-2) var(--space-3)",
-                  borderRadius: "var(--radius-sm)",
+                  borderRadius: "var(--radius-full)",
                   fontSize: "var(--font-size-body)",
                   fontWeight: "var(--font-weight-medium)",
                   textDecoration: "none",
-                  color: "var(--color-warning)",
+                  color: "var(--color-text)",
                   display: "flex",
                   alignItems: "center",
                   gap: "var(--space-1)",
-                  border: "1px solid var(--color-warning)",
+                  border: "1px solid var(--color-border)",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
                   cursor: "pointer",
                   transition: "all 0.2s",
                 }}
               >
-                {item} <ExternalLink size={12} style={{ opacity: 0.6 }} />
+                {item}{" "}
+                <ExternalLink size={12} color="var(--color-text-muted)" />
               </a>
             ))}
           </div>
           <div
             style={{
               fontSize: "var(--font-size-caption)",
-              color: "var(--color-warning)",
+              color: "var(--color-text-muted)",
               display: "flex",
               alignItems: "center",
               gap: "var(--space-1)",
             }}
           >
-            <Info size={14} /> Нажмите на ингредиент, чтобы заказать быструю
-            доставку Ozon Fresh до двери
+            <Info size={14} /> Нажмите на ингредиент — быстрая доставка Ozon Fresh
+            до двери
           </div>
         </div>
       )}
@@ -562,7 +564,7 @@ export default function RecipeView({
             textAlign: "center",
           }}
         >
-          Задайте вопрос AI шеф-повару!
+          Спросить шефа
         </div>
         <div
           style={{
@@ -584,7 +586,7 @@ export default function RecipeView({
               gap: "var(--space-1)",
             }}
           >
-            <Sparkles size={16} /> Спросить AI Шефа:
+            <Sparkles size={16} /> Ваш вопрос:
           </div>
           <div
             style={{

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { X } from "lucide-react";
+import { X, Camera, PartyPopper, Zap } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { YANDEX_METRIKA_ID } from "@/components/YandexMetrika";
 import Button from "@/components/ui/Button";
@@ -12,9 +12,9 @@ const BOT_UA_REGEX =
   /bot|crawl|spider|slurp|bingpreview|facebookexternalhit|whatsapp|telegrambot|vkshare|yandex(bot|images|metrika)?|googlebot|duckduckbot|baiduspider|semrushbot|ahrefsbot|mj12bot|petalbot|headlesschrome/i;
 
 const FEATURES = [
-  { icon: "📸", text: "Сфотографируй продукты — получи рецепты из того, что есть" },
-  { icon: "🎉", text: "Собери банкет: меню под компанию + список покупок" },
-  { icon: "⚡", text: "Бесплатно и без регистрации" },
+  { icon: Camera, text: "Сфотографируй продукты — получи рецепты из того, что есть" },
+  { icon: PartyPopper, text: "Собери банкет: меню под компанию + список покупок" },
+  { icon: Zap, text: "Бесплатно и без регистрации" },
 ];
 
 function fireGoal(goal: string) {
@@ -136,7 +136,7 @@ export default function OnboardingModal() {
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)", marginBottom: "var(--space-4)" }}>
           {FEATURES.map((f) => (
             <div key={f.text} style={{ display: "flex", alignItems: "flex-start", gap: "var(--space-2)" }}>
-              <span style={{ fontSize: "var(--font-size-heading)", lineHeight: 1, flexShrink: 0 }}>{f.icon}</span>
+              <f.icon size={20} color="var(--color-accent)" style={{ flexShrink: 0, marginTop: "2px" }} />
               <span style={{ fontSize: "var(--font-size-body)", color: "var(--color-text-secondary)", lineHeight: 1.45, paddingTop: "2px" }}>
                 {f.text}
               </span>

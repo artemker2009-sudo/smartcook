@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { X, Sparkles } from "lucide-react";
+import { X, Sparkles, ShieldCheck } from "lucide-react";
 import Button from "@/components/ui/Button";
 
 interface AuthModalProps {
@@ -83,8 +83,8 @@ export default function AuthModal({
         </div>
 
         <div style={{marginTop: 'var(--space-4)', padding: 'var(--space-3)', background: 'var(--color-bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)'}}>
-          <p style={{fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.5, textAlign: 'center'}}>
-            🛡 <strong>100% Анонимность.</strong> Вы сами придумываете логин и пароль. Это нужно только для того, чтобы ваши рецепты, фото и прогресс в ресторане сохранялись в вашем личном кабинете.
+          <p style={{fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.5, textAlign: 'center', display: 'flex', alignItems: 'flex-start', gap: 'var(--space-2)'}}>
+            <ShieldCheck size={16} style={{ flexShrink: 0, marginTop: '2px' }} /> <span><strong>100% Анонимность.</strong> Вы сами придумываете логин и пароль. Это нужно только для того, чтобы ваши рецепты, фото и прогресс в ресторане сохранялись в вашем личном кабинете.</span>
           </p>
         </div>
       </div>

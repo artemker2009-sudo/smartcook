@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { PlusCircle, Camera, Trash2, Heart, MessageCircle, ArrowRight, Sparkles } from 'lucide-react';
+import { PlusCircle, Camera, Trash2, Heart, MessageCircle, ArrowRight, Sparkles, Flame, Clock } from 'lucide-react';
 
 export default function Feed(props: any) {
   const {
@@ -22,7 +22,7 @@ export default function Feed(props: any) {
   return (
     <div style={{marginTop: 'var(--space-5)', paddingBottom: 'var(--space-5)'}}>
       <div style={{textAlign: 'center', marginBottom: 'var(--space-4)'}}>
-        <h1 style={{fontSize: 'var(--font-size-title)', fontWeight: 'var(--font-weight-semibold)', margin: '0 0 var(--space-2) 0', color: 'var(--color-text)'}}> Лента 📸 </h1>
+        <h1 style={{fontSize: 'var(--font-size-title)', fontWeight: 'var(--font-weight-semibold)', margin: '0 0 var(--space-2) 0', color: 'var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)'}}><Camera size={26} /> Лента</h1>
         <p style={{color: 'var(--color-text-secondary)', margin: 0}}>Вдохновляйтесь кулинарными шедеврами</p>
       </div>
 
@@ -76,9 +76,9 @@ export default function Feed(props: any) {
 
       <div style={{fontSize: 'var(--font-size-caption)', fontWeight: 'var(--font-weight-medium)', color: 'var(--color-text-secondary)', marginBottom: 'var(--space-2)'}}>Сортировка:</div>
       <div style={{display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-4)', overflowX: 'auto', paddingBottom: 'var(--space-1)'}}>
-         <button onClick={() => fetchPhotosFeed('new')} style={{ padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-full)', border: 'none', whiteSpace: 'nowrap', background: photosSort === 'new' ? 'var(--color-text)' : 'var(--color-bg-subtle)', color: photosSort === 'new' ? 'white' : 'var(--color-text-secondary)', fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-caption)', transition: 'all 0.2s', cursor: 'pointer' }}>✨ Свежее</button>
-         <button onClick={() => fetchPhotosFeed('top')} style={{ padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-full)', border: 'none', whiteSpace: 'nowrap', background: photosSort === 'top' ? 'var(--color-text)' : 'var(--color-bg-subtle)', color: photosSort === 'top' ? 'white' : 'var(--color-text-secondary)', fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-caption)', transition: 'all 0.2s', cursor: 'pointer' }}>🔥 Популярное</button>
-         <button onClick={() => fetchPhotosFeed('old')} style={{ padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-full)', border: 'none', whiteSpace: 'nowrap', background: photosSort === 'old' ? 'var(--color-text)' : 'var(--color-bg-subtle)', color: photosSort === 'old' ? 'white' : 'var(--color-text-secondary)', fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-caption)', transition: 'all 0.2s', cursor: 'pointer' }}>🕰 Раннее</button>
+         <button onClick={() => fetchPhotosFeed('new')} style={{ padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-full)', border: 'none', whiteSpace: 'nowrap', background: photosSort === 'new' ? 'var(--color-text)' : 'var(--color-bg-subtle)', color: photosSort === 'new' ? 'white' : 'var(--color-text-secondary)', fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-caption)', transition: 'all 0.2s', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 'var(--space-1)' }}><Sparkles size={14} /> Свежее</button>
+         <button onClick={() => fetchPhotosFeed('top')} style={{ padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-full)', border: 'none', whiteSpace: 'nowrap', background: photosSort === 'top' ? 'var(--color-text)' : 'var(--color-bg-subtle)', color: photosSort === 'top' ? 'white' : 'var(--color-text-secondary)', fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-caption)', transition: 'all 0.2s', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 'var(--space-1)' }}><Flame size={14} /> Популярное</button>
+         <button onClick={() => fetchPhotosFeed('old')} style={{ padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-full)', border: 'none', whiteSpace: 'nowrap', background: photosSort === 'old' ? 'var(--color-text)' : 'var(--color-bg-subtle)', color: photosSort === 'old' ? 'white' : 'var(--color-text-secondary)', fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-caption)', transition: 'all 0.2s', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 'var(--space-1)' }}><Clock size={14} /> Раннее</button>
       </div>
 
       <div style={{display: 'flex', flexDirection: 'column', gap: 'var(--space-4)'}}>
@@ -146,7 +146,12 @@ export default function Feed(props: any) {
             </div>
           );
         })}
-        {photosFeed.length === 0 && <div style={{textAlign: 'center', padding: 'var(--space-4)', color: 'var(--color-text-muted)'}}>Здесь пока нет фотографий. Поделитесь своим шедевром первым! 📸</div>}
+        {photosFeed.length === 0 && (
+          <div style={{textAlign: 'center', padding: 'var(--space-4)', color: 'var(--color-text-muted)'}}>
+            <Camera size={28} style={{ display: 'block', margin: '0 auto var(--space-2) auto', opacity: 0.6 }} />
+            Здесь пока нет фотографий. Поделитесь своим шедевром первым!
+          </div>
+        )}
       </div>
     </div>
   );

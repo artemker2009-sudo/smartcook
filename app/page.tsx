@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, ChangeEvent } from "react";
 import { supabase } from "@/lib/supabase";
-import { Menu, X, Flame, Search, CheckCircle, Sparkles, Globe, User, Store, PartyPopper, Settings } from "lucide-react";
+import { Menu, X, Flame, Search, CheckCircle, Sparkles, Globe, User, Store, PartyPopper, Settings, Code2, Clipboard } from "lucide-react";
 
 import type { AnalysisData, RecipeData, DBRecipe, DailyRecipeType, HolidayType, DBComment } from "@/lib/types";
 import { DEVELOPER_ID, scaleAmount, formatCooks, cleanText, formatTime, formatCalories, getCroppedImg } from "@/lib/utils";
@@ -181,10 +181,10 @@ export default function Home() {
   const getUserBadges = (uid: string | undefined | null, level?: number, isDevOverride?: boolean) => {
     const isDev = isDevOverride !== undefined ? isDevOverride : uid === DEVELOPER_ID;
     const safeLevel = level || 1;
-    const titles = ['Ларёк 🌭', 'Закусочная 🍔', 'Кафе ☕️', 'Ресторан 🍽', 'Мишленовский ресторан ⭐️', 'Сеть ресторанов 👑'];
-    
+    const titles = ['Ларёк', 'Закусочная', 'Кафе', 'Ресторан', 'Мишленовский ресторан', 'Сеть ресторанов'];
+
     const restBadge = <span key="rest" style={{fontSize: 'var(--font-size-caption)', background: 'var(--color-bg-subtle)', color: 'var(--color-text-secondary)', padding: 'var(--space-1) var(--space-2)', borderRadius: 'var(--radius-full)', fontWeight: 'var(--font-weight-semibold)', display: 'inline-flex', alignItems: 'center', lineHeight: 1}}>{titles[Math.min(safeLevel - 1, 5)]}</span>;
-    const devBadge = isDev ? <span key="dev" style={{fontSize: 'var(--font-size-caption)', background: 'var(--color-text)', color: 'white', padding: 'var(--space-1) var(--space-2)', borderRadius: 'var(--radius-full)', fontWeight: 'var(--font-weight-semibold)', display: 'inline-flex', alignItems: 'center', gap: 'var(--space-1)', lineHeight: 1}}>👨‍💻 Разработчик</span> : null;
+    const devBadge = isDev ? <span key="dev" style={{fontSize: 'var(--font-size-caption)', background: 'var(--color-text)', color: 'white', padding: 'var(--space-1) var(--space-2)', borderRadius: 'var(--radius-full)', fontWeight: 'var(--font-weight-semibold)', display: 'inline-flex', alignItems: 'center', gap: 'var(--space-1)', lineHeight: 1}}><Code2 size={12} /> Разработчик</span> : null;
 
     return { isDev, devBadge, restBadge };
   };
@@ -376,7 +376,7 @@ export default function Home() {
             showToast("Этот Username уже занят! Выберите другой или войдите.", undefined, 'error');
           } else throw error;
         } else {
-          showToast("Добро пожаловать, шеф! 🎉", <Sparkles size={18} color="var(--color-accent)" />);
+          showToast("Добро пожаловать, шеф!", <Sparkles size={18} color="var(--color-accent)" />);
           setIsAuthModalOpen(false);
         }
       } else {
@@ -509,14 +509,14 @@ export default function Home() {
   const toggleFavorite = async (e: any, targetId: number, currentStatus: boolean = false) => { 
     e.stopPropagation(); if (!targetId) return; const newStatus = !currentStatus; 
     setFeed(feed?.map(r => r.id === targetId ? { ...r, is_favorite: newStatus } : r) || []); if (recipe && recipe.id === targetId) setRecipe({ ...recipe, is_favorite: newStatus }); 
-    try { await fetch("/api/favorite", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: targetId, isFavorite: newStatus }) }); } catch (err) {} 
-  }; 
+    try { await fetch("/api/favorite", { method: "POST", headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) }, body: JSON.stringify({ id: targetId, isFavorite: newStatus, sessionId: userId }) }); } catch (err) {}
+  };
 
   const toggleDailyFavorite = async () => { 
     if (!dailyRecipe || !userId) return; 
     if (dailyFavoriteId) { 
       setFeed(feed?.map(r => r.id === dailyFavoriteId ? { ...r, is_favorite: false } : r) || []); setDailyFavoriteId(null); 
-      try { await fetch("/api/favorite", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: dailyFavoriteId, isFavorite: false }) }); } catch(e) {} 
+      try { await fetch("/api/favorite", { method: "POST", headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) }, body: JSON.stringify({ id: dailyFavoriteId, isFavorite: false, sessionId: userId }) }); } catch(e) {}
     } else { 
       const { data } = await supabase.from('recipes').insert({ session_id: userId, title: dailyRecipe.title, description: dailyRecipe.description, time: String(dailyRecipe.time), calories: String(dailyRecipe.calories), ingredients: dailyRecipe.ingredients || dailyRecipe.detailed_ingredients?.map(i => `${i.name} - ${i.amount}`) || [], detailed_ingredients: dailyRecipe.detailed_ingredients || [], missing_ingredients: dailyRecipe.missing_ingredients || [], steps: dailyRecipe.steps, is_favorite: true }).select('*'); 
       if (data && data.length > 0) { setDailyFavoriteId(data[0].id); fetchMyRecipes(userId); } 
@@ -571,19 +571,19 @@ export default function Home() {
           if (latestPost) await fetch('/api/telegram-mod', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ postId: latestPost.id, recipeTitle: postTitleContext, userName: userName, comment: userComment, photoUrl: publicUrlData.publicUrl }) }); 
       } catch (tgErr) {} 
 
-      showToast("🎉 Фото на проверке у шефа! +1000 куков!", <Sparkles size={18} color="var(--color-accent)" />); 
+      showToast("Фото на проверке у шефа! +1000 куков!", <Sparkles size={18} color="var(--color-accent)" />); 
       setCooks(prev => prev + 1000); setUserPhotoFile(null); setUserPhotoPreview(null); setUserComment(""); setStandaloneTitle(""); setIsStandaloneUploadOpen(false); 
     } catch (err: any) { showToast("Ошибка отправки: " + err.message, undefined, 'error'); } finally { setIsUploadingPhoto(false); } 
   }; 
 
   const handleShareDaily = async () => { 
     if (!dailyRecipe) return; const recipeUrl = `${window.location.origin}/?daily=true`; const fullText = `«${dailyRecipe.title}» 🍲\nПриготовлено с помощью SmartCook 👨‍🍳\n\nСмотри рецепт по ссылке:\n${recipeUrl}`; 
-    try { if (navigator.share) await navigator.share({ title: dailyRecipe.title, text: fullText }); else { await navigator.clipboard.writeText(fullText); showToast("📋 Ссылка скопирована в буфер обмена!"); } } catch (err) {} 
+    try { if (navigator.share) await navigator.share({ title: dailyRecipe.title, text: fullText }); else { await navigator.clipboard.writeText(fullText); showToast("Ссылка скопирована в буфер обмена!", <Clipboard size={18} color="var(--color-accent)" />); } } catch (err) {} 
   }; 
 
   const handleShareRecipe = async () => { 
     if (!recipe) return; const recipeUrl = recipe.id ? `${window.location.origin}/?recipeId=${recipe.id}` : window.location.origin; const fullText = `«${recipe.title}» 🍲\nПриготовлено с помощью SmartCook 👨‍🍳\n\nОткрой рецепт по ссылке:\n${recipeUrl}`; 
-    try { if (navigator.share) await navigator.share({ title: recipe.title, text: fullText }); else { await navigator.clipboard.writeText(fullText); showToast("📋 Ссылка скопирована в буфер обмена!"); } } catch (err) {} 
+    try { if (navigator.share) await navigator.share({ title: recipe.title, text: fullText }); else { await navigator.clipboard.writeText(fullText); showToast("Ссылка скопирована в буфер обмена!", <Clipboard size={18} color="var(--color-accent)" />); } } catch (err) {} 
   }; 
 
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => { 
@@ -624,7 +624,7 @@ export default function Home() {
     if (lastGen !== today) {
       localStorage.setItem('sc_last_gen_date', today);
       setCooks(prev => prev + 500);
-      setTimeout(() => showToast("🎉 +500 куков за первый рецепт сегодня!", <Sparkles size={18} color="var(--color-accent)" />), 1500);
+      setTimeout(() => showToast("+500 куков за первый рецепт сегодня!", <Sparkles size={18} color="var(--color-accent)" />), 1500);
     }
   };
 

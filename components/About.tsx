@@ -1,17 +1,17 @@
 import React from 'react';
-import { Wallet, Zap, Leaf, Globe, Send } from 'lucide-react';
+import { Wallet, Zap, Leaf, Globe, Send, Rocket, Banknote, Smartphone, Plus } from 'lucide-react';
 
 export default function About() {
   return (
     <div className="card" style={{marginTop: 'var(--space-5)', padding: '0', overflow: 'hidden', border: 'none', boxShadow: '0 20px 60px -10px rgba(0,0,0,0.15)'}}>
       <div style={{background: 'linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-hover) 100%)', padding: 'var(--space-5) var(--space-4)', color: 'white', textAlign: 'center'}}>
-        <div style={{fontSize: '50px', marginBottom: 'var(--space-2)'}}>🚀</div>
+        <Rocket size={50} style={{ display: 'block', margin: '0 auto var(--space-2) auto' }} />
         <h1 style={{fontSize: 'var(--font-size-title)', fontWeight: 'var(--font-weight-semibold)', margin: '0 0 var(--space-2) 0', lineHeight: 1.1}}>Кухонная революция</h1>
         <p style={{fontSize: 'var(--font-size-body)', opacity: 0.9, fontWeight: 'var(--font-weight-regular)', maxWidth: '400px', margin: '0 auto'}}>Мы превращаем ваше «нечего есть» в гастрономический шедевр.</p>
       </div>
       <div style={{padding: 'var(--space-4)'}}>
         <div style={{background: 'var(--color-warning-subtle)', borderRadius: 'var(--radius-md)', padding: 'var(--space-4)', marginBottom: 'var(--space-5)', border: '1px solid var(--color-warning)'}}>
-          <h3 style={{marginTop: 0, color: 'var(--color-warning)', display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: 'var(--font-size-heading)', fontWeight: 'var(--font-weight-semibold)'}}><span style={{fontSize: 'var(--font-size-title)'}}>💸</span> Вы теряете 30.000₽</h3>
+          <h3 style={{marginTop: 0, color: 'var(--color-warning)', display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: 'var(--font-size-heading)', fontWeight: 'var(--font-weight-semibold)'}}><Banknote size={24} /> Вы теряете 30.000₽</h3>
           <p style={{marginBottom: 0, color: 'var(--color-warning)', lineHeight: 1.5}}>Именно столько средняя семья выбрасывает в мусорку ежегодно в виде испорченных продуктов.</p>
         </div>
         <h3 style={{textAlign: 'center', fontSize: 'var(--font-size-heading)', fontWeight: 'var(--font-weight-semibold)', marginBottom: 'var(--space-3)', color: 'var(--color-text)'}}>Почему это работает?</h3>
@@ -23,15 +23,15 @@ export default function About() {
         </div>
 
         <div style={{background: 'var(--color-bg)', borderRadius: 'var(--radius-md)', padding: 'var(--space-4) var(--space-3)', marginBottom: 'var(--space-5)', border: '1px solid var(--color-border)'}}>
-          <h3 style={{margin: '0 0 var(--space-2) 0', fontSize: 'var(--font-size-heading)', fontWeight: 'var(--font-weight-semibold)', textAlign: 'center', color: 'var(--color-text)'}}>Установите SmartCook как приложение 📲</h3>
+          <h3 style={{margin: '0 0 var(--space-2) 0', fontSize: 'var(--font-size-heading)', fontWeight: 'var(--font-weight-semibold)', textAlign: 'center', color: 'var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)'}}><Smartphone size={20} /> Установите SmartCook как приложение</h3>
           <p style={{fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)', textAlign: 'center', marginBottom: 'var(--space-3)', lineHeight: 1.5}}>Быстрый доступ к рецептам в один клик. Не занимает память, не требует скачивания из App Store или Google Play!</p>
           <div style={{display: 'flex', flexDirection: 'column', gap: 'var(--space-3)'}}>
             <div style={{background: 'var(--color-surface)', padding: 'var(--space-3)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)'}}>
-              <div style={{fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-body)', marginBottom: 'var(--space-2)', display: 'flex', alignItems: 'center', gap: 'var(--space-1)', color: 'var(--color-text)'}}>🍎 Для iPhone (в Safari)</div>
-              <ol style={{margin: 0, paddingLeft: 'var(--space-4)', fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)', lineHeight: 1.6}}> <li>Нажмите иконку <strong>«Поделиться»</strong> (квадрат со стрелочкой вверх в самом низу экрана).</li> <li>Пролистайте меню вниз и выберите <strong>«На экран "Домой"»</strong> (со значком ➕).</li> </ol>
+              <div style={{fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-body)', marginBottom: 'var(--space-2)', display: 'flex', alignItems: 'center', gap: 'var(--space-1)', color: 'var(--color-text)'}}><Smartphone size={18} /> Для iPhone (в Safari)</div>
+              <ol style={{margin: 0, paddingLeft: 'var(--space-4)', fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)', lineHeight: 1.6}}> <li>Нажмите иконку <strong>«Поделиться»</strong> (квадрат со стрелочкой вверх в самом низу экрана).</li> <li>Пролистайте меню вниз и выберите <strong>«На экран "Домой"»</strong> (со значком <Plus size={12} style={{ display: 'inline' }} />).</li> </ol>
             </div>
             <div style={{background: 'var(--color-surface)', padding: 'var(--space-3)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)'}}>
-              <div style={{fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-body)', marginBottom: 'var(--space-2)', display: 'flex', alignItems: 'center', gap: 'var(--space-1)', color: 'var(--color-text)'}}>🤖 Для Android (в Chrome)</div>
+              <div style={{fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-body)', marginBottom: 'var(--space-2)', display: 'flex', alignItems: 'center', gap: 'var(--space-1)', color: 'var(--color-text)'}}><Smartphone size={18} /> Для Android (в Chrome)</div>
               <ol style={{margin: 0, paddingLeft: 'var(--space-4)', fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)', lineHeight: 1.6}}> <li>Нажмите на <strong>меню</strong> (три точки в правом верхнем углу экрана).</li> <li>Выберите пункт <strong>«Добавить на гл. экран»</strong> или <strong>«Установить приложение»</strong>.</li> </ol>
             </div>
           </div>

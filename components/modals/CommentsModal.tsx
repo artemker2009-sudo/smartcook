@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { X, Send, Sparkles, Heart, Trash2, CornerDownRight } from "lucide-react";
+import { X, Send, Sparkles, Heart, Trash2, CornerDownRight, Code2 } from "lucide-react";
 import type { DBComment } from "@/lib/types";
 
 interface CommentsModalProps {
@@ -59,7 +59,7 @@ export default function CommentsModal({
                   <span style={{ fontSize: 'var(--font-size-caption)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text)' }}>{c.user_name}</span>
                   {restBadge}
                 </div>
-                {isDev && <span style={{fontSize: '10px', background: 'var(--color-text)', color: 'white', padding: '2px var(--space-2)', borderRadius: 'var(--radius-full)', fontWeight: 'var(--font-weight-semibold)'}}>👨‍💻 Разработчик</span>}
+                {isDev && <span style={{fontSize: '10px', background: 'var(--color-text)', color: 'white', padding: '2px var(--space-2)', borderRadius: 'var(--radius-full)', fontWeight: 'var(--font-weight-semibold)', display: 'inline-flex', alignItems: 'center', gap: '4px'}}><Code2 size={10} /> Разработчик</span>}
               </div>
               {user && user.id === c.user_id && (
                 <button onClick={() => handleDeleteComment(c.id)} style={{ background: 'transparent', border: 'none', color: 'var(--color-danger)', cursor: 'pointer', padding: '2px' }}><Trash2 size={14} /></button>

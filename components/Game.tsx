@@ -1,5 +1,5 @@
 import React from 'react';
-import { Lock, Trophy } from 'lucide-react';
+import { Lock, Trophy, AlertTriangle, Store, Cookie, Lightbulb, CookingPot, Zap, TrendingUp } from 'lucide-react';
 
 export default function Game(props: any) {
   const {
@@ -13,17 +13,17 @@ export default function Game(props: any) {
     <div style={{marginTop: 'var(--space-5)', paddingBottom: 'var(--space-5)'}}>
       {!user && (
         <div style={{background: 'var(--color-warning-subtle)', border: '1px solid var(--color-warning)', borderRadius: 'var(--radius-sm)', padding: 'var(--space-3)', marginBottom: 'var(--space-3)', textAlign: 'center'}}>
-           <p style={{fontSize: 'var(--font-size-caption)', color: 'var(--color-warning)', margin: 0, lineHeight: 1.5}}>
-             ⚠️ Ваш прогресс сохраняется только в телефоне. <br/>
+           <p style={{fontSize: 'var(--font-size-caption)', color: 'var(--color-warning)', margin: 0, lineHeight: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-1)', flexWrap: 'wrap'}}>
+             <AlertTriangle size={14} /> Ваш прогресс сохраняется только в телефоне.
              <span onClick={() => setIsAuthModalOpen(true)} style={{color: 'var(--color-accent)', textDecoration: 'underline', cursor: 'pointer', fontWeight: 'var(--font-weight-semibold)'}}>Войдите в аккаунт</span>, чтобы сохранить его навсегда и <strong>соревноваться в мировом рейтинге!</strong>
            </p>
         </div>
       )}
 
       <div style={{textAlign: 'center', marginBottom: 'var(--space-3)'}}>
-        <h1 style={{fontSize: 'var(--font-size-title)', fontWeight: 'var(--font-weight-semibold)', margin: '0 0 var(--space-1) 0', color: 'var(--color-text)'}}>Мой ресторан 🏪</h1>
+        <h1 style={{fontSize: 'var(--font-size-title)', fontWeight: 'var(--font-weight-semibold)', margin: '0 0 var(--space-1) 0', color: 'var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)'}}><Store size={24} /> Мой ресторан</h1>
         <div style={{background: 'var(--color-bg-subtle)', color: 'var(--color-text-secondary)', display: 'inline-block', padding: 'var(--space-1) var(--space-3)', borderRadius: 'var(--radius-full)', fontSize: 'var(--font-size-caption)', fontWeight: 'var(--font-weight-semibold)'}}>
-          Уровень {restaurantLevel}: {restaurantLevel === 1 ? 'Уличный ларек 🌭' : restaurantLevel === 2 ? 'Закусочная 🍔' : restaurantLevel === 3 ? 'Уютное кафе ☕️' : restaurantLevel === 4 ? 'Ресторан 🍽' : restaurantLevel === 5 ? 'Мишленовский ресторан ⭐️' : 'Сеть ресторанов 👑'}
+          Уровень {restaurantLevel}: {restaurantLevel === 1 ? 'Уличный ларек' : restaurantLevel === 2 ? 'Закусочная' : restaurantLevel === 3 ? 'Уютное кафе' : restaurantLevel === 4 ? 'Ресторан' : restaurantLevel === 5 ? 'Мишленовский ресторан' : 'Сеть ресторанов'}
         </div>
       </div>
 
@@ -44,7 +44,7 @@ export default function Game(props: any) {
            <div style={{fontSize: 'var(--font-size-body)', color: 'var(--color-text-secondary)', fontWeight: 'var(--font-weight-semibold)', marginBottom: 'var(--space-1)'}}>Баланс</div>
 
            <div style={{fontSize: 'var(--font-size-title)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text)', lineHeight: 1, marginBottom: 'var(--space-1)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)'}}>
-             {formatCooks(cooks)} <span style={{fontSize: 'var(--font-size-heading)'}}>🍪</span>
+             {formatCooks(cooks)} <Cookie size={22} />
            </div>
 
            <div style={{display: 'flex', justifyContent: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-4)'}}>
@@ -56,17 +56,17 @@ export default function Game(props: any) {
              </div>
            </div>
 
-           <div style={{background: 'var(--color-bg)', padding: 'var(--space-3)', borderRadius: 'var(--radius-sm)', border: '1px dashed var(--color-border)', marginBottom: 'var(--space-5)', color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-caption)', lineHeight: '1.4', maxWidth: '280px', margin: '0 auto var(--space-5) auto'}}>
-             👆 <strong>Секрет шефа:</strong> Кликайте по сковороде, зарабатывайте куки и прокачивайте ресторан, чтобы выбиться в топ мирового рейтинга!
+           <div style={{background: 'var(--color-bg)', padding: 'var(--space-3)', borderRadius: 'var(--radius-sm)', border: '1px dashed var(--color-border)', marginBottom: 'var(--space-5)', color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-caption)', lineHeight: '1.4', maxWidth: '280px', margin: '0 auto var(--space-5) auto', display: 'flex', alignItems: 'flex-start', gap: 'var(--space-2)', textAlign: 'left'}}>
+             <Lightbulb size={16} style={{ flexShrink: 0, marginTop: '2px' }} /> <span><strong>Секрет шефа:</strong> Кликайте по сковороде, зарабатывайте куки и прокачивайте ресторан, чтобы выбиться в топ мирового рейтинга!</span>
            </div>
 
            <div
              onPointerDown={handleCookClick}
              style={{
-               width: '200px', height: '200px', margin: '0 auto', background: 'var(--color-accent-subtle)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '80px', cursor: 'pointer', boxShadow: '0 20px 40px -10px rgba(5, 150, 105, 0.3), inset 0 -10px 20px rgba(4, 120, 87, 0.15)', userSelect: 'none', transition: 'transform 0.05s', WebkitTapHighlightColor: 'transparent'
+               width: '200px', height: '200px', margin: '0 auto', background: 'var(--color-accent-subtle)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 20px 40px -10px rgba(5, 150, 105, 0.3), inset 0 -10px 20px rgba(4, 120, 87, 0.15)', userSelect: 'none', transition: 'transform 0.05s', WebkitTapHighlightColor: 'transparent'
              }}
            >
-             🍳
+             <CookingPot size={90} color="var(--color-accent)" strokeWidth={1.5} />
            </div>
 
            <div style={{marginTop: 'var(--space-5)'}}>
@@ -79,7 +79,7 @@ export default function Game(props: any) {
                     </div>
                   )}
                 </div>
-                <span>{energy} / {maxEnergy} ⚡️</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>{energy} / {maxEnergy} <Zap size={14} /></span>
              </div>
              <div style={{width: '100%', height: '12px', background: 'var(--color-bg-subtle)', borderRadius: 'var(--radius-sm)', overflow: 'hidden'}}>
                 <div style={{width: `${(energy / maxEnergy) * 100}%`, height: '100%', background: 'var(--color-accent)', transition: 'width 0.2s'}} />
@@ -130,9 +130,9 @@ export default function Game(props: any) {
             <button
               onClick={() => buyUpgrade('spatula')}
               disabled={cooks < (clickPower * 500)}
-              style={{background: cooks >= (clickPower * 500) ? 'var(--color-accent)' : 'var(--color-border)', color: 'white', border: 'none', padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-full)', fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-caption)', cursor: cooks >= (clickPower * 500) ? 'pointer' : 'not-allowed', transition: 'all 0.2s'}}
+              style={{background: cooks >= (clickPower * 500) ? 'var(--color-accent)' : 'var(--color-border)', color: 'white', border: 'none', padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-full)', fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-caption)', cursor: cooks >= (clickPower * 500) ? 'pointer' : 'not-allowed', transition: 'all 0.2s', display: 'inline-flex', alignItems: 'center', gap: '4px'}}
             >
-              {clickPower * 500} 🍪
+              {clickPower * 500} <Cookie size={14} />
             </button>
           </div>
 
@@ -144,9 +144,9 @@ export default function Game(props: any) {
             <button
               onClick={() => buyUpgrade('souschef')}
               disabled={cooks < ((passiveIncome + 1) * 2000)}
-              style={{background: cooks >= ((passiveIncome + 1) * 2000) ? 'var(--color-accent)' : 'var(--color-border)', color: 'white', border: 'none', padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-full)', fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-caption)', cursor: cooks >= ((passiveIncome + 1) * 2000) ? 'pointer' : 'not-allowed', transition: 'all 0.2s'}}
+              style={{background: cooks >= ((passiveIncome + 1) * 2000) ? 'var(--color-accent)' : 'var(--color-border)', color: 'white', border: 'none', padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-full)', fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-caption)', cursor: cooks >= ((passiveIncome + 1) * 2000) ? 'pointer' : 'not-allowed', transition: 'all 0.2s', display: 'inline-flex', alignItems: 'center', gap: '4px'}}
             >
-              {(passiveIncome + 1) * 2000} 🍪
+              {(passiveIncome + 1) * 2000} <Cookie size={14} />
             </button>
           </div>
 
@@ -156,7 +156,7 @@ export default function Game(props: any) {
               <div style={{fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)', fontWeight: 'var(--font-weight-medium)'}}>Перейти на Уровень {restaurantLevel + 1}</div>
               {restaurantLevel < 6 && (
                 <div style={{fontSize: '11px', color: 'var(--color-accent)', fontWeight: 'var(--font-weight-semibold)', marginTop: 'var(--space-1)', display: 'flex', alignItems: 'center', gap: '4px'}}>
-                  ✨ Доход x{restaurantLevel + 1} | Энергия { (restaurantLevel + 1) * 500 }
+                  <TrendingUp size={12} /> Доход x{restaurantLevel + 1} | Энергия { (restaurantLevel + 1) * 500 }
                 </div>
               )}
             </div>
@@ -166,9 +166,9 @@ export default function Game(props: any) {
                 <button
                   onClick={() => buyUpgrade('restaurant')}
                   disabled={cooks < restCost || restaurantLevel >= 6}
-                  style={{background: (cooks >= restCost && restaurantLevel < 6) ? 'var(--color-accent)' : 'var(--color-border)', color: 'white', border: 'none', padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-full)', fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-caption)', cursor: (cooks >= restCost && restaurantLevel < 6) ? 'pointer' : 'not-allowed', transition: 'all 0.2s', flexShrink: 0, marginLeft: 'var(--space-2)'}}
+                  style={{background: (cooks >= restCost && restaurantLevel < 6) ? 'var(--color-accent)' : 'var(--color-border)', color: 'white', border: 'none', padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-full)', fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-caption)', cursor: (cooks >= restCost && restaurantLevel < 6) ? 'pointer' : 'not-allowed', transition: 'all 0.2s', flexShrink: 0, marginLeft: 'var(--space-2)', display: 'inline-flex', alignItems: 'center', gap: '4px'}}
                 >
-                  {restaurantLevel >= 6 ? "МАКС" : `${restCost} 🍪`}
+                  {restaurantLevel >= 6 ? "МАКС" : <>{restCost} <Cookie size={14} /></>}
                 </button>
               );
             })()}
@@ -220,8 +220,8 @@ export default function Game(props: any) {
                        </div>
                      </div>
 
-                     <div style={{fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-accent)', fontSize: 'var(--font-size-caption)', whiteSpace: 'nowrap', flexShrink: 0}}>
-                       {lbUser.cooks} 🍪
+                     <div style={{fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-accent)', fontSize: 'var(--font-size-caption)', whiteSpace: 'nowrap', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: '4px'}}>
+                       {lbUser.cooks} <Cookie size={14} />
                      </div>
                   </div>
                 );

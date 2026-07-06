@@ -17,6 +17,9 @@ import {
   Clock,
   Heart,
   X,
+  Loader2,
+  History,
+  HeartCrack,
 } from "lucide-react";
 import RecipeView from "@/components/RecipeView";
 import Button from "@/components/ui/Button";
@@ -245,7 +248,7 @@ export default function ServiceView({
                   letterSpacing: "0.5px",
                 }}
               >
-                🔥 Рецепт дня
+                Рецепт дня
               </div>
               <div style={{ fontWeight: "var(--font-weight-semibold)", fontSize: "var(--font-size-body)", color: "var(--color-text)" }}>
                 {dailyRecipe ? dailyRecipe.title : "Секрет от шефа..."}
@@ -472,11 +475,13 @@ export default function ServiceView({
                   onClick={handleAnalyze}
                   disabled={!file || analyzing || isProcessing}
                 >
-                  {isProcessing
-                    ? "🔄 Обработка фото..."
-                    : analyzing
-                    ? "🔍 Изучаю продукты..."
-                    : "✨ Найти рецепт"}
+                  {isProcessing ? (
+                    <><Loader2 className="animate-spin" size={18} /> Обработка фото...</>
+                  ) : analyzing ? (
+                    <><Loader2 className="animate-spin" size={18} /> Изучаю продукты...</>
+                  ) : (
+                    <><Sparkles size={18} /> Найти рецепт</>
+                  )}
                 </Button>
               </>
             ) : (
@@ -527,7 +532,11 @@ export default function ServiceView({
                   onClick={handleTextSearch}
                   disabled={loadingRecipe || !textQuery.trim()}
                 >
-                  {loadingRecipe ? "🍳 Готовлю..." : "🔍 Найти рецепт"}
+                  {loadingRecipe ? (
+                    <><Loader2 className="animate-spin" size={18} /> Готовлю...</>
+                  ) : (
+                    <><Search size={18} /> Найти рецепт</>
+                  )}
                 </Button>
               </>
             )}
@@ -610,7 +619,7 @@ export default function ServiceView({
             <Sparkles size={20} color="var(--color-accent)" />{" "}
             {isRegenerating
               ? "Включаю фантазию..."
-              : "✨ Хочу что-то необычное"}
+              : "Хочу что-то необычное"}
           </Button>
         </div>
       )}
@@ -659,7 +668,9 @@ export default function ServiceView({
       {!isHistoryView && !fromFeed && !isSharedView && (
         <>
           <div className="history-bar" style={{ marginTop: "var(--space-5)" }}>
-            <span className="history-title">📜 История рецептов</span>
+            <span className="history-title" style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-2)" }}>
+              <History size={20} /> История рецептов
+            </span>
             <div className="history-filters">
               <button
                 className={`filter-pill ${
@@ -674,8 +685,9 @@ export default function ServiceView({
                   filterMode === "favorites" ? "active" : ""
                 }`}
                 onClick={() => setFilterMode("favorites")}
+                style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-1)" }}
               >
-                ❤️ Избранное
+                <Heart size={14} /> Избранное
               </button>
             </div>
           </div>
@@ -692,7 +704,8 @@ export default function ServiceView({
 
           {displayedFeed?.length === 0 && filterMode === "favorites" ? (
             <div className="empty-msg">
-              В избранном пока пусто 💔
+              <HeartCrack size={28} style={{ display: "block", margin: "0 auto var(--space-2) auto", opacity: 0.6 }} />
+              В избранном пока пусто
               <br />
               Добавьте рецепты лайком!
             </div>

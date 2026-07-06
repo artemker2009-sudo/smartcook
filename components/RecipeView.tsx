@@ -17,6 +17,10 @@ import {
   Send,
   Camera,
   X,
+  PiggyBank,
+  Wallet,
+  ChefHat,
+  UtensilsCrossed,
 } from "lucide-react";
 import DonateButton from "@/components/DonateButton";
 import Button from "@/components/ui/Button";
@@ -281,10 +285,10 @@ export default function RecipeView({
         const savings = deliveryCost - totalCost;
         const tier = recipe.budget_tier || 2;
         const tierConfig = {
-          1: { label: "Почти бесплатно", bg: "var(--color-accent-subtle)", border: "var(--color-accent)", color: "var(--color-accent-hover)", icon: "🤑" },
-          2: { label: "Экономно", bg: "var(--color-warning-subtle)", border: "var(--color-warning)", color: "var(--color-warning)", icon: "💰" },
-          3: { label: "Ресторан дома", bg: "var(--color-bg-subtle)", border: "var(--color-border)", color: "var(--color-text-secondary)", icon: "👨‍🍳" },
-        }[tier as 1 | 2 | 3] || { label: "Экономно", bg: "var(--color-warning-subtle)", border: "var(--color-warning)", color: "var(--color-warning)", icon: "💰" };
+          1: { label: "Почти бесплатно", bg: "var(--color-accent-subtle)", border: "var(--color-accent)", color: "var(--color-accent-hover)", Icon: PiggyBank },
+          2: { label: "Экономно", bg: "var(--color-warning-subtle)", border: "var(--color-warning)", color: "var(--color-warning)", Icon: Wallet },
+          3: { label: "Ресторан дома", bg: "var(--color-bg-subtle)", border: "var(--color-border)", color: "var(--color-text-secondary)", Icon: ChefHat },
+        }[tier as 1 | 2 | 3] || { label: "Экономно", bg: "var(--color-warning-subtle)", border: "var(--color-warning)", color: "var(--color-warning)", Icon: Wallet };
 
         return (
           <div style={{
@@ -295,7 +299,7 @@ export default function RecipeView({
             marginBottom: "var(--space-4)",
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: "var(--space-2)" }}>
-              <span style={{ fontSize: "var(--font-size-title)" }}>{tierConfig.icon}</span>
+              <tierConfig.Icon size={24} color={tierConfig.color} />
               <span style={{
                 fontSize: "var(--font-size-caption)",
                 fontWeight: "var(--font-weight-semibold)",
@@ -312,7 +316,7 @@ export default function RecipeView({
             </div>
             {totalCost === 0 ? (
               <div style={{ fontSize: "var(--font-size-body)", fontWeight: "var(--font-weight-medium)", color: tierConfig.color, lineHeight: 1.4 }}>
-                Своё приготовление: 0 руб. 🎉
+                Своё приготовление: 0 руб.
               </div>
             ) : (
               <div style={{ fontSize: "var(--font-size-body)", fontWeight: "var(--font-weight-medium)", color: tierConfig.color, lineHeight: 1.4 }}>
@@ -344,9 +348,12 @@ export default function RecipeView({
               fontWeight: "var(--font-weight-semibold)",
               color: "var(--color-text-secondary)",
               fontSize: "var(--font-size-body)",
+              display: "flex",
+              alignItems: "center",
+              gap: "var(--space-1)",
             }}
           >
-            🍽 Порции:
+            <UtensilsCrossed size={16} /> Порции:
           </span>
           <div
             style={{
@@ -525,9 +532,12 @@ export default function RecipeView({
           fontWeight: "var(--font-weight-semibold)",
           marginBottom: "var(--space-4)",
           color: "var(--color-text)",
+          display: "flex",
+          alignItems: "center",
+          gap: "var(--space-2)",
         }}
       >
-        👨‍🍳 Рецепт приготовления
+        <ChefHat size={20} /> Рецепт приготовления
       </h3>
       <div>
         {recipe.steps?.map((step: string, i: number) => (
@@ -684,9 +694,13 @@ export default function RecipeView({
             fontWeight: "var(--font-weight-semibold)",
             marginBottom: "var(--space-1)",
             color: "var(--color-text)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "var(--space-2)",
           }}
         >
-          📸 Приготовили? Покажите результат!
+          <Camera size={18} /> Приготовили? Покажите результат!
         </h3>
         <p
           style={{

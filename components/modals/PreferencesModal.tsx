@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { X, PlusCircle } from "lucide-react";
+import { X, PlusCircle, SlidersHorizontal } from "lucide-react";
 
 interface PreferencesModalProps {
   isOpen: boolean;
@@ -83,7 +83,7 @@ export default function PreferencesModal({
           onClick={e => e.stopPropagation()}
         >
           <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)'}}>
-            <h3 style={{ margin: 0, fontSize: 'var(--font-size-heading)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text)' }}>Фильтры для рецепта ⚙️</h3>
+            <h3 style={{ margin: 0, fontSize: 'var(--font-size-heading)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text)', display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}><SlidersHorizontal size={20} /> Фильтры для рецепта</h3>
             <button onClick={handleClose} style={{ width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: 'var(--color-bg-subtle)', border: 'none', borderRadius: '50%', padding: '0', cursor: 'pointer', color: 'var(--color-text-secondary)' }}><X size={20} /></button>
           </div>
 

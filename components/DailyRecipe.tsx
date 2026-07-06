@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clock, Flame, Info, ExternalLink, ShoppingCart, Heart, Share2, Sparkles, Send } from 'lucide-react';
+import { Clock, Flame, Info, ExternalLink, ShoppingCart, Heart, Share2, Sparkles, Send, Salad, ChefHat } from 'lucide-react';
 
 export default function DailyRecipe(props: any) {
   const {
@@ -83,7 +83,7 @@ export default function DailyRecipe(props: any) {
               );
             })()}
 
-            <h4 style={{fontSize: 'var(--font-size-heading)', fontWeight: 'var(--font-weight-semibold)', margin: '0 0 var(--space-3) 0', color: 'var(--color-text)'}}>🥬 Ингредиенты:</h4>
+            <h4 style={{fontSize: 'var(--font-size-heading)', fontWeight: 'var(--font-weight-semibold)', margin: '0 0 var(--space-3) 0', color: 'var(--color-text)', display: 'flex', alignItems: 'center', gap: 'var(--space-2)'}}><Salad size={20} /> Ингредиенты:</h4>
             <div style={{display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', marginBottom: 'var(--space-5)'}}>
               {dailyRecipe.detailed_ingredients ? dailyRecipe.detailed_ingredients.map((ing: any, i: number) => (
                  <div key={i} style={{padding: 'var(--space-3)', background: 'var(--color-bg)', borderRadius: 'var(--radius-sm)', fontSize: 'var(--font-size-body)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
@@ -97,7 +97,7 @@ export default function DailyRecipe(props: any) {
               ))}
             </div>
 
-            <h4 style={{fontSize: 'var(--font-size-heading)', fontWeight: 'var(--font-weight-semibold)', margin: '0 0 var(--space-4) 0', color: 'var(--color-text)'}}>👨‍🍳 Приготовление:</h4>
+            <h4 style={{fontSize: 'var(--font-size-heading)', fontWeight: 'var(--font-weight-semibold)', margin: '0 0 var(--space-4) 0', color: 'var(--color-text)', display: 'flex', alignItems: 'center', gap: 'var(--space-2)'}}><ChefHat size={20} /> Приготовление:</h4>
             <div style={{display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', marginBottom: 'var(--space-5)'}}>
               {dailyRecipe.steps?.map((step: string, i: number) => (
                 <div key={i} style={{display: 'flex', gap: 'var(--space-3)'}}>

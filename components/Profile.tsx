@@ -1,5 +1,5 @@
 import React from "react";
-import { User, Edit3, LogOut, Settings, ChevronRight, Heart, Clock, Flame, Trash2, MessageCircle, Camera } from "lucide-react";
+import { User, Edit3, LogOut, Settings, ChevronRight, Heart, Clock, Flame, Trash2, MessageCircle, Camera, Cookie, Store, History, ChefHat, HeartCrack } from "lucide-react";
 import Button from "@/components/ui/Button";
 
 export default function Profile(props: any) {
@@ -60,12 +60,12 @@ export default function Profile(props: any) {
 
               <div style={{display: 'flex', background: 'var(--color-bg)', padding: 'var(--space-3)', borderRadius: 'var(--radius-sm)', gap: 'var(--space-3)', border: '1px solid var(--color-border)'}}>
                 <div style={{flex: 1, textAlign: 'center'}}>
-                   <div style={{fontSize: 'var(--font-size-heading)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-accent)', marginBottom: 'var(--space-1)'}}>{formatCooks(cooks)} 🍪</div>
+                   <div style={{fontSize: 'var(--font-size-heading)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-accent)', marginBottom: 'var(--space-1)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-1)'}}>{formatCooks(cooks)} <Cookie size={18} /></div>
                    <div style={{fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)', fontWeight: 'var(--font-weight-medium)'}}>Баланс</div>
                 </div>
                 <div style={{width: '1px', background: 'var(--color-border)'}}></div>
                 <div style={{flex: 1, textAlign: 'center'}}>
-                   <div style={{fontSize: 'var(--font-size-heading)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text)', marginBottom: 'var(--space-1)'}}>{restaurantLevel} 🏪</div>
+                   <div style={{fontSize: 'var(--font-size-heading)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text)', marginBottom: 'var(--space-1)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-1)'}}>{restaurantLevel} <Store size={18} /></div>
                    <div style={{fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)', fontWeight: 'var(--font-weight-medium)'}}>Уровень</div>
                 </div>
               </div>
@@ -82,16 +82,16 @@ export default function Profile(props: any) {
           </div>
 
           <div style={{display: 'flex', gap: 'var(--space-2)', overflowX: 'auto', paddingBottom: 'var(--space-2)', marginBottom: 'var(--space-3)'}}>
-             <button onClick={() => setProfileView('main')} style={{padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-sm)', border: 'none', whiteSpace: 'nowrap', background: profileView === 'main' ? 'var(--color-text)' : 'var(--color-surface)', color: profileView === 'main' ? 'white' : 'var(--color-text-secondary)', fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-caption)', boxShadow: profileView === 'main' ? '0 4px 10px rgba(0,0,0,0.1)' : '0 1px 3px rgba(0,0,0,0.05)', cursor: 'pointer', transition: 'all 0.2s'}}>📜 История</button>
-             <button onClick={() => setProfileView('favorites')} style={{padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-sm)', border: 'none', whiteSpace: 'nowrap', background: profileView === 'favorites' ? 'var(--color-text)' : 'var(--color-surface)', color: profileView === 'favorites' ? 'white' : 'var(--color-text-secondary)', fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-caption)', boxShadow: profileView === 'favorites' ? '0 4px 10px rgba(0,0,0,0.1)' : '0 1px 3px rgba(0,0,0,0.05)', cursor: 'pointer', transition: 'all 0.2s'}}>❤️ Избранное ({feed?.filter((r: any) => r.is_favorite).length || 0})</button>
-             <button onClick={() => setProfileView('photos')} style={{padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-sm)', border: 'none', whiteSpace: 'nowrap', background: profileView === 'photos' ? 'var(--color-text)' : 'var(--color-surface)', color: profileView === 'photos' ? 'white' : 'var(--color-text-secondary)', fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-caption)', boxShadow: profileView === 'photos' ? '0 4px 10px rgba(0,0,0,0.1)' : '0 1px 3px rgba(0,0,0,0.05)', cursor: 'pointer', transition: 'all 0.2s'}}>📸 Мои фото</button>
+             <button onClick={() => setProfileView('main')} style={{padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-sm)', border: 'none', whiteSpace: 'nowrap', background: profileView === 'main' ? 'var(--color-text)' : 'var(--color-surface)', color: profileView === 'main' ? 'white' : 'var(--color-text-secondary)', fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-caption)', boxShadow: profileView === 'main' ? '0 4px 10px rgba(0,0,0,0.1)' : '0 1px 3px rgba(0,0,0,0.05)', cursor: 'pointer', transition: 'all 0.2s', display: 'inline-flex', alignItems: 'center', gap: 'var(--space-1)'}}><History size={14} /> История</button>
+             <button onClick={() => setProfileView('favorites')} style={{padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-sm)', border: 'none', whiteSpace: 'nowrap', background: profileView === 'favorites' ? 'var(--color-text)' : 'var(--color-surface)', color: profileView === 'favorites' ? 'white' : 'var(--color-text-secondary)', fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-caption)', boxShadow: profileView === 'favorites' ? '0 4px 10px rgba(0,0,0,0.1)' : '0 1px 3px rgba(0,0,0,0.05)', cursor: 'pointer', transition: 'all 0.2s', display: 'inline-flex', alignItems: 'center', gap: 'var(--space-1)'}}><Heart size={14} /> Избранное ({feed?.filter((r: any) => r.is_favorite).length || 0})</button>
+             <button onClick={() => setProfileView('photos')} style={{padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-sm)', border: 'none', whiteSpace: 'nowrap', background: profileView === 'photos' ? 'var(--color-text)' : 'var(--color-surface)', color: profileView === 'photos' ? 'white' : 'var(--color-text-secondary)', fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-caption)', boxShadow: profileView === 'photos' ? '0 4px 10px rgba(0,0,0,0.1)' : '0 1px 3px rgba(0,0,0,0.05)', cursor: 'pointer', transition: 'all 0.2s', display: 'inline-flex', alignItems: 'center', gap: 'var(--space-1)'}}><Camera size={14} /> Мои фото</button>
           </div>
 
           {profileView === 'main' && (
             <div className="animate-fade-in">
               {feed?.length === 0 ? (
                 <div style={{textAlign: 'center', padding: 'var(--space-4)'}}>
-                  <div style={{fontSize: 'var(--font-size-title)', marginBottom: 'var(--space-2)'}}>🍳</div>
+                  <ChefHat size={32} style={{ display: 'block', margin: '0 auto var(--space-2) auto', opacity: 0.6 }} />
                   <div style={{color: 'var(--color-text)', fontWeight: 'var(--font-weight-semibold)', marginBottom: 'var(--space-1)'}}>История пуста</div>
                   <div style={{color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-caption)'}}>Найдите свой первый рецепт по фото или названию.</div>
                 </div>
@@ -118,7 +118,7 @@ export default function Profile(props: any) {
             <div className="animate-fade-in">
               {feed?.filter((r: any) => r.is_favorite).length === 0 ? (
                 <div style={{textAlign: 'center', padding: 'var(--space-4)'}}>
-                  <div style={{fontSize: 'var(--font-size-title)', marginBottom: 'var(--space-2)'}}>💔</div>
+                  <HeartCrack size={32} style={{ display: 'block', margin: '0 auto var(--space-2) auto', opacity: 0.6 }} />
                   <div style={{color: 'var(--color-text)', fontWeight: 'var(--font-weight-semibold)', marginBottom: 'var(--space-1)'}}>В избранном пока пусто</div>
                   <div style={{color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-caption)'}}>Добавляйте рецепты лайком, чтобы вернуться к ним позже.</div>
                 </div>
@@ -144,7 +144,7 @@ export default function Profile(props: any) {
             <div className="animate-fade-in">
               {userPhotos.length === 0 ? (
                  <div style={{textAlign: 'center', padding: 'var(--space-4)'}}>
-                   <div style={{fontSize: 'var(--font-size-title)', marginBottom: 'var(--space-2)'}}>📸</div>
+                   <Camera size={32} style={{ display: 'block', margin: '0 auto var(--space-2) auto', opacity: 0.6 }} />
                    <div style={{color: 'var(--color-text)', fontWeight: 'var(--font-weight-semibold)', marginBottom: 'var(--space-1)'}}>Пока нет опубликованных фото</div>
                    <div style={{color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-caption)'}}>Приготовьте рецепт и поделитесь фото результата в ленте.</div>
                  </div>

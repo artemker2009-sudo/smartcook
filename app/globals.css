@@ -4,7 +4,7 @@
 /* === SMARTCOOK DESIGN TOKENS === */
 :root {
   /* Поверхности */
-  --color-bg: #fafafa;         /* zinc-50 — фон страницы */
+  --color-bg: #faf9f7;         /* тёплый off-white — фон страницы (этап 4.1: утепление) */
   --color-surface: #ffffff;    /* карточки, поля, кнопки */
   --color-bg-subtle: #f4f4f5;  /* zinc-100 — второстепенные поверхности (чипы, переключатели) */
   --color-border: #e4e4e7;     /* zinc-200 */
@@ -121,6 +121,19 @@ body {
   position: relative;
   height: 210px;               /* фиксируем высоту → нет layout shift */
   margin-top: var(--space-4);
+  pointer-events: none;        /* декоративная сцена никогда не перехватывает тапы */
+}
+/* Один мягкий статичный радиальный «свет» за карточкой анимации (зелёный ≤8%) */
+.process-stage::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 320px;
+  height: 320px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, rgba(5, 150, 105, 0.08) 0%, rgba(5, 150, 105, 0) 70%);
+  z-index: 0;
 }
 .proc-scene {
   position: absolute;
@@ -162,6 +175,13 @@ body {
   border-radius: var(--radius-sm);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
 }
+/* Мягкие пастельные подложки под иконки продуктов (спокойная палитра) */
+.proc-photo-grid span:nth-child(1) { background: #fff1e6; color: #e07a3a; } /* морковь — персиковая */
+.proc-photo-grid span:nth-child(2) { background: #fbeceb; color: #cf6f62; } /* курица — тёплая роза */
+.proc-photo-grid span:nth-child(3) { background: #fce8ef; color: #d24f78; } /* вишня — розовая */
+.proc-photo-grid span:nth-child(4) { background: #e9f6ee; color: #3f9e5f; } /* салат — зелёная */
+.proc-photo-grid span:nth-child(5) { background: #fff6df; color: #cf9a34; } /* яйцо — жёлтая */
+.proc-photo-grid span:nth-child(6) { background: #e9f1fb; color: #4d84c4; } /* рыба — голубая */
 .proc-chip {
   position: absolute;
   display: inline-flex;
@@ -186,9 +206,10 @@ body {
 .proc-recipe-card {
   width: 230px;
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-accent-subtle);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-card);
+  /* Лёгкая тень с тёплым зелёным акцентом (в пределах акцентного цвета) */
+  box-shadow: 0 12px 40px -8px rgba(5, 150, 105, 0.18);
   padding: var(--space-3);
 }
 .proc-recipe-head {
@@ -258,6 +279,40 @@ body {
 
 /* --- SKELETON (пульсирующие плашки вместо спиннеров) --- */
 .sc-skel { background: var(--color-bg-subtle); border-radius: var(--radius-full); }
+
+/* --- КНОПКА «ПОДЕЛИТЬСЯ РЕЦЕПТОМ» (экран результата) --- */
+.recipe-share-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--color-accent-subtle);
+  color: var(--color-accent-hover);
+  border: 1px solid transparent;
+  border-radius: var(--radius-full);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  margin-bottom: var(--space-4);
+  transition: background 0.2s, border-color 0.2s;
+}
+.recipe-share-btn:hover { background: var(--color-surface); border-color: var(--color-accent); }
+
+/* --- КОМПАКТНАЯ ИКОНКА ШЕРИНГА В КАРТОЧКАХ ИСТОРИИ/ИЗБРАННОГО --- */
+.history-share-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  padding: var(--space-1);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  color: var(--color-text-muted);
+  transition: color 0.2s, background 0.2s;
+}
+.history-share-btn:hover { color: var(--color-accent); background: var(--color-accent-subtle); }
 
 /* --- КАРТОЧКИ --- */
 .card {

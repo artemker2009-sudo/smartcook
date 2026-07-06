@@ -20,10 +20,12 @@ import {
   Loader2,
   History,
   HeartCrack,
+  Share2,
 } from "lucide-react";
 import RecipeView from "@/components/RecipeView";
 import Button from "@/components/ui/Button";
 import HeroLanding from "@/components/HeroLanding";
+import { shareOrCopy } from "@/lib/share";
 
 interface ServiceViewProps {
   isHistoryView: boolean;
@@ -813,6 +815,25 @@ export default function ServiceView({
                           {formatCalories(item.calories)}
                         </div>
                       )}
+                      <button
+                        type="button"
+                        className="history-share-btn"
+                        aria-label="Поделиться рецептом"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const url = item.id
+                            ? `${window.location.origin}/?recipeId=${item.id}`
+                            : window.location.origin;
+                          shareOrCopy({
+                            title: item.title,
+                            text: `«${item.title}» • ${formatTime(item.time)}`,
+                            url,
+                            goal: "share_recipe_history",
+                          });
+                        }}
+                      >
+                        <Share2 size={15} />
+                      </button>
                     </div>
                   </div>
                 ))}

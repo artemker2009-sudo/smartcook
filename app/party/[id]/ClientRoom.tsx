@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { reachGoal } from "@/lib/metrika";
 import {
   activatePartyPassAction,
   addPartyItemAction,
@@ -1473,6 +1474,7 @@ export default function ClientRoom({
   };
 
   const handleShare = async () => {
+    reachGoal("share_banquet_invite");
     const shareData = {
       title: currentParty.title,
       text: `Присоединяйся к банкету «${currentParty.title}»`,
@@ -1944,10 +1946,10 @@ export default function ClientRoom({
             <button
               type="button"
               onClick={handleShare}
-              className="inline-flex min-w-[76px] items-center justify-end gap-1 text-sm font-medium text-black transition hover:text-zinc-600"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
             >
               <Share2 className="h-4 w-4" />
-              <span className="sr-only">Поделиться</span>
+              <span>Позвать</span>
             </button>
           </div>
         </div>

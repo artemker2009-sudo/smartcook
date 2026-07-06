@@ -9,9 +9,23 @@ const SUPABASE_HOST = (() => {
   }
 })();
 
+// В dev-режиме Next.js (webpack + React Fast Refresh) исполняет клиентские
+// модули через eval — без 'unsafe-eval' строгий CSP блокирует ВЕСЬ клиентский
+// бандл, страница не гидрируется и ни одна кнопка не реагирует. В проде бандл
+// собран заранее и eval не нужен, поэтому 'unsafe-eval' добавляется ТОЛЬКО в dev
+// и никак не ослабляет продакшн-политику.
+const IS_DEV = process.env.NODE_ENV !== "production";
+const SCRIPT_SRC = [
+  "'self'",
+  "'unsafe-inline'",
+  ...(IS_DEV ? ["'unsafe-eval'"] : []),
+  "https://mc.yandex.ru",
+  "https://va.vercel-scripts.com",
+].join(" ");
+
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline' https://mc.yandex.ru https://va.vercel-scripts.com`,
+  `script-src ${SCRIPT_SRC}`,
   `style-src 'self' 'unsafe-inline'`,
   `img-src 'self' data: blob: https:`,
   `font-src 'self' data:`,

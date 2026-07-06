@@ -213,16 +213,6 @@ export default function RecipeView({
             }}
           >
             <div
-              onClick={handleShareRecipe}
-              style={{ cursor: "pointer", display: "flex" }}
-            >
-              <Share2
-                size={30}
-                color="var(--color-text-muted)"
-                style={{ transition: "color 0.2s" }}
-              />
-            </div>
-            <div
               onClick={(e) => toggleFavorite(e, recipe.id!, recipe.is_favorite)}
               style={{ cursor: "pointer" }}
             >
@@ -278,6 +268,14 @@ export default function RecipeView({
           </div>
         )}
       </div>
+
+      <button
+        type="button"
+        onClick={handleShareRecipe}
+        className="recipe-share-btn"
+      >
+        <Share2 size={18} /> Поделиться рецептом
+      </button>
 
       {recipe.estimated_cost !== undefined && (() => {
         const totalCost = (recipe.estimated_cost || 0) * actualServings;

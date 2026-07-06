@@ -6,6 +6,7 @@ import { Menu, X, Flame, Search, CheckCircle, Sparkles, Globe, User, Store, Part
 
 import type { AnalysisData, RecipeData, DBRecipe, DailyRecipeType, HolidayType, DBComment } from "@/lib/types";
 import { DEVELOPER_ID, scaleAmount, formatCooks, cleanText, formatTime, formatCalories, getCroppedImg } from "@/lib/utils";
+import { shareOrCopy } from "@/lib/share";
 
 import Profile from "@/components/Profile";
 import DailyRecipe from "@/components/DailyRecipe";
@@ -582,8 +583,16 @@ export default function Home() {
   }; 
 
   const handleShareRecipe = async () => { 
-    if (!recipe) return; const recipeUrl = recipe.id ? `${window.location.origin}/?recipeId=${recipe.id}` : window.location.origin; const fullText = `«${recipe.title}» 🍲\nПриготовлено с помощью SmartCook 👨‍🍳\n\nОткрой рецепт по ссылке:\n${recipeUrl}`; 
-    try { if (navigator.share) await navigator.share({ title: recipe.title, text: fullText }); else { await navigator.clipboard.writeText(fullText); showToast("Ссылка скопирована в буфер обмена!", <Clipboard size={18} color="var(--color-accent)" />); } } catch (err) {} 
+    if (!recipe) return;
+    const recipeUrl = recipe.id ? `${window.location.origin}/?recipeId=${recipe.id}` : window.location.origin;
+    // Единый хелпер: navigator.share → фолбэк на копирование ссылки. Текст —
+    // название блюда + время приготовления. Цель Метрики — share_recipe.
+    shareOrCopy({
+      title: recipe.title,
+      text: `«${recipe.title}» • ${formatTime(recipe.time)}`,
+      url: recipeUrl,
+      goal: "share_recipe",
+    });
   }; 
 
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => { 

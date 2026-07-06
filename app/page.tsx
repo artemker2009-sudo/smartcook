@@ -183,8 +183,8 @@ export default function Home() {
     const safeLevel = level || 1;
     const titles = ['Ларёк 🌭', 'Закусочная 🍔', 'Кафе ☕️', 'Ресторан 🍽', 'Мишленовский ресторан ⭐️', 'Сеть ресторанов 👑'];
     
-    const restBadge = <span key="rest" style={{fontSize: '11px', background: '#fef3c7', color: '#d97706', padding: '4px 10px', borderRadius: '100px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', lineHeight: 1}}>{titles[Math.min(safeLevel - 1, 5)]}</span>;
-    const devBadge = isDev ? <span key="dev" style={{fontSize: '11px', background: '#111', color: '#38bdf8', padding: '4px 10px', borderRadius: '100px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '4px', lineHeight: 1}}>👨‍💻 Разработчик</span> : null;
+    const restBadge = <span key="rest" style={{fontSize: 'var(--font-size-caption)', background: 'var(--color-bg-subtle)', color: 'var(--color-text-secondary)', padding: 'var(--space-1) var(--space-2)', borderRadius: 'var(--radius-full)', fontWeight: 'var(--font-weight-semibold)', display: 'inline-flex', alignItems: 'center', lineHeight: 1}}>{titles[Math.min(safeLevel - 1, 5)]}</span>;
+    const devBadge = isDev ? <span key="dev" style={{fontSize: 'var(--font-size-caption)', background: 'var(--color-text)', color: 'white', padding: 'var(--space-1) var(--space-2)', borderRadius: 'var(--radius-full)', fontWeight: 'var(--font-weight-semibold)', display: 'inline-flex', alignItems: 'center', gap: 'var(--space-1)', lineHeight: 1}}>👨‍💻 Разработчик</span> : null;
 
     return { isDev, devBadge, restBadge };
   };
@@ -329,7 +329,7 @@ export default function Home() {
     if (activeView === 'feed' && feedTab === 'photos' && scrollToPostId && photosFeed.length > 0) {
       const timer = setTimeout(() => {
         const element = document.getElementById(`feed-post-${scrollToPostId}`);
-        if (element) { element.scrollIntoView({ behavior: 'smooth', block: 'center' }); element.style.transition = 'box-shadow 0.5s'; element.style.boxShadow = '0 0 0 4px #0ea5e9'; setTimeout(() => { element.style.boxShadow = ''; setScrollToPostId(null); }, 2000); }
+        if (element) { element.scrollIntoView({ behavior: 'smooth', block: 'center' }); element.style.transition = 'box-shadow 0.5s'; element.style.boxShadow = '0 0 0 4px var(--color-accent)'; setTimeout(() => { element.style.boxShadow = ''; setScrollToPostId(null); }, 2000); }
       }, 300); return () => clearTimeout(timer);
     }
   }, [activeView, feedTab, photosFeed, scrollToPostId]);
@@ -376,7 +376,7 @@ export default function Home() {
             showToast("Этот Username уже занят! Выберите другой или войдите.", undefined, 'error');
           } else throw error;
         } else {
-          showToast("Добро пожаловать, шеф! 🎉", <Sparkles size={18} color="#fbbf24" />);
+          showToast("Добро пожаловать, шеф! 🎉", <Sparkles size={18} color="var(--color-accent)" />);
           setIsAuthModalOpen(false);
         }
       } else {
@@ -571,7 +571,7 @@ export default function Home() {
           if (latestPost) await fetch('/api/telegram-mod', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ postId: latestPost.id, recipeTitle: postTitleContext, userName: userName, comment: userComment, photoUrl: publicUrlData.publicUrl }) }); 
       } catch (tgErr) {} 
 
-      showToast("🎉 Фото на проверке у шефа! +1000 куков!", <Sparkles size={18} color="#fbbf24" />); 
+      showToast("🎉 Фото на проверке у шефа! +1000 куков!", <Sparkles size={18} color="var(--color-accent)" />); 
       setCooks(prev => prev + 1000); setUserPhotoFile(null); setUserPhotoPreview(null); setUserComment(""); setStandaloneTitle(""); setIsStandaloneUploadOpen(false); 
     } catch (err: any) { showToast("Ошибка отправки: " + err.message, undefined, 'error'); } finally { setIsUploadingPhoto(false); } 
   }; 
@@ -624,7 +624,7 @@ export default function Home() {
     if (lastGen !== today) {
       localStorage.setItem('sc_last_gen_date', today);
       setCooks(prev => prev + 500);
-      setTimeout(() => showToast("🎉 +500 куков за первый рецепт сегодня!", <Sparkles size={18} color="#fbbf24" />), 1500);
+      setTimeout(() => showToast("🎉 +500 куков за первый рецепт сегодня!", <Sparkles size={18} color="var(--color-accent)" />), 1500);
     }
   };
 
@@ -722,12 +722,10 @@ export default function Home() {
       <style>{` 
         input[type=number]::-webkit-inner-spin-button,  
         input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; } 
-        input[type=number] { -moz-appearance: textfield; } 
+        input[type=number] { -moz-appearance: textfield; }
         textarea { font-family: inherit; }
-        .menu-link { display: flex; align-items: center; gap: 14px; padding: 14px 16px; font-size: 16px; font-weight: 600; color: #475569; border-radius: 16px; cursor: pointer; transition: all 0.2s ease; margin-bottom: 4px; }
-        .menu-link:hover { background: #f8fafc; }
         @keyframes floatUp { 0% { opacity: 1; transform: translateY(0) scale(1); } 100% { opacity: 0; transform: translateY(-60px) scale(1.3); } }
-        .float-coin { position: absolute; animation: floatUp 0.8s ease-out forwards; pointer-events: none; font-size: 24px; font-weight: 900; color: #f59e0b; text-shadow: 0px 2px 4px rgba(0,0,0,0.3); z-index: 10; }
+        .float-coin { position: absolute; animation: floatUp 0.8s ease-out forwards; pointer-events: none; font-size: var(--font-size-heading); font-weight: var(--font-weight-semibold); color: var(--color-accent); text-shadow: 0px 2px 4px rgba(0,0,0,0.3); z-index: 10; }
       `}</style> 
 
       {/* TOAST УВЕДОМЛЕНИЯ */}
@@ -813,45 +811,45 @@ export default function Home() {
       />
        
       {/* КНОПКА МЕНЮ */}
-      <button className="menu-btn" onClick={() => setIsMenuOpen(true)} style={{ position: 'fixed', top: '10px', left: '20px', zIndex: 50, background: 'white', borderRadius: '50%', width: '44px', height: '44px', padding: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', border: 'none', cursor: 'pointer' }}> 
-        <Menu size={24} color="#111" /> 
-      </button> 
+      <button className="menu-btn" onClick={() => setIsMenuOpen(true)} style={{ position: 'fixed', top: 'var(--space-2)', left: 'var(--space-3)', zIndex: 50, background: 'var(--color-surface)', borderRadius: '50%', width: '44px', height: '44px', padding: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', border: 'none', cursor: 'pointer' }}>
+        <Menu size={24} color="var(--color-text)" />
+      </button>
 
       {/* МЕНЮ */}
-      {isMenuOpen && ( 
-        <> 
-          <div className="menu-overlay" onClick={() => setIsMenuOpen(false)} style={{zIndex: 99}} /> 
-          <div className={`menu-drawer ${isMenuOpen ? 'open' : ''}`} style={{ left: 0, right: 'auto', transform: isMenuOpen ? 'translateX(0)' : 'translateX(-100%)', zIndex: 100, borderTopRightRadius: '24px', borderBottomRightRadius: '24px', borderTopLeftRadius: '0', borderBottomLeftRadius: '0' }}> 
-            <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '40px'}}> 
-               <span style={{fontSize: '24px', fontWeight: '900', color: '#059669'}}>SmartCook</span> 
-               <X size={24} onClick={() => setIsMenuOpen(false)} style={{cursor: 'pointer'}} /> 
-            </div> 
-             
-            <div className="menu-link" onClick={() => { setProfileView('main'); switchView('profile'); }} style={{ background: activeView === 'profile' ? '#f1f5f9' : 'transparent', color: activeView === 'profile' ? '#0f172a' : '#475569', fontWeight: activeView === 'profile' ? 800 : 600 }}>
-               <User size={22} color="#0ea5e9" style={{flexShrink: 0}}/> Личный кабинет
-            </div> 
-            <div className="menu-link" onClick={() => switchView('service')} style={{ background: activeView === 'service' ? '#f1f5f9' : 'transparent', color: activeView === 'service' ? '#0f172a' : '#475569', fontWeight: activeView === 'service' ? 800 : 600 }}>
-               <Search size={22} color="#10b981" style={{flexShrink: 0}}/> Поиск
-            </div> 
-            <a className="menu-link" href="/parties" style={{ background: 'transparent', color: '#475569', fontWeight: 600, textDecoration: 'none' }}>
-               <PartyPopper size={22} color="#111111" style={{flexShrink: 0}}/> Банкеты
+      {isMenuOpen && (
+        <>
+          <div className="menu-overlay" onClick={() => setIsMenuOpen(false)} style={{zIndex: 99}} />
+          <div className={`menu-drawer ${isMenuOpen ? 'open' : ''}`} style={{ left: 0, right: 'auto', transform: isMenuOpen ? 'translateX(0)' : 'translateX(-100%)', zIndex: 100, borderTopRightRadius: 'var(--radius-md)', borderBottomRightRadius: 'var(--radius-md)', borderTopLeftRadius: '0', borderBottomLeftRadius: '0' }}>
+            <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-5)'}}>
+               <span style={{fontSize: 'var(--font-size-heading)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-accent)'}}>SmartCook</span>
+               <X size={24} color="var(--color-text-secondary)" onClick={() => setIsMenuOpen(false)} style={{cursor: 'pointer'}} />
+            </div>
+
+            <div className="menu-link" onClick={() => { setProfileView('main'); switchView('profile'); }} style={{ background: activeView === 'profile' ? 'var(--color-accent-subtle)' : 'transparent', color: activeView === 'profile' ? 'var(--color-accent)' : 'var(--color-text-secondary)', fontWeight: activeView === 'profile' ? 'var(--font-weight-semibold)' : 'var(--font-weight-medium)' }}>
+               <User size={22} style={{flexShrink: 0}}/> Личный кабинет
+            </div>
+            <div className="menu-link" onClick={() => switchView('service')} style={{ background: activeView === 'service' ? 'var(--color-accent-subtle)' : 'transparent', color: activeView === 'service' ? 'var(--color-accent)' : 'var(--color-text-secondary)', fontWeight: activeView === 'service' ? 'var(--font-weight-semibold)' : 'var(--font-weight-medium)' }}>
+               <Search size={22} style={{flexShrink: 0}}/> Поиск
+            </div>
+            <a className="menu-link" href="/parties" style={{ background: 'transparent', color: 'var(--color-text-secondary)', fontWeight: 'var(--font-weight-medium)', textDecoration: 'none' }}>
+               <PartyPopper size={22} style={{flexShrink: 0}}/> Банкеты
             </a>
-            <div className="menu-link" onClick={() => switchView('feed')} style={{ background: activeView === 'feed' ? '#f1f5f9' : 'transparent', color: activeView === 'feed' ? '#0f172a' : '#475569', fontWeight: activeView === 'feed' ? 800 : 600 }}> 
-               <Globe size={22} color="#8b5cf6" style={{flexShrink: 0}}/> Лента 
-            </div> 
-            <div className="menu-link" onClick={() => switchView('game')} style={{ background: activeView === 'game' ? '#f1f5f9' : 'transparent', color: activeView === 'game' ? '#0f172a' : '#475569', fontWeight: activeView === 'game' ? 800 : 600 }}>
-               <Store size={22} color="#f59e0b" style={{flexShrink: 0}}/> Мой ресторан
-            </div> 
-            <div className="menu-link" onClick={() => switchView('daily')} style={{ background: activeView === 'daily' ? '#f1f5f9' : 'transparent', color: activeView === 'daily' ? '#0f172a' : '#475569', fontWeight: activeView === 'daily' ? 800 : 600 }}>
-               <Flame size={22} color="#f97316" style={{flexShrink: 0}}/> Рецепт дня
-            </div> 
-             
-            <div className="menu-link" style={{ marginTop: '10px', background: activeView === 'about' ? '#f1f5f9' : 'transparent', color: activeView === 'about' ? '#0f172a' : '#475569', fontWeight: activeView === 'about' ? 800 : 600 }} onClick={() => switchView('about')}>
-               <CheckCircle size={22} color="#3b82f6" style={{flexShrink: 0}}/> О проекте
-            </div> 
-          </div> 
-        </> 
-      )} 
+            <div className="menu-link" onClick={() => switchView('feed')} style={{ background: activeView === 'feed' ? 'var(--color-accent-subtle)' : 'transparent', color: activeView === 'feed' ? 'var(--color-accent)' : 'var(--color-text-secondary)', fontWeight: activeView === 'feed' ? 'var(--font-weight-semibold)' : 'var(--font-weight-medium)' }}>
+               <Globe size={22} style={{flexShrink: 0}}/> Лента
+            </div>
+            <div className="menu-link" onClick={() => switchView('game')} style={{ background: activeView === 'game' ? 'var(--color-accent-subtle)' : 'transparent', color: activeView === 'game' ? 'var(--color-accent)' : 'var(--color-text-secondary)', fontWeight: activeView === 'game' ? 'var(--font-weight-semibold)' : 'var(--font-weight-medium)' }}>
+               <Store size={22} style={{flexShrink: 0}}/> Мой ресторан
+            </div>
+            <div className="menu-link" onClick={() => switchView('daily')} style={{ background: activeView === 'daily' ? 'var(--color-accent-subtle)' : 'transparent', color: activeView === 'daily' ? 'var(--color-accent)' : 'var(--color-text-secondary)', fontWeight: activeView === 'daily' ? 'var(--font-weight-semibold)' : 'var(--font-weight-medium)' }}>
+               <Flame size={22} style={{flexShrink: 0}}/> Рецепт дня
+            </div>
+
+            <div className="menu-link" style={{ marginTop: 'var(--space-2)', background: activeView === 'about' ? 'var(--color-accent-subtle)' : 'transparent', color: activeView === 'about' ? 'var(--color-accent)' : 'var(--color-text-secondary)', fontWeight: activeView === 'about' ? 'var(--font-weight-semibold)' : 'var(--font-weight-medium)' }} onClick={() => switchView('about')}>
+               <CheckCircle size={22} style={{flexShrink: 0}}/> О проекте
+            </div>
+          </div>
+        </>
+      )}
 
       {/* === ВНЕШНИЕ КОМПОНЕНТЫ === */}
       {activeView === 'profile' && (

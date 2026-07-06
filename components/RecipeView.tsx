@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import DonateButton from "@/components/DonateButton";
+import Button from "@/components/ui/Button";
 
 interface RecipeViewProps {
   recipe: any;
@@ -126,21 +127,21 @@ export default function RecipeView({
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "8px",
-            background: "white",
-            border: "1px solid #e5e7eb",
-            borderRadius: "100px",
-            padding: "8px 16px",
-            color: "#374151",
-            fontSize: "14px",
-            fontWeight: 600,
-            marginBottom: "20px",
+            gap: "var(--space-2)",
+            background: "var(--color-surface)",
+            border: "1px solid var(--color-border)",
+            borderRadius: "var(--radius-full)",
+            padding: "var(--space-2) var(--space-3)",
+            color: "var(--color-text-secondary)",
+            fontSize: "var(--font-size-caption)",
+            fontWeight: "var(--font-weight-semibold)",
+            marginBottom: "var(--space-4)",
             cursor: "pointer",
             boxShadow: "0 2px 5px rgba(0,0,0,0.05)",
             transition: "all 0.2s",
           }}
         >
-          <Search size={18} color="#059669" /> К поиску
+          <Search size={18} color="var(--color-accent)" /> К поиску
         </button>
       )}
 
@@ -150,15 +151,15 @@ export default function RecipeView({
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "8px",
-            background: "white",
-            border: "1px solid #e5e7eb",
-            borderRadius: "100px",
-            padding: "8px 16px",
-            color: "#374151",
-            fontSize: "14px",
-            fontWeight: 600,
-            marginBottom: "20px",
+            gap: "var(--space-2)",
+            background: "var(--color-surface)",
+            border: "1px solid var(--color-border)",
+            borderRadius: "var(--radius-full)",
+            padding: "var(--space-2) var(--space-3)",
+            color: "var(--color-text-secondary)",
+            fontSize: "var(--font-size-caption)",
+            fontWeight: "var(--font-weight-semibold)",
+            marginBottom: "var(--space-4)",
             cursor: "pointer",
             boxShadow: "0 2px 5px rgba(0,0,0,0.05)",
             transition: "all 0.2s",
@@ -192,10 +193,8 @@ export default function RecipeView({
             className="recipe-title"
             style={{
               marginBottom: 0,
-              fontSize: "24px",
               flex: 1,
               wordBreak: "break-word",
-              lineHeight: 1.2,
             }}
           >
             {recipe.title}
@@ -203,7 +202,7 @@ export default function RecipeView({
           <div
             style={{
               display: "flex",
-              gap: "15px",
+              gap: "var(--space-4)",
               alignItems: "center",
               flexShrink: 0,
               marginTop: "2px",
@@ -215,7 +214,7 @@ export default function RecipeView({
             >
               <Share2
                 size={30}
-                color="#d1d5db"
+                color="var(--color-text-muted)"
                 style={{ transition: "color 0.2s" }}
               />
             </div>
@@ -226,8 +225,8 @@ export default function RecipeView({
               <Heart
                 size={30}
                 className={recipe.is_favorite ? "fill-red-500 text-red-500" : "text-gray-300"}
-                color={recipe.is_favorite ? "#ef4444" : "#d1d5db"}
-                fill={recipe.is_favorite ? "#ef4444" : "none"}
+                color={recipe.is_favorite ? "#dc2626" : "var(--color-text-muted)"}
+                fill={recipe.is_favorite ? "#dc2626" : "none"}
               />
             </div>
           </div>
@@ -236,10 +235,10 @@ export default function RecipeView({
         {recipe.description && (
           <p
             style={{
-              fontSize: "15px",
-              color: "#4b5563",
+              fontSize: "var(--font-size-body)",
+              color: "var(--color-text-secondary)",
               lineHeight: "1.5",
-              margin: "5px 0 15px 0",
+              margin: "var(--space-1) 0 var(--space-3) 0",
             }}
           >
             {recipe.description}
@@ -247,30 +246,30 @@ export default function RecipeView({
         )}
 
         {showSmartVariant && (
-          <button
+          <Button
+            variant="secondary"
             onClick={handleSmartVariant}
             disabled={loadingRecipe}
-            className="btn-smart-variant"
           >
             {loadingRecipe ? (
-              <Sparkles className="animate-spin" size={24} color="#f97316" />
+              <Sparkles className="animate-spin" size={20} color="var(--color-accent)" />
             ) : (
-              <Shuffle size={20} color="#f97316" />
+              <Shuffle size={20} color="var(--color-accent)" />
             )}
             <span style={{ flex: 1, textAlign: "left" }}>
               {loadingRecipe ? "Ищем идеи..." : "Подобрать другой рецепт"}
             </span>
-            <ChevronRight size={18} color="#9ca3af" />
-          </button>
+            <ChevronRight size={18} color="var(--color-text-muted)" />
+          </Button>
         )}
       </div>
 
-      <div className="recipe-tags" style={{ marginTop: "15px", marginBottom: "15px" }}>
+      <div className="recipe-tags" style={{ marginTop: "var(--space-3)", marginBottom: "var(--space-3)" }}>
         <div className="tag-badge">
           <Clock size={16} /> {formatTime(recipe.time)}
         </div>
         {recipe.calories && (
-          <div className="tag-badge orange">
+          <div className="tag-badge">
             <Flame size={16} /> {formatCalories(recipe.calories)}
           </div>
         )}
@@ -282,45 +281,45 @@ export default function RecipeView({
         const savings = deliveryCost - totalCost;
         const tier = recipe.budget_tier || 2;
         const tierConfig = {
-          1: { label: "Почти бесплатно", bg: "linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)", border: "#86efac", color: "#166534", icon: "🤑" },
-          2: { label: "Экономно", bg: "linear-gradient(135deg, #fef9c3 0%, #fde68a 100%)", border: "#fcd34d", color: "#854d0e", icon: "💰" },
-          3: { label: "Ресторан дома", bg: "linear-gradient(135deg, #fff7ed 0%, #fed7aa 100%)", border: "#fdba74", color: "#9a3412", icon: "👨‍🍳" },
-        }[tier as 1 | 2 | 3] || { label: "Экономно", bg: "linear-gradient(135deg, #fef9c3 0%, #fde68a 100%)", border: "#fcd34d", color: "#854d0e", icon: "💰" };
+          1: { label: "Почти бесплатно", bg: "var(--color-accent-subtle)", border: "var(--color-accent)", color: "var(--color-accent-hover)", icon: "🤑" },
+          2: { label: "Экономно", bg: "var(--color-warning-subtle)", border: "var(--color-warning)", color: "var(--color-warning)", icon: "💰" },
+          3: { label: "Ресторан дома", bg: "var(--color-bg-subtle)", border: "var(--color-border)", color: "var(--color-text-secondary)", icon: "👨‍🍳" },
+        }[tier as 1 | 2 | 3] || { label: "Экономно", bg: "var(--color-warning-subtle)", border: "var(--color-warning)", color: "var(--color-warning)", icon: "💰" };
 
         return (
           <div style={{
             background: tierConfig.bg,
             border: `1px solid ${tierConfig.border}`,
-            borderRadius: "24px",
-            padding: "16px 20px",
-            marginBottom: "20px",
+            borderRadius: "var(--radius-md)",
+            padding: "var(--space-3) var(--space-4)",
+            marginBottom: "var(--space-4)",
           }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
-              <span style={{ fontSize: "24px" }}>{tierConfig.icon}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: "var(--space-2)" }}>
+              <span style={{ fontSize: "var(--font-size-title)" }}>{tierConfig.icon}</span>
               <span style={{
-                fontSize: "13px",
-                fontWeight: 800,
-                background: `${tierConfig.border}80`,
+                fontSize: "var(--font-size-caption)",
+                fontWeight: "var(--font-weight-semibold)",
+                background: "var(--color-surface)",
                 color: tierConfig.color,
-                padding: "4px 12px",
-                borderRadius: "100px",
+                padding: "var(--space-1) var(--space-3)",
+                borderRadius: "var(--radius-full)",
               }}>
                 {tierConfig.label}
               </span>
             </div>
-            <div style={{ fontSize: "16px", fontWeight: 800, color: tierConfig.color, lineHeight: 1.4, marginBottom: "6px" }}>
+            <div style={{ fontSize: "var(--font-size-body)", fontWeight: "var(--font-weight-semibold)", color: tierConfig.color, lineHeight: 1.4, marginBottom: "var(--space-1)" }}>
               Цена блюда{actualServings > 1 ? ` (${actualServings} порц.)` : ""}:
             </div>
             {totalCost === 0 ? (
-              <div style={{ fontSize: "15px", fontWeight: 700, color: tierConfig.color, lineHeight: 1.4 }}>
+              <div style={{ fontSize: "var(--font-size-body)", fontWeight: "var(--font-weight-medium)", color: tierConfig.color, lineHeight: 1.4 }}>
                 Своё приготовление: 0 руб. 🎉
               </div>
             ) : (
-              <div style={{ fontSize: "15px", fontWeight: 700, color: tierConfig.color, lineHeight: 1.4 }}>
+              <div style={{ fontSize: "var(--font-size-body)", fontWeight: "var(--font-weight-medium)", color: tierConfig.color, lineHeight: 1.4 }}>
                 Своё приготовление: ~{totalCost} руб.
               </div>
             )}
-            <div style={{ fontSize: "14px", fontWeight: 600, color: "#6b7280", marginTop: "4px" }}>
+            <div style={{ fontSize: "var(--font-size-caption)", fontWeight: "var(--font-weight-medium)", color: "var(--color-text-secondary)", marginTop: "var(--space-1)" }}>
               В сервисах доставки: ~{deliveryCost} руб.
             </div>
           </div>
@@ -332,19 +331,19 @@ export default function RecipeView({
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "12px",
-            marginBottom: "20px",
-            background: "#f9fafb",
-            padding: "10px 15px",
-            borderRadius: "12px",
+            gap: "var(--space-3)",
+            marginBottom: "var(--space-4)",
+            background: "var(--color-bg)",
+            padding: "var(--space-2) var(--space-3)",
+            borderRadius: "var(--radius-sm)",
             width: "fit-content",
           }}
         >
           <span
             style={{
-              fontWeight: 700,
-              color: "#374151",
-              fontSize: "15px",
+              fontWeight: "var(--font-weight-semibold)",
+              color: "var(--color-text-secondary)",
+              fontSize: "var(--font-size-body)",
             }}
           >
             🍽 Порции:
@@ -353,9 +352,9 @@ export default function RecipeView({
             style={{
               display: "flex",
               alignItems: "center",
-              background: "white",
-              border: "1px solid #d1d5db",
-              borderRadius: "8px",
+              background: "var(--color-surface)",
+              border: "1px solid var(--color-border)",
+              borderRadius: "var(--radius-sm)",
               overflow: "hidden",
             }}
           >
@@ -367,15 +366,15 @@ export default function RecipeView({
               }
               disabled={servings === 1 || servings === ""}
               style={{
-                padding: "6px 12px",
+                padding: "var(--space-2) var(--space-3)",
                 background: "transparent",
                 border: "none",
                 fontSize: "18px",
                 color:
-                  servings === 1 || servings === "" ? "#d1d5db" : "#374151",
+                  servings === 1 || servings === "" ? "var(--color-text-muted)" : "var(--color-text-secondary)",
                 cursor:
                   servings === 1 || servings === "" ? "default" : "pointer",
-                fontWeight: 600,
+                fontWeight: "var(--font-weight-semibold)",
               }}
             >
               -
@@ -398,12 +397,12 @@ export default function RecipeView({
                 width: "40px",
                 textAlign: "center",
                 border: "none",
-                borderLeft: "1px solid #d1d5db",
-                borderRight: "1px solid #d1d5db",
-                padding: "6px 0",
-                fontSize: "16px",
-                fontWeight: 700,
-                color: "#111",
+                borderLeft: "1px solid var(--color-border)",
+                borderRight: "1px solid var(--color-border)",
+                padding: "var(--space-2) 0",
+                fontSize: "var(--font-size-body)",
+                fontWeight: "var(--font-weight-semibold)",
+                color: "var(--color-text)",
                 outline: "none",
                 boxSizing: "border-box",
               }}
@@ -415,13 +414,13 @@ export default function RecipeView({
                 )
               }
               style={{
-                padding: "6px 12px",
+                padding: "var(--space-2) var(--space-3)",
                 background: "transparent",
                 border: "none",
                 fontSize: "18px",
-                color: "#374151",
+                color: "var(--color-text-secondary)",
                 cursor: "pointer",
-                fontWeight: 600,
+                fontWeight: "var(--font-weight-semibold)",
               }}
             >
               +
@@ -433,21 +432,21 @@ export default function RecipeView({
       {itemsToBuy.length > 0 && (
         <div
           style={{
-            background: "#fffbeb",
-            border: "1px solid #fcd34d",
-            borderRadius: "12px",
-            padding: "15px",
-            margin: "20px 0",
-            color: "#92400e",
+            background: "var(--color-warning-subtle)",
+            border: "1px solid var(--color-warning)",
+            borderRadius: "var(--radius-sm)",
+            padding: "var(--space-3)",
+            margin: "var(--space-4) 0",
+            color: "var(--color-warning)",
           }}
         >
           <div
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "8px",
-              marginBottom: "8px",
-              fontWeight: 800,
+              gap: "var(--space-2)",
+              marginBottom: "var(--space-2)",
+              fontWeight: "var(--font-weight-semibold)",
             }}
           >
             <ShoppingCart size={20} />{" "}
@@ -459,8 +458,8 @@ export default function RecipeView({
             style={{
               display: "flex",
               flexWrap: "wrap",
-              gap: "8px",
-              marginBottom: "10px",
+              gap: "var(--space-2)",
+              marginBottom: "var(--space-2)",
             }}
           >
             {itemsToBuy.map((item: string, idx: number) => (
@@ -472,17 +471,17 @@ export default function RecipeView({
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
-                  background: "#fef3c7",
-                  padding: "6px 12px",
-                  borderRadius: "8px",
-                  fontSize: "14px",
-                  fontWeight: 600,
+                  background: "var(--color-surface)",
+                  padding: "var(--space-2) var(--space-3)",
+                  borderRadius: "var(--radius-sm)",
+                  fontSize: "var(--font-size-body)",
+                  fontWeight: "var(--font-weight-medium)",
                   textDecoration: "none",
-                  color: "#92400e",
+                  color: "var(--color-warning)",
                   display: "flex",
                   alignItems: "center",
-                  gap: "6px",
-                  border: "1px solid #fcd34d",
+                  gap: "var(--space-1)",
+                  border: "1px solid var(--color-warning)",
                   cursor: "pointer",
                   transition: "all 0.2s",
                 }}
@@ -493,11 +492,11 @@ export default function RecipeView({
           </div>
           <div
             style={{
-              fontSize: "12px",
-              color: "#b45309",
+              fontSize: "var(--font-size-caption)",
+              color: "var(--color-warning)",
               display: "flex",
               alignItems: "center",
-              gap: "5px",
+              gap: "var(--space-1)",
             }}
           >
             <Info size={14} /> Нажмите на ингредиент, чтобы заказать быструю
@@ -522,9 +521,10 @@ export default function RecipeView({
 
       <h3
         style={{
-          fontSize: "22px",
-          fontWeight: 800,
-          marginBottom: "20px",
+          fontSize: "var(--font-size-heading)",
+          fontWeight: "var(--font-weight-semibold)",
+          marginBottom: "var(--space-4)",
+          color: "var(--color-text)",
         }}
       >
         👨‍🍳 Рецепт приготовления
@@ -544,20 +544,13 @@ export default function RecipeView({
 
       <div
         className="chat-box"
-        style={{
-          marginTop: "30px",
-          background: "#e0f2fe",
-          padding: "20px",
-          borderRadius: "24px",
-          border: "2px solid #93c5fd",
-        }}
       >
         <div
           style={{
-            fontWeight: 800,
-            marginBottom: "20px",
-            color: "#0369a1",
-            fontSize: "18px",
+            fontWeight: "var(--font-weight-semibold)",
+            marginBottom: "var(--space-4)",
+            color: "var(--color-text)",
+            fontSize: "var(--font-size-heading)",
             textAlign: "center",
           }}
         >
@@ -567,20 +560,20 @@ export default function RecipeView({
           style={{
             display: "flex",
             flexDirection: "column",
-            gap: "15px",
+            gap: "var(--space-3)",
             alignItems: "flex-start",
             width: "100%",
           }}
         >
           <div
             style={{
-              fontWeight: 800,
-              fontSize: "15px",
-              color: "#0284c7",
-              paddingLeft: "5px",
+              fontWeight: "var(--font-weight-semibold)",
+              fontSize: "var(--font-size-body)",
+              color: "var(--color-text-secondary)",
+              paddingLeft: "var(--space-1)",
               display: "flex",
               alignItems: "center",
-              gap: "6px",
+              gap: "var(--space-1)",
             }}
           >
             <Sparkles size={16} /> Спросить AI Шефа:
@@ -588,7 +581,7 @@ export default function RecipeView({
           <div
             style={{
               display: "flex",
-              gap: "10px",
+              gap: "var(--space-2)",
               alignItems: "flex-end",
               width: "100%",
             }}
@@ -604,21 +597,16 @@ export default function RecipeView({
               }}
               rows={1}
               disabled={asking}
+              className="chat-input"
               style={{
                 flex: 1,
                 width: "100%",
-                padding: "12px 16px",
-                borderRadius: "22px",
-                border: "1px solid #93c5fd",
-                fontSize: "15px",
-                outline: "none",
-                background: asking ? "#f8fafc" : "white",
+                background: asking ? "var(--color-bg)" : "var(--color-surface)",
                 resize: "none",
                 overflowY: "auto",
                 height: "44px",
                 minHeight: "44px",
                 maxHeight: "120px",
-                boxSizing: "border-box",
                 lineHeight: "18px",
                 fontFamily: "inherit",
               }}
@@ -636,7 +624,7 @@ export default function RecipeView({
                 justifyContent: "center",
                 borderRadius: "50%",
                 background:
-                  asking || !question.trim() ? "#bae6fd" : "#3b82f6",
+                  asking || !question.trim() ? "var(--color-border)" : "var(--color-accent)",
                 color: "white",
                 border: "none",
                 cursor:
@@ -650,13 +638,13 @@ export default function RecipeView({
         {asking && (
           <div
             style={{
-              marginTop: "15px",
-              color: "#0ea5e9",
-              fontSize: "14px",
-              fontWeight: 600,
+              marginTop: "var(--space-3)",
+              color: "var(--color-accent)",
+              fontSize: "var(--font-size-caption)",
+              fontWeight: "var(--font-weight-medium)",
               display: "flex",
               alignItems: "center",
-              gap: "8px",
+              gap: "var(--space-2)",
               justifyContent: "center",
             }}
           >
@@ -667,11 +655,12 @@ export default function RecipeView({
         {answer && !asking && (
           <div
             style={{
-              marginTop: "20px",
+              marginTop: "var(--space-4)",
               lineHeight: 1.5,
-              background: "white",
-              padding: "15px",
-              borderRadius: "16px",
+              background: "var(--color-surface)",
+              padding: "var(--space-3)",
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid var(--color-border)",
             }}
           >
             <strong>Ответ:</strong> {answer}
@@ -681,29 +670,29 @@ export default function RecipeView({
 
       <div
         style={{
-          marginTop: "30px",
-          background: "#f8fafc",
-          padding: "25px 20px",
-          borderRadius: "16px",
-          border: "1px solid #e2e8f0",
+          marginTop: "var(--space-5)",
+          background: "var(--color-bg)",
+          padding: "var(--space-4) var(--space-3)",
+          borderRadius: "var(--radius-sm)",
+          border: "1px solid var(--color-border)",
           textAlign: "center",
         }}
       >
         <h3
           style={{
-            fontSize: "18px",
-            fontWeight: 800,
-            marginBottom: "5px",
-            color: "#1f2937",
+            fontSize: "var(--font-size-body)",
+            fontWeight: "var(--font-weight-semibold)",
+            marginBottom: "var(--space-1)",
+            color: "var(--color-text)",
           }}
         >
           📸 Приготовили? Покажите результат!
         </h3>
         <p
           style={{
-            fontSize: "13px",
-            color: "#64748b",
-            marginBottom: "15px",
+            fontSize: "var(--font-size-caption)",
+            color: "var(--color-text-secondary)",
+            marginBottom: "var(--space-3)",
             lineHeight: 1.4,
           }}
         >
@@ -711,28 +700,28 @@ export default function RecipeView({
           оценить другие пользователи!
         </p>
         {!user ? (
-          <button
-            className="btn-primary"
+          <Button
+            variant="primary"
             onClick={() => setIsAuthModalOpen(true)}
           >
             Войти, чтобы опубликовать фото
-          </button>
+          </Button>
         ) : (
           <div
             style={{
               display: "flex",
               flexDirection: "column",
-              gap: "15px",
+              gap: "var(--space-3)",
             }}
           >
             {!userPhotoFile ? (
               <div
                 style={{
-                  border: "2px dashed #cbd5e1",
-                  borderRadius: "12px",
-                  padding: "20px",
+                  border: "2px dashed var(--color-border)",
+                  borderRadius: "var(--radius-sm)",
+                  padding: "var(--space-3)",
                   cursor: "pointer",
-                  background: "white",
+                  background: "var(--color-surface)",
                 }}
                 onClick={() => {
                   setIsStandaloneUploadOpen(false);
@@ -744,14 +733,14 @@ export default function RecipeView({
               >
                 <Camera
                   size={32}
-                  color="#f97316"
-                  style={{ margin: "0 auto 10px auto" }}
+                  color="var(--color-accent)"
+                  style={{ margin: "0 auto var(--space-2) auto" }}
                 />
                 <div
                   style={{
-                    fontSize: "14px",
-                    fontWeight: 600,
-                    color: "#4b5563",
+                    fontSize: "var(--font-size-caption)",
+                    fontWeight: "var(--font-weight-medium)",
+                    color: "var(--color-text-secondary)",
                   }}
                 >
                   Нажмите, чтобы загрузить фото блюда
@@ -767,10 +756,10 @@ export default function RecipeView({
             ) : (
               <div
                 style={{
-                  background: "white",
-                  padding: "15px",
-                  borderRadius: "12px",
-                  border: "1px solid #e2e8f0",
+                  background: "var(--color-surface)",
+                  padding: "var(--space-3)",
+                  borderRadius: "var(--radius-sm)",
+                  border: "1px solid var(--color-border)",
                 }}
               >
                 {userPhotoPreview && (
@@ -781,8 +770,8 @@ export default function RecipeView({
                       width: "100%",
                       height: "200px",
                       objectFit: "cover",
-                      borderRadius: "8px",
-                      marginBottom: "15px",
+                      borderRadius: "var(--radius-sm)",
+                      marginBottom: "var(--space-3)",
                     }}
                   />
                 )}
@@ -795,58 +784,37 @@ export default function RecipeView({
                     e.target.style.height = e.target.scrollHeight + "px";
                   }}
                   rows={1}
+                  className="chat-input"
                   style={{
                     width: "100%",
-                    padding: "12px 16px",
-                    borderRadius: "12px",
-                    border: "1px solid #fdba74",
-                    fontSize: "15px",
-                    marginBottom: "15px",
-                    outline: "none",
+                    marginBottom: "var(--space-3)",
                     resize: "none",
                     overflow: "hidden",
                     minHeight: "44px",
-                    boxSizing: "border-box",
                     fontFamily: "inherit",
                     lineHeight: "18px",
                   }}
                 />
-                <div style={{ display: "flex", gap: "10px" }}>
-                  <button
+                <div style={{ display: "flex", gap: "var(--space-2)" }}>
+                  <Button
+                    variant="secondary"
                     onClick={() => {
                       setUserPhotoFile(null);
                       setUserPhotoPreview(null);
                       setUserComment("");
                     }}
-                    style={{
-                      flex: 1,
-                      padding: "12px",
-                      borderRadius: "8px",
-                      background: "#f3f4f6",
-                      border: "none",
-                      color: "#4b5563",
-                      fontWeight: 700,
-                      cursor: "pointer",
-                    }}
+                    style={{ flex: 1 }}
                   >
                     Отмена
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="primary"
                     onClick={() => submitFeedPost(recipe)}
                     disabled={isUploadingPhoto}
-                    style={{
-                      flex: 2,
-                      padding: "12px",
-                      borderRadius: "8px",
-                      background: "#ea580c",
-                      border: "none",
-                      color: "white",
-                      fontWeight: 700,
-                      cursor: isUploadingPhoto ? "default" : "pointer",
-                    }}
+                    style={{ flex: 2 }}
                   >
                     {isUploadingPhoto ? "Отправка..." : "Отправить в ленту"}
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}

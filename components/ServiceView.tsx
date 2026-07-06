@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import RecipeView from "@/components/RecipeView";
+import Button from "@/components/ui/Button";
 
 interface ServiceViewProps {
   isHistoryView: boolean;
@@ -166,9 +167,9 @@ export default function ServiceView({
                 style={{
                   background: currentHoliday.gradient,
                   color: "white",
-                  padding: "20px",
-                  borderRadius: "20px",
-                  marginTop: "25px",
+                  padding: "var(--space-4)",
+                  borderRadius: "var(--radius-md)",
+                  marginTop: "var(--space-4)",
                   textAlign: "center",
                   boxShadow: "0 10px 30px -10px rgba(0,0,0,0.3)",
                   position: "relative",
@@ -201,9 +202,9 @@ export default function ServiceView({
                 />
                 <div
                   style={{
-                    fontSize: "22px",
-                    marginBottom: "8px",
-                    fontWeight: "700",
+                    fontSize: "var(--font-size-heading)",
+                    marginBottom: "var(--space-2)",
+                    fontWeight: "var(--font-weight-semibold)",
                     fontFamily: '"Times New Roman", serif',
                     fontStyle: "italic",
                   }}
@@ -212,10 +213,10 @@ export default function ServiceView({
                 </div>
                 <div
                   style={{
-                    fontSize: "15px",
+                    fontSize: "var(--font-size-body)",
                     lineHeight: "1.5",
                     opacity: 0.95,
-                    fontWeight: "500",
+                    fontWeight: "var(--font-weight-regular)",
                   }}
                 >
                   {currentHoliday.text}
@@ -227,47 +228,47 @@ export default function ServiceView({
           <div className="daily-teaser" onClick={() => switchView("daily")}>
             <div
               style={{
-                background: "#fff7ed",
-                padding: "12px",
-                borderRadius: "12px",
+                background: "var(--color-accent-subtle)",
+                padding: "var(--space-2)",
+                borderRadius: "var(--radius-sm)",
               }}
             >
-              <Flame color="#f97316" size={24} />
+              <Flame color="var(--color-accent)" size={24} />
             </div>
             <div style={{ flex: 1 }}>
               <div
                 style={{
-                  fontSize: "12px",
-                  fontWeight: "bold",
-                  color: "#f97316",
+                  fontSize: "var(--font-size-caption)",
+                  fontWeight: "var(--font-weight-semibold)",
+                  color: "var(--color-accent)",
                   textTransform: "uppercase",
                   letterSpacing: "0.5px",
                 }}
               >
                 🔥 Рецепт дня
               </div>
-              <div style={{ fontWeight: "800", fontSize: "18px" }}>
+              <div style={{ fontWeight: "var(--font-weight-semibold)", fontSize: "var(--font-size-body)", color: "var(--color-text)" }}>
                 {dailyRecipe ? dailyRecipe.title : "Секрет от шефа..."}
               </div>
             </div>
-            <ArrowRight size={20} color="#cbd5e1" />
+            <ArrowRight size={20} color="var(--color-text-muted)" />
           </div>
 
           <div
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "10px",
-              marginBottom: "15px",
+              gap: "var(--space-2)",
+              marginBottom: "var(--space-3)",
             }}
           >
             <div
               style={{
                 flex: 1,
                 display: "flex",
-                background: "linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)",
-                padding: "6px",
-                borderRadius: "20px",
+                background: "var(--color-bg-subtle)",
+                padding: "var(--space-1)",
+                borderRadius: "var(--radius-sm)",
                 boxShadow: "inset 0 2px 4px rgba(0,0,0,0.05)",
               }}
             >
@@ -275,35 +276,35 @@ export default function ServiceView({
                 onClick={() => setSearchMode("photo")}
                 style={{
                   flex: 1,
-                  padding: "8px 5px",
-                  borderRadius: "16px",
+                  padding: "var(--space-2) var(--space-1)",
+                  borderRadius: "var(--radius-sm)",
                   border: "none",
-                  background: searchMode === "photo" ? "white" : "transparent",
-                  fontWeight: 800,
-                  fontSize: "15px",
+                  background: searchMode === "photo" ? "var(--color-surface)" : "transparent",
+                  fontWeight: "var(--font-weight-semibold)",
+                  fontSize: "var(--font-size-body)",
                   boxShadow:
                     searchMode === "photo"
                       ? "0 4px 15px rgba(0,0,0,0.05)"
                       : "none",
-                  color: searchMode === "photo" ? "#111" : "#64748b",
+                  color: searchMode === "photo" ? "var(--color-text)" : "var(--color-text-secondary)",
                   transition:
                     "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  gap: "8px",
+                  gap: "var(--space-2)",
                   cursor: "pointer",
                 }}
               >
                 <div
                   style={{
                     background:
-                      searchMode === "photo" ? "#dcfce7" : "#f1f5f9",
+                      searchMode === "photo" ? "var(--color-accent-subtle)" : "var(--color-bg-subtle)",
                     color:
-                      searchMode === "photo" ? "#10b981" : "#94a3b8",
+                      searchMode === "photo" ? "var(--color-accent)" : "var(--color-text-muted)",
                     width: "32px",
                     height: "32px",
-                    borderRadius: "10px",
+                    borderRadius: "var(--radius-sm)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -319,35 +320,35 @@ export default function ServiceView({
                 onClick={() => setSearchMode("text")}
                 style={{
                   flex: 1,
-                  padding: "8px 5px",
-                  borderRadius: "16px",
+                  padding: "var(--space-2) var(--space-1)",
+                  borderRadius: "var(--radius-sm)",
                   border: "none",
-                  background: searchMode === "text" ? "white" : "transparent",
-                  fontWeight: 800,
-                  fontSize: "15px",
+                  background: searchMode === "text" ? "var(--color-surface)" : "transparent",
+                  fontWeight: "var(--font-weight-semibold)",
+                  fontSize: "var(--font-size-body)",
                   boxShadow:
                     searchMode === "text"
                       ? "0 4px 15px rgba(0,0,0,0.05)"
                       : "none",
-                  color: searchMode === "text" ? "#111" : "#64748b",
+                  color: searchMode === "text" ? "var(--color-text)" : "var(--color-text-secondary)",
                   transition:
                     "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  gap: "8px",
+                  gap: "var(--space-2)",
                   cursor: "pointer",
                 }}
               >
                 <div
                   style={{
                     background:
-                      searchMode === "text" ? "#e0f2fe" : "#f1f5f9",
+                      searchMode === "text" ? "var(--color-accent-subtle)" : "var(--color-bg-subtle)",
                     color:
-                      searchMode === "text" ? "#0ea5e9" : "#94a3b8",
+                      searchMode === "text" ? "var(--color-accent)" : "var(--color-text-muted)",
                     width: "32px",
                     height: "32px",
-                    borderRadius: "10px",
+                    borderRadius: "var(--radius-sm)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -364,9 +365,9 @@ export default function ServiceView({
             <button
               onClick={() => setIsPreferencesModalOpen(true)}
               style={{
-                background: "white",
-                border: "1px solid #e2e8f0",
-                borderRadius: "20px",
+                background: "var(--color-surface)",
+                border: "1px solid var(--color-border)",
+                borderRadius: "var(--radius-sm)",
                 height: "52px",
                 width: "52px",
                 display: "flex",
@@ -374,7 +375,7 @@ export default function ServiceView({
                 justifyContent: "center",
                 cursor: "pointer",
                 boxShadow: "0 2px 4px rgba(0,0,0,0.02)",
-                color: "#475569",
+                color: "var(--color-text-secondary)",
                 flexShrink: 0,
               }}
             >
@@ -397,23 +398,23 @@ export default function ServiceView({
                     <div className="flex flex-col items-center justify-center text-center w-full">
                       <Camera
                         size={48}
-                        color="#059669"
+                        color="var(--color-accent)"
                         className="mx-auto mb-3"
                       />
                       <div
                         style={{
-                          fontWeight: "700",
-                          fontSize: "18px",
-                          color: "#374151",
-                          marginBottom: "5px",
+                          fontWeight: "var(--font-weight-semibold)",
+                          fontSize: "var(--font-size-body)",
+                          color: "var(--color-text-secondary)",
+                          marginBottom: "var(--space-1)",
                         }}
                       >
                         Выберите фото
                       </div>
                       <div
                         style={{
-                          fontSize: "14px",
-                          color: "#9ca3af",
+                          fontSize: "var(--font-size-caption)",
+                          color: "var(--color-text-muted)",
                         }}
                       >
                         HEIC, JPG, PNG
@@ -466,8 +467,8 @@ export default function ServiceView({
                   </div>
                 )}
 
-                <button
-                  className="btn-primary"
+                <Button
+                  variant="primary"
                   onClick={handleAnalyze}
                   disabled={!file || analyzing || isProcessing}
                 >
@@ -476,7 +477,7 @@ export default function ServiceView({
                     : analyzing
                     ? "🔍 Изучаю продукты..."
                     : "✨ Найти рецепт"}
-                </button>
+                </Button>
               </>
             ) : (
               <>
@@ -484,7 +485,7 @@ export default function ServiceView({
                   style={{
                     position: "relative",
                     width: "100%",
-                    marginBottom: "15px",
+                    marginBottom: "var(--space-3)",
                   }}
                 >
                   <input
@@ -494,7 +495,7 @@ export default function ServiceView({
                     value={textQuery}
                     onChange={(e) => setTextQuery(e.target.value)}
                     style={{
-                      paddingRight: textQuery ? "40px" : "15px",
+                      paddingRight: textQuery ? "40px" : "var(--space-3)",
                       marginBottom: 0,
                       boxSizing: "border-box",
                     }}
@@ -504,30 +505,30 @@ export default function ServiceView({
                       onClick={() => setTextQuery("")}
                       style={{
                         position: "absolute",
-                        right: "12px",
+                        right: "var(--space-3)",
                         top: "50%",
                         transform: "translateY(-50%)",
                         background: "transparent",
                         border: "none",
-                        padding: "4px",
+                        padding: "var(--space-1)",
                         cursor: "pointer",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        color: "#9ca3af",
+                        color: "var(--color-text-muted)",
                       }}
                     >
                       <X size={18} />
                     </button>
                   )}
                 </div>
-                <button
-                  className="btn-primary"
+                <Button
+                  variant="primary"
                   onClick={handleTextSearch}
                   disabled={loadingRecipe || !textQuery.trim()}
                 >
                   {loadingRecipe ? "🍳 Готовлю..." : "🔍 Найти рецепт"}
-                </button>
+                </Button>
               </>
             )}
           </div>
@@ -536,28 +537,28 @@ export default function ServiceView({
 
       {analysisResult && !isSharedView && !isHistoryView && (
         <div className="card">
-          <h3 style={{ textAlign: "center", marginBottom: "20px" }}>
+          <h3 style={{ textAlign: "center", marginBottom: "var(--space-4)", fontSize: "var(--font-size-heading)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text)" }}>
             Я вижу продукты:
           </h3>
           <div
             style={{
               display: "flex",
               flexWrap: "wrap",
-              gap: "8px",
+              gap: "var(--space-2)",
               justifyContent: "center",
-              marginBottom: "25px",
+              marginBottom: "var(--space-4)",
             }}
           >
             {analysisResult.ingredients?.map((ing: string, i: number) => (
               <span
                 key={i}
                 style={{
-                  background: "#d1fae5",
-                  color: "#065f46",
-                  padding: "6px 12px",
-                  borderRadius: "100px",
-                  fontSize: "14px",
-                  fontWeight: 600,
+                  background: "var(--color-accent-subtle)",
+                  color: "var(--color-accent-hover)",
+                  padding: "var(--space-2) var(--space-3)",
+                  borderRadius: "var(--radius-full)",
+                  fontSize: "var(--font-size-caption)",
+                  fontWeight: "var(--font-weight-medium)",
                 }}
               >
                 {ing}
@@ -568,22 +569,23 @@ export default function ServiceView({
             style={{
               display: "flex",
               flexDirection: "column",
-              gap: "10px",
+              gap: "var(--space-2)",
             }}
           >
             {analysisResult.dishes?.map((dish: string, i: number) => (
-              <button
+              <Button
                 key={i}
                 onClick={() => getRecipeFromPhoto(dish)}
-                className="btn-secondary"
+                variant="secondary"
                 disabled={loadingRecipe}
                 style={{
+                  justifyContent: "space-between",
                   opacity:
                     loadingRecipe && selectedDish !== dish ? 0.5 : 1,
                   borderColor:
-                    selectedDish === dish ? "#f97316" : "#e5e7eb",
+                    selectedDish === dish ? "var(--color-accent)" : "var(--color-border)",
                   background:
-                    selectedDish === dish ? "#fff7ed" : "white",
+                    selectedDish === dish ? "var(--color-accent-subtle)" : "var(--color-surface)",
                 }}
               >
                 <span>{dish}</span>
@@ -591,24 +593,25 @@ export default function ServiceView({
                   <Sparkles
                     className="animate-spin"
                     size={24}
-                    color="#f97316"
+                    color="var(--color-accent)"
                   />
                 ) : (
-                  <ChevronRight color="#d1d5db" />
+                  <ChevronRight color="var(--color-text-muted)" />
                 )}
-              </button>
+              </Button>
             ))}
           </div>
-          <button
-            className="btn-magic"
+          <Button
+            variant="secondary"
             onClick={handleRegenerate}
             disabled={isRegenerating || loadingRecipe}
+            style={{ marginTop: "var(--space-4)" }}
           >
-            <Sparkles size={20} />{" "}
+            <Sparkles size={20} color="var(--color-accent)" />{" "}
             {isRegenerating
               ? "Включаю фантазию..."
               : "✨ Хочу что-то необычное"}
-          </button>
+          </Button>
         </div>
       )}
 
@@ -655,7 +658,7 @@ export default function ServiceView({
 
       {!isHistoryView && !fromFeed && !isSharedView && (
         <>
-          <div className="history-bar" style={{ marginTop: "40px" }}>
+          <div className="history-bar" style={{ marginTop: "var(--space-5)" }}>
             <span className="history-title">📜 История рецептов</span>
             <div className="history-filters">
               <button
@@ -678,13 +681,13 @@ export default function ServiceView({
           </div>
 
           {historyExpanded && displayedFeed && displayedFeed.length > 4 && (
-            <button
-              className="btn-expand-history"
+            <Button
+              variant="secondary"
               onClick={() => setHistoryExpanded(false)}
-              style={{ marginTop: "0", marginBottom: "15px" }}
+              style={{ marginTop: "0", marginBottom: "var(--space-3)", fontSize: "var(--font-size-caption)" }}
             >
               Свернуть историю <ChevronUp size={16} />
-            </button>
+            </Button>
           )}
 
           {displayedFeed?.length === 0 && filterMode === "favorites" ? (
@@ -699,8 +702,8 @@ export default function ServiceView({
                 style={{
                   display: "grid",
                   gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                  gap: "15px",
-                  marginBottom: "10px",
+                  gap: "var(--space-3)",
+                  marginBottom: "var(--space-2)",
                 }}
               >
                 {visibleHistory?.map((item: any) => (
@@ -708,17 +711,17 @@ export default function ServiceView({
                     key={item.id}
                     className="card"
                     style={{
-                      padding: "15px",
+                      padding: "var(--space-3)",
                       cursor: "pointer",
                       marginBottom: 0,
                       height: "100%",
                       display: "flex",
                       flexDirection: "column",
                       justifyContent: "space-between",
-                      border: "1px solid #e5e7eb",
+                      border: "1px solid var(--color-border)",
                       position: "relative",
                       overflow: "hidden",
-                      background: item.is_favorite ? "#fff5f5" : "white",
+                      background: item.is_favorite ? "var(--color-danger-subtle)" : "var(--color-surface)",
                     }}
                     onClick={() => loadFromHistory(item, "history")}
                   >
@@ -726,23 +729,23 @@ export default function ServiceView({
                       <div
                         style={{
                           position: "absolute",
-                          top: "10px",
-                          right: "10px",
-                          color: "#ef4444",
+                          top: "var(--space-2)",
+                          right: "var(--space-2)",
+                          color: "#dc2626",
                         }}
                       >
                         <Heart
                           size={18}
                           className="fill-red-500"
-                          fill="#ef4444"
+                          fill="#dc2626"
                         />
                       </div>
                     )}
                     <div
                       style={{
-                        fontWeight: 700,
-                        fontSize: "14px",
-                        marginBottom: "8px",
+                        fontWeight: "var(--font-weight-semibold)",
+                        fontSize: "var(--font-size-caption)",
+                        marginBottom: "var(--space-2)",
                         lineHeight: 1.3,
                         height: "38px",
                         overflow: "hidden",
@@ -751,6 +754,7 @@ export default function ServiceView({
                         WebkitBoxOrient: "vertical",
                         wordBreak: "break-word",
                         position: "relative",
+                        color: "var(--color-text)",
                         paddingRight: item.is_favorite ? "22px" : 0,
                       }}
                     >
@@ -761,9 +765,9 @@ export default function ServiceView({
                         display: "flex",
                         flexWrap: "wrap",
                         alignItems: "center",
-                        gap: "6px",
-                        fontSize: "11px",
-                        color: "#6b7280",
+                        gap: "var(--space-1)",
+                        fontSize: "var(--font-size-caption)",
+                        color: "var(--color-text-muted)",
                       }}
                     >
                       <div
@@ -782,7 +786,7 @@ export default function ServiceView({
                             display: "flex",
                             alignItems: "center",
                             gap: "3px",
-                            color: "#f97316",
+                            color: "var(--color-text-muted)",
                             whiteSpace: "nowrap",
                           }}
                         >
@@ -796,13 +800,13 @@ export default function ServiceView({
               </div>
 
               {!historyExpanded && displayedFeed && displayedFeed.length > 4 && (
-                <button
-                  className="btn-expand-history"
+                <Button
+                  variant="secondary"
                   onClick={() => setHistoryExpanded(true)}
                 >
                   Показать еще ({displayedFeed.length - 4}){" "}
                   <ChevronDown size={16} />
-                </button>
+                </Button>
               )}
             </>
           )}

@@ -6,6 +6,7 @@ import { Toaster } from "sonner";
 import "./globals.css";
 import YandexMetrika from "@/components/YandexMetrika"; // Импортируем компонент Метрики
 import Footer from "@/components/Footer";
+import MaintenanceScreen from "@/components/MaintenanceScreen";
 import OnboardingModal from "@/components/modals/OnboardingModal";
 import { Suspense } from "react"; // Импортируем Suspense для корректной работы
 
@@ -116,19 +117,7 @@ export default async function RootLayout({
         </Suspense>
 
         {isMaintenance ? (
-          <main className="flex min-h-screen items-center justify-center bg-zinc-50 px-6 text-center text-zinc-900">
-            <div className="max-w-xl space-y-4">
-              <p className="text-xs font-medium uppercase tracking-[0.24em] text-zinc-500">
-                Maintenance Mode
-              </p>
-              <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
-                Обновляем кухню
-              </h1>
-              <p className="text-base leading-7 tracking-tight text-zinc-600 sm:text-lg">
-                Мы внедряем новые фишки. Вернемся через пару минут, будет еще вкуснее!
-              </p>
-            </div>
-          </main>
+          <MaintenanceScreen />
         ) : (
           <>
             {children}

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef } from "react";
-import { Camera, PartyPopper } from "lucide-react";
+import { Camera, CalendarHeart } from "lucide-react";
 import ProcessAnimation from "@/components/ProcessAnimation";
 import { reachGoal } from "@/lib/metrika";
 
@@ -31,11 +31,17 @@ export default function HeroLanding({ handleFileChange, setSearchMode }: HeroLan
 
   const handlePhotoSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     handleFileChange(e);
-    // Плавно доводим пользователя до карточки с превью и следующим шагом.
+    // Плавно доводим пользователя до карточки с превью и подсвечиваем её,
+    // чтобы читалась как продолжение сценария, а не второй независимый вход.
     setTimeout(() => {
-      document
-        .getElementById("sc-search-card")
-        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      const card = document.getElementById("sc-search-card");
+      if (!card) return;
+      card.scrollIntoView({ behavior: "smooth", block: "center" });
+      card.classList.remove("sc-card-glow");
+      // reflow, чтобы анимацию можно было перезапустить
+      void card.offsetWidth;
+      card.classList.add("sc-card-glow");
+      setTimeout(() => card.classList.remove("sc-card-glow"), 1700);
     }, 150);
   };
 
@@ -43,7 +49,8 @@ export default function HeroLanding({ handleFileChange, setSearchMode }: HeroLan
     <section className="hero-landing">
       <div className="hero-brand">SmartCook</div>
       <h1 className="hero-headline">
-        Не знаете, что приготовить из того, что есть дома?
+        Не знаете, <span className="hero-mark">что приготовить</span> из того,
+        что есть дома?
       </h1>
       <p className="hero-subhead">
         Сфотографируйте продукты — и получите 3 варианта ужина за минуту.
@@ -58,7 +65,8 @@ export default function HeroLanding({ handleFileChange, setSearchMode }: HeroLan
           className="btn-secondary hero-cta"
           onClick={() => reachGoal("cta_banquet_click")}
         >
-          <PartyPopper size={20} /> Собрать банкет
+          <span className="hero-cta-icon"><CalendarHeart size={20} /></span>{" "}
+          Собрать банкет
         </a>
       </div>
 

@@ -284,9 +284,9 @@ export default function RecipeView({
         const tier = recipe.budget_tier || 2;
         const tierConfig = {
           1: { label: "Почти бесплатно", bg: "var(--color-accent-subtle)", border: "var(--color-accent)", color: "var(--color-accent-hover)", Icon: PiggyBank },
-          2: { label: "Экономно", bg: "var(--color-warning-subtle)", border: "var(--color-warning)", color: "var(--color-warning)", Icon: Wallet },
+          2: { label: "Экономно", bg: "var(--color-bg-subtle)", border: "var(--color-border)", color: "var(--color-text-secondary)", Icon: Wallet },
           3: { label: "Ресторан дома", bg: "var(--color-bg-subtle)", border: "var(--color-border)", color: "var(--color-text-secondary)", Icon: ChefHat },
-        }[tier as 1 | 2 | 3] || { label: "Экономно", bg: "var(--color-warning-subtle)", border: "var(--color-warning)", color: "var(--color-warning)", Icon: Wallet };
+        }[tier as 1 | 2 | 3] || { label: "Экономно", bg: "var(--color-bg-subtle)", border: "var(--color-border)", color: "var(--color-text-secondary)", Icon: Wallet };
 
         return (
           <div style={{
@@ -598,6 +598,7 @@ export default function RecipeView({
           >
             <textarea
               value={question}
+              placeholder="Чем заменить фету?"
               onChange={(e) => {
                 setQuestion(e.target.value);
                 e.target.style.height = "44px";
@@ -611,9 +612,9 @@ export default function RecipeView({
               style={{
                 flex: 1,
                 width: "100%",
-                background: asking ? "var(--color-bg)" : "var(--color-surface)",
+                background: asking ? "var(--color-bg-subtle)" : "var(--color-bg)",
                 resize: "none",
-                overflowY: "auto",
+                overflowY: "hidden",
                 height: "44px",
                 minHeight: "44px",
                 maxHeight: "120px",

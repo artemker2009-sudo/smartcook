@@ -375,17 +375,18 @@ export default function ServiceView({
 
             <button
               onClick={() => setIsPreferencesModalOpen(true)}
+              aria-label="Фильтры для рецепта"
               style={{
                 background: "var(--color-surface)",
-                border: "1px solid var(--color-border)",
-                borderRadius: "var(--radius-sm)",
+                border: "none",
+                borderRadius: "var(--radius-full)",
                 height: "52px",
                 width: "52px",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 cursor: "pointer",
-                boxShadow: "0 2px 4px rgba(0,0,0,0.02)",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
                 color: "var(--color-text-secondary)",
                 flexShrink: 0,
               }}
@@ -407,16 +408,14 @@ export default function ServiceView({
                       onChange={handleFileChange}
                     />
                     <div className="flex flex-col items-center justify-center text-center w-full">
-                      <Camera
-                        size={48}
-                        color="var(--color-accent)"
-                        className="mx-auto mb-3"
-                      />
+                      <div className="upload-cam-chip">
+                        <Camera size={30} color="var(--color-accent)" />
+                      </div>
                       <div
                         style={{
                           fontWeight: "var(--font-weight-semibold)",
                           fontSize: "var(--font-size-body)",
-                          color: "var(--color-text-secondary)",
+                          color: "var(--color-text)",
                           marginBottom: "var(--space-1)",
                         }}
                       >
@@ -482,6 +481,7 @@ export default function ServiceView({
                   variant="primary"
                   onClick={handleAnalyze}
                   disabled={!file || analyzing || isProcessing}
+                  style={{ marginTop: "var(--space-4)" }}
                 >
                   {isProcessing ? (
                     <><Loader2 className="animate-spin" size={18} /> Обработка фото...</>

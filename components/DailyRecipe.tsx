@@ -73,12 +73,12 @@ export default function DailyRecipe(props: any) {
               const itemsToBuy = dailyRecipe.detailed_ingredients ? dailyRecipe.detailed_ingredients.map((ing: any) => ing.name) : (dailyRecipe.ingredients || []);
               if (itemsToBuy.length === 0) return null;
               return (
-                <div style={{ background: 'var(--color-warning-subtle)', border: '1px solid var(--color-warning)', borderRadius: 'var(--radius-sm)', padding: 'var(--space-3)', margin: '0 0 var(--space-4) 0', color: 'var(--color-warning)' }}>
-                  <div style={{display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-2)', fontWeight: 'var(--font-weight-semibold)'}}> <ShoppingCart size={20} /> Нужно купить: </div>
-                  <div style={{display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)', marginBottom: 'var(--space-2)'}}>
-                    {itemsToBuy.map((item: string, idx: number) => ( <a key={idx} href={`https://www.ozon.ru/search/?text=${encodeURIComponent(item)}&from_global=true`} target="_blank" rel="noopener noreferrer" style={{ background: 'var(--color-surface)', padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-sm)', fontSize: 'var(--font-size-caption)', fontWeight: 'var(--font-weight-medium)', textDecoration: 'none', color: 'var(--color-warning)', display: 'flex', alignItems: 'center', gap: 'var(--space-1)', border: '1px solid var(--color-warning)', transition: 'transform 0.2s' }}> {item} <ExternalLink size={12} style={{opacity: 0.5}} /> </a> ))}
+                <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: 'var(--space-4)', margin: '0 0 var(--space-4) 0' }}>
+                  <div style={{display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-3)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text)'}}> <ShoppingCart size={20} color="var(--color-accent)" /> Нужно купить: </div>
+                  <div style={{display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)', marginBottom: 'var(--space-3)'}}>
+                    {itemsToBuy.map((item: string, idx: number) => ( <a key={idx} href={`https://www.ozon.ru/search/?text=${encodeURIComponent(item)}&from_global=true`} target="_blank" rel="noopener noreferrer" style={{ background: 'var(--color-surface)', padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-full)', fontSize: 'var(--font-size-caption)', fontWeight: 'var(--font-weight-medium)', textDecoration: 'none', color: 'var(--color-text)', display: 'flex', alignItems: 'center', gap: 'var(--space-1)', border: '1px solid var(--color-border)', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', transition: 'transform 0.2s' }}> {item} <ExternalLink size={12} color="var(--color-text-muted)" /> </a> ))}
                   </div>
-                  <div style={{fontSize: 'var(--font-size-caption)', color: 'var(--color-warning)', display: 'flex', alignItems: 'center', gap: 'var(--space-1)', opacity: 0.8}}> <Info size={14} /> Нажмите на ингредиент, чтобы заказать доставку Ozon Fresh </div>
+                  <div style={{fontSize: 'var(--font-size-caption)', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: 'var(--space-1)'}}> <Info size={14} /> Нажмите на ингредиент — быстрая доставка Ozon Fresh </div>
                 </div>
               );
             })()}
@@ -114,15 +114,16 @@ export default function DailyRecipe(props: any) {
             {/* Блок: Вопрос Шефу */}
             <div className="chat-box">
               <div style={{fontWeight: 'var(--font-weight-semibold)', marginBottom: 'var(--space-4)', color: 'var(--color-text)', fontSize: 'var(--font-size-heading)', textAlign: 'center'}}>
-                Задайте вопрос AI шеф-повару!
+                Спросить шефа
               </div>
               <div style={{display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', alignItems: 'flex-start', width: '100%'}}>
                 <div style={{fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-body)', color: 'var(--color-text-secondary)', paddingLeft: 'var(--space-1)', display: 'flex', alignItems: 'center', gap: 'var(--space-1)'}}>
-                  <Sparkles size={16} /> Спросить AI Шефа:
+                  <Sparkles size={16} /> Ваш вопрос:
                 </div>
                 <div style={{display: 'flex', gap: 'var(--space-2)', alignItems: 'flex-end', width: '100%'}}>
                   <textarea
                     value={question}
+                    placeholder="Чем заменить фету?"
                     onChange={(e) => {
                       setQuestion(e.target.value);
                       e.target.style.height = '44px';
@@ -131,7 +132,7 @@ export default function DailyRecipe(props: any) {
                     rows={1}
                     disabled={asking}
                     className="chat-input"
-                    style={{flex: 1, width: '100%', background: asking ? 'var(--color-bg)' : 'var(--color-surface)', resize: 'none', overflowY: 'auto', height: '44px', minHeight: '44px', maxHeight: '120px', lineHeight: '18px', fontFamily: 'inherit'}}
+                    style={{flex: 1, width: '100%', background: asking ? 'var(--color-bg-subtle)' : 'var(--color-bg)', resize: 'none', overflowY: 'hidden', height: '44px', minHeight: '44px', maxHeight: '120px', lineHeight: '18px', fontFamily: 'inherit'}}
                   />
                   <button onClick={handleAskChef} disabled={asking || !question.trim()} style={{flexShrink: 0, padding: 0, width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: (asking || !question.trim()) ? 'var(--color-border)' : 'var(--color-accent)', color: 'white', border: 'none', cursor: (asking || !question.trim()) ? 'default' : 'pointer'}}>
                     <Send size={18} style={{marginLeft: '-2px'}} />

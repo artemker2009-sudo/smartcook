@@ -10,9 +10,9 @@ export default function About() {
         <p style={{fontSize: 'var(--font-size-body)', opacity: 0.9, fontWeight: 'var(--font-weight-regular)', maxWidth: '400px', margin: '0 auto'}}>Мы превращаем ваше «нечего есть» в гастрономический шедевр.</p>
       </div>
       <div style={{padding: 'var(--space-4)'}}>
-        <div style={{background: 'var(--color-warning-subtle)', borderRadius: 'var(--radius-md)', padding: 'var(--space-4)', marginBottom: 'var(--space-5)', border: '1px solid var(--color-warning)'}}>
-          <h3 style={{marginTop: 0, color: 'var(--color-warning)', display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: 'var(--font-size-heading)', fontWeight: 'var(--font-weight-semibold)'}}><Banknote size={24} /> Вы теряете 30.000₽</h3>
-          <p style={{marginBottom: 0, color: 'var(--color-warning)', lineHeight: 1.5}}>Именно столько средняя семья выбрасывает в мусорку ежегодно в виде испорченных продуктов.</p>
+        <div style={{background: 'var(--color-bg-subtle)', borderRadius: 'var(--radius-md)', padding: 'var(--space-4)', marginBottom: 'var(--space-5)', border: '1px solid var(--color-border)'}}>
+          <h3 style={{marginTop: 0, color: 'var(--color-text)', display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: 'var(--font-size-heading)', fontWeight: 'var(--font-weight-semibold)'}}><Banknote size={24} color="var(--color-accent)" /> Вы теряете 30.000₽</h3>
+          <p style={{marginBottom: 0, color: 'var(--color-text-secondary)', lineHeight: 1.5}}>Именно столько средняя семья выбрасывает в мусорку ежегодно в виде испорченных продуктов.</p>
         </div>
         <h3 style={{textAlign: 'center', fontSize: 'var(--font-size-heading)', fontWeight: 'var(--font-weight-semibold)', marginBottom: 'var(--space-3)', color: 'var(--color-text)'}}>Почему это работает?</h3>
         <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)', marginBottom: 'var(--space-5)'}}>

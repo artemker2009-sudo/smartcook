@@ -196,12 +196,12 @@ export default function CreatePartyPage() {
   };
 
   return (
-    <div className="min-h-screen overflow-hidden bg-[#f5f5f7] px-4 pb-24 pt-5 font-sans text-zinc-950">
-      <div className="pointer-events-none fixed inset-x-0 top-0 h-80 bg-[radial-gradient(circle_at_top_left,rgba(251,146,60,0.24),transparent_44%),radial-gradient(circle_at_top_right,rgba(244,63,94,0.18),transparent_42%)]" />
+    <div className="min-h-screen overflow-hidden bg-[#faf9f7] px-4 pb-24 pt-5 font-sans text-zinc-950">
+      <div className="pointer-events-none fixed inset-x-0 top-0 h-80 bg-[radial-gradient(circle_at_top,rgba(5,150,105,0.07),transparent_60%)]" />
       <div className="relative mx-auto max-w-md space-y-8">
         <header className="relative overflow-hidden rounded-[32px] border border-white/70 bg-white/80 p-5 shadow-[0_20px_70px_rgba(15,23,42,0.08)] backdrop-blur">
-          <div className="absolute -right-12 -top-16 h-40 w-40 rounded-full bg-orange-200/50 blur-2xl" />
-          <div className="absolute -bottom-20 left-10 h-36 w-36 rounded-full bg-rose-200/45 blur-2xl" />
+          <div className="absolute -right-12 -top-16 h-40 w-40 rounded-full bg-emerald-200/40 blur-2xl" />
+          <div className="absolute -bottom-20 left-10 h-36 w-36 rounded-full bg-emerald-100/50 blur-2xl" />
           <div className="relative">
             <button
               type="button"
@@ -224,7 +224,7 @@ export default function CreatePartyPage() {
         <section className="space-y-4">
           <div className="flex items-end justify-between gap-4">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.22em] text-orange-500">Шаг 1</p>
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-emerald-600">Шаг 1</p>
               <h2 className="mt-1 text-xl font-black tracking-tight">Выберите сценарий</h2>
             </div>
             <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-zinc-400 shadow-sm ring-1 ring-zinc-100">
@@ -246,7 +246,7 @@ export default function CreatePartyPage() {
                   }}
                   className={`group flex cursor-pointer items-center gap-4 rounded-[24px] border p-4 text-left transition-all duration-200 active:scale-[0.99] ${
                     isSelected
-                      ? 'border-zinc-950 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.10)] ring-2 ring-zinc-950'
+                      ? 'border-emerald-500 bg-white shadow-[0_16px_45px_rgba(5,150,105,0.14)] ring-2 ring-emerald-500'
                       : 'border-white/80 bg-white/65 shadow-sm hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_14px_36px_rgba(15,23,42,0.08)]'
                   }`}
                   aria-pressed={isSelected}
@@ -276,14 +276,14 @@ export default function CreatePartyPage() {
                 setCreateError("");
               }}
               placeholder="Например: ужин для команды"
-              className="w-full rounded-[22px] border border-white/80 bg-white px-5 py-4 text-base font-semibold outline-none shadow-sm transition-all placeholder:text-zinc-400 focus:border-zinc-950 focus:ring-2 focus:ring-zinc-950"
+              className="w-full rounded-[22px] border border-white/80 bg-white px-5 py-4 text-base font-semibold outline-none shadow-sm transition-all placeholder:text-zinc-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500"
             />
           </label>
         </section>
 
         <section className="space-y-4 rounded-[28px] border border-white/80 bg-white/85 p-5 shadow-[0_18px_60px_rgba(15,23,42,0.06)] backdrop-blur">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.22em] text-orange-500">Шаг 2</p>
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-emerald-600">Шаг 2</p>
             <h2 className="mt-1 text-xl font-black tracking-tight">На сколько персон готовим?</h2>
           </div>
           <div className="relative">
@@ -298,7 +298,7 @@ export default function CreatePartyPage() {
                 setGuestCount(e.target.value === "" ? "" : Number(e.target.value));
                 setCreateError("");
               }}
-              className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 py-4 pl-12 pr-4 text-xl font-black outline-none transition-all focus:border-zinc-950 focus:bg-white focus:ring-2 focus:ring-zinc-950"
+              className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 py-4 pl-12 pr-4 text-xl font-black outline-none transition-all focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500"
             />
           </div>
           {(!Number.isFinite(normalizedGuestCount) || normalizedGuestCount <= 0) && (
@@ -316,7 +316,7 @@ export default function CreatePartyPage() {
           type="button"
           onClick={handleCreate}
           disabled={isCreateDisabled}
-          className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-[24px] bg-zinc-950 p-5 text-lg font-black text-white shadow-[0_20px_55px_rgba(9,9,11,0.22)] transition-all hover:-translate-y-0.5 hover:bg-black hover:shadow-[0_24px_65px_rgba(9,9,11,0.28)] active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400 disabled:shadow-none disabled:hover:translate-y-0 disabled:active:scale-100"
+          className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-[24px] bg-emerald-600 p-5 text-lg font-black text-white shadow-[0_18px_45px_rgba(5,150,105,0.3)] transition-all hover:-translate-y-0.5 hover:bg-emerald-700 hover:shadow-[0_22px_55px_rgba(5,150,105,0.36)] active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400 disabled:shadow-none disabled:hover:translate-y-0 disabled:active:scale-100"
         >
           {isLoading && <Loader2 size={20} className="animate-spin" />}
           {isLoading ? 'Создаем комнату...' : 'Создать меню'}
@@ -328,7 +328,7 @@ export default function CreatePartyPage() {
           <div className="w-full max-w-md animate-in slide-in-from-bottom-6 overflow-hidden rounded-3xl border border-white/60 bg-white p-6 shadow-2xl sm:zoom-in-95">
             <div className="mb-6">
               <div>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-orange-400">Сохранение комнаты</p>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-emerald-600">Сохранение комнаты</p>
                 <h2 className="text-3xl font-black tracking-tight text-black">Где сохраним этот банкет? 🥂</h2>
               </div>
             </div>
@@ -337,7 +337,7 @@ export default function CreatePartyPage() {
               <button
                 type="button"
                 onClick={handleLoginChoice}
-                className="w-full rounded-3xl bg-gradient-to-br from-orange-400 via-rose-500 to-fuchsia-600 p-5 text-left text-white shadow-xl shadow-rose-500/25 transition active:scale-[0.99]"
+                className="w-full rounded-3xl bg-emerald-600 p-5 text-left text-white shadow-xl shadow-emerald-600/25 transition hover:bg-emerald-700 active:scale-[0.99]"
               >
                 <span className="block text-lg font-black">Войти / Создать аккаунт</span>
                 <span className="mt-2 block text-sm leading-6 text-white/85">

@@ -93,17 +93,23 @@ body {
   text-align: center;
   font-size: var(--font-size-title);
   font-weight: var(--font-weight-semibold);
-  line-height: 1.2;
+  line-height: 1.25;
   letter-spacing: -0.5px;
   color: var(--color-text);
-  margin: 0 0 var(--space-2) 0;
+  margin: 0 0 var(--space-3) 0;
+}
+/* Маркерный акцент на ключевых словах — один приём, без смены шрифта */
+.hero-mark {
+  background: linear-gradient(180deg, transparent 58%, rgba(5, 150, 105, 0.20) 58%);
+  padding: 0 0.06em;
+  border-radius: 2px;
 }
 .hero-subhead {
   text-align: center;
   font-size: var(--font-size-body);
   color: var(--color-text-secondary);
   line-height: 1.5;
-  margin: 0 auto var(--space-4) auto;
+  margin: 0 auto var(--space-5) auto;
   max-width: 340px;
 }
 .hero-cta-group {
@@ -115,12 +121,32 @@ body {
   min-height: 56px;
   text-decoration: none;
 }
+/* Пастельная плитка-подложка под иконку CTA — как плитки анимационной карточки */
+.hero-cta-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent-subtle);
+  color: var(--color-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Подсветка карточки поиска после якорного скролла от hero-CTA (1.6с) */
+@keyframes scCardGlow {
+  0%   { box-shadow: 0 0 0 0 rgba(5, 150, 105, 0); }
+  20%  { box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.35); }
+  100% { box-shadow: 0 0 0 0 rgba(5, 150, 105, 0); }
+}
+.sc-card-glow { animation: scCardGlow 1.6s ease-out; }
 
 /* --- CSS-АНИМАЦИЯ ПРОЦЕССА (фото → распознавание → рецепт) --- */
 .process-stage {
   position: relative;
   height: 210px;               /* фиксируем высоту → нет layout shift */
-  margin-top: var(--space-4);
+  margin-top: var(--space-5);
   pointer-events: none;        /* декоративная сцена никогда не перехватывает тапы */
 }
 /* Один мягкий статичный радиальный «свет» за карточкой анимации (зелёный ≤8%) */
@@ -322,11 +348,19 @@ body {
 
 /* --- ЗАГРУЗКА И ВВОД --- */
 .upload-zone {
-  border: 2px dashed var(--color-border); border-radius: var(--radius-md); padding: var(--space-5) var(--space-3);
-  text-align: center; background: var(--color-bg); cursor: pointer; position: relative;
-  transition: all 0.3s;
+  border: 2px dashed rgba(5, 150, 105, 0.28); border-radius: var(--radius-md); padding: var(--space-5) var(--space-3);
+  text-align: center; background: var(--color-accent-subtle); cursor: pointer; position: relative;
+  transition: border-color 0.25s ease, background 0.25s ease, transform 0.15s ease, box-shadow 0.25s ease;
 }
-.upload-zone:hover { border-color: var(--color-accent); background: var(--color-accent-subtle); }
+.upload-zone:hover { border-color: var(--color-accent); box-shadow: 0 8px 24px -12px rgba(5, 150, 105, 0.4); transform: translateY(-1px); }
+.upload-zone:active { transform: translateY(0); }
+/* Камера в белом чипе с мягкой тенью — как плитки в анимационной карточке */
+.upload-cam-chip {
+  width: 64px; height: 64px; border-radius: var(--radius-md);
+  background: var(--color-surface); box-shadow: 0 6px 18px -6px rgba(0, 0, 0, 0.14);
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto var(--space-3) auto;
+}
 .upload-input {
   position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;
 }
@@ -357,20 +391,26 @@ body {
   background: var(--color-accent); color: white; border: none; width: 100%; padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-sm); font-size: var(--font-size-body); font-weight: var(--font-weight-semibold); cursor: pointer;
   display: flex; align-items: center; justify-content: center; gap: var(--space-2);
-  transition: background 0.2s ease;
+  box-shadow: 0 6px 16px -6px rgba(5, 150, 105, 0.5);
+  transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease;
 }
-.btn-primary:hover:not(:disabled) { background: var(--color-accent-hover); }
-.btn-primary:disabled { opacity: 0.6; cursor: wait; }
+.btn-primary:hover:not(:disabled) { background: var(--color-accent-hover); box-shadow: 0 8px 20px -6px rgba(5, 150, 105, 0.55); }
+.btn-primary:active:not(:disabled) { transform: translateY(1px); box-shadow: 0 3px 10px -6px rgba(5, 150, 105, 0.5); }
+/* Явный disabled: не «бледно-зелёный», а нейтрально-неактивный */
+.btn-primary:disabled { background: var(--color-bg-subtle); color: var(--color-text-muted); box-shadow: none; cursor: not-allowed; }
 
 .btn-secondary {
   background: var(--color-surface); border: 1px solid var(--color-border); color: var(--color-text);
   padding: var(--space-3) var(--space-4); border-radius: var(--radius-sm); font-weight: var(--font-weight-medium); font-size: var(--font-size-body);
   cursor: pointer; width: 100%;
   display: flex; align-items: center; justify-content: center; gap: var(--space-2);
-  transition: all 0.2s;
+  /* Та же мягкая глубина, что у белых чипов анимации */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease;
 }
-.btn-secondary:hover:not(:disabled) { border-color: var(--color-accent); background: var(--color-accent-subtle); }
-.btn-secondary:disabled { opacity: 0.6; cursor: default; }
+.btn-secondary:hover:not(:disabled) { border-color: var(--color-accent); background: var(--color-accent-subtle); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.09); }
+.btn-secondary:active:not(:disabled) { transform: translateY(1px); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06); }
+.btn-secondary:disabled { opacity: 0.6; cursor: default; box-shadow: none; }
 
 .btn-destructive {
   background: var(--color-danger); color: white; border: none; width: 100%; padding: var(--space-3) var(--space-4);
@@ -431,17 +471,18 @@ body {
   background: var(--color-bg-subtle); border-radius: var(--radius-md); border: 2px dashed var(--color-border);
 }
 
-/* --- ЧАТ --- */
+/* --- ЧАТ («Спросить шефа») --- */
 .chat-box {
-  background: var(--color-bg); border: 1px solid var(--color-border); padding: var(--space-4);
-  border-radius: var(--radius-md); margin-top: var(--space-5);
+  background: var(--color-surface); border: 1px solid var(--color-border); padding: var(--space-4);
+  border-radius: var(--radius-md); margin-top: var(--space-5); box-shadow: var(--shadow-card);
 }
 .chat-layout { display: flex; flex-direction: column; gap: var(--space-3); }
 .chat-input {
   width: 100%; padding: var(--space-3); border-radius: var(--radius-sm); border: 1px solid var(--color-border);
-  outline: none; font-size: var(--font-size-body); background: var(--color-surface); color: var(--color-text);
+  outline: none; font-size: var(--font-size-body); background: var(--color-bg); color: var(--color-text);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
-.chat-input:focus { border-color: var(--color-accent); }
+.chat-input:focus { border-color: var(--color-accent); background: var(--color-surface); box-shadow: 0 0 0 4px var(--color-accent-subtle); }
 
 /* --- МЕНЮ --- */
 .menu-btn {

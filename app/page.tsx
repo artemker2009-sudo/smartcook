@@ -8,6 +8,7 @@ import type { AnalysisData, RecipeData, DBRecipe, DailyRecipeType, HolidayType, 
 import { DEVELOPER_ID, scaleAmount, formatCooks, cleanText, formatTime, formatCalories, getCroppedImg } from "@/lib/utils";
 import { shareOrCopy } from "@/lib/share";
 import { FEATURE_RESTAURANT_GAME } from "@/lib/features";
+import InstallPromptCard from "@/components/InstallPromptCard";
 
 import Profile from "@/components/Profile";
 import DailyRecipe from "@/components/DailyRecipe";
@@ -115,6 +116,8 @@ export default function Home() {
   const [floatingClicks, setFloatingClicks] = useState<{id: number, x: number, y: number, val: number}[]>([]);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
 
+  const [showInstallCard, setShowInstallCard] = useState(false);
+
   const [toast, setToast] = useState<{ message: string; icon?: React.ReactNode; type?: 'success' | 'error' } | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -204,6 +207,17 @@ export default function Home() {
       if (session?.user?.user_metadata) { setAllergies(session.user.user_metadata.allergies || []); setDislikes(session.user.user_metadata.dislikes || []); }
     });
     return () => subscription.unsubscribe();
+  }, []);
+
+  // Профиль вкуса для анонимов: подтягиваем из localStorage на старте.
+  // Если пользователь залогинен — метаданные аккаунта перезапишут это позже.
+  useEffect(() => {
+    try {
+      const a = JSON.parse(localStorage.getItem("sc_allergies") || "[]");
+      const d = JSON.parse(localStorage.getItem("sc_dislikes") || "[]");
+      if (Array.isArray(a) && a.length) setAllergies(a);
+      if (Array.isArray(d) && d.length) setDislikes(d);
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -408,11 +422,20 @@ export default function Home() {
 
   const handleLogout = async () => { await supabase.auth.signOut(); setActiveView('service'); setProfileView('main'); };
 
-  const savePreferencesToDB = async (newAllergies: string[], newDislikes: string[]) => { if (user) await supabase.auth.updateUser({ data: { allergies: newAllergies, dislikes: newDislikes } }); };
-  const addAllergy = () => { if (!newAllergy.trim()) return; const updated = [...allergies, newAllergy.trim().toLowerCase()]; setAllergies(updated); setNewAllergy(""); savePreferencesToDB(updated, dislikes); };
-  const addDislike = () => { if (!newDislike.trim()) return; const updated = [...dislikes, newDislike.trim().toLowerCase()]; setDislikes(updated); setNewDislike(""); savePreferencesToDB(allergies, updated); };
-  const removeAllergy = (idx: number) => { const updated = allergies.filter((_, i) => i !== idx); setAllergies(updated); savePreferencesToDB(updated, dislikes); };
-  const removeDislike = (idx: number) => { const updated = dislikes.filter((_, i) => i !== idx); setDislikes(updated); savePreferencesToDB(allergies, updated); };
+  // Персистентность профиля вкуса: localStorage — для всех (в т.ч. анонимов),
+  // а для залогиненных ещё и в Supabase auth user_metadata (владелец — сам
+  // пользователь по JWT, чужой профиль править нельзя; отдельная таблица не нужна).
+  const savePreferences = (newAllergies: string[], newDislikes: string[]) => {
+    try {
+      localStorage.setItem("sc_allergies", JSON.stringify(newAllergies));
+      localStorage.setItem("sc_dislikes", JSON.stringify(newDislikes));
+    } catch {}
+    if (user) supabase.auth.updateUser({ data: { allergies: newAllergies, dislikes: newDislikes } });
+  };
+  const addAllergy = () => { if (!newAllergy.trim()) return; const updated = [...allergies, newAllergy.trim().toLowerCase()]; setAllergies(updated); setNewAllergy(""); savePreferences(updated, dislikes); };
+  const addDislike = () => { if (!newDislike.trim()) return; const updated = [...dislikes, newDislike.trim().toLowerCase()]; setDislikes(updated); setNewDislike(""); savePreferences(allergies, updated); };
+  const removeAllergy = (idx: number) => { const updated = allergies.filter((_, i) => i !== idx); setAllergies(updated); savePreferences(updated, dislikes); };
+  const removeDislike = (idx: number) => { const updated = dislikes.filter((_, i) => i !== idx); setDislikes(updated); savePreferences(allergies, updated); };
 
   const handleAvatarChange = (e: ChangeEvent<HTMLInputElement>) => { const files = e.target.files; if (!files || files.length === 0) return; setCropImageSrc(URL.createObjectURL(files[0])); setIsCropping(true); };
   const onCropComplete = (croppedArea: any, croppedAreaPixels: any) => { setCroppedAreaPixels(croppedAreaPixels); };
@@ -637,6 +660,35 @@ export default function Home() {
     } catch (err: any) { showToast("Ошибка", undefined, 'error'); } finally { setIsRegenerating(false); } 
   }; 
 
+  const isStandalone = () =>
+    typeof window !== "undefined" &&
+    (window.matchMedia("(display-mode: standalone)").matches || (navigator as any).standalone === true);
+
+  // Момент успеха: после генерации рецепта. Считаем генерации и:
+  // 1) после первой — один раз мягко предлагаем установить PWA;
+  // 2) со второй, если профиль вкуса пуст — один раз предлагаем его заполнить.
+  const onRecipeGenerated = () => {
+    try {
+      const count = Number(localStorage.getItem("sc_gen_count") || 0) + 1;
+      localStorage.setItem("sc_gen_count", String(count));
+      if (!localStorage.getItem("sc_pwa_prompt_seen") && !isStandalone()) {
+        localStorage.setItem("sc_pwa_prompt_seen", "1");
+        setShowInstallCard(true);
+      } else if (
+        count >= 2 &&
+        allergies.length === 0 &&
+        dislikes.length === 0 &&
+        !localStorage.getItem("sc_taste_nudge_seen")
+      ) {
+        localStorage.setItem("sc_taste_nudge_seen", "1");
+        showToast(
+          "Расскажите, что не любите — рецепты станут точнее. Нажмите ⚙️ рядом с поиском.",
+          <Sparkles size={18} color="var(--color-accent)" />
+        );
+      }
+    } catch {}
+  };
+
   const handleRewardForRecipe = () => {
     if (!FEATURE_RESTAURANT_GAME) return; // награды-куки отключены (этап 4.2)
     const today = new Date().toLocaleDateString();
@@ -657,6 +709,7 @@ export default function Home() {
       setRecipe({ ...json.recipe, id: json.recipe.id, is_favorite: false, ingredients: analysisResult.ingredients });
       if (userId) fetchMyRecipes(userId);
       handleRewardForRecipe();
+      onRecipeGenerated();
     } catch (err: any) { showToast("Ошибка: " + err.message, undefined, 'error'); } finally { setLoadingRecipe(false); } 
   }; 
 
@@ -683,6 +736,7 @@ export default function Home() {
       setRecipe({ ...json.recipe, id: json.recipe.id, is_favorite: false, missing_ingredients: json.recipe.missing_ingredients || [] });  
       if (userId) fetchMyRecipes(userId);
       handleRewardForRecipe();
+      onRecipeGenerated();
     } catch (err: any) { showToast(err.message, undefined, 'error'); } finally { setLoadingRecipe(false); } 
   }; 
 
@@ -757,6 +811,8 @@ export default function Home() {
         </div>
       )}
 
+      <InstallPromptCard open={showInstallCard} onClose={() => setShowInstallCard(false)} />
+
       <FullScreenImage imageUrl={fullScreenImage} onClose={() => setFullScreenImage(null)} />
 
       <CropperModal
@@ -828,6 +884,8 @@ export default function Home() {
         addDislike={addDislike}
         removeAllergy={removeAllergy}
         removeDislike={removeDislike}
+        isLoggedIn={!!user}
+        onLogin={() => { setIsPreferencesModalOpen(false); setIsAuthModalOpen(true); }}
       />
        
       {/* КНОПКА МЕНЮ */}
@@ -932,6 +990,8 @@ export default function Home() {
           searchMode={searchMode}
           setSearchMode={setSearchMode}
           setIsPreferencesModalOpen={setIsPreferencesModalOpen}
+          allergies={allergies}
+          dislikes={dislikes}
           file={file}
           handleFileChange={handleFileChange}
           preview={preview}

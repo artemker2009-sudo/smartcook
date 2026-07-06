@@ -37,6 +37,8 @@ interface ServiceViewProps {
   searchMode: "photo" | "text";
   setSearchMode: (mode: "photo" | "text") => void;
   setIsPreferencesModalOpen: (open: boolean) => void;
+  allergies: string[];
+  dislikes: string[];
   file: File | null;
   handleFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   preview: string | null;
@@ -104,6 +106,8 @@ export default function ServiceView({
   searchMode,
   setSearchMode,
   setIsPreferencesModalOpen,
+  allergies,
+  dislikes,
   file,
   handleFileChange,
   preview,
@@ -229,7 +233,7 @@ export default function ServiceView({
               </div>
             )}
 
-          <div className="daily-teaser" onClick={() => switchView("daily")}>
+          <div className={`daily-teaser${dailyRecipe ? " daily-teaser-in" : ""}`} onClick={() => switchView("daily")}>
             <div
               style={{
                 background: "var(--color-accent-subtle)",
@@ -239,17 +243,14 @@ export default function ServiceView({
             >
               <Flame color="var(--color-accent)" size={24} />
             </div>
-            <div style={{ flex: 1 }}>
-              <div
-                style={{
-                  fontSize: "var(--font-size-caption)",
-                  fontWeight: "var(--font-weight-semibold)",
-                  color: "var(--color-accent)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px",
-                }}
-              >
-                Рецепт дня
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: "2px" }}>
+                <span className="daily-today-badge">Сегодня</span>
+                {dailyRecipe?.date && (
+                  <span style={{ fontSize: "var(--font-size-caption)", color: "var(--color-text-muted)", fontWeight: "var(--font-weight-medium)" }}>
+                    {dailyRecipe.date}
+                  </span>
+                )}
               </div>
               {dailyRecipe ? (
                 <div style={{ fontWeight: "var(--font-weight-semibold)", fontSize: "var(--font-size-body)", color: "var(--color-text)" }}>
@@ -549,6 +550,30 @@ export default function ServiceView({
               </>
             )}
           </div>
+
+          {(allergies.length > 0 || dislikes.length > 0) && (
+            <button
+              type="button"
+              className="taste-indicator"
+              onClick={() => setIsPreferencesModalOpen(true)}
+              aria-label="Изменить учитываемые вкусы"
+            >
+              <span className="taste-indicator-label">
+                <Settings size={14} /> Учитываем:
+              </span>
+              {allergies.map((a, i) => (
+                <span key={"a" + i} className="taste-chip taste-chip-allergy">
+                  {a}
+                </span>
+              ))}
+              {dislikes.map((d, i) => (
+                <span key={"d" + i} className="taste-chip taste-chip-dislike">
+                  {d}
+                </span>
+              ))}
+              <ChevronRight size={15} className="taste-indicator-arrow" />
+            </button>
+          )}
         </>
       )}
 

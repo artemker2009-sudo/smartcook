@@ -16,6 +16,8 @@ interface PreferencesModalProps {
   addDislike: () => void;
   removeAllergy: (idx: number) => void;
   removeDislike: (idx: number) => void;
+  isLoggedIn?: boolean;
+  onLogin?: () => void;
 }
 
 export default function PreferencesModal({
@@ -31,6 +33,8 @@ export default function PreferencesModal({
   addDislike,
   removeAllergy,
   removeDislike,
+  isLoggedIn,
+  onLogin,
 }: PreferencesModalProps) {
   const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(false);
@@ -124,6 +128,15 @@ export default function PreferencesModal({
               <button onClick={addDislike} aria-label="Добавить продукт" style={{background: 'var(--color-bg-subtle)', color: 'var(--color-accent)', border: '1px solid var(--color-border)', padding: '0 var(--space-4)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', display: 'flex', alignItems: 'center'}}><Plus size={20}/></button>
             </div>
           </div>
+
+          {!isLoggedIn && (
+            <div style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)', textAlign: 'center', marginBottom: 'var(--space-3)', lineHeight: 1.5 }}>
+              Вкусы сохранены на этом устройстве.{' '}
+              <button type="button" onClick={onLogin} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--color-accent-hover)', fontWeight: 'var(--font-weight-semibold)', cursor: 'pointer', fontSize: 'var(--font-size-caption)', textDecoration: 'underline' }}>
+                Войдите, чтобы сохранить навсегда
+              </button>
+            </div>
+          )}
 
           <button onClick={handleClose} className="btn-primary">Готово</button>
         </div>

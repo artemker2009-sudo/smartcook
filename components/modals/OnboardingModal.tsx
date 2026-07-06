@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { YANDEX_METRIKA_ID } from "@/components/YandexMetrika";
+import Button from "@/components/ui/Button";
 
 const STORAGE_KEY = "smartcook_onboarding_seen";
 const BOT_UA_REGEX =
@@ -86,18 +87,18 @@ export default function OnboardingModal() {
         justifyContent: "center",
         background: "rgba(0,0,0,0.6)",
         backdropFilter: "blur(4px)",
-        padding: "20px",
+        padding: "var(--space-3)",
       }}
       onClick={handleClosed}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: "var(--white)",
-          borderRadius: "var(--radius)",
+          background: "var(--color-surface)",
+          borderRadius: "var(--radius-md)",
           width: "100%",
           maxWidth: "400px",
-          padding: "28px 22px",
+          padding: "var(--space-4) var(--space-3)",
           position: "relative",
           boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)",
         }}
@@ -107,14 +108,14 @@ export default function OnboardingModal() {
           aria-label="Закрыть"
           style={{
             position: "absolute",
-            top: "14px",
-            right: "14px",
-            background: "#f3f4f6",
+            top: "var(--space-3)",
+            right: "var(--space-3)",
+            background: "var(--color-bg-subtle)",
             border: "none",
             borderRadius: "50%",
-            padding: "6px",
+            padding: "var(--space-2)",
             cursor: "pointer",
-            color: "#6b7280",
+            color: "var(--color-text-secondary)",
           }}
         >
           <X size={20} />
@@ -122,51 +123,38 @@ export default function OnboardingModal() {
 
         <h2
           style={{
-            fontSize: "21px",
-            fontWeight: 900,
-            color: "var(--text-main)",
-            margin: "0 30px 18px 0",
+            fontSize: "var(--font-size-heading)",
+            fontWeight: "var(--font-weight-semibold)",
+            color: "var(--color-text)",
+            margin: "0 30px var(--space-3) 0",
             lineHeight: 1.25,
           }}
         >
           Привет! SmartCook — твой ИИ-шеф
         </h2>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginBottom: "24px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)", marginBottom: "var(--space-4)" }}>
           {FEATURES.map((f) => (
-            <div key={f.text} style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
-              <span style={{ fontSize: "22px", lineHeight: 1, flexShrink: 0 }}>{f.icon}</span>
-              <span style={{ fontSize: "15px", color: "var(--text-light)", lineHeight: 1.45, paddingTop: "2px" }}>
+            <div key={f.text} style={{ display: "flex", alignItems: "flex-start", gap: "var(--space-2)" }}>
+              <span style={{ fontSize: "var(--font-size-heading)", lineHeight: 1, flexShrink: 0 }}>{f.icon}</span>
+              <span style={{ fontSize: "var(--font-size-body)", color: "var(--color-text-secondary)", lineHeight: 1.45, paddingTop: "2px" }}>
                 {f.text}
               </span>
             </div>
           ))}
         </div>
 
-        <button className="btn-primary" style={{ marginTop: 0 }} onClick={handlePhotoClick}>
+        <Button variant="primary" onClick={handlePhotoClick}>
           Попробовать по фото
-        </button>
+        </Button>
 
-        <button
+        <Button
+          variant="secondary"
           onClick={handleBanquetClick}
-          style={{
-            width: "100%",
-            marginTop: "12px",
-            padding: "16px",
-            borderRadius: "100px",
-            border: "2px solid #e5e7eb",
-            background: "white",
-            color: "var(--text-main)",
-            fontWeight: 800,
-            fontSize: "16px",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
+          style={{ marginTop: "var(--space-2)" }}
         >
           Собрать банкет
-        </button>
+        </Button>
       </div>
     </div>
   );

@@ -13,13 +13,9 @@ export default function MaintenanceScreen() {
   return (
     <main className="maint">
       <div className="maint-inner">
-        <div className="maint-badge">
-          <span className="maint-dot" /> Скоро вернёмся
-        </div>
-
         <div className="maint-brand">SmartCook</div>
 
-        <h1 className="hero-headline">Обновляем кухню</h1>
+        <h1 className="hero-headline">Скоро вернёмся</h1>
         <p className="hero-subhead">
           Наводим порядок и готовим новые фишки. А пока — посмотрите, как работает
           SmartCook, и подпишитесь на наш Telegram, чтобы не пропустить запуск.

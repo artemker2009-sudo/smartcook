@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { checkAndConsumeReadRateLimit, readRateLimitResponse } from "@/lib/rateLimit";
 
 const supabase = createClient(
   (process.env.NEXT_PUBLIC_SUPABASE_URL || "").trim(),
@@ -8,6 +9,9 @@ const supabase = createClient(
 
 export async function POST(req: Request) {
   try {
+    const rateLimit = await checkAndConsumeReadRateLimit(req, "photo-feed");
+    if (!rateLimit.ok) return readRateLimitResponse(rateLimit);
+
     const { sort, sessionId } = await req.json();
 
     let query = supabase.from('feed_posts').select('*, recipes(title)').eq('status', 'approved');

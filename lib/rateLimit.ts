@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { getVerifiedUserId } from "@/lib/auth";
 
 // ЛИМИТЫ AI-ГЕНЕРАЦИЙ. Меняй только эти два числа.
 export const RATE_LIMIT_PER_HOUR = 10;
@@ -34,25 +35,6 @@ function getClientIp(req: Request): string {
   return req.headers.get("x-real-ip") || "unknown";
 }
 
-// Пользователь считается "залогиненным" только если фронтенд прислал
-// реальный Supabase access token, который мы тут же проверяем на сервере.
-// sessionId из тела запроса для этого не годится — его легко подделать
-// или сбросить очисткой localStorage.
-async function getVerifiedUserId(req: Request): Promise<string | null> {
-  const authHeader = req.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) return null;
-  const token = authHeader.slice("Bearer ".length).trim();
-  if (!token) return null;
-
-  try {
-    const { data, error } = await supabaseAdmin.auth.getUser(token);
-    if (error || !data?.user) return null;
-    return data.user.id;
-  } catch {
-    return null;
-  }
-}
-
 // null означает "не удалось посчитать" (сбой БД/отсутствие таблицы и т.п.) —
 // отличаем от 0 событий, чтобы не спутать сбой с "лимит не исчерпан".
 async function countEvents(identifier: string, sinceMs: number): Promise<number | null> {
@@ -76,17 +58,18 @@ async function countEvents(identifier: string, sinceMs: number): Promise<number 
 async function checkIdentifier(
   identifier: string,
   scope: "ip" | "user",
+  limits: { perHour: number; perDay: number } = { perHour: RATE_LIMIT_PER_HOUR, perDay: RATE_LIMIT_PER_DAY },
 ): Promise<RateLimitResult> {
   const hourly = await countEvents(identifier, HOUR_MS);
   // Сбой БД (например, таблица лимитов недоступна) — блокируем запрос вместо
   // того, чтобы молча пропускать его без счетчика. Отказ в генерации дешевле,
   // чем неограниченные вызовы OpenAI при сбое инфраструктуры.
   if (hourly === null) return { ok: false, window: "error", scope: "error" };
-  if (hourly >= RATE_LIMIT_PER_HOUR) return { ok: false, window: "hour", scope };
+  if (hourly >= limits.perHour) return { ok: false, window: "hour", scope };
 
   const daily = await countEvents(identifier, DAY_MS);
   if (daily === null) return { ok: false, window: "error", scope: "error" };
-  if (daily >= RATE_LIMIT_PER_DAY) return { ok: false, window: "day", scope };
+  if (daily >= limits.perDay) return { ok: false, window: "day", scope };
 
   return { ok: true };
 }
@@ -143,6 +126,57 @@ export async function checkAndConsumeAiRateLimit(
     .then(() => {});
 
   return { ok: true };
+}
+
+// Более мягкий лимитер для публичных read-эндпоинтов (лента рецептов/фото),
+// нужен как защита от массового скрейпинга скриптами, а не от обычного
+// пролистывания ленты живым человеком. Используем ту же таблицу событий,
+// но с собственным префиксом идентификатора ("read:<route>:..."), чтобы не
+// делить счётчик с AI-лимитом (checkAndConsumeAiRateLimit использует
+// "ip:"/"user:" без префикса route) — иначе открытие ленты съедало бы тот
+// же бюджет, что и генерация рецептов.
+const READ_RATE_LIMIT_PER_HOUR = 120;
+const READ_RATE_LIMIT_PER_DAY = 1500;
+
+export async function checkAndConsumeReadRateLimit(
+  req: Request,
+  route: string,
+): Promise<RateLimitResult> {
+  const ip = getClientIp(req);
+  const identifier = `read:${route}:ip:${ip}`;
+  const limits = { perHour: READ_RATE_LIMIT_PER_HOUR, perDay: READ_RATE_LIMIT_PER_DAY };
+
+  const result = await checkIdentifier(identifier, "ip", limits);
+  if (!result.ok) {
+    logRateLimitHit({ route, ip, userId: null, scope: result.scope, window: result.window });
+    return result;
+  }
+
+  const { error } = await supabaseAdmin.from("ai_rate_limit_events").insert([{ identifier, route }]);
+  if (error) console.error("[rateLimit] failed to record read event", error.message);
+
+  void supabaseAdmin
+    .from("ai_rate_limit_events")
+    .delete()
+    .eq("identifier", identifier)
+    .lt("created_at", new Date(Date.now() - DAY_MS - HOUR_MS).toISOString())
+    .then(() => {});
+
+  return { ok: true };
+}
+
+export function readRateLimitResponse(result: Extract<RateLimitResult, { ok: false }>) {
+  if (result.window === "error") {
+    return NextResponse.json(
+      { error: "Сервис временно недоступен. Попробуйте через минуту.", code: "RATE_LIMIT_UNAVAILABLE" },
+      { status: 503 },
+    );
+  }
+
+  return NextResponse.json(
+    { error: "Слишком много запросов. Попробуйте позже.", code: RATE_LIMIT_ERROR_CODE, window: result.window },
+    { status: 429 },
+  );
 }
 
 export function rateLimitResponse(result: Extract<RateLimitResult, { ok: false }>) {

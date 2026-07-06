@@ -1,18 +1,14 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
-import { createClient } from "@supabase/supabase-js";
 import { checkAndConsumeAiRateLimit, rateLimitResponse } from "@/lib/rateLimit";
 import { isStringListTooLong, isTextTooLong } from "@/lib/inputLimits";
 import { isTrustedOrigin, originBlockedResponse } from "@/lib/originGuard";
+import { sanitizeRecipeForStorage } from "@/lib/recipeValidation";
+import { createRequestScopedClient } from "@/lib/auth";
 
-const openai = new OpenAI({ 
-  apiKey: (process.env.OPENAI_API_KEY || "").trim() 
+const openai = new OpenAI({
+  apiKey: (process.env.OPENAI_API_KEY || "").trim()
 });
-
-const supabase = createClient(
-  (process.env.NEXT_PUBLIC_SUPABASE_URL || "").trim(),
-  (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "").trim()
-);
 
 export async function POST(req: Request) {
   try {
@@ -122,20 +118,19 @@ export async function POST(req: Request) {
     const recipe = result;
 
     if (sessionId) {
-      const { data: savedRow, error } = await supabase.from('recipes').insert({
-        session_id: sessionId,
-        title: recipe.title,
-        description: recipe.description,
-        time: recipe.time,
-        calories: recipe.calories,
-        ingredients: recipe.detailed_ingredients?.map((i: any) => `${i.name} - ${i.amount}`) || [],
-        detailed_ingredients: recipe.detailed_ingredients,
-        missing_ingredients: recipe.missing_ingredients,
-        steps: recipe.steps,
-        is_favorite: false,
-      }).select('id').single();
-      if (error) console.error("History save error:", error);
-      if (savedRow) recipe.id = savedRow.id;
+      const sanitized = sanitizeRecipeForStorage(recipe);
+      if (sanitized) {
+        const supabase = createRequestScopedClient(req);
+        const { data: savedRow, error } = await supabase.from('recipes').insert({
+          session_id: sessionId,
+          ...sanitized,
+          is_favorite: false,
+        }).select('id').single();
+        if (error) console.error("History save error:", error);
+        if (savedRow) recipe.id = savedRow.id;
+      } else {
+        console.error("Рецепт без названия после санитизации — не сохраняем в историю");
+      }
     }
 
     return NextResponse.json({ recipe });

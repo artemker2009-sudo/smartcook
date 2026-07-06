@@ -1,18 +1,14 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
-import { createClient } from "@supabase/supabase-js";
 import { checkAndConsumeAiRateLimit, rateLimitResponse } from "@/lib/rateLimit";
 import { isStringListTooLong, isTextTooLong } from "@/lib/inputLimits";
 import { isTrustedOrigin, originBlockedResponse } from "@/lib/originGuard";
+import { sanitizeRecipeForStorage } from "@/lib/recipeValidation";
+import { createRequestScopedClient } from "@/lib/auth";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 export async function POST(req: Request) {
   try {
@@ -121,22 +117,17 @@ export async function POST(req: Request) {
     const recipe = JSON.parse(content);
 
     if (sessionId) {
-      const dbPayload = {
-        session_id: sessionId,
-        title: recipe.title,
-        description: recipe.description,
-        time: recipe.time,
-        calories: recipe.calories,
-        ingredients: recipe.detailed_ingredients?.map((i: any) => `${i.name} - ${i.amount}`) || [],
-        detailed_ingredients: recipe.detailed_ingredients, 
-        steps: recipe.steps,
-        missing_ingredients: recipe.missing_ingredients,
-        is_favorite: false,
-      };
+      const sanitized = sanitizeRecipeForStorage(recipe);
+      if (sanitized) {
+        const dbPayload = { session_id: sessionId, ...sanitized, is_favorite: false };
 
-      const { data: savedRow, error: dbError } = await supabase.from('recipes').insert(dbPayload).select('id').single();
-      if (dbError) console.error("❌ ОШИБКА СОХРАНЕНИЯ В SUPABASE:", dbError);
-      if (savedRow) recipe.id = savedRow.id;
+        const supabase = createRequestScopedClient(req);
+        const { data: savedRow, error: dbError } = await supabase.from('recipes').insert(dbPayload).select('id').single();
+        if (dbError) console.error("❌ ОШИБКА СОХРАНЕНИЯ В SUPABASE:", dbError);
+        if (savedRow) recipe.id = savedRow.id;
+      } else {
+        console.error("❌ Рецепт без названия после санитизации — не сохраняем в историю");
+      }
     }
 
     return NextResponse.json({ recipe });

@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createServiceRoleClient } from "@/lib/supabaseAdmin";
+import { getVerifiedUserId } from "@/lib/auth";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabaseAdmin = createServiceRoleClient();
 
 export async function POST(req: Request) {
   try {
@@ -14,27 +12,29 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No data" }, { status: 400 });
     }
 
+    // recipe_likes.user_id всегда должен быть реальным аккаунтом — сверяем
+    // с проверенным на сервере токеном, а не доверяем userId из тела запроса.
+    const verifiedUserId = await getVerifiedUserId(req);
+    if (!verifiedUserId || verifiedUserId !== userId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     if (action === 'like') {
-      // 1. Добавляем запись в таблицу лайков
-      const { error: likeError } = await supabase
+      const { error: likeError } = await supabaseAdmin
         .from('recipe_likes')
         .insert({ user_id: userId, recipe_id: recipeId });
-      
+
       if (likeError) throw likeError;
 
-      // 2. Увеличиваем счетчик в рецепте (атомарно нельзя через JS, делаем RPC или просто update)
-      // Для простоты делаем update через increment (эмуляция)
-      // Сначала получаем текущий
-      const { data: current } = await supabase.from('recipes').select('likes_count').eq('id', recipeId).single();
+      const { data: current } = await supabaseAdmin.from('recipes').select('likes_count').eq('id', recipeId).single();
       const newCount = (current?.likes_count || 0) + 1;
 
-      await supabase.from('recipes').update({ likes_count: newCount }).eq('id', recipeId);
-      
+      await supabaseAdmin.from('recipes').update({ likes_count: newCount }).eq('id', recipeId);
+
       return NextResponse.json({ success: true, newCount });
 
     } else {
-      // 1. Удаляем лайк
-      const { error: unlikeError } = await supabase
+      const { error: unlikeError } = await supabaseAdmin
         .from('recipe_likes')
         .delete()
         .eq('user_id', userId)
@@ -42,11 +42,10 @@ export async function POST(req: Request) {
 
       if (unlikeError) throw unlikeError;
 
-      // 2. Уменьшаем счетчик
-      const { data: current } = await supabase.from('recipes').select('likes_count').eq('id', recipeId).single();
+      const { data: current } = await supabaseAdmin.from('recipes').select('likes_count').eq('id', recipeId).single();
       const newCount = Math.max(0, (current?.likes_count || 0) - 1);
 
-      await supabase.from('recipes').update({ likes_count: newCount }).eq('id', recipeId);
+      await supabaseAdmin.from('recipes').update({ likes_count: newCount }).eq('id', recipeId);
 
       return NextResponse.json({ success: true, newCount });
     }

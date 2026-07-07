@@ -19,7 +19,11 @@ const SCRIPT_SRC = [
   "'self'",
   "'unsafe-inline'",
   ...(IS_DEV ? ["'unsafe-eval'"] : []),
+  // Яндекс.Метрика: .ru — основной домен (tag.js/webvisor), .com — резервный
+  // домен сбора данных для не-RU регионов. Без .com часть визитов (в т.ч. из
+  // установленного PWA) не доходит до Метрики, хотя счётчик инициализирован.
   "https://mc.yandex.ru",
+  "https://mc.yandex.com",
   "https://va.vercel-scripts.com",
 ].join(" ");
 
@@ -29,7 +33,7 @@ const CONTENT_SECURITY_POLICY = [
   `style-src 'self' 'unsafe-inline'`,
   `img-src 'self' data: blob: https:`,
   `font-src 'self' data:`,
-  `connect-src 'self' https://${SUPABASE_HOST} wss://${SUPABASE_HOST} https://api.openai.com https://mc.yandex.ru https://vitals.vercel-insights.com https://va.vercel-scripts.com`,
+  `connect-src 'self' https://${SUPABASE_HOST} wss://${SUPABASE_HOST} https://api.openai.com https://mc.yandex.ru https://mc.yandex.com https://vitals.vercel-insights.com https://va.vercel-scripts.com`,
   "frame-ancestors 'none'",
   "object-src 'none'",
   "base-uri 'self'",

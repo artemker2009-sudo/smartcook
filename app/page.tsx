@@ -7,7 +7,9 @@ import { Menu, X, Flame, Search, CheckCircle, Sparkles, Globe, User, Store, Part
 import type { AnalysisData, RecipeData, DBRecipe, DailyRecipeType, HolidayType, DBComment } from "@/lib/types";
 import { DEVELOPER_ID, scaleAmount, formatCooks, cleanText, formatTime, formatCalories, getCroppedImg } from "@/lib/utils";
 import { shareOrCopy } from "@/lib/share";
+import { reachGoal } from "@/lib/metrika";
 import { FEATURE_RESTAURANT_GAME } from "@/lib/features";
+import { USERNAME_MIN, USERNAME_MAX, PASSWORD_MIN, normalizeUsername } from "@/components/modals/AuthModal";
 import InstallPromptCard from "@/components/InstallPromptCard";
 
 import Profile from "@/components/Profile";
@@ -76,6 +78,7 @@ export default function Home() {
   const [authPassword, setAuthPassword] = useState("");
   const [authMode, setAuthMode] = useState<'login' | 'register'>('register');
   const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   const [userPhotoFile, setUserPhotoFile] = useState<File | null>(null);
   const [userPhotoPreview, setUserPhotoPreview] = useState<string | null>(null);
@@ -379,44 +382,85 @@ export default function Home() {
     try { const res = await fetch("/api/photo-feed", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sort: sortType, sessionId: userId }) }); const json = await res.json(); if (json.feed) setPhotosFeed(json.feed); } catch (e) {}
   };
 
+  // Перенос профиля вкуса из localStorage (анонимный опыт) в аккаунт при
+  // входе/регистрации. МЁРДЖ, а не перезапись: то, что уже сохранено в
+  // аккаунте, остаётся; добавляется только новое из localStorage.
+  const mergeTasteProfileIntoAccount = async (
+    accountUser: { user_metadata?: { allergies?: unknown; dislikes?: unknown } } | null | undefined,
+  ) => {
+    try {
+      const localA = JSON.parse(localStorage.getItem("sc_allergies") || "[]");
+      const localD = JSON.parse(localStorage.getItem("sc_dislikes") || "[]");
+      const accA = Array.isArray(accountUser?.user_metadata?.allergies) ? (accountUser!.user_metadata!.allergies as string[]) : [];
+      const accD = Array.isArray(accountUser?.user_metadata?.dislikes) ? (accountUser!.user_metadata!.dislikes as string[]) : [];
+      const mergedA = Array.from(new Set([...accA, ...(Array.isArray(localA) ? localA : [])]));
+      const mergedD = Array.from(new Set([...accD, ...(Array.isArray(localD) ? localD : [])]));
+
+      // Пишем в аккаунт только если localStorage добавил что-то новое.
+      if (mergedA.length !== accA.length || mergedD.length !== accD.length) {
+        await supabase.auth.updateUser({ data: { allergies: mergedA, dislikes: mergedD } });
+      }
+      setAllergies(mergedA);
+      setDislikes(mergedD);
+      localStorage.setItem("sc_allergies", JSON.stringify(mergedA));
+      localStorage.setItem("sc_dislikes", JSON.stringify(mergedD));
+    } catch {}
+  };
+
   const handleAuth = async () => {
-    if (!authUsername.trim() || authPassword.length < 6) { showToast("Введите логин и пароль (мин. 6 символов)", undefined, 'error'); return; }
-    
-    const safeUsername = authUsername.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
-    if (safeUsername.length < 4) { showToast("Логин: только a-z, 0-9, _ (мин. 4 символа)", undefined, 'error'); return; }
+    setAuthError(null);
+    const username = normalizeUsername(authUsername);
+
+    if (username.length < USERNAME_MIN || username.length > USERNAME_MAX) {
+      setAuthError(`Логин: латиница, цифры и «_», от ${USERNAME_MIN} до ${USERNAME_MAX} символов.`);
+      return;
+    }
+    if (authPassword.length < PASSWORD_MIN) {
+      setAuthError(`Пароль должен быть не короче ${PASSWORD_MIN} символов.`);
+      return;
+    }
 
     setAuthLoading(true);
-    const dummyEmail = `${safeUsername}@smartcook.app`;
-    
+    // username уже нормализован (латиница/цифры/_), поэтому dummyEmail валиден.
+    const dummyEmail = `${username}@smartcook.app`;
+
     try {
       if (authMode === 'register') {
-        const { data, error } = await supabase.auth.signUp({ 
-          email: dummyEmail, 
-          password: authPassword, 
-          options: { data: { full_name: authUsername.trim(), username: safeUsername } } 
+        const { data, error } = await supabase.auth.signUp({
+          email: dummyEmail,
+          password: authPassword,
+          options: { data: { full_name: username, username } },
         });
         if (error) {
           if (error.message.includes('already registered') || error.message.includes('User already exists')) {
-            showToast("Этот Username уже занят! Выберите другой или войдите.", undefined, 'error');
-          } else throw error;
-        } else {
-          showToast("Добро пожаловать, шеф!", <Sparkles size={18} color="var(--color-accent)" />);
-          setIsAuthModalOpen(false);
+            setAuthError("Это имя уже занято. Выберите другое или войдите.");
+          } else {
+            setAuthError("Не удалось создать аккаунт. Попробуйте ещё раз.");
+          }
+          return;
         }
+        reachGoal("auth_signup");
+        await mergeTasteProfileIntoAccount(data.user);
+        showToast("Добро пожаловать, шеф!", <Sparkles size={18} color="var(--color-accent)" />);
+        setIsAuthModalOpen(false);
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({ email: dummyEmail, password: authPassword });
         if (error) {
           if (error.message.includes('Invalid login credentials')) {
-            showToast("Неверный Username или пароль!", undefined, 'error');
-          } else throw error;
-        } else {
-          setIsAuthModalOpen(false);
+            setAuthError("Неверное имя или пароль.");
+          } else {
+            setAuthError("Не удалось войти. Попробуйте ещё раз.");
+          }
+          return;
         }
+        reachGoal("auth_login");
+        await mergeTasteProfileIntoAccount(data.user);
+        setIsAuthModalOpen(false);
       }
-    } catch (e: any) { 
-      showToast("Ошибка: " + e.message, undefined, 'error'); 
-    } finally { 
-      setAuthLoading(false); 
+    } catch {
+      setAuthError("Что-то пошло не так. Попробуйте позже.");
+    } finally {
+      setAuthLoading(false);
     }
   };
 
@@ -846,7 +890,7 @@ export default function Home() {
 
       <AuthModal
         isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
+        onClose={() => { setIsAuthModalOpen(false); setAuthError(null); }}
         authMode={authMode}
         setAuthMode={setAuthMode}
         authUsername={authUsername}
@@ -854,6 +898,8 @@ export default function Home() {
         authPassword={authPassword}
         setAuthPassword={setAuthPassword}
         authLoading={authLoading}
+        authError={authError}
+        setAuthError={setAuthError}
         handleAuth={handleAuth}
       />
 

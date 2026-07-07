@@ -12,9 +12,18 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+// Этот роут — доверенный серверный писатель меню банкета: он захватывает замок
+// генерации (parties.is_generating), чистит и пересоздаёт party_items. На
+// parties/party_items включён RLS, который блокирует ВСЕ прямые клиентские
+// (anon/authenticated) записи (см. supabase_admin_tables_rls.sql и
+// supabase_party_members_rls.sql — там прямо указано, что запись идёт через
+// service-role /api/party/generate). Поэтому здесь нужен service-role ключ, а
+// не anon: с anon-ключом UPDATE parties и INSERT party_items отклоняются RLS,
+// и генерация падала на захвате замка (409 «Уже генерируем»). Ключ читается
+// только на сервере из окружения и в клиент не попадает.
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 type GeneratedMenuItem = {

@@ -24,6 +24,7 @@ export default function Footer() {
         <Link href="/about" style={footerLinkStyle}>О сервисе</Link>
         <Link href="/privacy" style={footerLinkStyle}>Политика конфиденциальности</Link>
         <Link href="/terms" style={footerLinkStyle}>Пользовательское соглашение</Link>
+        <Link href="/legal" style={footerLinkStyle}>Правовая информация</Link>
         <ReportError />
       </nav>
 

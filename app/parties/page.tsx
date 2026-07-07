@@ -271,7 +271,7 @@ export default function PartiesHubPage() {
         )}
 
         {isAnon && (
-          <BanquetAccountBanner variant="hub" onSignup={() => router.push("/?auth=register")} />
+          <BanquetAccountBanner variant="hub" onSignup={() => router.push("/search?auth=register")} />
         )}
 
         <section className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">

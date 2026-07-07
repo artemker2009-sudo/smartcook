@@ -53,12 +53,23 @@ const EMPTY_STATS: DashboardStats = {
   recentEvents: [],
 };
 
-type TabId = "management" | "analytics" | "purchases" | "errors";
+type FeedPhoto = {
+  id: string;
+  created_at?: string | null;
+  user_name?: string | null;
+  recipe_title?: string | null;
+  photo_url: string;
+  is_public?: boolean | null;
+  is_hidden?: boolean | null;
+};
+
+type TabId = "management" | "analytics" | "purchases" | "errors" | "feed";
 
 const TABS = [
   { id: "management" as TabId, label: "⚙️ Управление", hint: "Статус сайта и техработы" },
   { id: "analytics" as TabId, label: "📊 Аналитика", hint: "Живые метрики и события" },
   { id: "purchases" as TabId, label: "💳 История покупок", hint: "Только оплаченные банкеты" },
+  { id: "feed" as TabId, label: "🍽️ Лента", hint: "Модерация «Приготовили сегодня»" },
   { id: "errors" as TabId, label: "🐞 Ошибки", hint: "Баг-репорты пользователей" },
 ];
 
@@ -160,6 +171,8 @@ export default function AdminPage() {
   const [errorReports, setErrorReports] = useState<ErrorReport[]>([]);
   const [errorsError, setErrorsError] = useState("");
   const [markingReportId, setMarkingReportId] = useState<string | null>(null);
+  const [feedPhotos, setFeedPhotos] = useState<FeedPhoto[]>([]);
+  const [hidingPhotoId, setHidingPhotoId] = useState<string | null>(null);
 
   const loadDashboard = async () => {
     setIsLoading(true);
@@ -187,6 +200,7 @@ export default function AdminPage() {
         recentEvents: (data.recentEvents as AnalyticsEvent[] | null) ?? [],
       });
       setErrorReports((data.errorReports as ErrorReport[] | null) ?? []);
+      setFeedPhotos((data.feedPhotos as FeedPhoto[] | null) ?? []);
       setIsAuthenticated(true);
     } catch (error) {
       console.error("Ошибка загрузки админки", error);
@@ -308,6 +322,27 @@ export default function AdminPage() {
       console.error("Ошибка при обновлении репорта", error);
     } finally {
       setMarkingReportId(null);
+    }
+  };
+
+  const handleToggleFeedPhotoHidden = async (id: string, hidden: boolean) => {
+    setHidingPhotoId(id);
+    try {
+      const response = await fetch("/api/admin/feed-hide", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, hidden }),
+      });
+      if (!response.ok) {
+        throw new Error("Не удалось обновить фото");
+      }
+      setFeedPhotos((current) =>
+        current.map((photo) => (photo.id === id ? { ...photo, is_hidden: hidden } : photo)),
+      );
+    } catch (error) {
+      console.error("Ошибка при модерации ленты", error);
+    } finally {
+      setHidingPhotoId(null);
     }
   };
 
@@ -788,6 +823,60 @@ export default function AdminPage() {
                   </tbody>
                 </table>
               </div>
+            </section>
+          ) : null}
+
+          {activeTab === "feed" ? (
+            <section className="space-y-4">
+              <div className="rounded-[2rem] border border-zinc-200 bg-white px-6 py-5 shadow-sm">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-400">Модерация</p>
+                <h3 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-950">Лента «Приготовили сегодня»</h3>
+                <p className="mt-2 text-sm text-zinc-500">
+                  Фото из витрины на главной. «Скрыть» убирает фото из ленты (is_hidden), «Вернуть» — показывает снова.
+                </p>
+              </div>
+
+              {feedPhotos.length === 0 ? (
+                <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-12 text-center text-sm text-zinc-500 shadow-sm">
+                  Фото в ленте пока нет.
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                  {feedPhotos.map((photo) => (
+                    <article
+                      key={photo.id}
+                      className={`overflow-hidden rounded-2xl border bg-white shadow-sm ${
+                        photo.is_hidden ? "border-red-200 opacity-60" : "border-zinc-200"
+                      }`}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={photo.photo_url} alt={photo.recipe_title || "Блюдо"} className="aspect-square w-full object-cover" />
+                      <div className="space-y-1 p-3">
+                        <p className="truncate text-sm font-semibold text-zinc-900">{photo.recipe_title || "Блюдо"}</p>
+                        <p className="truncate text-xs text-zinc-500">{photo.user_name || "Гость"}</p>
+                        <p className="text-xs text-zinc-400">{formatDateTime(photo.created_at)}</p>
+                        {photo.is_hidden ? (
+                          <span className="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700 ring-1 ring-red-200">
+                            Скрыто
+                          </span>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => handleToggleFeedPhotoHidden(photo.id, !photo.is_hidden)}
+                          disabled={hidingPhotoId === photo.id}
+                          className={`mt-2 w-full rounded-full px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50 ${
+                            photo.is_hidden
+                              ? "bg-zinc-900 text-white hover:bg-zinc-700"
+                              : "bg-red-600 text-white hover:bg-red-500"
+                          }`}
+                        >
+                          {hidingPhotoId === photo.id ? "Сохраняем..." : photo.is_hidden ? "Вернуть" : "Скрыть"}
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
             </section>
           ) : null}
 

@@ -7,6 +7,7 @@ import "./globals.css";
 import YandexMetrika from "@/components/YandexMetrika"; // Импортируем компонент Метрики
 import PWAUpdater from "@/components/PWAUpdater";
 import Footer from "@/components/Footer";
+import TabBar from "@/components/TabBar";
 import MaintenanceScreen from "@/components/MaintenanceScreen";
 import OnboardingModal from "@/components/modals/OnboardingModal";
 import { Suspense } from "react"; // Импортируем Suspense для корректной работы
@@ -121,12 +122,17 @@ export default async function RootLayout({
   // создания (/party/create) футер сохраняют. Доступ к «Сообщить об ошибке»
   // внутри комнаты остаётся компактной иконкой в шапке (ClientRoom).
   const isPartyRoom = pathname.startsWith("/party/") && pathname !== "/party/create";
+  // Таб-бар (Главная/Поиск/Банкеты) прячем там же, где футер: в админке и в
+  // полноэкранной комнате банкета (задача D). На остальных страницах он есть,
+  // поэтому добавляем нижний отступ body, чтобы фиксированный бар не перекрывал
+  // контент/футер на мобайле (класс has-tabbar, стиль в globals.css).
   const hideFooter = isAdminRoute || isPartyRoom;
+  const showTabBar = !hideFooter;
   const isMaintenance = isAdminRoute ? false : await getMaintenanceStatus();
 
   return (
     <html lang="ru">
-      <body>
+      <body className={showTabBar && !isMaintenance ? "has-tabbar" : undefined}>
         {/* Оборачиваем Метрику в Suspense, чтобы Next.js не ругался при сборке */}
         <Suspense fallback={<></>}>
           <YandexMetrika />
@@ -137,6 +143,7 @@ export default async function RootLayout({
           <MaintenanceScreen />
         ) : (
           <>
+            {showTabBar && <TabBar />}
             {children}
             {!hideFooter && <Footer />}
             {!isAdminRoute && <OnboardingModal />}

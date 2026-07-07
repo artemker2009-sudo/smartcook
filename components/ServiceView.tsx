@@ -24,7 +24,6 @@ import {
 } from "lucide-react";
 import RecipeView from "@/components/RecipeView";
 import Button from "@/components/ui/Button";
-import HeroLanding from "@/components/HeroLanding";
 import { shareOrCopy } from "@/lib/share";
 
 interface ServiceViewProps {
@@ -189,8 +188,6 @@ export default function ServiceView({
     <>
       {!isHistoryView && fromFeed === false && !isSharedView && (
         <>
-          <HeroLanding handleFileChange={handleFileChange} setSearchMode={setSearchMode} />
-
           {currentHoliday && (
             <div
               className="animate-fade-in"

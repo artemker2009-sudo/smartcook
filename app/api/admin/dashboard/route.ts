@@ -31,10 +31,19 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Не удалось загрузить данные админки" }, { status: 500 });
   }
 
+  // Лента (feed_photos) — отдельно и мягко: если таблицы ещё нет (миграция не
+  // прогнана), не роняем всю админку, просто отдаём пустой список.
+  const feedResult = await supabase
+    .from("feed_photos")
+    .select("id, created_at, user_name, recipe_title, photo_url, is_public, is_hidden")
+    .order("created_at", { ascending: false })
+    .limit(200);
+
   return NextResponse.json({
     isMaintenance: Boolean(maintenanceResult.data?.is_maintenance),
     parties: partiesResult.data ?? [],
     recentEvents: recentEventsResult.data ?? [],
     errorReports: errorReportsResult.data ?? [],
+    feedPhotos: feedResult.error ? [] : (feedResult.data ?? []),
   });
 }

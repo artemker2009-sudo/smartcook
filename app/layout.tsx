@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { Toaster } from "sonner";
 import "./globals.css";
 import YandexMetrika from "@/components/YandexMetrika"; // Импортируем компонент Метрики
+import PWAUpdater from "@/components/PWAUpdater";
 import Footer from "@/components/Footer";
 import MaintenanceScreen from "@/components/MaintenanceScreen";
 import OnboardingModal from "@/components/modals/OnboardingModal";
@@ -31,6 +32,15 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: "default",
     title: "SmartCook",
+  },
+  // iOS для домашнего экрана берёт apple-touch-icon (НЕ манифест). Он должен
+  // быть НЕПРОЗРАЧНЫМ 180×180 — иначе на iOS иконка рендерится белым квадратом.
+  icons: {
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
   },
   // ---------------------
 
@@ -121,6 +131,7 @@ export default async function RootLayout({
         <Suspense fallback={<></>}>
           <YandexMetrika />
         </Suspense>
+        <PWAUpdater />
 
         {isMaintenance ? (
           <MaintenanceScreen />

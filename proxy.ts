@@ -33,7 +33,7 @@ const CONTENT_SECURITY_POLICY = [
   `style-src 'self' 'unsafe-inline'`,
   `img-src 'self' data: blob: https:`,
   `font-src 'self' data:`,
-  `connect-src 'self' https://${SUPABASE_HOST} wss://${SUPABASE_HOST} https://api.openai.com https://mc.yandex.ru https://mc.yandex.com https://vitals.vercel-insights.com https://va.vercel-scripts.com`,
+  `connect-src 'self' https://${SUPABASE_HOST} wss://${SUPABASE_HOST} https://api.openai.com https://mc.yandex.ru https://mc.yandex.com wss://mc.yandex.ru wss://mc.yandex.com https://vitals.vercel-insights.com https://va.vercel-scripts.com`,
   "frame-ancestors 'none'",
   "object-src 'none'",
   "base-uri 'self'",

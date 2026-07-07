@@ -9,6 +9,7 @@ import { DEVELOPER_ID, scaleAmount, formatCooks, cleanText, formatTime, formatCa
 import { shareOrCopy } from "@/lib/share";
 import { reachGoal } from "@/lib/metrika";
 import { claimGuestPartiesToAccount } from "@/lib/claimParties";
+import { preparePhoto, decodeHeicIfNeeded, reportPhotoError } from "@/lib/photo";
 import { FEATURE_RESTAURANT_GAME } from "@/lib/features";
 import { USERNAME_MIN, USERNAME_MAX, PASSWORD_MIN, normalizeUsername } from "@/components/modals/AuthModal";
 import InstallPromptCard from "@/components/InstallPromptCard";
@@ -492,7 +493,14 @@ export default function Home() {
   const removeAllergy = (idx: number) => { const updated = allergies.filter((_, i) => i !== idx); setAllergies(updated); savePreferences(updated, dislikes); };
   const removeDislike = (idx: number) => { const updated = dislikes.filter((_, i) => i !== idx); setDislikes(updated); savePreferences(allergies, updated); };
 
-  const handleAvatarChange = (e: ChangeEvent<HTMLInputElement>) => { const files = e.target.files; if (!files || files.length === 0) return; setCropImageSrc(URL.createObjectURL(files[0])); setIsCropping(true); };
+  const handleAvatarChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files; if (!files || files.length === 0) return;
+    try {
+      // HEIC не отрендерится в кроппере (<img>) на Android — декодируем заранее.
+      const decoded = await decodeHeicIfNeeded(files[0]);
+      setCropImageSrc(URL.createObjectURL(decoded)); setIsCropping(true);
+    } catch (error) { void reportPhotoError("avatar", files[0], error); showToast("Не удалось обработать фото", undefined, 'error'); }
+  };
   const onCropComplete = (croppedArea: any, croppedAreaPixels: any) => { setCroppedAreaPixels(croppedAreaPixels); };
   const handleCropConfirm = async () => {
     if (!cropImageSrc || !croppedAreaPixels) return;
@@ -504,7 +512,7 @@ export default function Home() {
          const finalFile = new File([compressedFile], `avatar_${Date.now()}.jpg`, { type: "image/jpeg" });
          setEditAvatarFile(finalFile); setEditAvatarPreview(URL.createObjectURL(finalFile)); setIsCropping(false); setCropImageSrc(null);
       }
-    } catch (e) { showToast("Не удалось обработать фото", undefined, 'error'); setEditAvatarFile(null); setEditAvatarPreview(null); }
+    } catch (e) { void reportPhotoError("avatar-crop", null, e); showToast("Не удалось обработать фото", undefined, 'error'); setEditAvatarFile(null); setEditAvatarPreview(null); }
   };
 
   const handleProfileSave = async () => { 
@@ -614,12 +622,11 @@ export default function Home() {
   const handleUserPhotoChange = async (e: ChangeEvent<HTMLInputElement>) => { 
     const files = e.target.files; if (!files || files.length === 0) return; 
     setUserPhotoPreview(URL.createObjectURL(files[0])); setIsUploadingPhoto(true); 
-    try { 
-      const imageCompression = (await import('browser-image-compression')).default; 
-      const compressedFile = await imageCompression(files[0], { maxSizeMB: 1, maxWidthOrHeight: 1080, useWebWorker: false, fileType: "image/jpeg" }); 
-      setUserPhotoFile(new File([compressedFile], `post_${Date.now()}.jpg`, { type: "image/jpeg" })); 
-    } catch (error) { showToast("Не удалось обработать фото", undefined, 'error'); setUserPhotoFile(null); setUserPhotoPreview(null); } 
-    finally { setIsUploadingPhoto(false); } 
+    try {
+      const finalFile = await preparePhoto(files[0], { maxSizeMB: 1, maxWidthOrHeight: 1080, useWebWorker: false }, `post_${Date.now()}.jpg`);
+      setUserPhotoFile(finalFile);
+    } catch (error) { void reportPhotoError("post", files[0], error); showToast("Не удалось обработать фото", undefined, 'error'); setUserPhotoFile(null); setUserPhotoPreview(null); }
+    finally { setIsUploadingPhoto(false); }
   }; 
 
   const ensureRecipeInDB = async (currentRecipe: any) => { 
@@ -686,12 +693,10 @@ export default function Home() {
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => { 
     const files = e.target.files; if (!files || files.length === 0) return; 
     setPreview(URL.createObjectURL(files[0])); setAnalysisResult(null); setRecipe(null); setSelectedDish(null); setQuestion(""); setAnswer(null); setIsProcessing(true); setIsHistoryView(false); setFromFeed(false); setServings(1);  
-    try { 
-      const imageCompression = (await import('browser-image-compression')).default; 
-      const compressedFile = await imageCompression(files[0], { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true, fileType: "image/jpeg" }); 
-      const finalFile = new File([compressedFile], "image.jpg", { type: "image/jpeg" }); 
-      setFile(finalFile); setPreview(URL.createObjectURL(finalFile));  
-    } catch (error) { showToast("Не удалось обработать фото", undefined, 'error'); setFile(null); } finally { setIsProcessing(false); } 
+    try {
+      const finalFile = await preparePhoto(files[0], { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true }, "image.jpg");
+      setFile(finalFile); setPreview(URL.createObjectURL(finalFile));
+    } catch (error) { void reportPhotoError("scan", files[0], error); showToast("Не удалось обработать фото", undefined, 'error'); setFile(null); } finally { setIsProcessing(false); }
   }; 
 
   const triggerFileInput = () => document.getElementById('hidden-file-input')?.click(); 
@@ -783,17 +788,31 @@ export default function Home() {
     } catch (err: any) { showToast("Ошибка", undefined, 'error'); } finally { setLoadingRecipe(false); } 
   }; 
 
-  const handleTextSearch = async () => { 
-    if (!textQuery.trim() || !userId) return; setLoadingRecipe(true); setRecipe(null); setAnalysisResult(null); setIsHistoryView(false); setFromFeed(false); setServings(1);  
-    try { 
+  const handleTextSearch = async () => {
+    if (!textQuery.trim() || !userId) return; setLoadingRecipe(true); setRecipe(null); setAnalysisResult(null); setSelectedDish(null); setIsHistoryView(false); setFromFeed(false); setServings(1);
+    try {
       const response = await fetch("/api/search-recipe", { method: "POST", headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) }, body: JSON.stringify({ query: textQuery, sessionId: userId, allergies, dislikes }) });
       const json = await response.json(); if (handleRateLimitedResponse(response, json)) return; if (!response.ok) throw new Error(json.error || "Ошибка поиска");
-      setRecipe({ ...json.recipe, id: json.recipe.id, is_favorite: false, missing_ingredients: json.recipe.missing_ingredients || [] });  
+
+      // Бессмысленный/непонятный ввод — мягкая подсказка, не ошибка.
+      if (json.type === "invalid") { showToast(json.message || "Не понял запрос. Введите продукты или название блюда."); return; }
+
+      // Список продуктов → показываем подборку блюд (тот же UI, что у фото-флоу),
+      // рецепт генерится дальше по клику на блюдо через getRecipeFromPhoto.
+      if (json.type === "ingredients") {
+        reachGoal("text_search_ingredients");
+        setAnalysisResult(json.data);
+        return;
+      }
+
+      // Название блюда → сразу рецепт (прежнее поведение).
+      reachGoal("text_search_dish");
+      setRecipe({ ...json.recipe, id: json.recipe.id, is_favorite: false, missing_ingredients: json.recipe.missing_ingredients || [] });
       if (userId) fetchMyRecipes(userId);
       handleRewardForRecipe();
       onRecipeGenerated();
-    } catch (err: any) { showToast(err.message, undefined, 'error'); } finally { setLoadingRecipe(false); } 
-  }; 
+    } catch (err: any) { showToast(err.message, undefined, 'error'); } finally { setLoadingRecipe(false); }
+  };
 
   const handleAskChef = async () => { 
     const currentContext = activeView === 'daily' ? (dailyRecipe as any) : recipe; 

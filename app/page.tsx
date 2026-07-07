@@ -264,6 +264,14 @@ export default function Home() {
       const params = new URLSearchParams(window.location.search);
       if (params.get('recipeId')) loadSharedRecipe(params.get('recipeId')!);
       else if (params.get('daily') === 'true') { setActiveView('daily'); window.history.replaceState({}, '', '/'); }
+      // Открыть регистрацию из баннера банкетов (?auth=register|login).
+      const authParam = params.get('auth');
+      if (authParam === 'register' || authParam === 'login') {
+        setAuthMode(authParam);
+        setActiveView('profile');
+        setIsAuthModalOpen(true);
+        window.history.replaceState({}, '', '/');
+      }
     }
   }, []);
 

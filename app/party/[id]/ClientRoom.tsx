@@ -28,6 +28,8 @@ import {
 } from "@/app/actions/party";
 import AuthModal from "@/components/modals/AuthModal";
 import FullScreenImage from "@/components/modals/FullScreenImage";
+import ReportError from "@/components/ReportError";
+import BanquetAccountBanner from "@/components/BanquetAccountBanner";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -207,6 +209,13 @@ const getPartyParticipantStorageKey = (partyId: string) => `party_participant_${
 const getPartyNameStorageKey = (partyId: string) => `party_name_${partyId}`;
 const getPartyUserIdStorageKey = (partyId: string) => `party_user_id_${partyId}`;
 const getPartyAdminStorageKey = (partyId: string) => `party_admin_${partyId}`;
+
+// Тот же ключ, что и у создателя банкета (app/party/create/page.tsx) и у списка
+// «мои банкеты» (app/parties/page.tsx). Список банкетов для анонима читается
+// ТОЛЬКО из этого ключа, поэтому приглашённый гость обязан записать сюда id
+// банкета — иначе после ухода со страницы банкет пропадает из его списка
+// (участие при этом на сервере есть — party_members создаётся при join).
+const GUEST_PARTIES_STORAGE_KEY = "smartcook_guest_parties";
 const AI_CONFIG_TAGS = ["Веган", "Без глютена", "Острое", "Без орехов", "Кето", "Без лактозы", "ПП"] as const;
 const AI_CONFIG_CATEGORY_OPTIONS = ["Закуски", "Салаты", "Горячее", "Гарниры", "Напитки", "Десерты"] as const;
 const DEFAULT_AI_CONFIG_CATEGORIES = ["Закуски", "Горячее", "Напитки"];
@@ -260,6 +269,23 @@ const safeStorageRemoveItem = (key: string) => {
     getSafeLocalStorage()?.removeItem(key);
   } catch {
     // Ignore storage failures to keep UI responsive.
+  }
+};
+
+// Запоминаем банкет в списке «мои банкеты» этого устройства/браузера — дедуп,
+// тот же формат, что и saveGuestPartyId у создателя. Вызывается при успешном
+// join (см. completeJoin), чтобы приглашённый гость видел банкет в своём
+// списке при следующих заходах с этого же устройства.
+const rememberPartyInHub = (partyId: string) => {
+  try {
+    const parsed = JSON.parse(safeStorageGetItem(GUEST_PARTIES_STORAGE_KEY) || "[]");
+    const currentIds = Array.isArray(parsed)
+      ? parsed.filter((value): value is string => typeof value === "string")
+      : [];
+    if (currentIds.includes(partyId)) return;
+    safeStorageSetItem(GUEST_PARTIES_STORAGE_KEY, JSON.stringify([...new Set([...currentIds, partyId])]));
+  } catch {
+    safeStorageSetItem(GUEST_PARTIES_STORAGE_KEY, JSON.stringify([partyId]));
   }
 };
 
@@ -421,9 +447,6 @@ export default function ClientRoom({
   const [isNotifyingOrganizer, setIsNotifyingOrganizer] = useState(false);
   const [hasNotifiedOrganizer, setHasNotifiedOrganizer] = useState(false);
   const [notifyOrganizerError, setNotifyOrganizerError] = useState("");
-  const [showSupport, setShowSupport] = useState(false);
-  const [supportText, setSupportText] = useState("");
-  const [isSendingSupport, setIsSendingSupport] = useState(false);
   const [showRoomInfo, setShowRoomInfo] = useState(false);
   const [roomTitleInput, setRoomTitleInput] = useState(party.title);
   const [roomDescriptionInput, setRoomDescriptionInput] = useState((party.description ?? party.theme ?? "").trim());
@@ -558,6 +581,9 @@ export default function ClientRoom({
   const completeJoin = useCallback(
     (name: string, userId: string, guestData?: PartyMember) => {
       writeStoredParticipant(party.id, { name, userId });
+      // Гость стал участником — запоминаем банкет в списке этого устройства,
+      // иначе он пропадёт из «моих банкетов» после ухода со страницы.
+      rememberPartyInHub(party.id);
       setInputName(name);
       setCurrentUser(name);
       setCurrentUserId(userId);
@@ -1442,37 +1468,6 @@ export default function ClientRoom({
     });
   };
 
-  const handleSendSupport = async () => {
-    if (!supportText.trim() || !currentUser) return;
-
-    setIsSendingSupport(true);
-
-    try {
-      const nextSupportText = supportText.trim();
-      const { error } = await withTimeout(
-        supabase.from("support_tickets").insert([
-          {
-            party_id: party.id,
-            user_name: currentUser,
-            message: nextSupportText,
-          },
-        ]),
-        SUPABASE_TIMEOUT_MS,
-        "Не удалось отправить сообщение в поддержку",
-      );
-
-      if (error) throw error;
-      setSupportText("");
-      setShowSupport(false);
-      alert("Сообщение отправлено! Мы скоро все починим.");
-    } catch (e) {
-      console.error(e);
-      alert(getMutationAlertMessage(e));
-    } finally {
-      setIsSendingSupport(false);
-    }
-  };
-
   const handleShare = async () => {
     reachGoal("share_banquet_invite");
     const shareData = {
@@ -1784,13 +1779,19 @@ export default function ClientRoom({
             </button>
 
             <div className="mt-6 border-t border-zinc-100 pt-6">
-              <button
-                type="button"
-                onClick={() => setShowSupport(true)}
-                className="flex w-full items-center justify-center gap-2 rounded-3xl bg-zinc-50 p-4 text-sm font-medium text-zinc-500 transition-colors hover:bg-zinc-100"
-              >
-                💬 Сообщить о проблеме
-              </button>
+              {/* Единый механизм этапа 6: /api/report-error → error_reports,
+                  автоконтекст (url/UA/display_mode/viewport) собирается кодом. */}
+              <ReportError
+                trigger={(open) => (
+                  <button
+                    type="button"
+                    onClick={open}
+                    className="flex w-full items-center justify-center gap-2 rounded-3xl bg-zinc-50 p-4 text-sm font-medium text-zinc-500 transition-colors hover:bg-zinc-100"
+                  >
+                    💬 Сообщить о проблеме
+                  </button>
+                )}
+              />
             </div>
           </>
         )}
@@ -1962,6 +1963,17 @@ export default function ClientRoom({
       >
         {activeTab === "menu" ? (
           <>
+            {!authUser && (
+              <div className="px-4">
+                <BanquetAccountBanner
+                  variant={isHost ? "creator" : "guest"}
+                  onSignup={() => {
+                    setAuthMode("register");
+                    setIsAuthModalOpen(true);
+                  }}
+                />
+              </div>
+            )}
             {isObserver && (
               <div className="px-4">
                 <div className="rounded-3xl border border-zinc-200 bg-zinc-50 p-4 shadow-sm">
@@ -2634,51 +2646,6 @@ export default function ClientRoom({
         </div>
       )}
 
-      {showSupport && (
-        <div className="fixed inset-0 z-[56] flex items-end justify-center bg-black/40 p-4 backdrop-blur-md sm:items-center">
-          <div className="w-full max-w-md rounded-t-3xl border border-black/5 bg-white p-6 shadow-2xl animate-in slide-in-from-bottom-full duration-300 sm:rounded-3xl sm:zoom-in-95 sm:slide-in-from-bottom-0">
-            <div className="mb-5">
-              <h2 className="text-2xl font-semibold tracking-tight text-black">Служба поддержки</h2>
-              <p className="mt-2 text-sm leading-6 text-zinc-500">
-                Опишите, что пошло не так. Мы передадим сообщение администратору.
-              </p>
-            </div>
-
-            <textarea
-              value={supportText}
-              onChange={(event) => setSupportText(event.target.value)}
-              placeholder="Например: не открывается чат, пропало меню или что-то работает странно..."
-              rows={5}
-              className="w-full resize-none rounded-3xl bg-zinc-100 px-5 py-4 text-base text-black outline-none transition focus:bg-zinc-200"
-            />
-
-            <div className="mt-5 flex gap-3">
-              <button
-                type="button"
-                onClick={() => setShowSupport(false)}
-                className="flex-1 rounded-2xl bg-zinc-100 px-5 py-4 text-base font-medium text-black transition hover:bg-zinc-200"
-              >
-                Отмена
-              </button>
-              <button
-                type="button"
-                onClick={handleSendSupport}
-                disabled={!supportText.trim() || !currentUser || isSendingSupport}
-                className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-black px-5 py-4 text-base font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {isSendingSupport ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Отправляем...
-                  </>
-                ) : (
-                  "Отправить"
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {showShoppingList && (
         <div className="fixed inset-0 z-[55] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-md sm:p-4">

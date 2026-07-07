@@ -7,6 +7,7 @@ import { CalendarDays, ChevronRight, Loader2, MoreHorizontal, Plus, UsersRound }
 
 import { deletePartyAction, getHubParties, type HubParty } from "@/app/actions/party";
 import AppNavigation from "@/components/AppNavigation";
+import BanquetAccountBanner from "@/components/BanquetAccountBanner";
 import { supabase } from "@/lib/supabase";
 
 const GUEST_PARTIES_STORAGE_KEY = "smartcook_guest_parties";
@@ -175,6 +176,8 @@ export default function PartiesHubPage() {
   const [partyToDelete, setPartyToDelete] = useState<HubParty | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const [isAnon, setIsAnon] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     let isCancelled = false;
@@ -192,6 +195,7 @@ export default function PartiesHubPage() {
 
         if (!isCancelled) {
           setParties(nextParties);
+          setIsAnon(!session?.user);
         }
       } catch (loadError) {
         console.error("Hub parties load error:", loadError);
@@ -264,6 +268,10 @@ export default function PartiesHubPage() {
           <div className="mb-6 rounded-3xl border border-red-100 bg-red-50 px-5 py-4 text-sm font-medium text-red-700">
             {error}
           </div>
+        )}
+
+        {isAnon && (
+          <BanquetAccountBanner variant="hub" onSignup={() => router.push("/?auth=register")} />
         )}
 
         <section className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">

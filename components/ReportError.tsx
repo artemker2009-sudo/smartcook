@@ -27,7 +27,13 @@ const inputStyle: React.CSSProperties = {
   fontFamily: "inherit",
 };
 
-export default function ReportError() {
+// trigger — необязательный кастомный триггер (напр. кнопка в стиле банкетов).
+// Если не передан, показывается стандартная ссылка-кнопка (футер).
+export default function ReportError({
+  trigger,
+}: {
+  trigger?: (open: () => void) => React.ReactNode;
+} = {}) {
   const [isOpen, setIsOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [contact, setContact] = useState("");
@@ -114,9 +120,13 @@ export default function ReportError() {
 
   return (
     <>
-      <button type="button" onClick={() => setIsOpen(true)} style={linkStyle}>
-        <Bug size={14} /> Сообщить об ошибке
-      </button>
+      {trigger ? (
+        trigger(() => setIsOpen(true))
+      ) : (
+        <button type="button" onClick={() => setIsOpen(true)} style={linkStyle}>
+          <Bug size={14} /> Сообщить об ошибке
+        </button>
+      )}
 
       {isOpen ? (
         <div

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { X, Camera, PartyPopper, Zap } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { YANDEX_METRIKA_ID } from "@/components/YandexMetrika";
@@ -28,7 +28,6 @@ function fireGoal(goal: string) {
 export default function OnboardingModal() {
   const [isOpen, setIsOpen] = useState(false);
   const router = useRouter();
-  const pathname = usePathname();
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -59,13 +58,9 @@ export default function OnboardingModal() {
   const handlePhotoClick = () => {
     fireGoal("onboarding_photo_click");
     close();
-    if (pathname === "/") {
-      const input = document.getElementById("hidden-file-input");
-      if (input) input.click();
-      else router.push("/");
-    } else {
-      router.push("/");
-    }
+    // После этапа 7 поле выбора фото живёт на /search (на Главной его нет).
+    // Ведём туда с авто-открытием выбора снимка — как CTA на Главной.
+    router.push("/search?open=camera");
   };
 
   const handleBanquetClick = () => {

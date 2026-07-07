@@ -9,9 +9,11 @@ import { reachGoal } from "@/lib/metrika";
 // (safe-area для PWA/iOS), десктоп — те же три пункта в верхней шапке (через
 // CSS). Переходы — next/link (реальная смена маршрута → авто-хит Метрики из
 // YandexMetrika по usePathname). onClick дополнительно шлёт цель nav_*.
+// Порядок: Поиск — Главная — Банкеты (Поиск слева). Лендинг по умолчанию не
+// меняется — на сайт по-прежнему заходят на Главную (/).
 const TABS = [
-  { href: "/", label: "Главная", icon: Home, goal: "nav_home", isActive: (p: string) => p === "/" },
   { href: "/search", label: "Поиск", icon: Search, goal: "nav_search", isActive: (p: string) => p.startsWith("/search") },
+  { href: "/", label: "Главная", icon: Home, goal: "nav_home", isActive: (p: string) => p === "/" },
   {
     href: "/parties",
     label: "Банкеты",

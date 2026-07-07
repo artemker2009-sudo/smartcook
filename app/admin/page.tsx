@@ -63,12 +63,22 @@ type FeedPhoto = {
   is_hidden?: boolean | null;
 };
 
-type TabId = "management" | "analytics" | "purchases" | "errors" | "feed";
+type NewsItem = {
+  id: string;
+  created_at?: string | null;
+  date?: string | null;
+  title: string;
+  body: string;
+  is_visible?: boolean | null;
+};
+
+type TabId = "management" | "analytics" | "purchases" | "news" | "feed" | "errors";
 
 const TABS = [
   { id: "management" as TabId, label: "⚙️ Управление", hint: "Статус сайта и техработы" },
   { id: "analytics" as TabId, label: "📊 Аналитика", hint: "Живые метрики и события" },
   { id: "purchases" as TabId, label: "💳 История покупок", hint: "Только оплаченные банкеты" },
+  { id: "news" as TabId, label: "📰 Новости", hint: "Новости проекта на главной" },
   { id: "feed" as TabId, label: "🍽️ Лента", hint: "Модерация «Приготовили сегодня»" },
   { id: "errors" as TabId, label: "🐞 Ошибки", hint: "Баг-репорты пользователей" },
 ];
@@ -173,6 +183,14 @@ export default function AdminPage() {
   const [markingReportId, setMarkingReportId] = useState<string | null>(null);
   const [feedPhotos, setFeedPhotos] = useState<FeedPhoto[]>([]);
   const [hidingPhotoId, setHidingPhotoId] = useState<string | null>(null);
+  const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
+  const [newsEditingId, setNewsEditingId] = useState<string | null>(null); // null = форма создания
+  const [newsTitle, setNewsTitle] = useState("");
+  const [newsDate, setNewsDate] = useState("");
+  const [newsBody, setNewsBody] = useState("");
+  const [newsSaving, setNewsSaving] = useState(false);
+  const [newsError, setNewsError] = useState("");
+  const [newsBusyId, setNewsBusyId] = useState<string | null>(null);
 
   const loadDashboard = async () => {
     setIsLoading(true);
@@ -201,6 +219,7 @@ export default function AdminPage() {
       });
       setErrorReports((data.errorReports as ErrorReport[] | null) ?? []);
       setFeedPhotos((data.feedPhotos as FeedPhoto[] | null) ?? []);
+      setNewsItems((data.news as NewsItem[] | null) ?? []);
       setIsAuthenticated(true);
     } catch (error) {
       console.error("Ошибка загрузки админки", error);
@@ -343,6 +362,89 @@ export default function AdminPage() {
       console.error("Ошибка при модерации ленты", error);
     } finally {
       setHidingPhotoId(null);
+    }
+  };
+
+  const resetNewsForm = () => {
+    setNewsEditingId(null);
+    setNewsTitle("");
+    setNewsDate("");
+    setNewsBody("");
+    setNewsError("");
+  };
+
+  const startEditNews = (item: NewsItem) => {
+    setNewsEditingId(item.id);
+    setNewsTitle(item.title ?? "");
+    setNewsDate(item.date ?? "");
+    setNewsBody(item.body ?? "");
+    setNewsError("");
+  };
+
+  const handleSaveNews = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!newsTitle.trim() || !newsBody.trim()) {
+      setNewsError("Заголовок и текст обязательны");
+      return;
+    }
+    setNewsSaving(true);
+    setNewsError("");
+    try {
+      const response = await fetch("/api/admin/news", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          op: newsEditingId ? "update" : "create",
+          id: newsEditingId ?? undefined,
+          title: newsTitle,
+          date: newsDate,
+          body: newsBody,
+        }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.error || "Не удалось сохранить новость");
+      await loadDashboard();
+      resetNewsForm();
+    } catch (error) {
+      setNewsError(error instanceof Error ? error.message : "Не удалось сохранить новость");
+    } finally {
+      setNewsSaving(false);
+    }
+  };
+
+  const handleNewsVisibility = async (id: string, visible: boolean) => {
+    setNewsBusyId(id);
+    try {
+      const response = await fetch("/api/admin/news", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ op: "setVisible", id, visible }),
+      });
+      if (!response.ok) throw new Error("Не удалось обновить");
+      setNewsItems((current) => current.map((n) => (n.id === id ? { ...n, is_visible: visible } : n)));
+    } catch (error) {
+      console.error("Ошибка видимости новости", error);
+    } finally {
+      setNewsBusyId(null);
+    }
+  };
+
+  const handleDeleteNews = async (id: string) => {
+    if (!confirm("Удалить новость безвозвратно?")) return;
+    setNewsBusyId(id);
+    try {
+      const response = await fetch("/api/admin/news", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ op: "delete", id }),
+      });
+      if (!response.ok) throw new Error("Не удалось удалить");
+      setNewsItems((current) => current.filter((n) => n.id !== id));
+      if (newsEditingId === id) resetNewsForm();
+    } catch (error) {
+      console.error("Ошибка удаления новости", error);
+    } finally {
+      setNewsBusyId(null);
     }
   };
 
@@ -823,6 +925,121 @@ export default function AdminPage() {
                   </tbody>
                 </table>
               </div>
+            </section>
+          ) : null}
+
+          {activeTab === "news" ? (
+            <section className="space-y-4">
+              <div className="rounded-[2rem] border border-zinc-200 bg-white px-6 py-5 shadow-sm">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-400">Контент</p>
+                <h3 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-950">Новости проекта</h3>
+                <p className="mt-2 text-sm text-zinc-500">
+                  Показываются на Главной (видимые, свежие сверху). «Скрыть» убирает новость с сайта, не удаляя её.
+                </p>
+              </div>
+
+              {/* Форма создания / редактирования */}
+              <form onSubmit={handleSaveNews} className="space-y-3 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+                <p className="text-sm font-semibold text-zinc-900">
+                  {newsEditingId ? "Редактирование новости" : "Новая новость"}
+                </p>
+                <input
+                  value={newsTitle}
+                  onChange={(e) => setNewsTitle(e.target.value)}
+                  placeholder="Заголовок"
+                  maxLength={200}
+                  className="w-full rounded-xl border border-zinc-300 px-4 py-2.5 text-sm outline-none focus:border-emerald-500"
+                />
+                <input
+                  value={newsDate}
+                  onChange={(e) => setNewsDate(e.target.value)}
+                  placeholder="Дата (например: Июль 2026)"
+                  maxLength={50}
+                  className="w-full rounded-xl border border-zinc-300 px-4 py-2.5 text-sm outline-none focus:border-emerald-500"
+                />
+                <textarea
+                  value={newsBody}
+                  onChange={(e) => setNewsBody(e.target.value)}
+                  placeholder="Текст новости (1–2 предложения)"
+                  maxLength={1000}
+                  rows={3}
+                  className="w-full rounded-xl border border-zinc-300 px-4 py-2.5 text-sm outline-none focus:border-emerald-500"
+                />
+                {newsError ? <p className="text-sm text-red-600">{newsError}</p> : null}
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    disabled={newsSaving}
+                    className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
+                  >
+                    {newsSaving ? "Сохраняем..." : newsEditingId ? "Сохранить" : "Создать"}
+                  </button>
+                  {newsEditingId ? (
+                    <button
+                      type="button"
+                      onClick={resetNewsForm}
+                      className="rounded-full bg-zinc-100 px-5 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-200"
+                    >
+                      Отмена
+                    </button>
+                  ) : null}
+                </div>
+              </form>
+
+              {/* Список новостей */}
+              {newsItems.length === 0 ? (
+                <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-12 text-center text-sm text-zinc-500 shadow-sm">
+                  Новостей пока нет.
+                </div>
+              ) : (
+                newsItems.map((item) => {
+                  const visible = item.is_visible !== false;
+                  return (
+                    <article
+                      key={item.id}
+                      className={`rounded-2xl border bg-white p-5 shadow-sm ${visible ? "border-zinc-200" : "border-amber-200 opacity-70"}`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-xs text-zinc-400">{item.date?.trim() || "—"}</p>
+                          <p className="font-semibold text-zinc-900">{item.title}</p>
+                          <p className="mt-1 text-sm text-zinc-500">{item.body}</p>
+                        </div>
+                        {!visible ? (
+                          <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-amber-200">
+                            Скрыто
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => startEditNews(item)}
+                          className="rounded-full bg-zinc-900 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-zinc-700"
+                        >
+                          Редактировать
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleNewsVisibility(item.id, !visible)}
+                          disabled={newsBusyId === item.id}
+                          className="rounded-full bg-zinc-100 px-4 py-1.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-200 disabled:opacity-50"
+                        >
+                          {newsBusyId === item.id ? "..." : visible ? "Скрыть" : "Показать"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteNews(item.id)}
+                          disabled={newsBusyId === item.id}
+                          className="rounded-full bg-red-50 px-4 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-100 disabled:opacity-50"
+                        >
+                          Удалить
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })
+              )}
             </section>
           ) : null}
 

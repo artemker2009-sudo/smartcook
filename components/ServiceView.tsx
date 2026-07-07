@@ -96,6 +96,11 @@ interface ServiceViewProps {
   loadFromHistory: (item: any, source?: any) => void;
 }
 
+// Примеры для ротации в плейсхолдере текстового поиска. Строго чередуются
+// продукт/блюдо (первый — продуктовый), чтобы за первые ~6 сек пользователь
+// увидел ОБА типа запроса. Поле объясняет себя примерами, а не инструкцией.
+const TEXT_SEARCH_PLACEHOLDERS = ["яйца, хлеб, сыр…", "борщ", "курица, картошка, рис", "сырники"];
+
 export default function ServiceView({
   isHistoryView,
   fromFeed,
@@ -164,6 +169,22 @@ export default function ServiceView({
   visibleHistory,
   loadFromHistory,
 }: ServiceViewProps) {
+  // Мягкая ротация примеров в плейсхолдере (fade), при фокусе на поле — стоп.
+  const [phIndex, setPhIndex] = React.useState(0);
+  const [phFocused, setPhFocused] = React.useState(false);
+  const [phVisible, setPhVisible] = React.useState(true);
+  React.useEffect(() => {
+    if (phFocused) return;
+    const id = setInterval(() => {
+      setPhVisible(false);
+      setTimeout(() => {
+        setPhIndex((i) => (i + 1) % TEXT_SEARCH_PLACEHOLDERS.length);
+        setPhVisible(true);
+      }, 300);
+    }, 3000);
+    return () => clearInterval(id);
+  }, [phFocused]);
+
   return (
     <>
       {!isHistoryView && fromFeed === false && !isSharedView && (
@@ -495,36 +516,49 @@ export default function ServiceView({
               </>
             ) : (
               <>
-                <p
-                  style={{
-                    fontSize: "var(--font-size-caption)",
-                    color: "var(--color-text-muted)",
-                    marginBottom: "var(--space-3)",
-                    lineHeight: 1.4,
-                  }}
-                >
-                  Перечислите продукты через запятую — подберу рецепты. Или введите
-                  название блюда — дам его рецепт.
-                </p>
                 <div
                   style={{
                     position: "relative",
                     width: "100%",
-                    marginBottom: "var(--space-3)",
+                    marginBottom: "var(--space-2)",
                   }}
                 >
                   <input
                     type="text"
                     className="text-search-input"
-                    placeholder="например: яйца, хлеб, сыр — или: сырники"
+                    placeholder=""
                     value={textQuery}
                     onChange={(e) => setTextQuery(e.target.value)}
+                    onFocus={() => setPhFocused(true)}
+                    onBlur={() => setPhFocused(false)}
                     style={{
                       paddingRight: textQuery ? "40px" : "var(--space-3)",
                       marginBottom: 0,
                       boxSizing: "border-box",
                     }}
                   />
+                  {!textQuery && (
+                    <span
+                      aria-hidden
+                      style={{
+                        position: "absolute",
+                        left: "var(--space-3)",
+                        right: "var(--space-3)",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        fontSize: "var(--font-size-body)",
+                        color: "var(--color-text-muted)",
+                        pointerEvents: "none",
+                        opacity: phVisible ? 1 : 0,
+                        transition: "opacity 0.3s ease",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {TEXT_SEARCH_PLACEHOLDERS[phIndex]}
+                    </span>
+                  )}
                   {textQuery && (
                     <button
                       onClick={() => setTextQuery("")}
@@ -547,6 +581,15 @@ export default function ServiceView({
                     </button>
                   )}
                 </div>
+                <p
+                  style={{
+                    fontSize: "var(--font-size-caption)",
+                    color: "var(--color-text-muted)",
+                    margin: "0 0 var(--space-3)",
+                  }}
+                >
+                  Перечислите продукты через запятую — или введите название блюда
+                </p>
                 <Button
                   variant="primary"
                   onClick={handleTextSearch}

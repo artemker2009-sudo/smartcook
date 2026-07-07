@@ -107,6 +107,22 @@ export async function getHubParties(userId?: string | null, localIds?: string[])
   const selectColumns = "id, title, theme, created_at, guest_count";
   const queries: PromiseLike<{ data: HubParty[] | null; error: { message: string } | null }>[] = [];
 
+  // Банкеты, где пользователь — участник (party_members), чтобы гостевые участия
+  // были видны в аккаунте с ЛЮБОГО устройства, а не только там, где сохранён
+  // localStorage (задача E: перенос участий при регистрации).
+  const memberPartyIds: string[] = [];
+  if (trimmedUserId) {
+    const { data: memberRows } = await supabase
+      .from("party_members")
+      .select("party_id")
+      .eq("user_id", trimmedUserId);
+    for (const row of (memberRows as { party_id?: string | null }[] | null) ?? []) {
+      if (row.party_id) memberPartyIds.push(row.party_id);
+    }
+  }
+
+  const idsToFetch = Array.from(new Set([...uniqueLocalIds, ...memberPartyIds]));
+
   if (trimmedUserId) {
     queries.push(
       supabase
@@ -117,12 +133,12 @@ export async function getHubParties(userId?: string | null, localIds?: string[])
     );
   }
 
-  if (uniqueLocalIds.length > 0) {
+  if (idsToFetch.length > 0) {
     queries.push(
       supabase
         .from("parties")
         .select(selectColumns)
-        .in("id", uniqueLocalIds)
+        .in("id", idsToFetch)
         .order("created_at", { ascending: false }),
     );
   }

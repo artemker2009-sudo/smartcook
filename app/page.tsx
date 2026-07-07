@@ -8,6 +8,7 @@ import type { AnalysisData, RecipeData, DBRecipe, DailyRecipeType, HolidayType, 
 import { DEVELOPER_ID, scaleAmount, formatCooks, cleanText, formatTime, formatCalories, getCroppedImg } from "@/lib/utils";
 import { shareOrCopy } from "@/lib/share";
 import { reachGoal } from "@/lib/metrika";
+import { claimGuestPartiesToAccount } from "@/lib/claimParties";
 import { FEATURE_RESTAURANT_GAME } from "@/lib/features";
 import { USERNAME_MIN, USERNAME_MAX, PASSWORD_MIN, normalizeUsername } from "@/components/modals/AuthModal";
 import InstallPromptCard from "@/components/InstallPromptCard";
@@ -449,6 +450,7 @@ export default function Home() {
         }
         reachGoal("auth_signup");
         await mergeTasteProfileIntoAccount(data.user);
+        await claimGuestPartiesToAccount();
         showToast("Добро пожаловать, шеф!", <Sparkles size={18} color="var(--color-accent)" />);
         setIsAuthModalOpen(false);
       } else {
@@ -463,6 +465,7 @@ export default function Home() {
         }
         reachGoal("auth_login");
         await mergeTasteProfileIntoAccount(data.user);
+        await claimGuestPartiesToAccount();
         setIsAuthModalOpen(false);
       }
     } catch {

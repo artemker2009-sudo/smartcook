@@ -832,3 +832,129 @@ body {
 .sc-toast-close:hover {
   color: #fff;
 }
+
+/* ==================== ЭТАП 7: разделы + таб-бар ==================== */
+
+/* daily-teaser используется и как <div>, и как <button> на Главной */
+button.daily-teaser { width: 100%; font: inherit; text-align: left; }
+
+/* Заголовки секций Главной */
+.section-title {
+  font-size: var(--font-size-heading);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  margin: 0 0 var(--space-3);
+}
+
+/* --- Таб-бар: основная навигация 3 разделов --- */
+.tab-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  display: flex;
+  justify-content: space-around;
+  align-items: stretch;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.06);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.tab-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 8px 4px 6px;
+  text-decoration: none;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: var(--font-weight-medium);
+  transition: color 0.2s;
+}
+.tab-item-active { color: var(--color-accent); }
+.tab-label { line-height: 1; }
+/* Нижний отступ контента, чтобы фиксированный бар не перекрывал футер/контент */
+.has-tabbar { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
+
+/* Десктоп: таб-бар превращается в верхнюю шапку по центру */
+@media (min-width: 768px) {
+  .tab-bar {
+    bottom: auto;
+    top: 0;
+    max-width: 480px;
+    margin: 0 auto;
+    border-top: none;
+    border-bottom: 1px solid var(--color-border);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    padding-bottom: 0;
+  }
+  .tab-item { flex-direction: row; gap: 8px; font-size: var(--font-size-caption); padding: 12px; }
+  .has-tabbar { padding-bottom: 0; padding-top: 60px; }
+}
+
+/* --- Новости проекта --- */
+.news-board { margin-bottom: var(--space-5); }
+.news-grid { display: flex; flex-direction: column; gap: var(--space-3); }
+.news-card {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.2s;
+}
+a.news-card:hover { transform: translateY(-2px); }
+.news-card-green { background: color-mix(in srgb, var(--color-accent-subtle) 60%, var(--color-surface)); }
+.news-card-blue { background: #eff6ff; }
+.news-card-amber { background: #fffbeb; }
+.news-icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.news-icon-green { background: var(--color-accent-subtle); color: var(--color-accent); }
+.news-icon-blue { background: #dbeafe; color: #2563eb; }
+.news-icon-amber { background: #fef3c7; color: #b45309; }
+.news-body { min-width: 0; }
+.news-date { font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--color-text-muted); font-weight: var(--font-weight-medium); }
+.news-headline { font-weight: var(--font-weight-semibold); color: var(--color-text); margin: 2px 0; }
+.news-text { margin: 0; font-size: var(--font-size-caption); color: var(--color-text-secondary); line-height: 1.4; }
+
+/* --- Витрина «Приготовили сегодня» --- */
+.home-feed { margin-bottom: var(--space-5); }
+.feed-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-3); }
+.feed-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--color-border);
+  background: var(--color-bg-subtle);
+}
+.feed-empty-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-full);
+  background: var(--color-accent-subtle);
+  color: var(--color-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.feed-empty-text { margin: 0; color: var(--color-text-secondary); max-width: 320px; line-height: 1.4; }
+.feed-empty-cta { width: auto; padding: var(--space-2) var(--space-5); }

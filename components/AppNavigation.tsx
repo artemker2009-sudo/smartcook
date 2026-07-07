@@ -2,24 +2,23 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { CheckCircle, Flame, Globe, Menu, PartyPopper, Search, Store, User, X } from "lucide-react";
-import { FEATURE_RESTAURANT_GAME } from "@/lib/features";
+import { CheckCircle, Flame, Home, Menu, PartyPopper, Search, User, X } from "lucide-react";
 
 type AppNavigationProps = {
-  activeSection?: "parties" | "service" | "profile" | "feed" | "game" | "daily" | "about";
+  activeSection?: "home" | "parties" | "service" | "profile" | "daily" | "about";
 };
 
+// Вторичная навигация (хамбургер). Основные 3 раздела дублирует таб-бар;
+// здесь — доступ к личному кабинету, рецепту дня и о проекте. Все пункты ведут
+// на реальные роуты (Поиск/кабинет/рецепт дня — это /search с параметром).
+// Старую «Ленту» (feed_posts) из навигации убрали (этап 7).
 const navItems = [
-  { id: "profile", label: "Личный кабинет", href: "/", icon: User },
-  { id: "service", label: "Поиск", href: "/", icon: Search },
+  { id: "home", label: "Главная", href: "/", icon: Home },
+  { id: "service", label: "Поиск", href: "/search", icon: Search },
   { id: "parties", label: "Банкеты", href: "/parties", icon: PartyPopper },
-  { id: "feed", label: "Лента", href: "/", icon: Globe },
-  // Пункт «Мой ресторан» — игровой, скрыт за фиче-флагом (этап 4.2).
-  ...(FEATURE_RESTAURANT_GAME
-    ? ([{ id: "game", label: "Мой ресторан", href: "/", icon: Store }] as const)
-    : []),
-  { id: "daily", label: "Рецепт дня", href: "/", icon: Flame },
-  { id: "about", label: "О проекте", href: "/", icon: CheckCircle },
+  { id: "profile", label: "Личный кабинет", href: "/search?view=profile", icon: User },
+  { id: "daily", label: "Рецепт дня", href: "/search?daily=true", icon: Flame },
+  { id: "about", label: "О проекте", href: "/about", icon: CheckCircle },
 ] as const;
 
 export default function AppNavigation({ activeSection }: AppNavigationProps) {

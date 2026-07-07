@@ -23,7 +23,7 @@ const withPWA = require("@ducanh2912/next-pwa").default({
           url.pathname.startsWith("/auth") ||
           /supabase\.co$/.test(url.hostname) ||
           /openai\.com$/.test(url.hostname) ||
-          /mc\.yandex\.ru$/.test(url.hostname),
+          /mc\.yandex\.(ru|com)$/.test(url.hostname),
         handler: "NetworkOnly",
       },
       // Статика Next (JS/CSS уже в precache, дублируем на всякий) — SWR.

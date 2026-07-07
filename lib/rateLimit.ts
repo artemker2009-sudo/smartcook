@@ -165,6 +165,44 @@ export async function checkAndConsumeReadRateLimit(
   return { ok: true };
 }
 
+// Лимитер отправки баг-репортов («Сообщить об ошибке»): не больше 5 в час с
+// одной сессии/IP. Используем ту же таблицу событий с отдельным префиксом
+// "report:...", чтобы не делить бюджет с AI-генерациями.
+const REPORT_RATE_LIMIT_PER_HOUR = 5;
+const REPORT_RATE_LIMIT_PER_DAY = 20;
+
+export async function checkAndConsumeReportRateLimit(
+  req: Request,
+  userId: string | null,
+): Promise<RateLimitResult> {
+  const ip = getClientIp(req);
+  const route = "report-error";
+  const limits = { perHour: REPORT_RATE_LIMIT_PER_HOUR, perDay: REPORT_RATE_LIMIT_PER_DAY };
+
+  const ipIdentifier = `report:ip:${ip}`;
+  const ipResult = await checkIdentifier(ipIdentifier, "ip", limits);
+  if (!ipResult.ok) {
+    logRateLimitHit({ route, ip, userId, scope: ipResult.scope, window: ipResult.window });
+    return ipResult;
+  }
+
+  if (userId) {
+    const userResult = await checkIdentifier(`report:user:${userId}`, "user", limits);
+    if (!userResult.ok) {
+      logRateLimitHit({ route, ip, userId, scope: userResult.scope, window: userResult.window });
+      return userResult;
+    }
+  }
+
+  const rows = [{ identifier: ipIdentifier, route }];
+  if (userId) rows.push({ identifier: `report:user:${userId}`, route });
+
+  const { error } = await supabaseAdmin.from("ai_rate_limit_events").insert(rows);
+  if (error) console.error("[rateLimit] failed to record report event", error.message);
+
+  return { ok: true };
+}
+
 export function readRateLimitResponse(result: Extract<RateLimitResult, { ok: false }>) {
   if (result.window === "error") {
     return NextResponse.json(

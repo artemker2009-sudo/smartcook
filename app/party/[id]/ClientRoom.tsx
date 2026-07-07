@@ -4,6 +4,7 @@ import { type ChangeEvent, type FormEvent, type KeyboardEvent, useCallback, useE
 import { useRouter } from "next/navigation";
 import { createClient, type User } from "@supabase/supabase-js";
 import {
+  Bug,
   Heart,
   Loader2,
   MessageCircle,
@@ -30,6 +31,7 @@ import AuthModal from "@/components/modals/AuthModal";
 import FullScreenImage from "@/components/modals/FullScreenImage";
 import ReportError from "@/components/ReportError";
 import BanquetAccountBanner from "@/components/BanquetAccountBanner";
+import { claimGuestPartiesToAccount } from "@/lib/claimParties";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -1259,6 +1261,9 @@ export default function ClientRoom({
         if (!bindResult.success) throw new Error(bindResult.error);
         setCurrentParty((prev) => ({ ...prev, host_id: nextAuthUser.id }));
       }
+
+      // Прочие банкеты/участия с этого устройства — тоже привязать к аккаунту.
+      await claimGuestPartiesToAccount();
     } catch (error) {
       console.error(error);
       toast.error(getMutationAlertMessage(error));
@@ -1943,6 +1948,21 @@ export default function ClientRoom({
               <h1 className="truncate text-lg font-bold leading-tight tracking-tight text-black">{currentParty.title}</h1>
               <p className="truncate text-xs font-medium leading-4 text-gray-500">{roomParticipantsLabel}</p>
             </button>
+
+            {/* Компактный доступ к «Сообщить об ошибке» в комнате (полного
+                футера здесь нет, задача D). Открывает ту же единую форму. */}
+            <ReportError
+              trigger={(open) => (
+                <button
+                  type="button"
+                  onClick={open}
+                  aria-label="Сообщить об ошибке"
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 transition hover:bg-zinc-200 hover:text-zinc-700"
+                >
+                  <Bug className="h-4 w-4" />
+                </button>
+              )}
+            />
 
             <button
               type="button"

@@ -106,6 +106,12 @@ export default async function RootLayout({
 }>) {
   const pathname = (await headers()).get("x-pathname") || "";
   const isAdminRoute = pathname.startsWith("/admin");
+  // Комната банкета (/party/<id>) — полноэкранный рабочий экран со скроллом
+  // чата и меню; полный футер там мешает. Список банкетов (/parties) и форма
+  // создания (/party/create) футер сохраняют. Доступ к «Сообщить об ошибке»
+  // внутри комнаты остаётся компактной иконкой в шапке (ClientRoom).
+  const isPartyRoom = pathname.startsWith("/party/") && pathname !== "/party/create";
+  const hideFooter = isAdminRoute || isPartyRoom;
   const isMaintenance = isAdminRoute ? false : await getMaintenanceStatus();
 
   return (
@@ -121,7 +127,7 @@ export default async function RootLayout({
         ) : (
           <>
             {children}
-            {!isAdminRoute && <Footer />}
+            {!hideFooter && <Footer />}
             {!isAdminRoute && <OnboardingModal />}
           </>
         )}

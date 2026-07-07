@@ -1,0 +1,32 @@
+-- Run in Supabase SQL editor.
+-- Удаляем таблицу public.support_tickets: механизм «Сообщить о проблеме» в
+-- банкетах переведён на единый /api/report-error → public.error_reports
+-- (Этап 7, задача A). На момент дропа таблица ПУСТАЯ (0 строк, перепроверено),
+-- поэтому данные не теряются. Вкладка «Поддержка» в админке удалена (задача F).
+--
+-- Перед выполнением ещё раз убедитесь, что таблица пуста:
+--   select count(*) from public.support_tickets;  -- ожидаемо 0
+
+drop table if exists public.support_tickets;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- ОТКАТ (если понадобится вернуть таблицу). Данные не восстановятся (их не было).
+-- Восстанавливает структуру и RLS в том виде, в каком таблица использовалась
+-- (INSERT для anon/authenticated открыт, чтение/смена статуса — только
+-- service-role через админ-роут; см. бывший supabase_admin_tables_rls.sql).
+--
+-- create table public.support_tickets (
+--   id uuid primary key default gen_random_uuid(),
+--   party_id text,
+--   user_name text,
+--   message text,
+--   status text not null default 'open',
+--   created_at timestamptz not null default now()
+-- );
+-- alter table public.support_tickets enable row level security;
+-- create policy "Allow inserting support tickets"
+--   on public.support_tickets for insert to anon, authenticated with check (true);
+-- create policy "Block direct client support ticket reads"
+--   on public.support_tickets as restrictive for select to anon, authenticated using (false);
+-- create policy "Block direct client support ticket updates"
+--   on public.support_tickets as restrictive for update to anon, authenticated using (false);

@@ -788,17 +788,31 @@ export default function Home() {
     } catch (err: any) { showToast("Ошибка", undefined, 'error'); } finally { setLoadingRecipe(false); } 
   }; 
 
-  const handleTextSearch = async () => { 
-    if (!textQuery.trim() || !userId) return; setLoadingRecipe(true); setRecipe(null); setAnalysisResult(null); setIsHistoryView(false); setFromFeed(false); setServings(1);  
-    try { 
+  const handleTextSearch = async () => {
+    if (!textQuery.trim() || !userId) return; setLoadingRecipe(true); setRecipe(null); setAnalysisResult(null); setSelectedDish(null); setIsHistoryView(false); setFromFeed(false); setServings(1);
+    try {
       const response = await fetch("/api/search-recipe", { method: "POST", headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) }, body: JSON.stringify({ query: textQuery, sessionId: userId, allergies, dislikes }) });
       const json = await response.json(); if (handleRateLimitedResponse(response, json)) return; if (!response.ok) throw new Error(json.error || "Ошибка поиска");
-      setRecipe({ ...json.recipe, id: json.recipe.id, is_favorite: false, missing_ingredients: json.recipe.missing_ingredients || [] });  
+
+      // Бессмысленный/непонятный ввод — мягкая подсказка, не ошибка.
+      if (json.type === "invalid") { showToast(json.message || "Не понял запрос. Введите продукты или название блюда."); return; }
+
+      // Список продуктов → показываем подборку блюд (тот же UI, что у фото-флоу),
+      // рецепт генерится дальше по клику на блюдо через getRecipeFromPhoto.
+      if (json.type === "ingredients") {
+        reachGoal("text_search_ingredients");
+        setAnalysisResult(json.data);
+        return;
+      }
+
+      // Название блюда → сразу рецепт (прежнее поведение).
+      reachGoal("text_search_dish");
+      setRecipe({ ...json.recipe, id: json.recipe.id, is_favorite: false, missing_ingredients: json.recipe.missing_ingredients || [] });
       if (userId) fetchMyRecipes(userId);
       handleRewardForRecipe();
       onRecipeGenerated();
-    } catch (err: any) { showToast(err.message, undefined, 'error'); } finally { setLoadingRecipe(false); } 
-  }; 
+    } catch (err: any) { showToast(err.message, undefined, 'error'); } finally { setLoadingRecipe(false); }
+  };
 
   const handleAskChef = async () => { 
     const currentContext = activeView === 'daily' ? (dailyRecipe as any) : recipe; 

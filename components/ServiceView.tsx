@@ -370,7 +370,7 @@ export default function ServiceView({
                 >
                   <Search size={18} />
                 </div>
-                По названию
+                Продукты или блюдо
               </button>
             </div>
 
@@ -495,6 +495,17 @@ export default function ServiceView({
               </>
             ) : (
               <>
+                <p
+                  style={{
+                    fontSize: "var(--font-size-caption)",
+                    color: "var(--color-text-muted)",
+                    marginBottom: "var(--space-3)",
+                    lineHeight: 1.4,
+                  }}
+                >
+                  Перечислите продукты через запятую — подберу рецепты. Или введите
+                  название блюда — дам его рецепт.
+                </p>
                 <div
                   style={{
                     position: "relative",
@@ -505,7 +516,7 @@ export default function ServiceView({
                   <input
                     type="text"
                     className="text-search-input"
-                    placeholder="Например: Паста Карбонара"
+                    placeholder="например: яйца, хлеб, сыр — или: сырники"
                     value={textQuery}
                     onChange={(e) => setTextQuery(e.target.value)}
                     style={{

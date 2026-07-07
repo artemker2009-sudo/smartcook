@@ -57,7 +57,7 @@ interface RecipeViewProps {
   userComment: string;
   setUserComment: (v: string) => void;
   handleUserPhotoChange: (e: any) => void;
-  submitFeedPost: (currentRecipeContext: any) => void;
+  submitFeedPost: (currentRecipeContext: any, showInFeed?: boolean) => void;
   isUploadingPhoto: boolean;
   setIsStandaloneUploadOpen: (v: boolean) => void;
   setUserPhotoFile: (v: File | null) => void;
@@ -102,6 +102,10 @@ export default function RecipeView({
   setUserPhotoFile,
   setUserPhotoPreview,
 }: RecipeViewProps) {
+  // Осознанная публикация в витрину «Приготовили сегодня»: по умолчанию ВЫКЛ.
+  // Значение уходит в submitFeedPost вторым аргументом — без прокидывания state
+  // через ServiceView.
+  const [showInFeed, setShowInFeed] = React.useState(false);
   const itemsToBuy = (() => {
     const baseItems =
       fromFeed && recipe.detailed_ingredients
@@ -711,8 +715,8 @@ export default function RecipeView({
             lineHeight: 1.4,
           }}
         >
-          Ваше фото появится в разделе <strong>«Лента»</strong>, где его смогут
-          оценить другие пользователи!
+          Отметьте галочку — и ваше блюдо появится в ленте{" "}
+          <strong>«Приготовили сегодня»</strong> на главной.
         </p>
         {!user ? (
           <Button
@@ -790,26 +794,26 @@ export default function RecipeView({
                     }}
                   />
                 )}
-                <textarea
-                  placeholder="Описание (как получилось?)"
-                  value={userComment}
-                  onChange={(e) => {
-                    setUserComment(e.target.value);
-                    e.target.style.height = "44px";
-                    e.target.style.height = e.target.scrollHeight + "px";
-                  }}
-                  rows={1}
-                  className="chat-input"
+                <label
                   style={{
-                    width: "100%",
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: "var(--space-2)",
                     marginBottom: "var(--space-3)",
-                    resize: "none",
-                    overflow: "hidden",
-                    minHeight: "44px",
-                    fontFamily: "inherit",
-                    lineHeight: "18px",
+                    cursor: "pointer",
+                    fontSize: "var(--font-size-caption)",
+                    color: "var(--color-text-secondary)",
+                    lineHeight: 1.4,
                   }}
-                />
+                >
+                  <input
+                    type="checkbox"
+                    checked={showInFeed}
+                    onChange={(e) => setShowInFeed(e.target.checked)}
+                    style={{ marginTop: "2px", width: "18px", height: "18px", accentColor: "var(--color-accent)", flexShrink: 0 }}
+                  />
+                  <span>Показать в ленте «Приготовили сегодня» на главной</span>
+                </label>
                 <div style={{ display: "flex", gap: "var(--space-2)" }}>
                   <Button
                     variant="secondary"
@@ -817,6 +821,7 @@ export default function RecipeView({
                       setUserPhotoFile(null);
                       setUserPhotoPreview(null);
                       setUserComment("");
+                      setShowInFeed(false);
                     }}
                     style={{ flex: 1 }}
                   >
@@ -824,11 +829,11 @@ export default function RecipeView({
                   </Button>
                   <Button
                     variant="primary"
-                    onClick={() => submitFeedPost(recipe)}
-                    disabled={isUploadingPhoto}
+                    onClick={() => submitFeedPost(recipe, showInFeed)}
+                    disabled={isUploadingPhoto || !showInFeed}
                     style={{ flex: 2 }}
                   >
-                    {isUploadingPhoto ? "Отправка..." : "Отправить в ленту"}
+                    {isUploadingPhoto ? "Публикуем..." : "Опубликовать"}
                   </Button>
                 </div>
               </div>

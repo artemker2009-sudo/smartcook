@@ -81,6 +81,8 @@ export default function SearchApp() {
   const [authMode, setAuthMode] = useState<'login' | 'register'>('register');
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  // Куда вернуть пользователя после входа (напр. лайк из ленты на Главной → ?return=/).
+  const [authReturnUrl, setAuthReturnUrl] = useState<string | null>(null);
 
   const [userPhotoFile, setUserPhotoFile] = useState<File | null>(null);
   const [userPhotoPreview, setUserPhotoPreview] = useState<string | null>(null);
@@ -272,6 +274,9 @@ export default function SearchApp() {
         setAuthMode(authParam);
         setActiveView('profile');
         setIsAuthModalOpen(true);
+        // Только относительные пути (защита от open-redirect на чужой домен).
+        const ret = params.get('return');
+        if (ret && ret.startsWith('/') && !ret.startsWith('//')) setAuthReturnUrl(ret);
         window.history.replaceState({}, '', '/search');
       }
       // Личный кабинет из вторичной навигации (?view=profile).
@@ -468,6 +473,7 @@ export default function SearchApp() {
         await claimGuestPartiesToAccount();
         showToast("Добро пожаловать, шеф!", <Sparkles size={18} color="var(--color-accent)" />);
         setIsAuthModalOpen(false);
+        if (authReturnUrl) { const url = authReturnUrl; setAuthReturnUrl(null); window.location.href = url; }
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({ email: dummyEmail, password: authPassword });
         if (error) {
@@ -482,6 +488,7 @@ export default function SearchApp() {
         await mergeTasteProfileIntoAccount(data.user);
         await claimGuestPartiesToAccount();
         setIsAuthModalOpen(false);
+        if (authReturnUrl) { const url = authReturnUrl; setAuthReturnUrl(null); window.location.href = url; }
       }
     } catch {
       setAuthError("Что-то пошло не так. Попробуйте позже.");
@@ -643,48 +650,43 @@ export default function SearchApp() {
     finally { setIsUploadingPhoto(false); }
   }; 
 
-  const ensureRecipeInDB = async (currentRecipe: any) => { 
-    if (!currentRecipe) return null; if (currentRecipe.id) return currentRecipe.id; 
-    const { data } = await supabase.from('recipes').insert({ session_id: userId, title: currentRecipe.title, description: currentRecipe.description, time: String(currentRecipe.time), calories: String(currentRecipe.calories), ingredients: currentRecipe.ingredients || currentRecipe.detailed_ingredients?.map((i:any) => `${i.name} - ${i.amount}`) || [], detailed_ingredients: currentRecipe.detailed_ingredients || [], missing_ingredients: currentRecipe.missing_ingredients || [], steps: currentRecipe.steps, is_favorite: false }).select('*'); 
-    if (data && data.length > 0) { if (recipe && recipe.title === currentRecipe.title) setRecipe({...recipe, id: data[0].id}); return data[0].id; } return null; 
-  }; 
+  // Публикация в витрину «Приготовили сегодня» (лента v1). Пишем ТОЛЬКО в новую
+  // feed_photos (старую feed_posts и telegram-модерацию из этого флоу убрали,
+  // этап 7). Только залогиненные; публикация осознанная — по галочке showInFeed.
+  // Фото уже сжато/очищено от EXIF в handleUserPhotoChange (canvas-перерисовка).
+  const submitFeedPost = async (currentRecipeContext: any, showInFeed: boolean = false) => {
+    if (!user) return setIsAuthModalOpen(true);
+    if (!userPhotoFile) { showToast("Сначала выберите фото!", undefined, 'error'); return; }
+    if (isStandaloneUploadOpen && !standaloneTitle.trim()) { showToast("Введите название вашего блюда!", undefined, 'error'); return; }
+    if (!showInFeed) { showToast("Отметьте «Показать в ленте», чтобы опубликовать фото", undefined, 'error'); return; }
 
-  const submitFeedPost = async (currentRecipeContext: any) => { 
-    if (!user) return setIsAuthModalOpen(true); 
-    if (!userPhotoFile) { showToast("Сначала выберите фото!", undefined, 'error'); return; } 
-    if (isStandaloneUploadOpen && !standaloneTitle.trim()) { showToast("Введите название вашего блюда!", undefined, 'error'); return; } 
-
-    setIsUploadingPhoto(true); 
-    try { 
-      let dbRecipeId = null; let postTitleContext = standaloneTitle; 
-      if (!isStandaloneUploadOpen) { 
-         dbRecipeId = await ensureRecipeInDB(currentRecipeContext); 
-         if (!dbRecipeId) throw new Error("Не удалось привязать рецепт"); 
-         postTitleContext = currentRecipeContext.title; 
-      } 
-      const fileName = `${user.id}/${Date.now()}.jpg`; 
+    setIsUploadingPhoto(true);
+    try {
+      const recipeTitle = isStandaloneUploadOpen ? standaloneTitle.trim() : (currentRecipeContext?.title || null);
+      // Имя файла — случайный id (не user_ref и не оригинальное имя): не светим
+      // идентификаторы в публичном URL.
+      const fileName = `${crypto.randomUUID()}.jpg`;
       const fileBuffer = await userPhotoFile.arrayBuffer();
-      const { error: uploadError } = await supabase.storage.from('recipe_photos').upload(fileName, fileBuffer, { contentType: 'image/jpeg' }); 
-      if (uploadError) throw uploadError; 
+      const { error: uploadError } = await supabase.storage.from('feed_photos').upload(fileName, fileBuffer, { contentType: 'image/jpeg' });
+      if (uploadError) throw uploadError;
 
-      const { data: publicUrlData } = supabase.storage.from('recipe_photos').getPublicUrl(fileName); 
-      const userName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Шеф'; 
-      
-      const { error: postError } = await supabase.from('feed_posts').insert({ 
-        recipe_id: dbRecipeId, custom_title: isStandaloneUploadOpen ? standaloneTitle : null, user_id: user.id, user_name: userName, user_avatar: user.user_metadata?.avatar_url || null, photo_url: publicUrlData.publicUrl, comment: userComment, status: 'pending' 
-      }); 
-      if (postError) throw postError; 
+      const { data: publicUrlData } = supabase.storage.from('feed_photos').getPublicUrl(fileName);
+      const userName = user.user_metadata?.full_name || user.user_metadata?.username || user.email?.split('@')[0] || 'Гость';
 
-      try { 
-          const { data: latestPost } = await supabase.from('feed_posts').select('id').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1).single(); 
-          if (latestPost) await fetch('/api/telegram-mod', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ postId: latestPost.id, recipeTitle: postTitleContext, userName: userName, comment: userComment, photoUrl: publicUrlData.publicUrl }) }); 
-      } catch (tgErr) {} 
+      const { error: insErr } = await supabase.from('feed_photos').insert({
+        user_ref: user.id,
+        user_name: userName,
+        recipe_title: recipeTitle,
+        photo_url: publicUrlData.publicUrl,
+        is_public: true,
+      });
+      if (insErr) throw insErr;
 
-      showToast(FEATURE_RESTAURANT_GAME ? "Фото на проверке у шефа! +1000 куков!" : "Фото на проверке у шефа!", <Sparkles size={18} color="var(--color-accent)" />);
-      if (FEATURE_RESTAURANT_GAME) setCooks(prev => prev + 1000);
+      reachGoal('feed_photo_publish');
+      showToast("Готово! Ваше блюдо в ленте на главной 🎉", <Sparkles size={18} color="var(--color-accent)" />);
       setUserPhotoFile(null); setUserPhotoPreview(null); setUserComment(""); setStandaloneTitle(""); setIsStandaloneUploadOpen(false);
-    } catch (err: any) { showToast("Ошибка отправки: " + err.message, undefined, 'error'); } finally { setIsUploadingPhoto(false); } 
-  }; 
+    } catch (err: any) { showToast("Ошибка публикации: " + err.message, undefined, 'error'); } finally { setIsUploadingPhoto(false); }
+  };
 
   const handleShareDaily = async () => { 
     if (!dailyRecipe) return; const recipeUrl = `${window.location.origin}/search?daily=true`; const fullText = `«${dailyRecipe.title}» 🍲\nПриготовлено с помощью SmartCook 👨‍🍳\n\nСмотри рецепт по ссылке:\n${recipeUrl}`;

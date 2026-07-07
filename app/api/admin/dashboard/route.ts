@@ -39,11 +39,19 @@ export async function GET(req: Request) {
     .order("created_at", { ascending: false })
     .limit(200);
 
+  // Новости (все, включая скрытые — админ видит) — мягко: если таблицы ещё нет.
+  const newsResult = await supabase
+    .from("news")
+    .select("id, created_at, date, title, body, is_visible")
+    .order("created_at", { ascending: false })
+    .limit(200);
+
   return NextResponse.json({
     isMaintenance: Boolean(maintenanceResult.data?.is_maintenance),
     parties: partiesResult.data ?? [],
     recentEvents: recentEventsResult.data ?? [],
     errorReports: errorReportsResult.data ?? [],
     feedPhotos: feedResult.error ? [] : (feedResult.data ?? []),
+    news: newsResult.error ? [] : (newsResult.data ?? []),
   });
 }

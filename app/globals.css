@@ -856,7 +856,11 @@ button.daily-teaser { width: 100%; font: inherit; text-align: left; }
   display: flex;
   justify-content: space-around;
   align-items: stretch;
-  background: var(--color-surface);
+  /* iOS-стиль: полупрозрачный фон + матовое размытие (frosted glass).
+     Фолбэк без backdrop-filter — тот же цвет, но с непрозрачностью 82%. */
+  background: color-mix(in srgb, var(--color-surface) 82%, transparent);
+  backdrop-filter: saturate(180%) blur(14px);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
   border-top: 1px solid var(--color-border);
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.06);
   padding-bottom: env(safe-area-inset-bottom);
@@ -880,8 +884,9 @@ button.daily-teaser { width: 100%; font: inherit; text-align: left; }
 /* Нижний отступ контента, чтобы фиксированный бар не перекрывал футер/контент */
 .has-tabbar { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
 
-/* Десктоп: таб-бар превращается в верхнюю шапку по центру */
-@media (min-width: 768px) {
+/* Верхняя шапка — ТОЛЬКО на явном десктопе (>=1024px). На мобиле и планшете
+   (в т.ч. iPad-portrait 768px, тач-ширины) таб-бар остаётся снизу в стиле iOS. */
+@media (min-width: 1024px) {
   .tab-bar {
     bottom: auto;
     top: 0;

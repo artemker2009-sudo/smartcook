@@ -1,72 +1,53 @@
 "use client";
 
-import { Sparkles, Smartphone, SlidersHorizontal } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Newspaper } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
-// Новости проекта. Источник — статический массив в коде (проще таблицы: без
-// миграции и RLS-поверхности; редактируется правкой этого файла). Тексты —
-// про реально выпущенные фичи, согласованы с директором. При добавлении новой
-// новости — новый объект сверху массива.
+// Новости проекта. Источник — таблица news (редактируется из админки, этап 8 K).
+// Публично видны только is_visible=true (фильтруется RLS + запросом). Свежие
+// сверху (created_at desc). Пастельный тон карточки чередуем по индексу —
+// отдельного поля под иконку/цвет в таблице нет (поля: date/title/body/is_visible).
 type NewsItem = {
-  date: string;
+  id: string;
+  date: string | null;
   title: string;
-  text: string;
-  icon: LucideIcon;
-  tone: "green" | "blue" | "amber";
-  href?: string;
+  body: string;
 };
 
-const NEWS: NewsItem[] = [
-  {
-    date: "Июль 2026",
-    title: "SmartCook можно установить как приложение",
-    text: "Откройте сайт с телефона и добавьте на главный экран — иконка как у обычного приложения, открывается в один тап.",
-    icon: Smartphone,
-    tone: "blue",
-  },
-  {
-    date: "Июль 2026",
-    title: "Профиль вкуса",
-    text: "Укажите аллергии и нелюбимые продукты один раз — каждый рецепт будет подобран с их учётом.",
-    icon: SlidersHorizontal,
-    tone: "green",
-    href: "/search",
-  },
-  {
-    date: "Июнь 2026",
-    title: "Новый дизайн",
-    text: "Мы обновили SmartCook: стало чище, быстрее и удобнее с телефона.",
-    icon: Sparkles,
-    tone: "amber",
-  },
-];
+const TONES = ["blue", "green", "amber"] as const;
 
 export default function NewsBoard() {
+  const [news, setNews] = useState<NewsItem[] | null>(null);
+
+  useEffect(() => {
+    supabase
+      .from("news")
+      .select("id,date,title,body")
+      .eq("is_visible", true)
+      .order("created_at", { ascending: false })
+      .then(({ data, error }) => setNews(error ? [] : ((data as NewsItem[]) ?? [])));
+  }, []);
+
+  // Нет новостей (или таблицы ещё нет) — секцию не показываем.
+  if (!news || news.length === 0) return null;
+
   return (
     <section className="news-board">
       <h2 className="section-title">Новости проекта</h2>
       <div className="news-grid">
-        {NEWS.map((item, i) => {
-          const Icon = item.icon;
-          const Card = (
-            <>
-              <div className={`news-icon news-icon-${item.tone}`}>
-                <Icon size={20} />
+        {news.map((item, i) => {
+          const tone = TONES[i % TONES.length];
+          return (
+            <div key={item.id} className={`news-card news-card-${tone}`}>
+              <div className={`news-icon news-icon-${tone}`}>
+                <Newspaper size={20} />
               </div>
               <div className="news-body">
-                <div className="news-date">{item.date}</div>
+                {item.date && <div className="news-date">{item.date}</div>}
                 <div className="news-headline">{item.title}</div>
-                <p className="news-text">{item.text}</p>
+                <p className="news-text">{item.body}</p>
               </div>
-            </>
-          );
-          return item.href ? (
-            <a key={i} href={item.href} className={`news-card news-card-${item.tone}`}>
-              {Card}
-            </a>
-          ) : (
-            <div key={i} className={`news-card news-card-${item.tone}`}>
-              {Card}
             </div>
           );
         })}

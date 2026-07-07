@@ -1,5 +1,6 @@
 import Link from "next/link";
 import DonateButton from "@/components/DonateButton";
+import ReportError from "@/components/ReportError";
 
 const footerLinkStyle: React.CSSProperties = {
   color: "var(--color-text-secondary)",
@@ -23,6 +24,7 @@ export default function Footer() {
         <Link href="/about" style={footerLinkStyle}>О сервисе</Link>
         <Link href="/privacy" style={footerLinkStyle}>Политика конфиденциальности</Link>
         <Link href="/terms" style={footerLinkStyle}>Пользовательское соглашение</Link>
+        <ReportError />
       </nav>
 
       <div style={{ marginBottom: "var(--space-3)" }}>

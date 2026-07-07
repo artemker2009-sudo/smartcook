@@ -36,6 +36,18 @@ type DashboardStats = {
   recentEvents: AnalyticsEvent[];
 };
 
+type ErrorReport = {
+  id: string;
+  created_at?: string | null;
+  message?: string | null;
+  contact?: string | null;
+  url?: string | null;
+  display_mode?: string | null;
+  viewport?: string | null;
+  app_version?: string | null;
+  status?: string | null;
+};
+
 type SupportTicket = {
   id: string;
   party_id?: string | null;
@@ -50,13 +62,14 @@ const EMPTY_STATS: DashboardStats = {
   recentEvents: [],
 };
 
-type TabId = "management" | "analytics" | "purchases" | "support";
+type TabId = "management" | "analytics" | "purchases" | "support" | "errors";
 
 const TABS = [
   { id: "management" as TabId, label: "⚙️ Управление", hint: "Статус сайта и техработы" },
   { id: "analytics" as TabId, label: "📊 Аналитика", hint: "Живые метрики и события" },
   { id: "purchases" as TabId, label: "💳 История покупок", hint: "Только оплаченные банкеты" },
   { id: "support" as TabId, label: "💬 Поддержка", hint: "Обращения пользователей" },
+  { id: "errors" as TabId, label: "🐞 Ошибки", hint: "Баг-репорты пользователей" },
 ];
 
 const formatDateTime = (value?: string | null) => {
@@ -158,6 +171,9 @@ export default function AdminPage() {
   const [isSupportLoading, setIsSupportLoading] = useState(false);
   const [supportError, setSupportError] = useState("");
   const [closingTicketId, setClosingTicketId] = useState<string | null>(null);
+  const [errorReports, setErrorReports] = useState<ErrorReport[]>([]);
+  const [errorsError, setErrorsError] = useState("");
+  const [markingReportId, setMarkingReportId] = useState<string | null>(null);
 
   const loadDashboard = async () => {
     setIsLoading(true);
@@ -187,12 +203,14 @@ export default function AdminPage() {
         recentEvents: (data.recentEvents as AnalyticsEvent[] | null) ?? [],
       });
       setSupportTickets((data.supportTickets as SupportTicket[] | null) ?? []);
+      setErrorReports((data.errorReports as ErrorReport[] | null) ?? []);
       setIsAuthenticated(true);
     } catch (error) {
       console.error("Ошибка загрузки админки", error);
       setErrorMessage("Не удалось загрузить статус режима обслуживания.");
       setAnalyticsError("Не удалось загрузить аналитику.");
       setSupportError("Не удалось загрузить обращения.");
+      setErrorsError("Не удалось загрузить баг-репорты.");
     } finally {
       setIsLoading(false);
       setIsAnalyticsLoading(false);
@@ -309,6 +327,30 @@ export default function AdminPage() {
       console.error("Ошибка при закрытии тикета", error);
     } finally {
       setClosingTicketId(null);
+    }
+  };
+
+  const handleMarkReportViewed = async (id: string) => {
+    setMarkingReportId(id);
+
+    try {
+      const response = await fetch("/api/admin/error-reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Не удалось обновить статус репорта");
+      }
+
+      setErrorReports((current) =>
+        current.map((report) => (report.id === id ? { ...report, status: "viewed" } : report)),
+      );
+    } catch (error) {
+      console.error("Ошибка при обновлении репорта", error);
+    } finally {
+      setMarkingReportId(null);
     }
   };
 
@@ -865,6 +907,83 @@ export default function AdminPage() {
 
                     <p className="mt-4 text-lg font-medium text-zinc-950">
                       {ticket.message?.trim() || "Текст обращения отсутствует."}
+                    </p>
+                  </article>
+                );
+              })}
+            </section>
+          ) : null}
+
+          {activeTab === "errors" ? (
+            <section className="space-y-4">
+              <div className="rounded-[2rem] border border-zinc-200 bg-white px-6 py-5 shadow-sm">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-400">Debug</p>
+                <h3 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-950">Сообщения об ошибках</h3>
+                <p className="mt-2 text-sm text-zinc-500">
+                  Баг-репорты от пользователей с автоматически собранным техническим контекстом.
+                </p>
+              </div>
+
+              {errorsError ? (
+                <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                  {errorsError}
+                </p>
+              ) : null}
+
+              {errorReports.length === 0 ? (
+                <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-12 text-center text-sm text-zinc-500 shadow-sm">
+                  Репортов пока нет.
+                </div>
+              ) : null}
+
+              {errorReports.map((report) => {
+                const isNew = (report.status ?? "new") === "new";
+
+                return (
+                  <article key={report.id} className="mb-4 rounded-2xl bg-white p-6 shadow-sm">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="space-y-1 text-sm text-zinc-500">
+                        <p>
+                          <span className="font-semibold text-zinc-900">Дата:</span> {formatDateTime(report.created_at)}
+                        </p>
+                        <p className="break-all">
+                          <span className="font-semibold text-zinc-900">URL:</span> {report.url?.trim() || "—"}
+                        </p>
+                        <p>
+                          <span className="font-semibold text-zinc-900">Режим:</span> {report.display_mode?.trim() || "—"}
+                          {report.viewport?.trim() ? ` · ${report.viewport.trim()}` : ""}
+                          {report.app_version?.trim() ? ` · v${report.app_version.trim()}` : ""}
+                        </p>
+                        <p>
+                          <span className="font-semibold text-zinc-900">Контакт:</span> {report.contact?.trim() || "не указан"}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${
+                            isNew
+                              ? "bg-amber-100 text-amber-700 ring-amber-200"
+                              : "bg-zinc-100 text-zinc-600 ring-zinc-200"
+                          }`}
+                        >
+                          {isNew ? "Новый" : "Просмотрен"}
+                        </span>
+                        {isNew ? (
+                          <button
+                            type="button"
+                            onClick={() => void handleMarkReportViewed(report.id)}
+                            disabled={markingReportId === report.id}
+                            className="rounded-2xl bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {markingReportId === report.id ? "Сохраняем..." : "Пометить просмотренным"}
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <p className="mt-4 whitespace-pre-wrap text-base font-medium text-zinc-950">
+                      {report.message?.trim() || "Текст репорта отсутствует."}
                     </p>
                   </article>
                 );

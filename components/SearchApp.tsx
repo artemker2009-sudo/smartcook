@@ -704,7 +704,8 @@ export default function SearchApp() {
 
   const handleShareRecipe = async () => { 
     if (!recipe) return;
-    const recipeUrl = recipe.id ? `${window.location.origin}/search?recipeId=${recipe.id}` : `${window.location.origin}/search`;
+    // Быстрый серверный маршрут расшаренного рецепта (задача T), а не /search-монолит.
+    const recipeUrl = recipe.id ? `${window.location.origin}/recipe/${recipe.id}` : `${window.location.origin}/search`;
     // Единый хелпер: navigator.share → фолбэк на копирование ссылки. Текст —
     // название блюда + время приготовления. Цель Метрики — share_recipe.
     shareOrCopy({

@@ -575,12 +575,12 @@ body {
   display: flex; gap: var(--space-2); width: 100%; justify-content: center;
 }
 .upload-action-btn {
-  flex: 1; max-width: 240px;
+  flex: 1 1 0; min-width: 0; max-width: 240px;
   display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
-  min-height: 50px; padding: var(--space-2) var(--space-4); border: none;
+  min-height: 50px; padding: var(--space-2) var(--space-3); border: none;
   border-radius: var(--radius-full);
   font-weight: var(--font-weight-semibold); font-size: var(--font-size-body);
-  white-space: nowrap; cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
   transition: background 0.2s, box-shadow 0.2s, transform 0.15s;
 }
 /* Первичная — как CTA «Сфотографировать продукты» на Главной (тот же вес). */
@@ -600,7 +600,9 @@ body {
 .upload-action-input {
   position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; clip: rect(0 0 0 0);
 }
-@media (max-width: 400px) {
+/* Стек в столбец на всех телефонах (вкл. Pro Max ~430px и крупный системный
+   шрифт), иначе две nowrap-кнопки выходили за карточку на широких экранах. */
+@media (max-width: 540px) {
   .upload-actions { flex-direction: column; align-items: stretch; }
   .upload-action-btn { max-width: none; }
 }

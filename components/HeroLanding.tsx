@@ -8,8 +8,9 @@ import { reachGoal } from "@/lib/metrika";
 /**
  * Первый экран Главной: заголовок про боль пользователя, два больших CTA под
  * палец и зацикленная CSS-анимация процесса (эталон). Разделы теперь — реальные
- * роуты, поэтому CTA ведут навигацией: фото → /search с авто-открытием выбора
- * снимка (?open=camera), банкеты → /parties. Никакой логики распознавания тут нет.
+ * роуты, поэтому CTA ведут навигацией: фото → /search с фокусом на зоне загрузки
+ * (?focus=photo, ничего не открывается само), банкеты → /parties. Никакой логики
+ * распознавания тут нет.
  */
 export default function HeroLanding() {
   const router = useRouter();
@@ -17,7 +18,7 @@ export default function HeroLanding() {
   const handlePhotoClick = () => {
     // Цель Метрики — «мягко»: если ym не загрузился, переход всё равно сработает.
     reachGoal("cta_photo_click");
-    router.push("/search?open=camera");
+    router.push("/search?focus=photo");
   };
 
   return (

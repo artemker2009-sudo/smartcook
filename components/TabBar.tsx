@@ -38,7 +38,9 @@ export default function TabBar() {
             onClick={() => reachGoal(t.goal)}
             aria-current={active ? "page" : undefined}
           >
-            <Icon size={22} />
+            <span className="tab-icon">
+              <Icon size={24} strokeWidth={active ? 2.4 : 2} />
+            </span>
             <span className="tab-label">{t.label}</span>
           </Link>
         );

@@ -285,12 +285,21 @@ export default function SearchApp() {
         setActiveView('profile');
         window.history.replaceState({}, '', '/search');
       }
-      // CTA «Сфотографировать продукты» с Главной (/search?open=camera):
-      // сразу режим фото и открываем выбор файла.
-      if (params.get('open') === 'camera') {
+      // CTA «Сфотографировать продукты» с Главной (/search?focus=photo).
+      // НИЧЕГО не открываем автоматически (раньше сразу лезла системная галерея —
+      // отнимало у пользователя выбор камера/галерея). Только режим фото, скролл
+      // к зоне и короткая пульсация рамки — дальше человек сам жмёт нужную кнопку.
+      // ?open=camera — легаси-параметр из старых диплинков/онбординга, тот же эффект.
+      if (params.get('focus') === 'photo' || params.get('open') === 'camera') {
         setSearchMode('photo');
         setActiveView('service');
-        setTimeout(() => triggerFileInput(), 300);
+        setTimeout(() => {
+          const zone = document.getElementById('photo-upload-zone');
+          if (!zone) return;
+          zone.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          zone.classList.add('upload-zone-pulse');
+          setTimeout(() => zone.classList.remove('upload-zone-pulse'), 1800);
+        }, 350);
         window.history.replaceState({}, '', '/search');
       }
     }

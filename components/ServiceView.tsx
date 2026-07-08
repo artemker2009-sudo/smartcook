@@ -269,7 +269,7 @@ export default function ServiceView({
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: "2px" }}>
-                <span className="daily-today-badge">Сегодня</span>
+                <span className="daily-today-badge">Рецепт дня</span>
                 {dailyRecipe?.date && (
                   <span style={{ fontSize: "var(--font-size-caption)", color: "var(--color-text-muted)", fontWeight: "var(--font-weight-medium)" }}>
                     {dailyRecipe.date}

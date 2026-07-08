@@ -2,16 +2,13 @@ import { supabase } from "@/lib/supabase";
 import { getDisplayMode } from "@/components/YandexMetrika";
 
 // Единая точка подготовки фото на клиенте: декод HEIC (если нужно) → сжатие/
-// ресайз/очистка EXIF. Используется во всех местах, где мы принимаем фото от
-// пользователя (главный сценарий скана, публикация в ленту, аватар).
+// ресайз/очистка EXIF. Используется во всех местах приёма фото (скан, лента, аватар).
 //
-// Зачем отдельный HEIC-декод: Chrome на Android НЕ умеет декодировать HEIC
-// нативно, а browser-image-compression рисует картинку в <canvas> через
-// <img>/createImageBitmap — на Android это падает с ошибкой загрузки, и раньше
-// весь пайплайн валился в «Не удалось обработать фото». На iOS «работало»
-// только потому, что система конвертит HEIC в JPEG ещё на этапе выбора файла.
-// Поэтому HEIC мы декодируем сами через heic2any (грузится лениво, только когда
-// реально выбрали .heic — чтобы не раздувать бандл всем остальным).
+// ВАЖНО про HEIC (этап 9 O): Chrome на Android НЕ декодирует HEIC нативно.
+// Клиентский декодер heic2any использует WASM/new Function — и блокируется
+// строгим CSP в ПРОДЕ (unsafe-eval есть только в dev), поэтому фикс I работал в
+// dev-тестах, но падал на реальном устройстве. Решение — конвертировать HEIC на
+// СЕРВЕРЕ (/api/convert-heic, Node без CSP). На iOS система сама отдаёт JPEG.
 
 const HEIC_EXT = /\.(heic|heif)$/i;
 
@@ -30,20 +27,26 @@ export function isHeic(file: File): boolean {
   return HEIC_EXT.test(file.name || "");
 }
 
-// Декодирует HEIC/HEIF → JPEG File. Не-HEIC возвращается как есть.
-// Бросает ошибку, если декодер не справился (её ловит вызывающий и репортит).
-export async function decodeHeicIfNeeded(file: File): Promise<File> {
-  if (!isHeic(file)) return file;
-  const heic2any = (await import("heic2any")).default;
-  const converted = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.9 });
-  const blob = (Array.isArray(converted) ? converted[0] : converted) as Blob;
+// Конвертация HEIC → JPEG на сервере. Бросает при ошибке (ловит вызывающий).
+async function convertHeicOnServer(file: File): Promise<File> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch("/api/convert-heic", { method: "POST", body: form });
+  if (!res.ok) throw new Error(`HEIC convert failed (${res.status})`);
+  const blob = await res.blob();
   const baseName = (file.name || "photo").replace(HEIC_EXT, "");
   return new File([blob], `${baseName || "photo"}.jpg`, { type: "image/jpeg" });
 }
 
-// Полный пайплайн подготовки: HEIC-декод (лениво) → сжатие/ресайз в JPEG.
+// Декодирует HEIC/HEIF → JPEG (через сервер). Не-HEIC возвращается как есть.
+export async function decodeHeicIfNeeded(file: File): Promise<File> {
+  if (!isHeic(file)) return file;
+  return convertHeicOnServer(file);
+}
+
+// Полный пайплайн: HEIC-декод (сервер, если нужно) → сжатие/ресайз в JPEG.
 // EXIF (в т.ч. гео) вычищается: browser-image-compression перерисовывает кадр
-// через canvas и не сохраняет метаданные (preserveExif по умолчанию false).
+// через canvas и не сохраняет метаданные; серверный JPEG тоже без EXIF.
 export async function preparePhoto(
   file: File,
   options: CompressionOptions,
@@ -51,8 +54,19 @@ export async function preparePhoto(
 ): Promise<File> {
   const decoded = await decodeHeicIfNeeded(file);
   const imageCompression = (await import("browser-image-compression")).default;
-  const compressed = await imageCompression(decoded, { ...options, fileType: "image/jpeg" });
-  return new File([compressed], outName, { type: "image/jpeg" });
+  try {
+    const compressed = await imageCompression(decoded, { ...options, fileType: "image/jpeg" });
+    return new File([compressed], outName, { type: "image/jpeg" });
+  } catch (compressErr) {
+    // Возможен HEIC с пустым mime/без расширения (камера Android): не распознали
+    // как HEIC, а canvas-декод не смог. Последняя попытка — серверная конвертация.
+    if (!isHeic(file)) {
+      const converted = await convertHeicOnServer(file);
+      const compressed = await imageCompression(converted, { ...options, fileType: "image/jpeg" });
+      return new File([compressed], outName, { type: "image/jpeg" });
+    }
+    throw compressErr;
+  }
 }
 
 // Best-effort чтение размеров исходника. Для HEIC на Android упадёт (декодер
@@ -69,17 +83,21 @@ async function readDimensions(file: File): Promise<{ width: number; height: numb
 }
 
 // Автоматический репорт о сбое обработки фото в error_reports (тип
-// photo_processing_error). Пишем ТОЛЬКО метаданные файла (тип/размеры/размер),
-// НИКОГДА сам файл. Цель — увидеть следующий такой кейс в админке самим, не
-// дожидаясь скринов от пользователя. Никогда не бросает наверх.
+// photo_processing_error) — метаданные файла, НИКОГДА сам файл. Никогда не
+// бросает. Сделан «пуленепробиваемым» (этап 9 O.1): ни один промежуточный шаг
+// не должен помешать отправке — иначе мы теряем телеметрию с устройства.
 export async function reportPhotoError(stage: string, file: File | null, err: unknown): Promise<void> {
   try {
     const reason = err instanceof Error ? err.message : String(err ?? "unknown");
+
     let fileLine = "нет файла";
     if (file) {
       const sizeKB = Math.round(file.size / 1024);
-      const dims = await readDimensions(file);
-      const dimsStr = dims ? `${dims.width}×${dims.height}` : "размеры неизвестны";
+      let dimsStr = "размеры неизвестны";
+      try {
+        const dims = await readDimensions(file);
+        if (dims) dimsStr = `${dims.width}×${dims.height}`;
+      } catch {}
       fileLine = `${file.name || "—"} · ${file.type || "mime неизвестен"} · ${sizeKB} КБ · ${dimsStr}`;
     }
 
@@ -89,26 +107,45 @@ export async function reportPhotoError(stage: string, file: File | null, err: un
       `Файл: ${fileLine}\n` +
       `Причина: ${reason.slice(0, 500)}`;
 
+    let displayMode = "unknown";
+    try { displayMode = getDisplayMode(); } catch {}
+
     const context = {
       message,
       url: typeof window !== "undefined" ? window.location.href : undefined,
-      display_mode: getDisplayMode(),
+      display_mode: displayMode,
       viewport:
         typeof window !== "undefined" ? `${window.innerWidth}x${window.innerHeight}` : undefined,
       app_version: APP_VERSION,
     };
+    const payload = JSON.stringify(context);
 
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
-    await fetch("/api/report-error", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify(context),
-    });
+    // Токен — опционально: его получение НЕ должно блокировать отправку.
+    let token: string | undefined;
+    try {
+      const { data } = await supabase.auth.getSession();
+      token = data.session?.access_token;
+    } catch {}
+
+    try {
+      await fetch("/api/report-error", {
+        method: "POST",
+        keepalive: true, // переживёт уход со страницы
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: payload,
+      });
+    } catch {
+      // Крайний фолбэк — sendBeacon (работает даже при выгрузке страницы; анон-репорт ок).
+      try {
+        if (typeof navigator !== "undefined" && navigator.sendBeacon) {
+          navigator.sendBeacon("/api/report-error", new Blob([payload], { type: "application/json" }));
+        }
+      } catch {}
+    }
   } catch {
-    // Репорт — сугубо телеметрия, его сбой не должен мешать основному потоку.
+    // Телеметрия не должна мешать основному потоку.
   }
 }

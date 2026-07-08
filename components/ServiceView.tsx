@@ -169,7 +169,9 @@ export default function ServiceView({
   loadFromHistory,
 }: ServiceViewProps) {
   // Мягкая ротация примеров в плейсхолдере (fade), при фокусе на поле — стоп.
-  const [phIndex, setPhIndex] = React.useState(0);
+  // Старт ротации примеров — со случайного, чтобы при каждом заходе на /search
+  // первым мелькал разный пример (этап 8, находка №3).
+  const [phIndex, setPhIndex] = React.useState(() => Math.floor(Math.random() * TEXT_SEARCH_PLACEHOLDERS.length));
   const [phFocused, setPhFocused] = React.useState(false);
   const [phVisible, setPhVisible] = React.useState(true);
   React.useEffect(() => {

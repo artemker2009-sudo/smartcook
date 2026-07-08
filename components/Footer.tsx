@@ -12,6 +12,11 @@ const footerLinkStyle: React.CSSProperties = {
 export default function Footer() {
   return (
     <footer className="site-footer">
+      {/* «Поддержать проект» — выше ссылок (решение директора, этап 9 Q). */}
+      <div style={{ marginBottom: "var(--space-3)" }}>
+        <DonateButton variant="footer" />
+      </div>
+
       <nav
         style={{
           display: "flex",
@@ -27,10 +32,6 @@ export default function Footer() {
         <Link href="/legal" style={footerLinkStyle}>Правовая информация</Link>
         <ReportError />
       </nav>
-
-      <div style={{ marginBottom: "var(--space-3)" }}>
-        <DonateButton variant="footer" />
-      </div>
 
       <div
         style={{

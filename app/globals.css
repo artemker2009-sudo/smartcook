@@ -454,6 +454,26 @@ body {
 }
 .shared-recipe-cta-btn { text-decoration: none; }
 
+/* --- Пустое состояние истории рецептов (задача V) — мягкая пастельная плитка --- */
+.history-empty {
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  padding: var(--space-5) var(--space-4);
+  background: var(--color-accent-subtle); border-radius: var(--radius-md);
+}
+.history-empty-icon {
+  width: 56px; height: 56px; border-radius: var(--radius-full);
+  background: var(--color-surface); color: var(--color-accent);
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: var(--space-3);
+  box-shadow: 0 6px 18px -8px rgba(5, 150, 105, 0.35);
+}
+.history-empty-text {
+  font-size: var(--font-size-body); color: var(--color-text-secondary);
+  line-height: 1.5; max-width: 340px; margin-bottom: var(--space-4);
+}
+.history-empty-text:last-child { margin-bottom: 0; }
+.history-empty-btn { width: auto; display: inline-flex; }
+
 /* --- ИНДИКАТОР ПРОФИЛЯ ВКУСА НА КАРТОЧКЕ ПОИСКА --- */
 .taste-indicator {
   display: flex;

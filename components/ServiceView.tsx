@@ -20,8 +20,8 @@ import {
   X,
   Loader2,
   History,
-  HeartCrack,
   Share2,
+  BookOpen,
 } from "lucide-react";
 import RecipeView from "@/components/RecipeView";
 import Button from "@/components/ui/Button";
@@ -807,13 +807,43 @@ export default function ServiceView({
             </Button>
           )}
 
-          {displayedFeed?.length === 0 && filterMode === "favorites" ? (
-            <div className="empty-msg">
-              <HeartCrack size={28} style={{ display: "block", margin: "0 auto var(--space-2) auto", opacity: 0.6 }} />
-              В избранном пока пусто
-              <br />
-              Добавьте рецепты лайком!
-            </div>
+          {displayedFeed?.length === 0 ? (
+            filterMode === "favorites" ? (
+              <div className="history-empty">
+                <div className="history-empty-icon">
+                  <Heart size={26} />
+                </div>
+                <div className="history-empty-text">
+                  Понравился рецепт — нажмите сердечко, и он сохранится здесь.
+                </div>
+              </div>
+            ) : (
+              <div className="history-empty">
+                <div className="history-empty-icon">
+                  <BookOpen size={26} />
+                </div>
+                <div className="history-empty-text">
+                  Здесь появятся ваши рецепты. Сфотографируйте продукты или
+                  напишите, что есть дома, — первый рецепт займёт минуту.
+                </div>
+                <button
+                  type="button"
+                  className="btn-primary history-empty-btn"
+                  onClick={() => {
+                    setSearchMode("photo");
+                    setTimeout(() => {
+                      const zone = document.getElementById("photo-upload-zone");
+                      if (!zone) return;
+                      zone.scrollIntoView({ behavior: "smooth", block: "center" });
+                      zone.classList.add("upload-zone-pulse");
+                      setTimeout(() => zone.classList.remove("upload-zone-pulse"), 1800);
+                    }, 100);
+                  }}
+                >
+                  <Camera size={20} /> Сфотографировать продукты
+                </button>
+              </div>
+            )
           ) : (
             <>
               <div

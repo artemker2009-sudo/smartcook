@@ -13,13 +13,23 @@ export type NewsItem = {
 
 const TONES = ["blue", "green", "amber"] as const;
 
-export default function NewsBoard({ items }: { items: NewsItem[] }) {
+// variant="compact" — демонтированная версия внизу Главной (место наверху занял
+// блок «Кухонные заметки»). Новости не потеряли: показываем компактнее и ниже.
+export default function NewsBoard({
+  items,
+  variant = "full",
+}: {
+  items: NewsItem[];
+  variant?: "full" | "compact";
+}) {
   // Нет новостей (или таблицы ещё нет) — секцию не показываем.
   if (!items || items.length === 0) return null;
 
+  const compact = variant === "compact";
+
   return (
-    <section className="news-board">
-      <h2 className="section-title">Новости проекта</h2>
+    <section className={`news-board${compact ? " news-board-compact" : ""}`}>
+      <h2 className={compact ? "news-compact-title" : "section-title"}>Новости проекта</h2>
       <div className="news-grid">
         {items.map((item, i) => {
           const tone = TONES[i % TONES.length];

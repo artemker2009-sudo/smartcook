@@ -1,6 +1,8 @@
 import HomeContent from "@/components/HomeContent";
 import type { NewsItem } from "@/components/NewsBoard";
 import type { FeedPhoto } from "@/components/HomeFeed";
+import type { Article } from "@/components/ArticlesBoard";
+import { ARTICLE_COLUMNS } from "@/components/ArticlesBoard";
 
 // Главная (/). Серверный компонент (этап 10 W): новости и первые фото витрины
 // читаются на СЕРВЕРЕ и попадают в HTML сразу — раньше оба блока грузились
@@ -45,7 +47,17 @@ async function getFeed(): Promise<FeedPhoto[]> {
   );
 }
 
+async function getArticles(): Promise<Article[]> {
+  // articles_public уже отсортирован (свежие сверху) и НЕ отдаёт список
+  // лайкнувших. Тело статьи (body) в карточки не тянем — только read_minutes.
+  // Заметки меняются редко (админка) → кэш 5 минут.
+  return sbFetch<Article>(
+    `articles_public?select=${ARTICLE_COLUMNS}&limit=3`,
+    300,
+  );
+}
+
 export default async function Home() {
-  const [news, feed] = await Promise.all([getNews(), getFeed()]);
-  return <HomeContent news={news} feed={feed} />;
+  const [news, feed, articles] = await Promise.all([getNews(), getFeed(), getArticles()]);
+  return <HomeContent news={news} feed={feed} articles={articles} />;
 }

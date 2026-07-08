@@ -46,6 +46,13 @@ export async function GET(req: Request) {
     .order("created_at", { ascending: false })
     .limit(200);
 
+  // Заметки (все, включая черновики — админ видит) — мягко: если таблицы ещё нет.
+  const articlesResult = await supabase
+    .from("articles")
+    .select("id, created_at, published_at, title, slug, excerpt, body, emoji_icon, is_published")
+    .order("created_at", { ascending: false })
+    .limit(200);
+
   return NextResponse.json({
     isMaintenance: Boolean(maintenanceResult.data?.is_maintenance),
     parties: partiesResult.data ?? [],
@@ -53,5 +60,6 @@ export async function GET(req: Request) {
     errorReports: errorReportsResult.data ?? [],
     feedPhotos: feedResult.error ? [] : (feedResult.data ?? []),
     news: newsResult.error ? [] : (newsResult.data ?? []),
+    articles: articlesResult.error ? [] : (articlesResult.data ?? []),
   });
 }

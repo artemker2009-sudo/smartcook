@@ -421,7 +421,7 @@ export default function ServiceView({
             {searchMode === "photo" ? (
               <>
                 {!file ? (
-                  <div className="upload-zone">
+                  <div className="upload-zone" id="photo-upload-zone">
                     <div className="upload-cam-chip">
                       <Camera size={30} color="var(--color-accent)" />
                     </div>
@@ -449,7 +449,7 @@ export default function ServiceView({
                         заднюю камеру; на десктопе/iOS-галерее capture игнорируется. Оба
                         input'а ведут в один handleFileChange → preparePhoto. */}
                     <div className="upload-actions">
-                      <label className="upload-action-btn">
+                      <label className="upload-action-btn upload-action-primary">
                         <Camera size={18} /> Снять фото
                         <input
                           type="file"
@@ -459,8 +459,8 @@ export default function ServiceView({
                           onChange={handleFileChange}
                         />
                       </label>
-                      <label className="upload-action-btn">
-                        <ImageIcon size={18} /> Выбрать из галереи
+                      <label className="upload-action-btn upload-action-secondary">
+                        <ImageIcon size={18} /> Из галереи
                         <input
                           id="hidden-file-input"
                           type="file"

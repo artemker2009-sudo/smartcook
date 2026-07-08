@@ -59,8 +59,9 @@ export default function OnboardingModal() {
     fireGoal("onboarding_photo_click");
     close();
     // После этапа 7 поле выбора фото живёт на /search (на Главной его нет).
-    // Ведём туда с авто-открытием выбора снимка — как CTA на Главной.
-    router.push("/search?open=camera");
+    // Ведём туда с фокусом на зоне загрузки — как CTA на Главной (ничего не
+    // открывается само, пользователь сам выбирает камеру или галерею).
+    router.push("/search?focus=photo");
   };
 
   const handleBanquetClick = () => {

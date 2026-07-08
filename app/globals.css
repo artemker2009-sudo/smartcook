@@ -863,7 +863,10 @@ button.daily-teaser { width: 100%; font: inherit; text-align: left; }
   margin: 0 0 var(--space-3);
 }
 
-/* --- Таб-бар: основная навигация 3 разделов --- */
+/* --- Таб-бар: основная навигация 3 разделов ---
+   Высота контентной части ~60px + safe-area-inset снизу (жестовая полоса iPhone).
+   Одно число --tab-bar-h держит высоту бара и нижний отступ контента в синхроне. */
+:root { --tab-bar-h: 60px; }
 .tab-bar {
   position: fixed;
   left: 0;
@@ -873,33 +876,49 @@ button.daily-teaser { width: 100%; font: inherit; text-align: left; }
   display: flex;
   justify-content: space-around;
   align-items: stretch;
-  /* iOS-стиль: полупрозрачный фон + матовое размытие (frosted glass).
-     Фолбэк без backdrop-filter — тот же цвет, но с непрозрачностью 82%. */
-  background: color-mix(in srgb, var(--color-surface) 82%, transparent);
-  backdrop-filter: saturate(180%) blur(14px);
-  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  height: calc(var(--tab-bar-h) + env(safe-area-inset-bottom));
+  /* iOS-стиль: почти непрозрачный фон + матовое размытие (frosted glass).
+     Непрозрачность 94% — контент при скролле не «просвечивает кашей»;
+     фолбэк без backdrop-filter выглядит так же плотно. */
+  background: color-mix(in srgb, var(--color-surface) 94%, transparent);
+  backdrop-filter: saturate(180%) blur(16px);
+  -webkit-backdrop-filter: saturate(180%) blur(16px);
   border-top: 1px solid var(--color-border);
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 -6px 22px rgba(0, 0, 0, 0.08);
   padding-bottom: env(safe-area-inset-bottom);
 }
 .tab-item {
   flex: 1;
+  min-width: 44px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 3px;
-  padding: 8px 4px 6px;
+  padding: 6px 4px;
   text-decoration: none;
   color: var(--color-text-muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: var(--font-weight-medium);
   transition: color 0.2s;
+  -webkit-tap-highlight-color: transparent;
 }
-.tab-item-active { color: var(--color-accent); }
+/* Пилюля-подложка под иконкой: пусто у неактивных, пастельно-зелёная у активной. */
+.tab-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 30px;
+  border-radius: var(--radius-full);
+  background: transparent;
+  transition: background 0.2s ease;
+}
+.tab-item-active { color: var(--color-accent); font-weight: var(--font-weight-semibold); }
+.tab-item-active .tab-icon { background: var(--color-accent-subtle); }
 .tab-label { line-height: 1; }
 /* Нижний отступ контента, чтобы фиксированный бар не перекрывал футер/контент */
-.has-tabbar { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
+.has-tabbar { padding-bottom: calc(var(--tab-bar-h) + env(safe-area-inset-bottom)); }
 
 /* Верхняя шапка — ТОЛЬКО на явном десктопе (>=1024px). На мобиле и планшете
    (в т.ч. iPad-portrait 768px, тач-ширины) таб-бар остаётся снизу в стиле iOS. */
@@ -914,8 +933,11 @@ button.daily-teaser { width: 100%; font: inherit; text-align: left; }
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
     border-radius: 0 0 var(--radius-md) var(--radius-md);
     padding-bottom: 0;
+    height: auto;
   }
   .tab-item { flex-direction: row; gap: 8px; font-size: var(--font-size-caption); padding: 12px; }
+  /* На десктопе иконка и подпись в строку — пилюля должна плотно облегать иконку. */
+  .tab-icon { width: auto; height: auto; padding: 4px 8px; }
   .has-tabbar { padding-bottom: 0; padding-top: 60px; }
 }
 

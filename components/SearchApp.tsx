@@ -704,7 +704,8 @@ export default function SearchApp() {
 
   const handleShareRecipe = async () => { 
     if (!recipe) return;
-    const recipeUrl = recipe.id ? `${window.location.origin}/search?recipeId=${recipe.id}` : `${window.location.origin}/search`;
+    // Быстрый серверный маршрут расшаренного рецепта (задача T), а не /search-монолит.
+    const recipeUrl = recipe.id ? `${window.location.origin}/recipe/${recipe.id}` : `${window.location.origin}/search`;
     // Единый хелпер: navigator.share → фолбэк на копирование ссылки. Текст —
     // название блюда + время приготовления. Цель Метрики — share_recipe.
     shareOrCopy({
@@ -990,7 +991,7 @@ export default function SearchApp() {
       />
        
       {/* КНОПКА МЕНЮ */}
-      <button className="menu-btn" onClick={() => setIsMenuOpen(true)} style={{ position: 'fixed', top: 'var(--space-2)', left: 'var(--space-3)', zIndex: 50, background: 'var(--color-surface)', borderRadius: '50%', width: '44px', height: '44px', padding: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', border: 'none', cursor: 'pointer' }}>
+      <button className="menu-btn" onClick={() => setIsMenuOpen(true)} style={{ position: 'fixed', top: 'calc(env(safe-area-inset-top) + var(--space-2))', left: 'var(--space-3)', zIndex: 50, background: 'var(--color-surface)', borderRadius: '50%', width: '44px', height: '44px', padding: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', border: 'none', cursor: 'pointer' }}>
         <Menu size={24} color="var(--color-text)" />
       </button>
 

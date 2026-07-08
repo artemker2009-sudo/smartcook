@@ -21,7 +21,9 @@ export default function Home() {
     if (typeof window === "undefined") return;
     const search = window.location.search;
     const params = new URLSearchParams(search);
-    if (params.has("recipeId") || params.get("daily") === "true" || params.has("auth")) {
+    // ?recipeId уводится на быстрый /recipe/:id серверным редиректом (next.config),
+    // сюда уже не долетает. Остаются рецепт дня и вход из баннеров банкетов.
+    if (params.get("daily") === "true" || params.has("auth")) {
       router.replace("/search" + search);
     }
   }, [router]);

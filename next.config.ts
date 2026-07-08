@@ -66,6 +66,26 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Легаси share-ссылки (/?recipeId=… и /search?recipeId=…) уводим на быстрый
+  // серверный маршрут /recipe/:id ещё до загрузки клиента — иначе они снова
+  // тянули бы монолит SearchApp (задача T). Редирект на уровне сервера/edge,
+  // так что старые ссылки открываются так же быстро, как новые.
+  async redirects() {
+    return [
+      {
+        source: "/",
+        has: [{ type: "query", key: "recipeId", value: "(?<rid>\\d+)" }],
+        destination: "/recipe/:rid",
+        permanent: false,
+      },
+      {
+        source: "/search",
+        has: [{ type: "query", key: "recipeId", value: "(?<rid>\\d+)" }],
+        destination: "/recipe/:rid",
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default withPWA(nextConfig);

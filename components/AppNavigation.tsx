@@ -29,7 +29,8 @@ export default function AppNavigation({ activeSection }: AppNavigationProps) {
       <button
         type="button"
         onClick={() => setIsMenuOpen(true)}
-        className="fixed left-5 top-2.5 z-50 flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border-0 bg-white p-0 shadow-[0_4px_12px_rgba(0,0,0,0.1)]"
+        className="fixed left-5 z-50 flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border-0 bg-white p-0 shadow-[0_4px_12px_rgba(0,0,0,0.1)]"
+        style={{ top: "calc(env(safe-area-inset-top) + 8px)" }}
         aria-label="Открыть меню"
       >
         <Menu size={24} color="var(--color-text)" />

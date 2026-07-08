@@ -18,10 +18,12 @@ const SUPABASE_KEY =
 
 // Публичное чтение recipes разрешено RLS (supabase_recipes_social_rls.sql).
 // ВАЖНО (CLAUDE.md, чек-лист): выбираем ТОЛЬКО поля для отображения, без select=*.
-// В recipes есть session_id (по инциденту №2 — фактически токен доступа) и user_id —
-// они НЕ должны утекать в SSR-пейлоад страницы.
+// В recipes есть session_id (по инциденту №2 — фактически токен доступа) — НЕ
+// должен утекать в SSR-пейлоад. Перечисляем только реально существующие в таблице
+// колонки, нужные для отображения (estimated_cost/budget_tier в схеме нет —
+// PostgREST на несуществующую колонку отдаёт 400, и рецепт «пропадает»).
 const RECIPE_FIELDS =
-  "id,title,description,time,calories,steps,ingredients,detailed_ingredients,missing_ingredients,estimated_cost,delivery_cost,budget_tier";
+  "id,title,description,time,calories,steps,detailed_ingredients";
 
 // revalidate=60 — рецепт неизменен, кэшируем на edge: повторные открытия мгновенны.
 async function getRecipe(id: string): Promise<RecipeData | null> {

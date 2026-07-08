@@ -5,6 +5,7 @@ import {
   Flame,
   ArrowRight,
   Camera,
+  Image as ImageIcon,
   Search,
   RotateCcw,
   Settings,
@@ -421,35 +422,53 @@ export default function ServiceView({
               <>
                 {!file ? (
                   <div className="upload-zone">
-                    <input
-                      id="hidden-file-input"
-                      type="file"
-                      accept="image/png, image/jpeg, image/jpg, .heic, .HEIC"
-                      className="upload-input"
-                      onChange={handleFileChange}
-                    />
-                    <div className="flex flex-col items-center justify-center text-center w-full">
-                      <div className="upload-cam-chip">
-                        <Camera size={30} color="var(--color-accent)" />
-                      </div>
-                      <div
-                        style={{
-                          fontWeight: "var(--font-weight-semibold)",
-                          fontSize: "var(--font-size-body)",
-                          color: "var(--color-text)",
-                          marginBottom: "var(--space-1)",
-                        }}
-                      >
-                        Выберите фото
-                      </div>
-                      <div
-                        style={{
-                          fontSize: "var(--font-size-caption)",
-                          color: "var(--color-text-muted)",
-                        }}
-                      >
-                        HEIC, JPG, PNG
-                      </div>
+                    <div className="upload-cam-chip">
+                      <Camera size={30} color="var(--color-accent)" />
+                    </div>
+                    <div
+                      style={{
+                        fontWeight: "var(--font-weight-semibold)",
+                        fontSize: "var(--font-size-body)",
+                        color: "var(--color-text)",
+                        marginBottom: "var(--space-1)",
+                      }}
+                    >
+                      Выберите фото
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "var(--font-size-caption)",
+                        color: "var(--color-text-muted)",
+                        marginBottom: "var(--space-4)",
+                      }}
+                    >
+                      HEIC, JPG, PNG
+                    </div>
+                    {/* Две явные кнопки: Android-меню «Выберите фото» открывало только
+                        галерею — камера была недоступна. capture="environment" открывает
+                        заднюю камеру; на десктопе/iOS-галерее capture игнорируется. Оба
+                        input'а ведут в один handleFileChange → preparePhoto. */}
+                    <div className="upload-actions">
+                      <label className="upload-action-btn">
+                        <Camera size={18} /> Снять фото
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          className="upload-action-input"
+                          onChange={handleFileChange}
+                        />
+                      </label>
+                      <label className="upload-action-btn">
+                        <ImageIcon size={18} /> Выбрать из галереи
+                        <input
+                          id="hidden-file-input"
+                          type="file"
+                          accept="image/png, image/jpeg, image/jpg, .heic, .HEIC"
+                          className="upload-action-input"
+                          onChange={handleFileChange}
+                        />
+                      </label>
                     </div>
                   </div>
                 ) : (

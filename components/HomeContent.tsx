@@ -6,7 +6,8 @@ import { Flame } from "lucide-react";
 import HeroLanding from "@/components/HeroLanding";
 import NewsBoard, { type NewsItem } from "@/components/NewsBoard";
 import HomeFeed, { type FeedPhoto } from "@/components/HomeFeed";
-import ArticlesBoard, { type Article } from "@/components/ArticlesBoard";
+import ArticlesBoard from "@/components/ArticlesBoard";
+import type { Article } from "@/lib/articles";
 import AppNavigation from "@/components/AppNavigation";
 import type { DailyRecipeType } from "@/lib/types";
 

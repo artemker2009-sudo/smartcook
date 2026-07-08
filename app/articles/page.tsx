@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { BookOpen } from "lucide-react";
 import AppNavigation from "@/components/AppNavigation";
-import ArticlesBoard, { type Article, ARTICLE_COLUMNS } from "@/components/ArticlesBoard";
+import ArticlesBoard from "@/components/ArticlesBoard";
+import { type Article, ARTICLE_COLUMNS } from "@/lib/articles";
 
 // Список всех «Кухонных заметок» (задача Y). SSR по правилам T/W: контент
 // читается на сервере и попадает в HTML сразу (наш первый контент под поиск —

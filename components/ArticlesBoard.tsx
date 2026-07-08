@@ -7,6 +7,7 @@ import { BookOpen, Heart, ArrowRight, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { reachGoal } from "@/lib/metrika";
+import { type Article, ARTICLE_COLUMNS } from "@/lib/articles";
 
 // Блок «Кухонные заметки» — статьи с лайками. Данные (без тела) приходят ПРОПОМ
 // initialItems из серверного компонента (SSR, как витрина/новости) → блок в HTML
@@ -16,22 +17,9 @@ import { reachGoal } from "@/lib/metrika";
 // Источник — публичный view articles_public: не отдаёт список лайкнувших,
 // счётчик — агрегат. Лайк — только залогиненным (аноним → мягкий вход с
 // return-путём). Автор у всех один — «Команда SmartCook» (в UI, не в БД).
-export type Article = {
-  id: string;
-  created_at: string;
-  published_at: string | null;
-  title: string;
-  slug: string;
-  excerpt: string;
-  emoji_icon: string | null;
-  read_minutes: number;
-  likes_count: number;
-  liked_by_me: boolean;
-};
-
-export const ARTICLE_COLUMNS =
-  "id,created_at,published_at,title,slug,excerpt,emoji_icon,read_minutes,likes_count,liked_by_me";
-
+// Тип Article и ARTICLE_COLUMNS живут в @/lib/articles (обычный модуль): их
+// импортируют и серверные компоненты, а из "use client"-модуля значение
+// приходило бы в SSR как заглушка client-reference (ломало запрос заметок).
 const TONES = ["green", "blue", "amber"] as const;
 
 export default function ArticlesBoard({

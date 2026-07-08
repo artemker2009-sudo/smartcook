@@ -1256,7 +1256,10 @@ a.news-card:hover { transform: translateY(-2px); }
   margin: var(--space-3) 0 var(--space-2);
 }
 .article-prose p { margin: 0 0 var(--space-3); }
-.article-prose ul, .article-prose ol { margin: 0 0 var(--space-3); padding-left: 1.4em; }
+/* Tailwind preflight снимает маркеры у списков — возвращаем их для тела статьи. */
+.article-prose ul, .article-prose ol { margin: 0 0 var(--space-3); padding-left: 1.4em; list-style-position: outside; }
+.article-prose ul { list-style-type: disc; }
+.article-prose ol { list-style-type: decimal; }
 .article-prose li { margin-bottom: var(--space-1); }
 .article-prose a { color: var(--color-accent); text-decoration: underline; }
 .article-prose strong { font-weight: var(--font-weight-semibold); }

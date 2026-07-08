@@ -1,8 +1,7 @@
 import HomeContent from "@/components/HomeContent";
 import type { NewsItem } from "@/components/NewsBoard";
 import type { FeedPhoto } from "@/components/HomeFeed";
-import type { Article } from "@/components/ArticlesBoard";
-import { ARTICLE_COLUMNS } from "@/components/ArticlesBoard";
+import { type Article, ARTICLE_COLUMNS } from "@/lib/articles";
 
 // Главная (/). Серверный компонент (этап 10 W): новости и первые фото витрины
 // читаются на СЕРВЕРЕ и попадают в HTML сразу — раньше оба блока грузились

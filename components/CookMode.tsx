@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { X, ChevronLeft, ChevronRight, RotateCw, ListChecks, Check } from "lucide-react";
 import { reachGoal } from "@/lib/metrika";
 
@@ -20,6 +20,22 @@ export type CookIngredient = { name: string; amount?: string };
 
 const INTRO_SEEN_KEY = "sc_cook_intro_seen";
 
+// «Разблокировка» озвучки для iOS: самый первый speak() обязан идти из
+// пользовательского жеста, иначе на iOS дальнейшая озвучка (в т.ч. из эффектов)
+// не работает или ведёт себя странно. Вызывать СИНХРОННО в onClick кнопки
+// «Готовим!» — тогда автоозвучка первого шага у вернувшегося пользователя
+// (подсказка уже показана ранее) тоже звучит.
+export function primeCookVoice() {
+  try {
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(new SpeechSynthesisUtterance(" "));
+    }
+  } catch {
+    /* озвучка не должна ломать запуск режима */
+  }
+}
+
 type View = "intro" | "step" | "finish";
 
 export default function CookMode({
@@ -35,7 +51,14 @@ export default function CookMode({
   onClose: () => void;
   onCookedPhoto?: () => void;
 }) {
-  const cleanSteps = (steps || []).map((s) => (s || "").trim()).filter(Boolean);
+  // ВАЖНО (баг зацикливания): steps приходят новым массивом на каждый рендер;
+  // без useMemo cleanSteps менял идентичность каждый рендер, и эффекты
+  // автоозвучки/распознавания перезапускались бесконечно → голос повторял
+  // один шаг много раз. Стабилизируем по ссылке на steps.
+  const cleanSteps = useMemo(
+    () => (steps || []).map((s) => (s || "").trim()).filter(Boolean),
+    [steps],
+  );
   const total = cleanSteps.length;
 
   const [view, setView] = useState<View>("intro");
@@ -47,6 +70,8 @@ export default function CookMode({
   const recognitionRef = useRef<any>(null);
   const voiceUsedRef = useRef(false);
   const finishedGoalRef = useRef(false);
+  // Ключ последнего озвученного экрана — гарантия «ровно один раз на шаг».
+  const spokenKeyRef = useRef<string>("");
 
   // --- Озвучка (speechSynthesis) ---
   const speak = useCallback((text: string) => {
@@ -93,20 +118,32 @@ export default function CookMode({
     if (cleanSteps[stepIndex]) speak(cleanSteps[stepIndex]);
   }, [cleanSteps, stepIndex, speak]);
 
-  // Автоозвучка текущего шага при переходе на него.
+  // Последние версии команд в ref — чтобы эффект распознавания не пересоздавался
+  // на каждом рендере (иначе постоянный рестарт recognition — часть петли).
+  const commandsRef = useRef({ goNext, goPrev, repeat, stopSpeaking });
+  commandsRef.current = { goNext, goPrev, repeat, stopSpeaking };
+
+  // Автоозвучка ровно ОДИН раз при входе на шаг. Ключ view+index в ref не даёт
+  // повторно озвучить тот же экран при перерисовках (это и было зацикливанием).
+  // Любой speak() внутри сначала делает cancel() текущей очереди. Авторетраев нет.
   useEffect(() => {
-    if (view === "step" && cleanSteps[stepIndex]) speak(cleanSteps[stepIndex]);
+    if (view !== "step") return;
+    const key = `step:${stepIndex}`;
+    if (spokenKeyRef.current === key) return;
+    spokenKeyRef.current = key;
+    if (cleanSteps[stepIndex]) speak(cleanSteps[stepIndex]);
   }, [view, stepIndex, cleanSteps, speak]);
 
-  // Финальный экран: озвучиваем поздравление + цель.
+  // Финальный экран: озвучиваем поздравление + цель (тоже ровно один раз).
   useEffect(() => {
-    if (view === "finish") {
-      speak("Готово! Приятного аппетита!");
-      if (!finishedGoalRef.current) {
-        finishedGoalRef.current = true;
-        reachGoal("cook_mode_finish");
-      }
+    if (view !== "finish") return;
+    if (!finishedGoalRef.current) {
+      finishedGoalRef.current = true;
+      reachGoal("cook_mode_finish");
     }
+    if (spokenKeyRef.current === "finish") return;
+    spokenKeyRef.current = "finish";
+    speak("Готово! Приятного аппетита!");
   }, [view, speak]);
 
   // Старт режима — цель один раз.
@@ -149,14 +186,32 @@ export default function CookMode({
     };
   }, []);
 
-  // --- Голосовые команды (SpeechRecognition) — только если доступно ---
+  // --- Голосовые команды (SpeechRecognition) — прогрессивное улучшение ---
+  // На iOS Safari конструктор распознавания ЕСТЬ, но он: (1) запускает
+  // системный запрос микрофона прямо посреди готовки — модалка перекрывала
+  // экран, из-за чего «ни одна кнопка не работала»; (2) конфликтует с
+  // озвучкой — микрофон слышит собственный TTS и трактует его как команду
+  // (эхо-петля). Поэтому на iOS слой НАМЕРЕННО отсутствует (без ошибок и
+  // визуальных следов — как и ожидал директор). На остальных платформах
+  // держим, но защищаемся: игнорируем распознанное, пока говорит озвучка, и
+  // НЕ перезапускаем распознавание после ошибки (без штормов рестарта).
+  // Эффект зависит только от view (команды читаются из commandsRef) — иначе он
+  // пересоздавал recognition на каждом рендере (тоже часть петли).
   useEffect(() => {
     if (view !== "step") return;
     if (typeof window === "undefined") return;
+
+    const ua = navigator.userAgent || "";
+    const isIOS =
+      /ip(hone|ad|od)/i.test(ua) ||
+      (navigator.platform === "MacIntel" && (navigator as any).maxTouchPoints > 1);
+    if (isIOS) return;
+
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) return; // iOS Safari и т.п. — просто нет голосового слоя, кнопки работают
+    if (!SR) return;
 
     let stopped = false;
+    let broken = false;
     const rec = new SR();
     rec.lang = "ru-RU";
     rec.continuous = true;
@@ -171,28 +226,32 @@ export default function CookMode({
     };
 
     rec.onresult = (event: any) => {
+      // Пока звучит озвучка — микрофон слышит ЕЁ, а не пользователя. Игнорируем,
+      // чтобы TTS не воспринимался как команда (это и давало эхо-цикл).
+      if (window.speechSynthesis?.speaking) return;
       const last = event.results[event.results.length - 1];
       const phrase = (last?.[0]?.transcript || "").toLowerCase();
-      if (/дальш|вперёд|вперед|следующ|готов/.test(phrase)) {
+      const cmd = commandsRef.current;
+      // «готов» убрано из «дальше»: TTS слов «готово/готовить» ложно листал шаги.
+      if (/дальш|вперёд|вперед|следующ/.test(phrase)) {
         markVoiceUsed();
-        goNext();
+        cmd.goNext();
       } else if (/назад|предыдущ|вернись/.test(phrase)) {
         markVoiceUsed();
-        goPrev();
+        cmd.goPrev();
       } else if (/повтор|ещё раз|еще раз|прочитай/.test(phrase)) {
         markVoiceUsed();
-        repeat();
+        cmd.repeat();
       } else if (/стоп|хватит|замолч|тихо/.test(phrase)) {
         markVoiceUsed();
-        stopSpeaking();
+        cmd.stopSpeaking();
       }
     };
     rec.onerror = () => {
-      /* тишина/нет доступа к микрофону — молча игнорируем */
+      broken = true; // после ошибки НЕ перезапускаем (без шторма рестартов)
     };
     rec.onend = () => {
-      // Держим прослушивание активным, пока идём по шагам.
-      if (!stopped) {
+      if (!stopped && !broken) {
         try {
           rec.start();
         } catch {
@@ -216,7 +275,7 @@ export default function CookMode({
       }
       recognitionRef.current = null;
     };
-  }, [view, goNext, goPrev, repeat, stopSpeaking]);
+  }, [view]);
 
   // Чистим озвучку при размонтировании.
   useEffect(() => stopSpeaking, [stopSpeaking]);
@@ -227,7 +286,12 @@ export default function CookMode({
     } catch {
       /* ignore */
     }
+    // Первая озвучка — СИНХРОННО в обработчике тапа (жест): iOS требует, чтобы
+    // самый первый speak() шёл из пользовательского жеста, иначе очередь ведёт
+    // себя странно. Помечаем ключ, чтобы эффект не озвучил шаг повторно.
+    spokenKeyRef.current = `step:${stepIndex}`;
     setView("step");
+    if (cleanSteps[stepIndex]) speak(cleanSteps[stepIndex]);
   };
 
   // Первый вход — показываем подсказку один раз (localStorage).

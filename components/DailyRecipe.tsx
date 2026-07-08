@@ -1,5 +1,6 @@
 import React from 'react';
 import { Clock, Flame, Info, ExternalLink, ShoppingCart, Heart, Share2, Sparkles, Send, Salad, ChefHat } from 'lucide-react';
+import { splitIngredientList } from '@/lib/recipeValidation';
 
 export default function DailyRecipe(props: any) {
   const {
@@ -70,7 +71,9 @@ export default function DailyRecipe(props: any) {
 
             {/* Ozon Fresh */}
             {(() => {
-              const itemsToBuy = dailyRecipe.detailed_ingredients ? dailyRecipe.detailed_ingredients.map((ing: any) => ing.name) : (dailyRecipe.ingredients || []);
+              const rawItemsToBuy = dailyRecipe.detailed_ingredients ? dailyRecipe.detailed_ingredients.map((ing: any) => ing.name) : (dailyRecipe.ingredients || []);
+              // Фолбэк AB: раскладываем возможный склеенный список на отдельные чипы.
+              const itemsToBuy = splitIngredientList(rawItemsToBuy);
               if (itemsToBuy.length === 0) return null;
               return (
                 <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: 'var(--space-4)', margin: '0 0 var(--space-4) 0' }}>

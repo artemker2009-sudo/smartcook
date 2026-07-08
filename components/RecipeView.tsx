@@ -25,7 +25,8 @@ import {
 } from "lucide-react";
 import DonateButton from "@/components/DonateButton";
 import Button from "@/components/ui/Button";
-import CookMode from "@/components/CookMode";
+import CookMode, { primeCookVoice } from "@/components/CookMode";
+import { splitIngredientList } from "@/lib/recipeValidation";
 
 interface RecipeViewProps {
   recipe: any;
@@ -121,7 +122,9 @@ export default function RecipeView({
       fromFeed && recipe.detailed_ingredients
         ? recipe.detailed_ingredients.map((ing: any) => ing.name)
         : recipe.missing_ingredients || [];
-    return baseItems || [];
+    // Фолбэк AB: старые записи могли сохранить весь список одной строкой —
+    // раскладываем на отдельные позиции, иначе «Нужно купить» = один блоб-чип.
+    return splitIngredientList(baseItems);
   })();
 
   const showSmartVariant =
@@ -542,7 +545,14 @@ export default function RecipeView({
 
       {/* Крупная первичная кнопка запуска режима готовки с озвучкой (задача Z). */}
       {hasSteps && (
-        <button type="button" className="cook-start-btn" onClick={() => setCooking(true)}>
+        <button
+          type="button"
+          className="cook-start-btn"
+          onClick={() => {
+            primeCookVoice(); // разблокировать озвучку жестом (iOS)
+            setCooking(true);
+          }}
+        >
           <Volume2 size={24} /> Готовим!
         </button>
       )}

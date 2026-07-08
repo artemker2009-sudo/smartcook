@@ -10,7 +10,10 @@ import { reachGoal } from "@/lib/metrika";
 // Витрина «Приготовили сегодня» (лента v1). Данные — ТОЛЬКО из публичного view
 // feed_photos_public (не раскрывает user_ref, счётчик лайков — агрегат).
 // Сортировка на стороне view: сегодняшние сверху, затем вчерашние.
-type FeedPhoto = {
+// Первые фото приходят ПРОПОМ initialItems из серверного компонента (этап 10 W) →
+// витрина в HTML сразу. На клиенте перечитываем ТОЛЬКО у залогиненного, чтобы
+// подтянуть его liked_by_me (в SSR под anon он всегда false).
+export type FeedPhoto = {
   id: string;
   created_at: string;
   user_name: string | null;
@@ -20,9 +23,12 @@ type FeedPhoto = {
   liked_by_me: boolean;
 };
 
-export default function HomeFeed() {
+const FEED_COLUMNS =
+  "id,created_at,user_name,recipe_title,photo_url,likes_count,liked_by_me";
+
+export default function HomeFeed({ initialItems }: { initialItems: FeedPhoto[] }) {
   const router = useRouter();
-  const [items, setItems] = useState<FeedPhoto[] | null>(null); // null = загрузка
+  const [items, setItems] = useState<FeedPhoto[]>(initialItems);
   const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -30,13 +36,14 @@ export default function HomeFeed() {
   }, []);
 
   const load = useCallback(async () => {
-    const { data, error } = await supabase.from("feed_photos_public").select("*").limit(20);
-    setItems(error ? [] : ((data as FeedPhoto[]) ?? []));
+    const { data, error } = await supabase.from("feed_photos_public").select(FEED_COLUMNS).limit(20);
+    if (!error && data) setItems(data as FeedPhoto[]);
   }, []);
 
+  // Только для залогиненного: синхронизируем его лайки поверх SSR-данных.
   useEffect(() => {
-    load();
-  }, [load]);
+    if (userId) load();
+  }, [userId, load]);
 
   const toggleLike = async (item: FeedPhoto) => {
     // Лайкать может только залогиненный. Аноним → мягкая подсказка + вход,
@@ -65,9 +72,6 @@ export default function HomeFeed() {
       load(); // рассинхрон — перечитываем правду из view
     }
   };
-
-  // Загрузка — не мигаем: ничего не рисуем, пока данных нет.
-  if (items === null) return null;
 
   return (
     <section className="home-feed">

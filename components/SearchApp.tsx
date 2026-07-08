@@ -734,7 +734,9 @@ export default function SearchApp() {
       const response = await fetch("/api/analyze", { method: "POST", headers: await getAuthHeaders(), body: formData });
       const json = await response.json(); if (handleRateLimitedResponse(response, json)) return; if (json.error) throw new Error(json.error);
       setAnalysisResult(json.data);
-    } catch (err: any) { showToast("Ошибка: " + err.message, undefined, 'error'); } finally { setAnalyzing(false); } 
+      // На фото нет продуктов — честный ответ (карточка в ServiceView), частота важна.
+      if (json.data?.no_food) reachGoal("photo_no_food");
+    } catch (err: any) { showToast("Ошибка: " + err.message, undefined, 'error'); } finally { setAnalyzing(false); }
   }; 
 
   const handleRegenerate = async () => {
@@ -1108,6 +1110,7 @@ export default function SearchApp() {
           handleTextSearch={handleTextSearch}
           loadingRecipe={loadingRecipe}
           analysisResult={analysisResult}
+          onNoFoodSwitchToText={() => { setSearchMode('text'); setAnalysisResult(null); setFile(null); setPreview(null); }}
           getRecipeFromPhoto={getRecipeFromPhoto}
           selectedDish={selectedDish}
           handleRegenerate={handleRegenerate}

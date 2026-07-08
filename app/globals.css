@@ -474,6 +474,27 @@ body {
 .history-empty-text:last-child { margin-bottom: 0; }
 .history-empty-btn { width: auto; display: inline-flex; }
 
+/* --- Фото без продуктов: спокойная карточка, НЕ ошибка/красный (задача X) --- */
+.no-food-card {
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  padding: var(--space-5) var(--space-4);
+}
+.no-food-icon {
+  width: 56px; height: 56px; border-radius: var(--radius-full);
+  background: var(--color-bg-subtle); color: var(--color-text-muted);
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: var(--space-3);
+}
+.no-food-title {
+  font-size: var(--font-size-body); font-weight: var(--font-weight-semibold);
+  color: var(--color-text); margin-bottom: var(--space-1);
+}
+.no-food-text {
+  font-size: var(--font-size-caption); color: var(--color-text-secondary);
+  line-height: 1.5; max-width: 340px; margin-bottom: var(--space-4);
+}
+.no-food-btn { width: auto; display: inline-flex; }
+
 /* --- ИНДИКАТОР ПРОФИЛЯ ВКУСА НА КАРТОЧКЕ ПОИСКА --- */
 .taste-indicator {
   display: flex;

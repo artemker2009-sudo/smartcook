@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { reachGoal } from "@/lib/metrika";
 import { type Article, ARTICLE_COLUMNS } from "@/lib/articles";
+import { coverTone } from "@/lib/articleCover";
 
 // Блок «Кухонные заметки» — статьи с лайками. Данные (без тела) приходят ПРОПОМ
 // initialItems из серверного компонента (SSR, как витрина/новости) → блок в HTML
@@ -20,7 +21,7 @@ import { type Article, ARTICLE_COLUMNS } from "@/lib/articles";
 // Тип Article и ARTICLE_COLUMNS живут в @/lib/articles (обычный модуль): их
 // импортируют и серверные компоненты, а из "use client"-модуля значение
 // приходило бы в SSR как заглушка client-reference (ломало запрос заметок).
-const TONES = ["green", "blue", "amber"] as const;
+// Обложки (Z-3) — пастельный тон по хэшу slug (coverTone), в стиле Notion.
 
 export default function ArticlesBoard({
   initialItems,
@@ -89,33 +90,43 @@ export default function ArticlesBoard({
 
   const cards = (
     <div className="articles-grid">
-      {visible.map((item, i) => {
-        const tone = TONES[i % TONES.length];
+      {visible.map((item) => {
+        const tone = coverTone(item.slug);
         return (
           <article key={item.id} className="article-card">
-            <Link href={`/articles/${item.slug}`} className="article-card-link">
-              <div className={`article-tile article-tile-${tone}`} aria-hidden>
-                <span className="article-emoji">{item.emoji_icon || "📝"}</span>
-              </div>
-              <div className="article-card-body">
-                <div className="article-card-title">{item.title}</div>
-                <p className="article-card-excerpt">{item.excerpt}</p>
-              </div>
-            </Link>
-            <div className="article-card-meta">
-              <span className="article-read">
-                <Clock size={13} />
-                {item.read_minutes} мин
+            {/* Обложка в стиле Notion (Z-3): пастельный тон по slug, крупная
+                эмодзи и заголовок прямо на плитке — вместо фото. */}
+            <Link
+              href={`/articles/${item.slug}`}
+              className="article-cover"
+              style={{ background: tone.bg }}
+            >
+              <span className="article-cover-emoji" aria-hidden>
+                {item.emoji_icon || "📝"}
               </span>
-              <button
-                type="button"
-                className={`feed-like${item.liked_by_me ? " feed-like-active" : ""}`}
-                onClick={() => toggleLike(item)}
-                aria-label={item.liked_by_me ? "Убрать лайк" : "Лайкнуть"}
-              >
-                <Heart size={16} fill={item.liked_by_me ? "currentColor" : "none"} />
-                <span>{item.likes_count}</span>
-              </button>
+              <span className="article-cover-title" style={{ color: tone.fg }}>
+                {item.title}
+              </span>
+            </Link>
+            <div className="article-card-under">
+              <Link href={`/articles/${item.slug}`} className="article-card-excerpt-link">
+                <p className="article-card-excerpt">{item.excerpt}</p>
+              </Link>
+              <div className="article-card-meta">
+                <span className="article-read">
+                  <Clock size={13} />
+                  {item.read_minutes} мин
+                </span>
+                <button
+                  type="button"
+                  className={`feed-like${item.liked_by_me ? " feed-like-active" : ""}`}
+                  onClick={() => toggleLike(item)}
+                  aria-label={item.liked_by_me ? "Убрать лайк" : "Лайкнуть"}
+                >
+                  <Heart size={16} fill={item.liked_by_me ? "currentColor" : "none"} />
+                  <span>{item.likes_count}</span>
+                </button>
+              </div>
             </div>
           </article>
         );

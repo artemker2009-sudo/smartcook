@@ -85,7 +85,16 @@ type Article = {
   is_published?: boolean | null;
 };
 
-type TabId = "management" | "analytics" | "purchases" | "news" | "articles" | "feed" | "errors";
+type Tip = {
+  id: string;
+  created_at?: string | null;
+  published_at?: string | null;
+  body: string;
+  emoji_icon?: string | null;
+  is_published?: boolean | null;
+};
+
+type TabId = "management" | "analytics" | "purchases" | "news" | "articles" | "tips" | "feed" | "errors";
 
 const TABS = [
   { id: "management" as TabId, label: "⚙️ Управление", hint: "Статус сайта и техработы" },
@@ -93,6 +102,7 @@ const TABS = [
   { id: "purchases" as TabId, label: "💳 История покупок", hint: "Только оплаченные банкеты" },
   { id: "news" as TabId, label: "📰 Новости", hint: "Новости проекта на главной" },
   { id: "articles" as TabId, label: "📝 Заметки", hint: "Кухонные заметки на главной" },
+  { id: "tips" as TabId, label: "💡 Советы", hint: "Совет дня на главной" },
   { id: "feed" as TabId, label: "🍽️ Лента", hint: "Модерация «Приготовили сегодня»" },
   { id: "errors" as TabId, label: "🐞 Ошибки", hint: "Баг-репорты пользователей" },
 ];
@@ -218,6 +228,14 @@ export default function AdminPage() {
   const [articlePreview, setArticlePreview] = useState(false);
   const [articleTopic, setArticleTopic] = useState("");
   const [articleGenerating, setArticleGenerating] = useState(false);
+  const [tips, setTips] = useState<Tip[]>([]);
+  const [tipEditingId, setTipEditingId] = useState<string | null>(null);
+  const [tipBody, setTipBody] = useState("");
+  const [tipEmoji, setTipEmoji] = useState("");
+  const [tipSaving, setTipSaving] = useState(false);
+  const [tipError, setTipError] = useState("");
+  const [tipBusyId, setTipBusyId] = useState<string | null>(null);
+  const [tipGenerating, setTipGenerating] = useState(false);
 
   const loadDashboard = async () => {
     setIsLoading(true);
@@ -248,6 +266,7 @@ export default function AdminPage() {
       setFeedPhotos((data.feedPhotos as FeedPhoto[] | null) ?? []);
       setNewsItems((data.news as NewsItem[] | null) ?? []);
       setArticles((data.articles as Article[] | null) ?? []);
+      setTips((data.tips as Tip[] | null) ?? []);
       setIsAuthenticated(true);
     } catch (error) {
       console.error("Ошибка загрузки админки", error);
@@ -594,6 +613,108 @@ export default function AdminPage() {
       setArticleBusyId(null);
     }
   };
+
+  // --- Советы (tips) ---
+  const resetTipForm = () => {
+    setTipEditingId(null);
+    setTipBody("");
+    setTipEmoji("");
+    setTipError("");
+  };
+
+  const startEditTip = (item: Tip) => {
+    setTipEditingId(item.id);
+    setTipBody(item.body ?? "");
+    setTipEmoji(item.emoji_icon ?? "");
+    setTipError("");
+  };
+
+  const handleGenerateTips = async () => {
+    setTipGenerating(true);
+    setTipError("");
+    try {
+      const response = await fetch("/api/admin/tips/draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ count: 20 }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.error || "Не удалось сгенерировать советы");
+      await loadDashboard();
+    } catch (error) {
+      setTipError(error instanceof Error ? error.message : "Не удалось сгенерировать советы");
+    } finally {
+      setTipGenerating(false);
+    }
+  };
+
+  const handleSaveTip = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!tipBody.trim()) {
+      setTipError("Текст совета обязателен");
+      return;
+    }
+    setTipSaving(true);
+    setTipError("");
+    try {
+      const response = await fetch("/api/admin/tips", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          op: tipEditingId ? "update" : "create",
+          id: tipEditingId ?? undefined,
+          body: tipBody,
+          emoji_icon: tipEmoji,
+        }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.error || "Не удалось сохранить совет");
+      await loadDashboard();
+      resetTipForm();
+    } catch (error) {
+      setTipError(error instanceof Error ? error.message : "Не удалось сохранить совет");
+    } finally {
+      setTipSaving(false);
+    }
+  };
+
+  const handleTipPublished = async (id: string, published: boolean) => {
+    setTipBusyId(id);
+    try {
+      const response = await fetch("/api/admin/tips", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ op: "setPublished", id, published }),
+      });
+      if (!response.ok) throw new Error("Не удалось обновить статус");
+      setTips((current) => current.map((t) => (t.id === id ? { ...t, is_published: published } : t)));
+    } catch (error) {
+      console.error("Ошибка публикации совета", error);
+    } finally {
+      setTipBusyId(null);
+    }
+  };
+
+  const handleDeleteTip = async (id: string) => {
+    if (!confirm("Удалить совет безвозвратно?")) return;
+    setTipBusyId(id);
+    try {
+      const response = await fetch("/api/admin/tips", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ op: "delete", id }),
+      });
+      if (!response.ok) throw new Error("Не удалось удалить");
+      setTips((current) => current.filter((t) => t.id !== id));
+      if (tipEditingId === id) resetTipForm();
+    } catch (error) {
+      console.error("Ошибка удаления совета", error);
+    } finally {
+      setTipBusyId(null);
+    }
+  };
+
+  const publishedTipsCount = tips.filter((t) => t.is_published).length;
 
   const totalParties = stats.parties.length;
   const paidParties = stats.parties.filter((party) => Boolean(party.is_paid)).length;
@@ -1377,6 +1498,141 @@ export default function AdminPage() {
                           type="button"
                           onClick={() => handleDeleteArticle(item.id)}
                           disabled={articleBusyId === item.id}
+                          className="rounded-full bg-red-50 px-4 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-100 disabled:opacity-50"
+                        >
+                          Удалить
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })
+              )}
+            </section>
+          ) : null}
+
+          {activeTab === "tips" ? (
+            <section className="space-y-4">
+              <div className="rounded-[2rem] border border-zinc-200 bg-white px-6 py-5 shadow-sm">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-400">Контент</p>
+                <h3 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-950">Совет дня</h3>
+                <p className="mt-2 text-sm text-zinc-500">
+                  Короткие советы на Главной рядом с «Рецептом дня». Ротация по дате.
+                  Публикуются вручную. Сейчас опубликовано: <b>{publishedTipsCount}</b>.
+                </p>
+              </div>
+
+              {/* Генерация пачки черновиков */}
+              <div className="space-y-3 rounded-2xl border border-violet-200 bg-violet-50 p-6 shadow-sm">
+                <p className="text-sm font-semibold text-violet-900">Сгенерировать 20 черновиков (ИИ)</p>
+                <p className="text-xs text-violet-700">
+                  ИИ напишет 20 коротких проверяемых советов. Все сохранятся <b>неопубликованными</b> —
+                  вычитайте и опубликуйте нужные.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleGenerateTips}
+                  disabled={tipGenerating}
+                  className="rounded-full bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:opacity-50"
+                >
+                  {tipGenerating ? "Генерируем..." : "Сгенерировать 20 черновиков"}
+                </button>
+                {tipError ? <p className="text-sm text-red-600">{tipError}</p> : null}
+              </div>
+
+              {/* Форма создания / редактирования */}
+              <form onSubmit={handleSaveTip} className="space-y-3 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+                <p className="text-sm font-semibold text-zinc-900">
+                  {tipEditingId ? "Редактирование совета" : "Новый совет"}
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    value={tipEmoji}
+                    onChange={(e) => setTipEmoji(e.target.value)}
+                    placeholder="💡"
+                    maxLength={16}
+                    className="w-20 rounded-xl border border-zinc-300 px-4 py-2.5 text-center text-lg outline-none focus:border-emerald-500"
+                  />
+                  <textarea
+                    value={tipBody}
+                    onChange={(e) => setTipBody(e.target.value)}
+                    placeholder="Текст совета (1–2 предложения)"
+                    maxLength={400}
+                    rows={2}
+                    className="flex-1 rounded-xl border border-zinc-300 px-4 py-2.5 text-sm outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    disabled={tipSaving}
+                    className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
+                  >
+                    {tipSaving ? "Сохраняем..." : tipEditingId ? "Сохранить" : "Создать черновик"}
+                  </button>
+                  {tipEditingId ? (
+                    <button
+                      type="button"
+                      onClick={resetTipForm}
+                      className="rounded-full bg-zinc-100 px-5 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-200"
+                    >
+                      Отмена
+                    </button>
+                  ) : null}
+                </div>
+              </form>
+
+              {/* Список советов */}
+              {tips.length === 0 ? (
+                <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-12 text-center text-sm text-zinc-500 shadow-sm">
+                  Советов пока нет.
+                </div>
+              ) : (
+                tips.map((item) => {
+                  const published = item.is_published === true;
+                  return (
+                    <article
+                      key={item.id}
+                      className={`rounded-2xl border bg-white p-4 shadow-sm ${published ? "border-zinc-200" : "border-amber-200"}`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="min-w-0 text-sm text-zinc-800">
+                          <span className="mr-1">{item.emoji_icon || "💡"}</span>
+                          {item.body}
+                        </p>
+                        <span
+                          className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ${
+                            published
+                              ? "bg-green-100 text-green-700 ring-green-200"
+                              : "bg-amber-100 text-amber-700 ring-amber-200"
+                          }`}
+                        >
+                          {published ? "Опубликовано" : "Черновик"}
+                        </span>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => startEditTip(item)}
+                          className="rounded-full bg-zinc-900 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-zinc-700"
+                        >
+                          Редактировать
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleTipPublished(item.id, !published)}
+                          disabled={tipBusyId === item.id}
+                          className={`rounded-full px-4 py-1.5 text-xs font-semibold transition disabled:opacity-50 ${
+                            published
+                              ? "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
+                              : "bg-emerald-600 text-white hover:bg-emerald-500"
+                          }`}
+                        >
+                          {tipBusyId === item.id ? "..." : published ? "Снять с публикации" : "Опубликовать"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteTip(item.id)}
+                          disabled={tipBusyId === item.id}
                           className="rounded-full bg-red-50 px-4 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-100 disabled:opacity-50"
                         >
                           Удалить

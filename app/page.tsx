@@ -56,7 +56,25 @@ async function getArticles(): Promise<Article[]> {
   );
 }
 
+export type HomeTip = { id: string; body: string; emoji_icon: string | null };
+
+async function getTip(): Promise<HomeTip | null> {
+  // Явные колонки (без is_published в пейлоаде). RLS отдаёт только
+  // опубликованные. Стабильный порядок (published_at) → детерминированная
+  // ротация по дате: один и тот же совет весь день, разный по дням.
+  const tips = await sbFetch<HomeTip>(
+    "tips?select=id,body,emoji_icon&is_published=eq.true&order=published_at.asc,created_at.asc&limit=500",
+    300,
+  );
+  if (tips.length === 0) return null;
+  const now = new Date();
+  const dayOfYear = Math.floor(
+    (Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) - Date.UTC(now.getUTCFullYear(), 0, 0)) / 86400000,
+  );
+  return tips[dayOfYear % tips.length];
+}
+
 export default async function Home() {
-  const [news, feed, articles] = await Promise.all([getNews(), getFeed(), getArticles()]);
-  return <HomeContent news={news} feed={feed} articles={articles} />;
+  const [news, feed, articles, tip] = await Promise.all([getNews(), getFeed(), getArticles(), getTip()]);
+  return <HomeContent news={news} feed={feed} articles={articles} tip={tip} />;
 }

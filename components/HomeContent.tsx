@@ -6,6 +6,7 @@ import { Flame } from "lucide-react";
 import HeroLanding from "@/components/HeroLanding";
 import NewsBoard, { type NewsItem } from "@/components/NewsBoard";
 import HomeFeed, { type FeedPhoto } from "@/components/HomeFeed";
+import ArticlesBoard, { type Article } from "@/components/ArticlesBoard";
 import AppNavigation from "@/components/AppNavigation";
 import type { DailyRecipeType } from "@/lib/types";
 
@@ -18,9 +19,11 @@ import type { DailyRecipeType } from "@/lib/types";
 export default function HomeContent({
   news,
   feed,
+  articles,
 }: {
   news: NewsItem[];
   feed: FeedPhoto[];
+  articles: Article[];
 }) {
   const router = useRouter();
   const [daily, setDaily] = useState<DailyRecipeType | null>(null);
@@ -84,9 +87,14 @@ export default function HomeContent({
         </div>
       </button>
 
-      <NewsBoard items={news} />
+      {/* Блок «Кухонные заметки» занял место, где раньше были «Новости проекта».
+          Наш первый контент из поиска — потому выше витрины. */}
+      <ArticlesBoard initialItems={articles} />
 
       <HomeFeed initialItems={feed} />
+
+      {/* Новости проекта не потеряли: демонтированы вниз в компактном виде. */}
+      <NewsBoard items={news} variant="compact" />
     </div>
   );
 }

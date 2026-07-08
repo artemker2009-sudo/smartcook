@@ -10,6 +10,7 @@ import {
   Sparkles,
   Wrench,
 } from "lucide-react";
+import { renderMarkdown } from "@/lib/markdown";
 
 type AnalyticsEvent = {
   party_id?: string | null;
@@ -72,13 +73,26 @@ type NewsItem = {
   is_visible?: boolean | null;
 };
 
-type TabId = "management" | "analytics" | "purchases" | "news" | "feed" | "errors";
+type Article = {
+  id: string;
+  created_at?: string | null;
+  published_at?: string | null;
+  title: string;
+  slug: string;
+  excerpt: string;
+  body: string;
+  emoji_icon?: string | null;
+  is_published?: boolean | null;
+};
+
+type TabId = "management" | "analytics" | "purchases" | "news" | "articles" | "feed" | "errors";
 
 const TABS = [
   { id: "management" as TabId, label: "⚙️ Управление", hint: "Статус сайта и техработы" },
   { id: "analytics" as TabId, label: "📊 Аналитика", hint: "Живые метрики и события" },
   { id: "purchases" as TabId, label: "💳 История покупок", hint: "Только оплаченные банкеты" },
   { id: "news" as TabId, label: "📰 Новости", hint: "Новости проекта на главной" },
+  { id: "articles" as TabId, label: "📝 Заметки", hint: "Кухонные заметки на главной" },
   { id: "feed" as TabId, label: "🍽️ Лента", hint: "Модерация «Приготовили сегодня»" },
   { id: "errors" as TabId, label: "🐞 Ошибки", hint: "Баг-репорты пользователей" },
 ];
@@ -191,6 +205,19 @@ export default function AdminPage() {
   const [newsSaving, setNewsSaving] = useState(false);
   const [newsError, setNewsError] = useState("");
   const [newsBusyId, setNewsBusyId] = useState<string | null>(null);
+  const [articles, setArticles] = useState<Article[]>([]);
+  const [articleEditingId, setArticleEditingId] = useState<string | null>(null); // null = форма создания
+  const [articleTitle, setArticleTitle] = useState("");
+  const [articleSlug, setArticleSlug] = useState("");
+  const [articleExcerpt, setArticleExcerpt] = useState("");
+  const [articleEmoji, setArticleEmoji] = useState("");
+  const [articleBody, setArticleBody] = useState("");
+  const [articleSaving, setArticleSaving] = useState(false);
+  const [articleError, setArticleError] = useState("");
+  const [articleBusyId, setArticleBusyId] = useState<string | null>(null);
+  const [articlePreview, setArticlePreview] = useState(false);
+  const [articleTopic, setArticleTopic] = useState("");
+  const [articleGenerating, setArticleGenerating] = useState(false);
 
   const loadDashboard = async () => {
     setIsLoading(true);
@@ -220,6 +247,7 @@ export default function AdminPage() {
       setErrorReports((data.errorReports as ErrorReport[] | null) ?? []);
       setFeedPhotos((data.feedPhotos as FeedPhoto[] | null) ?? []);
       setNewsItems((data.news as NewsItem[] | null) ?? []);
+      setArticles((data.articles as Article[] | null) ?? []);
       setIsAuthenticated(true);
     } catch (error) {
       console.error("Ошибка загрузки админки", error);
@@ -445,6 +473,125 @@ export default function AdminPage() {
       console.error("Ошибка удаления новости", error);
     } finally {
       setNewsBusyId(null);
+    }
+  };
+
+  // --- Кухонные заметки (articles) ---
+  const resetArticleForm = () => {
+    setArticleEditingId(null);
+    setArticleTitle("");
+    setArticleSlug("");
+    setArticleExcerpt("");
+    setArticleEmoji("");
+    setArticleBody("");
+    setArticleError("");
+    setArticlePreview(false);
+  };
+
+  const startEditArticle = (item: Article) => {
+    setArticleEditingId(item.id);
+    setArticleTitle(item.title ?? "");
+    setArticleSlug(item.slug ?? "");
+    setArticleExcerpt(item.excerpt ?? "");
+    setArticleEmoji(item.emoji_icon ?? "");
+    setArticleBody(item.body ?? "");
+    setArticleError("");
+    setArticlePreview(false);
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleGenerateDraft = async () => {
+    if (!articleTopic.trim()) {
+      setArticleError("Укажите тему для черновика");
+      return;
+    }
+    setArticleGenerating(true);
+    setArticleError("");
+    try {
+      const response = await fetch("/api/admin/articles/draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic: articleTopic }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.error || "Не удалось сгенерировать черновик");
+      await loadDashboard();
+      setArticleTopic("");
+      // Черновик создан НЕопубликованным — сразу открываем на редактирование/вычитку.
+      if (data?.article) startEditArticle(data.article as Article);
+    } catch (error) {
+      setArticleError(error instanceof Error ? error.message : "Не удалось сгенерировать черновик");
+    } finally {
+      setArticleGenerating(false);
+    }
+  };
+
+  const handleSaveArticle = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!articleTitle.trim() || !articleExcerpt.trim() || !articleBody.trim()) {
+      setArticleError("Заголовок, краткое описание и текст обязательны");
+      return;
+    }
+    setArticleSaving(true);
+    setArticleError("");
+    try {
+      const response = await fetch("/api/admin/articles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          op: articleEditingId ? "update" : "create",
+          id: articleEditingId ?? undefined,
+          title: articleTitle,
+          slug: articleSlug,
+          excerpt: articleExcerpt,
+          emoji_icon: articleEmoji,
+          body: articleBody,
+        }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.error || "Не удалось сохранить заметку");
+      await loadDashboard();
+      resetArticleForm();
+    } catch (error) {
+      setArticleError(error instanceof Error ? error.message : "Не удалось сохранить заметку");
+    } finally {
+      setArticleSaving(false);
+    }
+  };
+
+  const handleArticlePublished = async (id: string, published: boolean) => {
+    setArticleBusyId(id);
+    try {
+      const response = await fetch("/api/admin/articles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ op: "setPublished", id, published }),
+      });
+      if (!response.ok) throw new Error("Не удалось обновить статус");
+      setArticles((current) => current.map((a) => (a.id === id ? { ...a, is_published: published } : a)));
+    } catch (error) {
+      console.error("Ошибка публикации заметки", error);
+    } finally {
+      setArticleBusyId(null);
+    }
+  };
+
+  const handleDeleteArticle = async (id: string) => {
+    if (!confirm("Удалить заметку безвозвратно?")) return;
+    setArticleBusyId(id);
+    try {
+      const response = await fetch("/api/admin/articles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ op: "delete", id }),
+      });
+      if (!response.ok) throw new Error("Не удалось удалить");
+      setArticles((current) => current.filter((a) => a.id !== id));
+      if (articleEditingId === id) resetArticleForm();
+    } catch (error) {
+      console.error("Ошибка удаления заметки", error);
+    } finally {
+      setArticleBusyId(null);
     }
   };
 
@@ -1031,6 +1178,205 @@ export default function AdminPage() {
                           type="button"
                           onClick={() => handleDeleteNews(item.id)}
                           disabled={newsBusyId === item.id}
+                          className="rounded-full bg-red-50 px-4 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-100 disabled:opacity-50"
+                        >
+                          Удалить
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })
+              )}
+            </section>
+          ) : null}
+
+          {activeTab === "articles" ? (
+            <section className="space-y-4">
+              <div className="rounded-[2rem] border border-zinc-200 bg-white px-6 py-5 shadow-sm">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-400">Контент</p>
+                <h3 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-950">Кухонные заметки</h3>
+                <p className="mt-2 text-sm text-zinc-500">
+                  Статьи на Главной. Подпись у всех — «Команда SmartCook». Публикуются
+                  вручную после вычитки: новые (и черновики от ИИ) создаются скрытыми.
+                </p>
+              </div>
+
+              {/* Генерация черновика */}
+              <div className="space-y-3 rounded-2xl border border-violet-200 bg-violet-50 p-6 shadow-sm">
+                <p className="text-sm font-semibold text-violet-900">Сгенерировать черновик (ИИ)</p>
+                <p className="text-xs text-violet-700">
+                  Опишите тему — ИИ напишет черновик (живой заголовок, 3–5 разделов, 300–600 слов).
+                  Черновик сохранится <b>неопубликованным</b>: вычитайте и опубликуйте вручную.
+                </p>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <input
+                    value={articleTopic}
+                    onChange={(e) => setArticleTopic(e.target.value)}
+                    placeholder="Тема, напр.: как не пересолить суп"
+                    maxLength={200}
+                    disabled={articleGenerating}
+                    className="flex-1 rounded-xl border border-violet-300 bg-white px-4 py-2.5 text-sm outline-none focus:border-violet-500 disabled:opacity-60"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleGenerateDraft}
+                    disabled={articleGenerating}
+                    className="rounded-full bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:opacity-50"
+                  >
+                    {articleGenerating ? "Пишем черновик..." : "Сгенерировать черновик"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Форма создания / редактирования */}
+              <form onSubmit={handleSaveArticle} className="space-y-3 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-zinc-900">
+                    {articleEditingId ? "Редактирование заметки" : "Новая заметка"}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setArticlePreview((v) => !v)}
+                    className="rounded-full bg-zinc-100 px-4 py-1.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-200"
+                  >
+                    {articlePreview ? "← Редактировать" : "Предпросмотр"}
+                  </button>
+                </div>
+
+                {articlePreview ? (
+                  <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-5">
+                    <div className="mb-2 flex items-center gap-2">
+                      <span className="text-2xl">{articleEmoji || "📝"}</span>
+                      <span className="text-xs font-medium text-zinc-500">Команда SmartCook</span>
+                    </div>
+                    <h2 className="text-xl font-bold text-zinc-900">{articleTitle || "Заголовок"}</h2>
+                    <p className="mt-1 text-sm text-zinc-500">{articleExcerpt}</p>
+                    <div
+                      className="article-prose mt-4 text-sm text-zinc-800"
+                      dangerouslySetInnerHTML={{ __html: renderMarkdown(articleBody) }}
+                    />
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex gap-2">
+                      <input
+                        value={articleEmoji}
+                        onChange={(e) => setArticleEmoji(e.target.value)}
+                        placeholder="🍲"
+                        maxLength={16}
+                        className="w-20 rounded-xl border border-zinc-300 px-4 py-2.5 text-center text-lg outline-none focus:border-emerald-500"
+                      />
+                      <input
+                        value={articleTitle}
+                        onChange={(e) => setArticleTitle(e.target.value)}
+                        placeholder="Заголовок"
+                        maxLength={200}
+                        className="flex-1 rounded-xl border border-zinc-300 px-4 py-2.5 text-sm outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                    <input
+                      value={articleSlug}
+                      onChange={(e) => setArticleSlug(e.target.value)}
+                      placeholder="URL-адрес (slug) — оставьте пустым, сгенерируем из заголовка"
+                      maxLength={200}
+                      className="w-full rounded-xl border border-zinc-300 px-4 py-2.5 text-sm outline-none focus:border-emerald-500"
+                    />
+                    <textarea
+                      value={articleExcerpt}
+                      onChange={(e) => setArticleExcerpt(e.target.value)}
+                      placeholder="Краткое описание (1–2 предложения — для карточки и ссылок)"
+                      maxLength={400}
+                      rows={2}
+                      className="w-full rounded-xl border border-zinc-300 px-4 py-2.5 text-sm outline-none focus:border-emerald-500"
+                    />
+                    <textarea
+                      value={articleBody}
+                      onChange={(e) => setArticleBody(e.target.value)}
+                      placeholder="Текст статьи (markdown: ## Подзаголовок, **жирный**, - списки)"
+                      maxLength={20000}
+                      rows={14}
+                      className="w-full rounded-xl border border-zinc-300 px-4 py-2.5 font-mono text-sm outline-none focus:border-emerald-500"
+                    />
+                  </>
+                )}
+
+                {articleError ? <p className="text-sm text-red-600">{articleError}</p> : null}
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    disabled={articleSaving}
+                    className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
+                  >
+                    {articleSaving ? "Сохраняем..." : articleEditingId ? "Сохранить" : "Создать черновик"}
+                  </button>
+                  {articleEditingId ? (
+                    <button
+                      type="button"
+                      onClick={resetArticleForm}
+                      className="rounded-full bg-zinc-100 px-5 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-200"
+                    >
+                      Отмена
+                    </button>
+                  ) : null}
+                </div>
+              </form>
+
+              {/* Список заметок */}
+              {articles.length === 0 ? (
+                <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-12 text-center text-sm text-zinc-500 shadow-sm">
+                  Заметок пока нет.
+                </div>
+              ) : (
+                articles.map((item) => {
+                  const published = item.is_published === true;
+                  return (
+                    <article
+                      key={item.id}
+                      className={`rounded-2xl border bg-white p-5 shadow-sm ${published ? "border-zinc-200" : "border-amber-200"}`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-xs text-zinc-400">/articles/{item.slug}</p>
+                          <p className="font-semibold text-zinc-900">
+                            <span className="mr-1">{item.emoji_icon || "📝"}</span>
+                            {item.title}
+                          </p>
+                          <p className="mt-1 text-sm text-zinc-500">{item.excerpt}</p>
+                        </div>
+                        <span
+                          className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ${
+                            published
+                              ? "bg-green-100 text-green-700 ring-green-200"
+                              : "bg-amber-100 text-amber-700 ring-amber-200"
+                          }`}
+                        >
+                          {published ? "Опубликовано" : "Черновик"}
+                        </span>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => startEditArticle(item)}
+                          className="rounded-full bg-zinc-900 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-zinc-700"
+                        >
+                          Редактировать
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleArticlePublished(item.id, !published)}
+                          disabled={articleBusyId === item.id}
+                          className={`rounded-full px-4 py-1.5 text-xs font-semibold transition disabled:opacity-50 ${
+                            published
+                              ? "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
+                              : "bg-emerald-600 text-white hover:bg-emerald-500"
+                          }`}
+                        >
+                          {articleBusyId === item.id ? "..." : published ? "Снять с публикации" : "Опубликовать"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteArticle(item.id)}
+                          disabled={articleBusyId === item.id}
                           className="rounded-full bg-red-50 px-4 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-100 disabled:opacity-50"
                         >
                           Удалить

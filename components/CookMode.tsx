@@ -65,11 +65,13 @@ export default function CookMode({
   const [showIngredients, setShowIngredients] = useState(false);
   const [confirmExit, setConfirmExit] = useState(false);
 
-  // --- Голос (AC) ---
+  // --- Голос (AC + AD) ---
   const [voiceMode, setVoiceMode] = useState(false); // пользователь выбрал старт с голосом
   const [listening, setListening] = useState(false); // микрофон сейчас слушает
   const [speaking, setSpeaking] = useState(false); // сейчас звучит озвучка
-  const [voicePaused, setVoicePaused] = useState(false); // сказали «стоп»
+  // AD: «стоп» ставит на паузу ТОЛЬКО озвучку, микрофон продолжает слушать —
+  // чтобы можно было сказать «продолжить» голосом. speechPaused = озвучка на паузе.
+  const [speechPaused, setSpeechPaused] = useState(false);
   const [voiceUnavailable, setVoiceUnavailable] = useState(false); // отказ/ошибка микрофона
 
   // Поддержка распознавания — вычисляем один раз на клиенте (компонент не
@@ -141,7 +143,12 @@ export default function CookMode({
     setStepIndex((i) => Math.max(0, i - 1));
   }, []);
 
+  // Текущий шаг в ref — стабильные колбэки (resume) читают актуальный индекс.
+  const stepIndexRef = useRef(0);
+  stepIndexRef.current = stepIndex;
+
   const repeat = useCallback(() => {
+    setSpeechPaused(false);
     if (cleanSteps[stepIndex]) speak(cleanSteps[stepIndex]);
   }, [cleanSteps, stepIndex, speak]);
 
@@ -152,19 +159,45 @@ export default function CookMode({
     }
   }, []);
 
-  // «Стоп» (команда): пауза озвучки и микрофона; появляется «Продолжить голосом».
-  const pauseVoice = useCallback(() => {
-    stopSpeaking();
-    setVoicePaused(true);
-  }, [stopSpeaking]);
+  // «Стоп» (AD): пауза ТОЛЬКО озвучки; микрофон продолжает слушать, чтобы поймать
+  // «продолжить». speechSynthesis.pause() — приостановка на месте.
+  const stopVoice = useCallback(() => {
+    try {
+      window.speechSynthesis?.pause();
+    } catch {
+      /* ignore */
+    }
+    setSpeaking(false);
+    setSpeechPaused(true);
+  }, []);
 
-  // Желаем ли слушать прямо сейчас (для решения об автоперезапуске в onend).
+  // «Продолжить» (AD): возобновляем озвучку с места паузы. Фолбэк — если
+  // возобновлять было нечего или платформа не возобновила (бывает на iOS) —
+  // перечитываем текущий шаг заново.
+  const resumeSpeech = useCallback(() => {
+    setSpeechPaused(false);
+    try {
+      window.speechSynthesis?.resume();
+    } catch {
+      /* ignore */
+    }
+    window.setTimeout(() => {
+      if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+      if (!window.speechSynthesis.speaking) {
+        const t = cleanSteps[stepIndexRef.current];
+        if (t) speak(t);
+      }
+    }, 250);
+  }, [cleanSteps, speak]);
+
+  // Желаем ли слушать прямо сейчас (микрофон включён на шаге в голосовом режиме).
+  // AD: пауза озвучки НЕ выключает микрофон — иначе «продолжить» не расслышать.
   const voiceDesiredRef = useRef(false);
-  voiceDesiredRef.current = voiceMode && !voicePaused && view === "step";
+  voiceDesiredRef.current = voiceMode && view === "step";
 
   // Актуальные команды в ref — чтобы старт/onend не зависели от свежих замыканий.
-  const commandsRef = useRef({ goNext, goPrev, repeat, markVoiceUsed, pauseVoice });
-  commandsRef.current = { goNext, goPrev, repeat, markVoiceUsed, pauseVoice };
+  const commandsRef = useRef({ goNext, goPrev, repeat, markVoiceUsed, stopVoice, resumeSpeech });
+  commandsRef.current = { goNext, goPrev, repeat, markVoiceUsed, stopVoice, resumeSpeech };
 
   const stopRecognition = useCallback(() => {
     const rec = recognitionRef.current;
@@ -207,11 +240,28 @@ export default function CookMode({
 
     rec.onstart = () => setListening(true);
     rec.onresult = (event: any) => {
-      // Пока звучит озвучка — микрофон слышит ЕЁ; не трактуем как команду (эхо).
-      if (window.speechSynthesis?.speaking) return;
       const last = event.results[event.results.length - 1];
       const phrase = (last?.[0]?.transcript || "").toLowerCase();
       const cmd = commandsRef.current;
+      const ss = window.speechSynthesis;
+      // «Активно говорит» = звучит и НЕ на паузе.
+      const activelySpeaking = !!ss && ss.speaking && !ss.paused;
+
+      // «Стоп» и «продолжить» принимаем ВСЕГДА — в т.ч. пока тётя говорит («стоп»
+      // на середине шага) и пока на паузе («продолжить»). Это и есть сценарий AD.
+      if (/стоп|хватит|замолч|пауза|тихо/.test(phrase)) {
+        cmd.markVoiceUsed();
+        cmd.stopVoice();
+        return;
+      }
+      if (/продолж|дальше говори|говори дальше/.test(phrase)) {
+        cmd.markVoiceUsed();
+        cmd.resumeSpeech();
+        return;
+      }
+      // Навигацию принимаем ТОЛЬКО когда озвучка не звучит активно — иначе
+      // микрофон слышит саму озвучку и это даёт эхо-петлю (защита из AA).
+      if (activelySpeaking) return;
       if (/дальш|вперёд|вперед|следующ/.test(phrase)) {
         cmd.markVoiceUsed();
         cmd.goNext();
@@ -221,9 +271,6 @@ export default function CookMode({
       } else if (/повтор|ещё раз|еще раз|прочитай/.test(phrase)) {
         cmd.markVoiceUsed();
         cmd.repeat();
-      } else if (/стоп|хватит|замолч|тихо/.test(phrase)) {
-        cmd.markVoiceUsed();
-        cmd.pauseVoice();
       }
     };
     rec.onerror = (e: any) => {
@@ -239,11 +286,14 @@ export default function CookMode({
     };
     // Аккуратный перезапуск после onend: iOS сам останавливает распознавание
     // после паузы. Перезапускаем с небольшой задержкой (без тайт-лупа) и НЕ во
-    // время озвучки — если ещё говорим, откладываем ещё раз (само-планирование).
+    // время АКТИВНОЙ озвучки. Важно (AD): пока озвучка на ПАУЗЕ (сказали «стоп»),
+    // микрофон обязан слушать дальше — иначе «продолжить» не расслышать, поэтому
+    // откладываем только при реально звучащей озвучке, а не при paused.
     const scheduleRestart = () => {
       window.setTimeout(() => {
         if (recognitionRef.current !== rec || !voiceDesiredRef.current) return;
-        if (window.speechSynthesis?.speaking) {
+        const ss = window.speechSynthesis;
+        if (ss && ss.speaking && !ss.paused) {
           scheduleRestart();
           return;
         }
@@ -257,7 +307,7 @@ export default function CookMode({
     rec.onend = () => {
       setListening(false);
       if (recognitionRef.current !== rec) return; // нас остановили/заменили
-      if (!voiceDesiredRef.current) return; // «стоп»/ушли с шага — не перезапускаем
+      if (!voiceDesiredRef.current) return; // ушли с шага/выключили голос — не перезапускаем
       scheduleRestart();
     };
 
@@ -272,11 +322,13 @@ export default function CookMode({
   }, []);
 
   // Автоозвучка ровно ОДИН раз при входе на шаг (ключ view+index в ref).
+  // Новый шаг всегда начинается «не на паузе» (сбрасываем speechPaused).
   useEffect(() => {
     if (view !== "step") return;
     const key = `step:${stepIndex}`;
     if (spokenKeyRef.current === key) return;
     spokenKeyRef.current = key;
+    setSpeechPaused(false);
     if (cleanSteps[stepIndex]) speak(cleanSteps[stepIndex]);
   }, [view, stepIndex, cleanSteps, speak]);
 
@@ -297,12 +349,13 @@ export default function CookMode({
     reachGoal("cook_mode_start");
   }, []);
 
-  // Останавливаем микрофон, когда голос больше не нужен (пауза/ушли с шага/финал).
-  // СТАРТ здесь не делаем — только из жеста (иначе на iOS промпт «прилетит» сам).
+  // Останавливаем микрофон, когда голос больше не нужен (ушли с шага/финал/выкл).
+  // AD: пауза озвучки микрофон НЕ выключает. СТАРТ здесь не делаем — только из
+  // жеста (иначе на iOS системный промпт «прилетит» сам).
   useEffect(() => {
-    const desired = voiceMode && !voicePaused && view === "step";
+    const desired = voiceMode && view === "step";
     if (!desired && recognitionRef.current) stopRecognition();
-  }, [voiceMode, voicePaused, view, stopRecognition]);
+  }, [voiceMode, view, stopRecognition]);
 
   // --- Wake Lock (экран не гаснет) + повторный захват при возврате вкладки ---
   useEffect(() => {
@@ -362,10 +415,10 @@ export default function CookMode({
   const beginCooking = (withVoice: boolean) => {
     primeCookVoice();
     spokenKeyRef.current = `step:${stepIndex}`;
+    setSpeechPaused(false);
     if (withVoice) {
       savePref("voice");
       setVoiceMode(true);
-      setVoicePaused(false);
       setVoiceUnavailable(false);
       reachGoal("cook_mode_voice_enabled");
       startRecognition(); // запрос микрофона ИМЕННО ЗДЕСЬ (явный жест)
@@ -377,11 +430,12 @@ export default function CookMode({
     if (cleanSteps[stepIndex]) speak(cleanSteps[stepIndex]);
   };
 
-  // «Продолжить голосом» после «стоп» — тоже жест, снова стартуем микрофон здесь.
-  const resumeVoice = () => {
-    setVoicePaused(false);
-    startRecognition();
-    if (cleanSteps[stepIndex]) speak(cleanSteps[stepIndex]);
+  // Кнопка «Продолжить» (дубль голосовой команды для тех, кто не пользуется
+  // голосом): возобновляет озвучку. Микрофон и так не выключался.
+  const resumeSpeechBtn = () => {
+    resumeSpeech();
+    // если распознавание вдруг остановилось, а голос включён — поднимем его снова
+    if (voiceMode && !recognitionRef.current && !voiceUnavailable) startRecognition();
   };
 
   const requestExit = () => {
@@ -430,7 +484,7 @@ export default function CookMode({
             {srSupported ? (
               <>
                 {" "}Можно управлять голосом — просто скажите:{" "}
-                <b>«дальше», «назад», «повтори», «стоп»</b>.
+                <b>«дальше», «назад», «повтори», «стоп», «продолжить»</b>.
               </>
             ) : null}
           </p>
@@ -478,16 +532,16 @@ export default function CookMode({
             </button>
           </div>
 
-          {/* Голосовой слот — не более одного элемента: индикатор «Слушаю»,
-              кнопка «Продолжить голосом» (после «стоп») или спокойная строка о
-              недоступности. */}
+          {/* Голосовой слот — не более одного элемента: кнопка «Продолжить»
+              (на паузе после «стоп»), индикатор «Слушаю» или спокойная строка о
+              недоступности. AD: на паузе микрофон продолжает слушать «продолжить». */}
           {voiceUnavailable ? (
             <div className="cook-voice-note">Голос недоступен — управляйте кнопками</div>
-          ) : voiceMode && voicePaused ? (
-            <button type="button" className="cook-voice-resume" onClick={resumeVoice}>
-              <Mic size={18} /> Продолжить голосом
+          ) : voiceMode && speechPaused ? (
+            <button type="button" className="cook-voice-resume" onClick={resumeSpeechBtn}>
+              <Mic size={18} /> Продолжить
             </button>
-          ) : voiceMode && listening && !speaking ? (
+          ) : voiceMode && listening ? (
             <div className="cook-listening" aria-live="polite">
               <Mic size={16} /> Слушаю
             </div>

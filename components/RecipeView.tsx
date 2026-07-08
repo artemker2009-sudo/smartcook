@@ -126,7 +126,7 @@ export default function RecipeView({
       style={{
         position: "relative",
         overflow: "visible",
-        marginTop: isSharedView || fromFeed || isHistoryView ? "60px" : "20px",
+        marginTop: "var(--space-2)",
       }}
     >
       {isSharedView && (

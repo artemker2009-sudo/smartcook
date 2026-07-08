@@ -63,7 +63,10 @@ body {
 .container {
   max-width: 500px;
   margin: 0 auto;
-  padding: var(--space-3);
+  /* Верхний отступ клирит плавающую кнопку-бургер (fixed, ~8px+44px) и уводит
+     контент из-под статус-бара в PWA-standalone (safe-area-inset-top). Раньше
+     бургер налипал на первую карточку («Рецепт дня»). Задача U. */
+  padding: calc(env(safe-area-inset-top) + 60px) var(--space-3) var(--space-3);
   min-height: 100vh;
   position: relative;
 }

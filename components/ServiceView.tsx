@@ -6,6 +6,7 @@ import {
   ArrowRight,
   Camera,
   Image as ImageIcon,
+  ImageOff,
   Search,
   RotateCcw,
   Settings,
@@ -53,6 +54,7 @@ interface ServiceViewProps {
   handleTextSearch: () => void;
   loadingRecipe: boolean;
   analysisResult: any;
+  onNoFoodSwitchToText: () => void;
   getRecipeFromPhoto: (dishName: string) => void;
   selectedDish: string | null;
   handleRegenerate: () => void;
@@ -127,6 +129,7 @@ export default function ServiceView({
   handleTextSearch,
   loadingRecipe,
   analysisResult,
+  onNoFoodSwitchToText,
   getRecipeFromPhoto,
   selectedDish,
   handleRegenerate,
@@ -649,7 +652,23 @@ export default function ServiceView({
         </>
       )}
 
-      {analysisResult && !isSharedView && !isHistoryView && (
+      {analysisResult && !isSharedView && !isHistoryView && analysisResult.no_food && (
+        <div className="card no-food-card">
+          <div className="no-food-icon">
+            <ImageOff size={26} />
+          </div>
+          <div className="no-food-title">Не нашли продуктов на фото</div>
+          <div className="no-food-text">
+            Попробуйте снять продукты крупнее и при хорошем свете — или перечислите
+            их текстом.
+          </div>
+          <button type="button" className="btn-primary no-food-btn" onClick={onNoFoodSwitchToText}>
+            <Search size={18} /> Ввести текстом
+          </button>
+        </div>
+      )}
+
+      {analysisResult && !isSharedView && !isHistoryView && !analysisResult.no_food && (
         <div className="card">
           <h3 style={{ textAlign: "center", marginBottom: "var(--space-4)", fontSize: "var(--font-size-heading)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text)" }}>
             Я вижу продукты:

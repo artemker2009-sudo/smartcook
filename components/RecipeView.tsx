@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import DonateButton from "@/components/DonateButton";
 import Button from "@/components/ui/Button";
-import CookMode, { primeCookVoice } from "@/components/CookMode";
+import CookMode from "@/components/CookMode";
 import { splitIngredientList } from "@/lib/recipeValidation";
 
 interface RecipeViewProps {
@@ -545,14 +545,7 @@ export default function RecipeView({
 
       {/* Крупная первичная кнопка запуска режима готовки с озвучкой (задача Z). */}
       {hasSteps && (
-        <button
-          type="button"
-          className="cook-start-btn"
-          onClick={() => {
-            primeCookVoice(); // разблокировать озвучку жестом (iOS)
-            setCooking(true);
-          }}
-        >
+        <button type="button" className="cook-start-btn" onClick={() => setCooking(true)}>
           <Volume2 size={24} /> Готовим!
         </button>
       )}

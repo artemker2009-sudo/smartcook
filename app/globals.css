@@ -1437,6 +1437,48 @@ a.news-card:hover { transform: translateY(-2px); }
 .cook-chip:active { background: #f4f4f5; }
 .cook-chip-exit { border-color: #fca5a5; color: #b91c1c; }
 
+/* Голосовой слот под шапкой (AC): максимум один элемент — индикатор «Слушаю»,
+   кнопка «Продолжить голосом» или спокойная строка о недоступности. */
+.cook-voice-slot-empty { height: 4px; }
+.cook-listening {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px auto 0;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  background: var(--color-accent-subtle);
+  color: var(--color-accent-hover);
+  font-size: 15px;
+  font-weight: 700;
+}
+.cook-voice-note {
+  align-self: center;
+  margin: 2px auto 0;
+  font-size: 15px;
+  color: #71717a;
+  font-weight: 600;
+  text-align: center;
+}
+.cook-voice-resume {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px auto 0;
+  padding: 10px 20px;
+  border-radius: var(--radius-full);
+  border: 2px solid var(--color-accent);
+  background: var(--color-accent-subtle);
+  color: var(--color-accent-hover);
+  font-size: 17px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.cook-voice-resume:active { background: color-mix(in srgb, var(--color-accent-subtle) 70%, var(--color-accent)); }
+
 /* Текст шага — крупный, высокий контраст, щедрый интерлиньяж, по центру */
 .cook-step-body {
   flex: 1;

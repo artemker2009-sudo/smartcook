@@ -16,7 +16,7 @@ import {
 import { formatTime, formatCalories, scaleAmount, cleanText } from "@/lib/utils";
 import { shareOrCopy } from "@/lib/share";
 import type { RecipeData } from "@/lib/types";
-import CookMode from "@/components/CookMode";
+import CookMode, { primeCookVoice } from "@/components/CookMode";
 
 /**
  * Лёгкий read-only просмотр расшаренного рецепта. Рендерится на выделенном
@@ -143,7 +143,14 @@ export default function SharedRecipe({ recipe }: { recipe: RecipeData }) {
 
         {/* Крупная первичная кнопка запуска режима готовки с озвучкой (задача Z). */}
         {hasSteps && (
-          <button type="button" className="cook-start-btn" onClick={() => setCooking(true)}>
+          <button
+            type="button"
+            className="cook-start-btn"
+            onClick={() => {
+              primeCookVoice(); // разблокировать озвучку жестом (iOS)
+              setCooking(true);
+            }}
+          >
             <Volume2 size={24} /> Готовим!
           </button>
         )}

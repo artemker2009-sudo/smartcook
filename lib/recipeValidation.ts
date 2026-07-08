@@ -35,6 +35,52 @@ function sanitizeStringList(value: unknown, maxItems: number, maxItemLength: num
     .filter((item) => item.length > 0);
 }
 
+// Приводит список продуктов к массиву ОТДЕЛЬНЫХ позиций. Баг AB: генерация
+// иногда возвращала весь список покупок одной строкой ("свекла, картофель, …")
+// или массивом из одного такого блоба — и «Нужно купить» рисовался одним
+// гигантским чипом. Здесь раскладываем: строку/элементы бьём по запятой,
+// точке-с-запятой, переносу строки и маркеру списка. Чистая функция без DOM —
+// используется и на сервере (санитизация перед записью), и на клиенте (фолбэк
+// для старых записей). Экспортируется для рендера чипов.
+export function splitIngredientList(value: unknown): string[] {
+  const entries: string[] = Array.isArray(value)
+    ? value.filter((v): v is string => typeof v === "string")
+    : typeof value === "string"
+      ? [value]
+      : [];
+  const out: string[] = [];
+  const push = (s: string) => {
+    const t = s.trim();
+    if (t) out.push(t);
+  };
+  for (const entry of entries) {
+    // Делим по запятой/;/переносу/маркеру ТОЛЬКО на верхнем уровне скобок:
+    // запятая внутри «(1 шт., 80 г)» — часть названия, её не трогаем, иначе
+    // порезали бы корректные позиции детального списка на битые чипы.
+    let buf = "";
+    let depth = 0;
+    for (const ch of entry) {
+      if (ch === "(" || ch === "[") depth++;
+      else if (ch === ")" || ch === "]") depth = Math.max(0, depth - 1);
+      if ((ch === "," || ch === ";" || ch === "\n" || ch === "•") && depth === 0) {
+        push(buf);
+        buf = "";
+      } else {
+        buf += ch;
+      }
+    }
+    push(buf);
+  }
+  return out;
+}
+
+function sanitizeIngredientList(value: unknown, maxItems: number, maxItemLength: number): string[] {
+  return splitIngredientList(value)
+    .slice(0, maxItems)
+    .map((item) => sanitizeText(item, maxItemLength))
+    .filter((item) => item.length > 0);
+}
+
 function sanitizeDetailedIngredients(value: unknown): { name: string; amount: string }[] {
   if (!Array.isArray(value)) return [];
   return value
@@ -71,7 +117,9 @@ export function sanitizeRecipeForStorage(recipe: any): SanitizedRecipeFields | n
     time: sanitizeText(recipe?.time, MAX_SHORT_FIELD_LENGTH),
     calories: sanitizeText(recipe?.calories, MAX_SHORT_FIELD_LENGTH),
     steps: sanitizeStringList(recipe?.steps, MAX_LIST_ITEMS, MAX_LIST_ITEM_LENGTH),
-    missing_ingredients: sanitizeStringList(recipe?.missing_ingredients, MAX_LIST_ITEMS, MAX_LIST_ITEM_LENGTH),
+    // missing_ingredients — через сплит-нормализацию (AB): если модель склеила
+    // список в одну строку, раскладываем на отдельные позиции перед записью.
+    missing_ingredients: sanitizeIngredientList(recipe?.missing_ingredients, MAX_LIST_ITEMS, MAX_LIST_ITEM_LENGTH),
     detailed_ingredients,
     ingredients: detailed_ingredients.map((i) => `${i.name} - ${i.amount}`),
   };

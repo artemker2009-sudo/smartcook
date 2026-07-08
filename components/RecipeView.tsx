@@ -21,9 +21,11 @@ import {
   Wallet,
   ChefHat,
   UtensilsCrossed,
+  Volume2,
 } from "lucide-react";
 import DonateButton from "@/components/DonateButton";
 import Button from "@/components/ui/Button";
+import CookMode from "@/components/CookMode";
 
 interface RecipeViewProps {
   recipe: any;
@@ -106,6 +108,14 @@ export default function RecipeView({
   // Значение уходит в submitFeedPost вторым аргументом — без прокидывания state
   // через ServiceView.
   const [showInFeed, setShowInFeed] = React.useState(false);
+  const [cooking, setCooking] = React.useState(false);
+  // Ингредиенты для панели «Состав» в режиме готовки — с учётом текущих порций.
+  const cookIngredients = (recipe.detailed_ingredients || []).map((ing: any) => ({
+    name: ing.name,
+    amount: scaleAmount(ing.amount, actualServings),
+  }));
+  const hasSteps =
+    Array.isArray(recipe.steps) && recipe.steps.filter((s: string) => (s || "").trim()).length > 0;
   const itemsToBuy = (() => {
     const baseItems =
       fromFeed && recipe.detailed_ingredients
@@ -530,6 +540,13 @@ export default function RecipeView({
         </div>
       )}
 
+      {/* Крупная первичная кнопка запуска режима готовки с озвучкой (задача Z). */}
+      {hasSteps && (
+        <button type="button" className="cook-start-btn" onClick={() => setCooking(true)}>
+          <Volume2 size={24} /> Готовим!
+        </button>
+      )}
+
       <h3
         style={{
           fontSize: "var(--font-size-heading)",
@@ -684,6 +701,7 @@ export default function RecipeView({
       </div>
 
       <div
+        id="cooked-photo-zone"
         style={{
           marginTop: "var(--space-5)",
           background: "var(--color-bg)",
@@ -841,6 +859,22 @@ export default function RecipeView({
           </div>
         )}
       </div>
+
+      {cooking && (
+        <CookMode
+          title={recipe.title}
+          steps={recipe.steps || []}
+          ingredients={cookIngredients}
+          onClose={() => setCooking(false)}
+          // Финал: закрываем режим и подводим к готовому флоу «Приготовили? Покажите».
+          onCookedPhoto={() => {
+            setCooking(false);
+            setTimeout(() => {
+              document.getElementById("cooked-photo-zone")?.scrollIntoView({ behavior: "smooth", block: "center" });
+            }, 100);
+          }}
+        />
+      )}
     </div>
   );
 }

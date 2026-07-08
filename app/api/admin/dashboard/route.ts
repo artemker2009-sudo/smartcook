@@ -53,6 +53,13 @@ export async function GET(req: Request) {
     .order("created_at", { ascending: false })
     .limit(200);
 
+  // Советы (все, включая черновики — админ видит) — мягко: если таблицы ещё нет.
+  const tipsResult = await supabase
+    .from("tips")
+    .select("id, created_at, published_at, body, emoji_icon, is_published")
+    .order("created_at", { ascending: false })
+    .limit(500);
+
   return NextResponse.json({
     isMaintenance: Boolean(maintenanceResult.data?.is_maintenance),
     parties: partiesResult.data ?? [],
@@ -61,5 +68,6 @@ export async function GET(req: Request) {
     feedPhotos: feedResult.error ? [] : (feedResult.data ?? []),
     news: newsResult.error ? [] : (newsResult.data ?? []),
     articles: articlesResult.error ? [] : (articlesResult.data ?? []),
+    tips: tipsResult.error ? [] : (tipsResult.data ?? []),
   });
 }

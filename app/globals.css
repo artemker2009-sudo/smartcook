@@ -1142,6 +1142,40 @@ a.news-card:hover { transform: translateY(-2px); }
 }
 .feed-like-active { color: #ef4444; }
 
+/* --- Совет дня (Z-2): пассивная плитка, без кнопок --- */
+.tip-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  margin-bottom: var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: #fffbeb; /* тёплый пастельный тон под лампочку */
+}
+.tip-icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fef3c7;
+  color: #b45309;
+}
+.tip-emoji { font-size: 22px; line-height: 1; }
+.tip-body { min-width: 0; }
+.tip-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #b45309;
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: 2px;
+}
+.tip-text { margin: 0; font-size: var(--font-size-body); color: var(--color-text); line-height: 1.45; }
+
 /* --- Кухонные заметки (articles) --- */
 .articles-board { margin-bottom: var(--space-5); }
 .articles-head {
@@ -1172,36 +1206,31 @@ a.news-card:hover { transform: translateY(-2px); }
   transition: transform 0.2s, box-shadow 0.2s;
 }
 .article-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-card); }
-.article-card-link {
-  display: flex;
-  gap: var(--space-3);
-  align-items: flex-start;
-  padding: var(--space-3) var(--space-3) var(--space-2);
+
+/* Обложка в стиле Notion (Z-3): пастельный тон + крупная эмодзи и заголовок */
+.article-cover {
+  display: block;
+  padding: var(--space-4);
   text-decoration: none;
-  color: inherit;
+  min-height: 116px;
 }
-.article-tile {
-  flex-shrink: 0;
-  width: 56px;
-  height: 56px;
-  border-radius: var(--radius-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.article-cover-emoji {
+  display: block;
+  font-size: 40px;
+  line-height: 1;
+  margin-bottom: var(--space-2);
 }
-.article-emoji { font-size: 28px; line-height: 1; }
-.article-tile-green { background: var(--color-accent-subtle); }
-.article-tile-blue { background: #dbeafe; }
-.article-tile-amber { background: #fef3c7; }
-.article-card-body { min-width: 0; }
-.article-card-title {
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text);
-  line-height: 1.3;
-  margin-bottom: 2px;
+.article-cover-title {
+  display: block;
+  font-size: var(--font-size-heading);
+  font-weight: var(--font-weight-bold, 700);
+  line-height: 1.2;
+  word-break: break-word;
 }
+.article-card-under { padding: var(--space-3); }
+.article-card-excerpt-link { text-decoration: none; color: inherit; display: block; }
 .article-card-excerpt {
-  margin: 0;
+  margin: 0 0 var(--space-2);
   font-size: var(--font-size-caption);
   color: var(--color-text-secondary);
   line-height: 1.4;
@@ -1215,7 +1244,32 @@ a.news-card:hover { transform: translateY(-2px); }
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  padding: 0 var(--space-3) var(--space-3);
+}
+
+/* Обложка-шапка на странице статьи (Z-3) */
+.article-hero {
+  border-radius: var(--radius-md);
+  padding: var(--space-5) var(--space-4);
+  margin: var(--space-3) 0 var(--space-3);
+}
+.article-hero-emoji { display: block; font-size: 56px; line-height: 1; margin-bottom: var(--space-3); }
+.article-hero-title {
+  margin: 0;
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-bold, 700);
+  line-height: 1.2;
+  word-break: break-word;
+}
+.article-byline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+.article-byline-team {
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-medium);
 }
 .article-read {
   display: inline-flex;
@@ -1302,3 +1356,213 @@ a.news-card:hover { transform: translateY(-2px); }
   width: auto;
   padding: var(--space-2) var(--space-5);
 }
+
+/* Кнопка запуска режима готовки на странице рецепта — крупная, первичная. */
+.cook-start-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 60px;
+  margin: var(--space-2) 0 var(--space-4);
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-accent);
+  color: #ffffff;
+  font-size: 20px;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(5, 150, 105, 0.25);
+  transition: transform 0.15s, background 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.cook-start-btn:hover { background: var(--color-accent-hover); }
+.cook-start-btn:active { transform: scale(0.99); }
+
+/* ============================================================================
+   Режим «Готовим вместе» (задача Z) — под пользователя 60+, руки в муке.
+   Правила: очень крупный текст, высокий контраст, гигантские подписанные
+   кнопки, случайный тап не выбрасывает. Оверлей выше таб-бара (z 60).
+   ========================================================================= */
+.cook-mode {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: #ffffff;
+  color: #111111;
+  display: flex;
+  flex-direction: column;
+  overscroll-behavior: contain;
+}
+.cook-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: calc(env(safe-area-inset-top) + 16px) 20px calc(env(safe-area-inset-bottom) + 16px);
+  min-height: 0;
+}
+
+/* Верхняя строка экрана шага: Состав | номер | Выход */
+.cook-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.cook-step-counter {
+  font-size: 20px;
+  font-weight: 700;
+  color: #111111;
+  text-align: center;
+  flex: 1;
+}
+.cook-chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 64px;
+  padding: 8px 10px;
+  border-radius: 16px;
+  border: 2px solid #d4d4d8;
+  background: #ffffff;
+  color: #111111;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.cook-chip:active { background: #f4f4f5; }
+.cook-chip-exit { border-color: #fca5a5; color: #b91c1c; }
+
+/* Текст шага — крупный, высокий контраст, щедрый интерлиньяж, по центру */
+.cook-step-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+.cook-step-text {
+  margin: 0;
+  font-size: clamp(24px, 6.5vw, 34px);
+  line-height: 1.5;
+  font-weight: 600;
+  color: #111111;
+  text-align: center;
+  max-width: 640px;
+}
+
+/* «Повторить» — над гигантами, во всю ширину, вторичная */
+.cook-repeat {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 56px;
+  margin-bottom: 12px;
+  border-radius: 18px;
+  border: 2px solid #d4d4d8;
+  background: #ffffff;
+  color: #111111;
+  font-size: 20px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.cook-repeat:active { background: #f4f4f5; }
+
+/* Два гиганта Назад/Дальше */
+.cook-nav { display: flex; gap: 12px; }
+/* flex:1 ТОЛЬКО в ряду навигации (делят 50/50). В колоночных экранах
+   (подсказка/финал/подтверждение/состав) кнопка не должна тянуться по высоте. */
+.cook-nav .cook-btn-giant { flex: 1; }
+.cook-btn-giant {
+  flex: none;
+  min-height: 72px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 20px;
+  border: none;
+  font-size: 22px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  padding: 0 16px;
+}
+.cook-btn-primary { background: #059669; color: #ffffff; }
+.cook-btn-primary:active { background: #047857; }
+.cook-btn-secondary { background: #f4f4f5; color: #111111; border: 2px solid #d4d4d8; }
+.cook-btn-secondary:active { background: #e4e4e7; }
+.cook-btn-giant:disabled { opacity: 0.4; cursor: default; }
+
+/* Подсказка первого входа */
+.cook-intro, .cook-finish { align-items: center; justify-content: center; text-align: center; gap: 20px; }
+.cook-intro-emoji, .cook-finish-emoji { font-size: 72px; line-height: 1; }
+.cook-intro-title, .cook-finish-title { margin: 0; font-size: 28px; font-weight: 700; color: #111111; line-height: 1.25; }
+.cook-intro-text { margin: 0; font-size: 22px; line-height: 1.5; color: #333333; max-width: 480px; }
+.cook-intro .cook-btn-giant, .cook-finish .cook-btn-giant { width: 100%; max-width: 420px; }
+.cook-intro-exit {
+  background: none; border: none; color: #71717a; font-size: 18px; font-weight: 600;
+  padding: 8px 16px; cursor: pointer; text-decoration: underline;
+}
+.cook-finish-back { margin-top: 4px; }
+
+/* Выдвижная панель «Состав» */
+.cook-drawer {
+  position: absolute;
+  inset: 0;
+  z-index: 1010;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+}
+.cook-drawer-inner {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: calc(env(safe-area-inset-top) + 20px) 20px calc(env(safe-area-inset-bottom) + 16px);
+  min-height: 0;
+}
+.cook-drawer-title { margin: 0 0 16px; font-size: 26px; font-weight: 700; color: #111111; }
+.cook-drawer-list { flex: 1; overflow-y: auto; margin-bottom: 16px; }
+.cook-drawer-empty { font-size: 20px; color: #52525b; }
+.cook-drawer-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 4px;
+  border-bottom: 1px solid #e4e4e7;
+  font-size: 20px;
+}
+.cook-drawer-name { color: #111111; font-weight: 600; }
+.cook-drawer-amount { color: #52525b; font-weight: 600; white-space: nowrap; }
+
+/* Подтверждение выхода */
+.cook-confirm {
+  position: absolute;
+  inset: 0;
+  z-index: 1020;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.cook-confirm-box {
+  width: 100%;
+  max-width: 440px;
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 28px 20px;
+  text-align: center;
+}
+.cook-confirm-title { margin: 0 0 20px; font-size: 26px; font-weight: 700; color: #111111; }
+.cook-confirm-actions { display: flex; flex-direction: column; gap: 12px; }
+.cook-confirm-actions .cook-btn-giant { width: 100%; }

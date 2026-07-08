@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import {
   Clock,
@@ -10,10 +11,12 @@ import {
   PiggyBank,
   Wallet,
   ArrowRight,
+  Volume2,
 } from "lucide-react";
 import { formatTime, formatCalories, scaleAmount, cleanText } from "@/lib/utils";
 import { shareOrCopy } from "@/lib/share";
 import type { RecipeData } from "@/lib/types";
+import CookMode from "@/components/CookMode";
 
 /**
  * Лёгкий read-only просмотр расшаренного рецепта. Рендерится на выделенном
@@ -25,6 +28,8 @@ import type { RecipeData } from "@/lib/types";
  * RecipeView, чтобы вид совпадал.
  */
 export default function SharedRecipe({ recipe }: { recipe: RecipeData }) {
+  const [cooking, setCooking] = useState(false);
+
   const share = () =>
     shareOrCopy({
       title: recipe.title,
@@ -34,6 +39,7 @@ export default function SharedRecipe({ recipe }: { recipe: RecipeData }) {
     });
 
   const detailed = recipe.detailed_ingredients || [];
+  const hasSteps = Array.isArray(recipe.steps) && recipe.steps.filter((s) => (s || "").trim()).length > 0;
 
   return (
     <div className="container">
@@ -135,6 +141,13 @@ export default function SharedRecipe({ recipe }: { recipe: RecipeData }) {
           </div>
         )}
 
+        {/* Крупная первичная кнопка запуска режима готовки с озвучкой (задача Z). */}
+        {hasSteps && (
+          <button type="button" className="cook-start-btn" onClick={() => setCooking(true)}>
+            <Volume2 size={24} /> Готовим!
+          </button>
+        )}
+
         <h3
           style={{
             fontSize: "var(--font-size-heading)",
@@ -168,6 +181,20 @@ export default function SharedRecipe({ recipe }: { recipe: RecipeData }) {
           </Link>
         </div>
       </article>
+
+      {cooking && (
+        <CookMode
+          title={recipe.title}
+          steps={recipe.steps || []}
+          ingredients={detailed}
+          onClose={() => setCooking(false)}
+          // Гость на /recipe/[id]: публикация фото требует аккаунта — ведём в
+          // приложение к готовому флоу «Приготовили? Покажите» (тот же вход).
+          onCookedPhoto={() => {
+            window.location.href = "/search?focus=photo";
+          }}
+        />
+      )}
     </div>
   );
 }

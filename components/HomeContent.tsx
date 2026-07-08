@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Flame } from "lucide-react";
+import { Flame, Lightbulb } from "lucide-react";
 import HeroLanding from "@/components/HeroLanding";
 import NewsBoard, { type NewsItem } from "@/components/NewsBoard";
 import HomeFeed, { type FeedPhoto } from "@/components/HomeFeed";
@@ -10,6 +10,8 @@ import ArticlesBoard from "@/components/ArticlesBoard";
 import type { Article } from "@/lib/articles";
 import AppNavigation from "@/components/AppNavigation";
 import type { DailyRecipeType } from "@/lib/types";
+
+type HomeTip = { id: string; body: string; emoji_icon: string | null };
 
 // Клиентская оболочка Главной. Интерактив (редиректы диплинков, рецепт дня из
 // /api/daily) живёт здесь, а тяжёлый контент — новости и первые фото витрины —
@@ -21,10 +23,12 @@ export default function HomeContent({
   news,
   feed,
   articles,
+  tip,
 }: {
   news: NewsItem[];
   feed: FeedPhoto[];
   articles: Article[];
+  tip: HomeTip | null;
 }) {
   const router = useRouter();
   const [daily, setDaily] = useState<DailyRecipeType | null>(null);
@@ -87,6 +91,20 @@ export default function HomeContent({
           )}
         </div>
       </button>
+
+      {/* Совет дня (Z-2): пассивная плитка рядом с «Рецептом дня», без кнопок.
+          Пусто (нет опубликованных советов) — не показываем вовсе. */}
+      {tip && (
+        <div className="tip-card">
+          <div className="tip-icon" aria-hidden>
+            {tip.emoji_icon ? <span className="tip-emoji">{tip.emoji_icon}</span> : <Lightbulb size={22} />}
+          </div>
+          <div className="tip-body">
+            <div className="tip-label">Совет дня</div>
+            <p className="tip-text">{tip.body}</p>
+          </div>
+        </div>
+      )}
 
       {/* Блок «Кухонные заметки» занял место, где раньше были «Новости проекта».
           Наш первый контент из поиска — потому выше витрины. */}

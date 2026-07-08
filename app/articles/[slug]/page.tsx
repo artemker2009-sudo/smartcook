@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Clock } from "lucide-react";
 import AppNavigation from "@/components/AppNavigation";
 import ArticleLikeButton from "@/components/ArticleLikeButton";
 import { renderMarkdown } from "@/lib/markdown";
+import { coverTone } from "@/lib/articleCover";
 
 // Страница «Кухонной заметки» (задача Y). SSR (правила T/W): статья читается
 // ОДНИМ серверным запросом и попадает в HTML сразу — это наш первый контент,
@@ -114,24 +115,23 @@ export default async function ArticlePage({
           Все заметки
         </Link>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", margin: "var(--space-3) 0 var(--space-2)" }}>
-          <div className="article-tile article-tile-green" aria-hidden>
-            <span className="article-emoji">{article.emoji_icon || "📝"}</span>
-          </div>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: "var(--font-size-caption)", color: "var(--color-text-muted)", fontWeight: "var(--font-weight-medium)" }}>
-              Команда SmartCook
-            </div>
-            <div className="article-read" style={{ marginTop: "2px" }}>
-              <Clock size={13} />
-              {article.read_minutes} мин чтения
-            </div>
-          </div>
+        {/* Обложка в стиле Notion (Z-3): пастельный тон по slug, крупная эмодзи
+            и заголовок прямо на плитке — вместо фото. */}
+        <div className="article-hero" style={{ background: coverTone(article.slug).bg }}>
+          <span className="article-hero-emoji" aria-hidden>{article.emoji_icon || "📝"}</span>
+          <h1 className="article-hero-title" style={{ color: coverTone(article.slug).fg }}>
+            {article.title}
+          </h1>
         </div>
 
-        <h1 style={{ fontSize: "var(--font-size-title)", fontWeight: 700, lineHeight: 1.25, margin: "0 0 var(--space-2)", color: "var(--color-text)" }}>
-          {article.title}
-        </h1>
+        <div className="article-byline">
+          <span className="article-byline-team">Команда SmartCook</span>
+          <span className="article-read">
+            <Clock size={13} />
+            {article.read_minutes} мин чтения
+          </span>
+        </div>
+
         <p style={{ margin: "0 0 var(--space-3)", color: "var(--color-text-secondary)", fontSize: "var(--font-size-body)" }}>
           {article.excerpt}
         </p>

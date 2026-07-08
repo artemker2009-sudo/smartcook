@@ -1,84 +1,51 @@
-"use client";
+import HomeContent from "@/components/HomeContent";
+import type { NewsItem } from "@/components/NewsBoard";
+import type { FeedPhoto } from "@/components/HomeFeed";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Flame } from "lucide-react";
-import HeroLanding from "@/components/HeroLanding";
-import NewsBoard from "@/components/NewsBoard";
-import HomeFeed from "@/components/HomeFeed";
-import AppNavigation from "@/components/AppNavigation";
-import type { DailyRecipeType } from "@/lib/types";
+// Главная (/). Серверный компонент (этап 10 W): новости и первые фото витрины
+// читаются на СЕРВЕРЕ и попадают в HTML сразу — раньше оба блока грузились
+// клиентом после гидрации (тот же класс проблемы, что T) и появлялись с задержкой.
+// Интерактив и рецепт дня — в клиентском HomeContent.
+//
+// Кэш-ревалидация: новости меняются редко (админка) → 5 минут; витрина живее
+// (новые фото за день) → 60 сек. explicit columns (CLAUDE.md): без session_id/
+// user_ref/is_visible в пейлоаде.
 
-// Главная (/). Лёгкая витрина: hero+анимация+2 CTA, рецепт дня, новости и
-// лента «Приготовили сегодня». Весь поисковый апп живёт на /search. Старые
-// диплинки, которые исторически прилетали на / (расшаренные рецепты, рецепт
-// дня, вход из баннеров банкетов), редиректим на /search — там их обработчик.
-export default function Home() {
-  const router = useRouter();
-  const [daily, setDaily] = useState<DailyRecipeType | null>(null);
+const SUPABASE_URL =
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "https://yjfqwwiqwoighjdlkodg.supabase.co";
+const SUPABASE_KEY =
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "sb_publishable_E7Fj9ZiOZTyNHAQQKo7Y0A_E8-ExX6Z";
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const search = window.location.search;
-    const params = new URLSearchParams(search);
-    // ?recipeId уводится на быстрый /recipe/:id серверным редиректом (next.config),
-    // сюда уже не долетает. Остаются рецепт дня и вход из баннеров банкетов.
-    if (params.get("daily") === "true" || params.has("auth")) {
-      router.replace("/search" + search);
-    }
-  }, [router]);
+async function sbFetch<T>(path: string, revalidate: number): Promise<T[]> {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+      next: { revalidate },
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? (data as T[]) : [];
+  } catch {
+    return [];
+  }
+}
 
-  useEffect(() => {
-    let alive = true;
-    fetch("/api/daily")
-      .then((res) => res.json())
-      .then((json) => {
-        if (alive && json && json.title && !json.error) setDaily(json);
-      })
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  return (
-    <div className="container">
-      <AppNavigation activeSection="daily" />
-
-      <HeroLanding />
-
-      {/* Рецепт дня переезжает на Главную. Клик ведёт в полноэкранный вид на /search. */}
-      <button
-        type="button"
-        className={`daily-teaser${daily ? " daily-teaser-in" : ""}`}
-        onClick={() => router.push("/search?daily=true")}
-        aria-label="Открыть рецепт дня"
-      >
-        <div style={{ background: "var(--color-accent-subtle)", padding: "var(--space-2)", borderRadius: "var(--radius-sm)" }}>
-          <Flame color="var(--color-accent)" size={24} />
-        </div>
-        <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: "2px" }}>
-            <span className="daily-today-badge">Сегодня</span>
-            {daily?.date && (
-              <span style={{ fontSize: "var(--font-size-caption)", color: "var(--color-text-muted)", fontWeight: "var(--font-weight-medium)" }}>
-                {daily.date}
-              </span>
-            )}
-          </div>
-          {daily ? (
-            <div style={{ fontWeight: "var(--font-weight-semibold)", fontSize: "var(--font-size-body)", color: "var(--color-text)" }}>
-              {daily.title}
-            </div>
-          ) : (
-            <div className="sc-skel" style={{ height: "18px", width: "70%", marginTop: "var(--space-1)" }} />
-          )}
-        </div>
-      </button>
-
-      <NewsBoard />
-
-      <HomeFeed />
-    </div>
+async function getNews(): Promise<NewsItem[]> {
+  return sbFetch<NewsItem>(
+    "news?select=id,date,title,body&is_visible=eq.true&order=created_at.desc",
+    300,
   );
+}
+
+async function getFeed(): Promise<FeedPhoto[]> {
+  // feed_photos_public уже отсортирован (created_at desc) и не отдаёт user_ref.
+  return sbFetch<FeedPhoto>(
+    "feed_photos_public?select=id,created_at,user_name,recipe_title,photo_url,likes_count,liked_by_me&limit=20",
+    60,
+  );
+}
+
+export default async function Home() {
+  const [news, feed] = await Promise.all([getNews(), getFeed()]);
+  return <HomeContent news={news} feed={feed} />;
 }

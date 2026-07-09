@@ -319,7 +319,7 @@ export default function CreatePartyPage() {
           className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-[24px] bg-emerald-600 p-5 text-lg font-black text-white shadow-[0_18px_45px_rgba(5,150,105,0.3)] transition-all hover:-translate-y-0.5 hover:bg-emerald-700 hover:shadow-[0_22px_55px_rgba(5,150,105,0.36)] active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400 disabled:shadow-none disabled:hover:translate-y-0 disabled:active:scale-100"
         >
           {isLoading && <Loader2 size={20} className="animate-spin" />}
-          {isLoading ? 'Создаем комнату...' : 'Создать меню'}
+          {isLoading ? 'Создаем комнату...' : 'Создать банкет'}
         </button>
       </div>
 

@@ -291,10 +291,16 @@ export async function POST(req: Request) {
     lockAcquired = true;
     console.log("1. Замок захвачен", { partyId });
 
+    // Бекапим и чистим ТОЛЬКО ИИ-блюда (source='ai'). Ручные блюда гостей и
+    // организатора (source='manual', см. addPartyItemAction) не трогаем — иначе
+    // перегенерация тихо стирала бы пользовательские данные. Голоса лежат в
+    // inline-колонке votes самого блюда, поэтому при удалении строки удаляются
+    // вместе с ней — осиротевших голосов/лайков не остаётся.
     const { data: existingItems, error: backupError } = await supabase
       .from('party_items')
       .select('name,category,ingredients,votes')
-      .eq('party_id', partyId);
+      .eq('party_id', partyId)
+      .eq('source', 'ai');
 
     if (backupError) {
       throw new Error(backupError.message);
@@ -306,19 +312,20 @@ export async function POST(req: Request) {
       ingredients: item.ingredients ?? [],
       votes: item.votes ?? null,
     }));
-    console.log("1.1. Бекап старого меню создан", { count: previousItems.length });
+    console.log("1.1. Бекап старого ИИ-меню создан", { count: previousItems.length });
 
     const { error: clearMenuError } = await supabase
       .from('party_items')
       .delete()
-      .eq('party_id', partyId);
+      .eq('party_id', partyId)
+      .eq('source', 'ai');
 
     if (clearMenuError) {
       throw new Error(clearMenuError.message);
     }
 
     menuCleared = true;
-    console.log("2. Старое меню удалено", { partyId });
+    console.log("2. Старое ИИ-меню удалено, ручные блюда сохранены", { partyId });
 
     console.log("1. Отправляем запрос к ИИ...", { partyId });
     const completion = await openai.chat.completions.create(
@@ -342,6 +349,7 @@ export async function POST(req: Request) {
       description: item.description.trim(),
       category: item.category.trim(),
       ingredients: [],
+      source: 'ai' as const,
     }));
 
     // Сохраняем в Supabase
@@ -357,6 +365,7 @@ export async function POST(req: Request) {
         name: item.name,
         category: item.category,
         ingredients: item.ingredients,
+        source: item.source,
       }));
       const retryResult = await supabase.from('party_items').insert(compatibleItemsToInsert).select();
       insertedItems = retryResult.data;
@@ -381,12 +390,14 @@ export async function POST(req: Request) {
     console.error("AI GENERATION FAILED:", error);
 
     if (partyId && lockAcquired && menuCleared && previousItems.length > 0) {
+      // previousItems — только удалённые ИИ-блюда, восстанавливаем их как 'ai'.
       const itemsToRestore = previousItems.map((item) => ({
         party_id: partyId,
         name: item.name,
         category: item.category,
         ingredients: item.ingredients ?? [],
         votes: item.votes ?? null,
+        source: 'ai' as const,
       }));
 
       console.log("ERR. Восстанавливаем старое меню", { count: itemsToRestore.length });

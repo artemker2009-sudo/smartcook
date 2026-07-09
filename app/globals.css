@@ -1114,6 +1114,40 @@ a.news-card:hover { transform: translateY(-2px); }
   flex-direction: column;
 }
 .feed-card-photo { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block; background: var(--color-bg-subtle); }
+
+/* Сгенерированная ИИ картинка блюда + плашка «Изображение: ИИ».
+   aspect-ratio резервирует место до загрузки → нет layout shift. */
+.recipe-image {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--color-bg-subtle);
+  margin-bottom: var(--space-3);
+}
+.recipe-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.recipe-image-badge {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.4;
+  letter-spacing: 0.2px;
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+  user-select: none;
+}
 .feed-card-body { padding: var(--space-2) var(--space-3) var(--space-3); }
 .feed-card-title {
   font-weight: var(--font-weight-semibold);

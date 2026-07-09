@@ -26,6 +26,7 @@ import {
 import DonateButton from "@/components/DonateButton";
 import Button from "@/components/ui/Button";
 import CookMode from "@/components/CookMode";
+import RecipeImage from "@/components/RecipeImage";
 import { splitIngredientList } from "@/lib/recipeValidation";
 import { formatCookingTime } from "@/lib/utils";
 
@@ -197,6 +198,8 @@ export default function RecipeView({
             : "Назад к истории"}
         </button>
       )}
+
+      <RecipeImage src={recipe.image_url} alt={recipe.title} />
 
       <div
         className="recipe-header"

@@ -17,6 +17,7 @@ import { formatTime, formatCookingTime, formatCalories, scaleAmount, cleanText }
 import { shareOrCopy } from "@/lib/share";
 import type { RecipeData } from "@/lib/types";
 import CookMode from "@/components/CookMode";
+import RecipeImage from "@/components/RecipeImage";
 
 /**
  * Лёгкий read-only просмотр расшаренного рецепта. Рендерится на выделенном
@@ -51,6 +52,7 @@ export default function SharedRecipe({ recipe }: { recipe: RecipeData }) {
       </header>
 
       <article className="card" style={{ marginTop: "var(--space-3)" }}>
+        <RecipeImage src={recipe.image_url} alt={recipe.title} />
         <h1 className="recipe-title" style={{ marginBottom: "var(--space-2)", wordBreak: "break-word" }}>
           {recipe.title}
         </h1>

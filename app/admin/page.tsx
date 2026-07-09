@@ -94,7 +94,17 @@ type Tip = {
   is_published?: boolean | null;
 };
 
-type TabId = "management" | "analytics" | "purchases" | "news" | "articles" | "tips" | "feed" | "errors";
+type ImageCandidate = { id: number; title: string; likes_count?: number | null; created_at?: string };
+type ImageWithUrl = { id: number; title: string; image_url: string };
+type ImagesStatus = {
+  withoutImageCount: number;
+  candidates: ImageCandidate[];
+  withImage: ImageWithUrl[];
+  costPerImageUsd: number;
+  maxBatch: number;
+};
+
+type TabId = "management" | "analytics" | "purchases" | "news" | "articles" | "tips" | "feed" | "images" | "errors";
 
 const TABS = [
   { id: "management" as TabId, label: "⚙️ Управление", hint: "Статус сайта и техработы" },
@@ -104,6 +114,7 @@ const TABS = [
   { id: "articles" as TabId, label: "📝 Заметки", hint: "Кухонные заметки на главной" },
   { id: "tips" as TabId, label: "💡 Советы", hint: "Совет дня на главной" },
   { id: "feed" as TabId, label: "🍽️ Лента", hint: "Модерация «Приготовили сегодня»" },
+  { id: "images" as TabId, label: "🖼️ Картинки", hint: "ИИ-картинки блюд к рецептам" },
   { id: "errors" as TabId, label: "🐞 Ошибки", hint: "Баг-репорты пользователей" },
 ];
 
@@ -207,6 +218,15 @@ export default function AdminPage() {
   const [markingReportId, setMarkingReportId] = useState<string | null>(null);
   const [feedPhotos, setFeedPhotos] = useState<FeedPhoto[]>([]);
   const [hidingPhotoId, setHidingPhotoId] = useState<string | null>(null);
+  // Раздел «Картинки»: статус, батч-генерация и перегенерация.
+  const [imagesStatus, setImagesStatus] = useState<ImagesStatus | null>(null);
+  const [imagesLoading, setImagesLoading] = useState(false);
+  const [imagesError, setImagesError] = useState("");
+  const [batchN, setBatchN] = useState(10);
+  const [batchRunning, setBatchRunning] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
+  const [batchResult, setBatchResult] = useState<{ ok: number; failed: number } | null>(null);
+  const [regenId, setRegenId] = useState<number | null>(null);
   const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
   const [newsEditingId, setNewsEditingId] = useState<string | null>(null); // null = форма создания
   const [newsTitle, setNewsTitle] = useState("");
@@ -287,6 +307,15 @@ export default function AdminPage() {
 
     void checkSession();
   }, []);
+
+  // Раздел «Картинки» грузим лениво — при первом открытии вкладки. Данные тяжелее
+  // дашборда (кандидаты + список с картинками) и нужны только здесь.
+  useEffect(() => {
+    if (isAuthenticated && activeTab === "images" && imagesStatus === null && !imagesLoading) {
+      void loadImages();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, activeTab]);
 
   const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -409,6 +438,77 @@ export default function AdminPage() {
       console.error("Ошибка при модерации ленты", error);
     } finally {
       setHidingPhotoId(null);
+    }
+  };
+
+  const loadImages = async () => {
+    setImagesLoading(true);
+    setImagesError("");
+    try {
+      const response = await fetch("/api/admin/images", { cache: "no-store" });
+      if (response.status === 401) {
+        setIsAuthenticated(false);
+        return;
+      }
+      if (!response.ok) throw new Error("Не удалось загрузить статус картинок");
+      const data = (await response.json()) as ImagesStatus;
+      setImagesStatus(data);
+    } catch (error) {
+      console.error("Ошибка загрузки раздела «Картинки»", error);
+      setImagesError("Не удалось загрузить статус картинок.");
+    } finally {
+      setImagesLoading(false);
+    }
+  };
+
+  // Одна генерация = один POST. Возвращает ok/false, роут не падает при ошибке
+  // генерации (пишет в error_reports), поэтому здесь ждём JSON-результат.
+  const generateOne = async (recipeId: number, force: boolean): Promise<boolean> => {
+    try {
+      const response = await fetch("/api/admin/images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recipeId, force }),
+      });
+      if (!response.ok) return false;
+      const data = await response.json();
+      return Boolean(data?.ok);
+    } catch {
+      return false;
+    }
+  };
+
+  // Батч: берём топ-N кандидатов (уже отсортированы сервером: популярные → новые)
+  // и гоняем ПОСЛЕДОВАТЕЛЬНО, показывая прогресс. Один упавший рецепт не рушит
+  // батч. По завершении — перечитываем статус.
+  const runBatch = async () => {
+    if (!imagesStatus || batchRunning) return;
+    const ids = imagesStatus.candidates.slice(0, batchN).map((c) => c.id);
+    if (ids.length === 0) return;
+    setBatchRunning(true);
+    setBatchResult(null);
+    setBatchProgress({ done: 0, total: ids.length });
+    let ok = 0;
+    let failed = 0;
+    for (let i = 0; i < ids.length; i++) {
+      const success = await generateOne(ids[i], false);
+      if (success) ok += 1;
+      else failed += 1;
+      setBatchProgress({ done: i + 1, total: ids.length });
+    }
+    setBatchResult({ ok, failed });
+    setBatchRunning(false);
+    await loadImages();
+  };
+
+  const regenerateOne = async (recipeId: number) => {
+    if (regenId !== null) return;
+    setRegenId(recipeId);
+    try {
+      await generateOne(recipeId, true);
+      await loadImages();
+    } finally {
+      setRegenId(null);
     }
   };
 
@@ -1773,6 +1873,134 @@ export default function AdminPage() {
                   </article>
                 );
               })}
+            </section>
+          ) : null}
+
+          {activeTab === "images" ? (
+            <section className="space-y-4">
+              <div className="rounded-[2rem] border border-zinc-200 bg-white px-6 py-5 shadow-sm">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-400">AI</p>
+                <h3 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-950">Картинки блюд</h3>
+                <p className="mt-2 text-sm text-zinc-500">
+                  Генерация ИИ-картинок к рецептам. Запуск только отсюда (контроль расходов).
+                  Порядок: популярные → новые. Рецепт дня в список не входит (он эфемерный).
+                </p>
+              </div>
+
+              {imagesError ? (
+                <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                  {imagesError}
+                </p>
+              ) : null}
+
+              {imagesLoading && !imagesStatus ? (
+                <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-12 text-center text-sm text-zinc-500 shadow-sm">
+                  Загрузка…
+                </div>
+              ) : null}
+
+              {imagesStatus ? (
+                <>
+                  <div className="rounded-2xl bg-white p-6 shadow-sm">
+                    <div className="flex flex-wrap items-end justify-between gap-4">
+                      <div>
+                        <p className="text-sm text-zinc-500">Рецептов без картинки</p>
+                        <p className="text-3xl font-semibold tracking-tight text-zinc-950">
+                          {imagesStatus.withoutImageCount}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void loadImages()}
+                        disabled={imagesLoading || batchRunning}
+                        className="rounded-2xl bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-800 transition hover:bg-zinc-200 disabled:opacity-50"
+                      >
+                        Обновить
+                      </button>
+                    </div>
+
+                    <div className="mt-6 flex flex-wrap items-end gap-4 border-t border-zinc-100 pt-6">
+                      <label className="flex flex-col gap-1 text-sm text-zinc-600">
+                        Сколько сгенерировать (макс. {imagesStatus.maxBatch})
+                        <input
+                          type="number"
+                          min={1}
+                          max={imagesStatus.maxBatch}
+                          value={batchN}
+                          onChange={(e) => {
+                            const v = Math.round(Number(e.target.value) || 0);
+                            setBatchN(Math.min(imagesStatus.maxBatch, Math.max(1, v)));
+                          }}
+                          disabled={batchRunning}
+                          className="w-28 rounded-xl border border-zinc-200 px-3 py-2 text-base text-zinc-900 disabled:opacity-50"
+                        />
+                      </label>
+                      <div className="text-sm text-zinc-500">
+                        Примерная стоимость запуска:{" "}
+                        <span className="font-semibold text-zinc-900">
+                          ~${(Math.min(batchN, imagesStatus.candidates.length) * imagesStatus.costPerImageUsd).toFixed(2)}
+                        </span>
+                        <span className="text-zinc-400">
+                          {" "}
+                          (~${imagesStatus.costPerImageUsd.toFixed(2)} за картинку)
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void runBatch()}
+                        disabled={batchRunning || imagesStatus.candidates.length === 0}
+                        className="rounded-2xl bg-black px-5 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {batchRunning
+                          ? `Генерация… ${batchProgress?.done ?? 0}/${batchProgress?.total ?? 0}`
+                          : `Сгенерировать для топ-${Math.min(batchN, imagesStatus.candidates.length)} без картинки`}
+                      </button>
+                    </div>
+
+                    {batchResult ? (
+                      <p className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700 ring-1 ring-emerald-100">
+                        Готово. Успешно: <span className="font-semibold">{batchResult.ok}</span>, ошибок:{" "}
+                        <span className="font-semibold">{batchResult.failed}</span>
+                        {batchResult.failed > 0 ? " (детали — во вкладке «Ошибки»)" : ""}.
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div className="rounded-2xl bg-white p-6 shadow-sm">
+                    <h4 className="text-lg font-semibold text-zinc-950">С картинкой</h4>
+                    {imagesStatus.withImage.length === 0 ? (
+                      <p className="mt-2 text-sm text-zinc-500">Пока ни у одного рецепта нет картинки.</p>
+                    ) : (
+                      <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+                        {imagesStatus.withImage.map((r) => (
+                          <div key={r.id} className="overflow-hidden rounded-xl border border-zinc-200">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={r.image_url}
+                              alt={r.title}
+                              loading="lazy"
+                              className="aspect-[16/10] w-full object-cover"
+                            />
+                            <div className="p-2">
+                              <p className="truncate text-xs text-zinc-700" title={r.title}>
+                                {r.title}
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => void regenerateOne(r.id)}
+                                disabled={regenId !== null || batchRunning}
+                                className="mt-2 w-full rounded-lg bg-zinc-100 px-2 py-1.5 text-xs font-medium text-zinc-800 transition hover:bg-zinc-200 disabled:opacity-50"
+                              >
+                                {regenId === r.id ? "Генерация…" : "Перегенерировать"}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : null}
             </section>
           ) : null}
 

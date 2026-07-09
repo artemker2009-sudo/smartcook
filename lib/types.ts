@@ -18,6 +18,9 @@ export interface RecipeData {
   // null/undefined у старых рецептов — UI тогда ничего не показывает.
   cooking_time_minutes?: number | null;
   calories?: string;
+  // Публичная ссылка на сгенерированную ИИ картинку блюда (бакет recipe-images).
+  // null/undefined — картинки нет, UI ничего не показывает.
+  image_url?: string | null;
   steps: string[];
   missing_ingredients?: string[];
   ingredients?: string[];
@@ -33,6 +36,7 @@ export interface DBRecipe {
   time: string;
   cooking_time_minutes?: number | null;
   calories?: string;
+  image_url?: string | null;
   is_favorite: boolean;
   created_at: string;
   steps: string[];

@@ -854,7 +854,7 @@ export default function SearchApp() {
 
   const loadFromHistory = (item: DBRecipe, source: 'photos' | 'history' | 'profile_history' | 'profile_favorites' = 'history') => { 
     setAnalysisResult(null); setQuestion(""); setAnswer(null); setServings(1);  
-    setRecipe({ id: item.id, is_favorite: item.is_favorite, title: item.title, description: item.description, time: item.time, cooking_time_minutes: item.cooking_time_minutes, calories: item.calories, steps: item.steps || [], missing_ingredients: item.missing_ingredients || [], ingredients: item.ingredients || [], detailed_ingredients: item.detailed_ingredients || [], estimated_cost: item.estimated_cost, budget_tier: item.budget_tier });
+    setRecipe({ id: item.id, is_favorite: item.is_favorite, title: item.title, description: item.description, time: item.time, cooking_time_minutes: item.cooking_time_minutes, calories: item.calories, image_url: item.image_url, steps: item.steps || [], missing_ingredients: item.missing_ingredients || [], ingredients: item.ingredients || [], detailed_ingredients: item.detailed_ingredients || [], estimated_cost: item.estimated_cost, budget_tier: item.budget_tier });
     setFromFeed(source === 'history' ? false : source); setIsHistoryView(source === 'history' || source === 'profile_history' || source === 'profile_favorites'); setIsSharedView(false);  
     window.scrollTo({ top: 0, behavior: 'smooth' }); setActiveView('service');  
   }; 
@@ -864,7 +864,7 @@ export default function SearchApp() {
       const { data, error } = await supabase.from('recipes').select('*').eq('id', id).single(); 
       if (data && !error) { 
         setAnalysisResult(null); setQuestion(""); setAnswer(null); setServings(1);  
-        setRecipe({ id: data.id, is_favorite: data.is_favorite, title: data.title, description: data.description, time: data.time, cooking_time_minutes: data.cooking_time_minutes, calories: data.calories, steps: data.steps || [], missing_ingredients: data.missing_ingredients || [], ingredients: data.ingredients || [], detailed_ingredients: data.detailed_ingredients || [], estimated_cost: data.estimated_cost, budget_tier: data.budget_tier });
+        setRecipe({ id: data.id, is_favorite: data.is_favorite, title: data.title, description: data.description, time: data.time, cooking_time_minutes: data.cooking_time_minutes, calories: data.calories, image_url: data.image_url, steps: data.steps || [], missing_ingredients: data.missing_ingredients || [], ingredients: data.ingredients || [], detailed_ingredients: data.detailed_ingredients || [], estimated_cost: data.estimated_cost, budget_tier: data.budget_tier });
         setActiveView('service'); setFromFeed(source); setIsHistoryView(false); setIsSharedView(source === false);  
         window.scrollTo({ top: 0, behavior: 'smooth' }); 
       } 

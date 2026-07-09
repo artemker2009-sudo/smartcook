@@ -23,7 +23,7 @@ const SUPABASE_KEY =
 // колонки, нужные для отображения (estimated_cost/budget_tier в схеме нет —
 // PostgREST на несуществующую колонку отдаёт 400, и рецепт «пропадает»).
 const RECIPE_FIELDS =
-  "id,title,description,time,cooking_time_minutes,calories,steps,detailed_ingredients";
+  "id,title,description,time,cooking_time_minutes,calories,image_url,steps,detailed_ingredients";
 
 // revalidate=60 — рецепт неизменен, кэшируем на edge: повторные открытия мгновенны.
 async function getRecipe(id: string): Promise<RecipeData | null> {

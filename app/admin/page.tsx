@@ -95,11 +95,28 @@ type Tip = {
 };
 
 type ImageCandidate = { id: number; title: string; likes_count?: number | null; created_at?: string };
-type ImageWithUrl = { id: number; title: string; image_url: string };
+type ImageStatusValue = "none" | "generating" | "ready" | "failed";
+type GalleryItem = {
+  source: "recipe" | "dish";
+  id: number;
+  title: string;
+  image_url: string | null;
+  status: ImageStatusValue;
+};
+
+// Разбор textarea прогрева: одна строка = одно блюдо. Чистим перед нормализацией:
+// убираем пустые строки и висячие запятые/точки-с-запятой («уха,» → «уха»), чтобы
+// такая строка не порождала дубль к «уха» (и не засоряла название в кэше).
+function parseWarmupDishes(text: string): string[] {
+  return text
+    .split("\n")
+    .map((s) => s.trim().replace(/[\s,;]+$/, "").trim())
+    .filter(Boolean);
+}
 type ImagesStatus = {
   withoutImageCount: number;
   candidates: ImageCandidate[];
-  withImage: ImageWithUrl[];
+  gallery: GalleryItem[];
   costPerImageUsd: number;
   maxBatch: number;
 };
@@ -227,7 +244,11 @@ export default function AdminPage() {
   const [batchRunning, setBatchRunning] = useState(false);
   const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
   const [batchResult, setBatchResult] = useState<{ ok: number; failed: number } | null>(null);
-  const [regenId, setRegenId] = useState<number | null>(null);
+  // Ключ перегенерируемой сейчас карточки галереи: `${source}:${id}` (null = ни одна).
+  const [regenKey, setRegenKey] = useState<string | null>(null);
+  // Галерея: клиентский поиск по названию и фильтр по наличию/ошибке картинки.
+  const [gallerySearch, setGallerySearch] = useState("");
+  const [galleryFilter, setGalleryFilter] = useState<"all" | "no-image" | "error">("all");
   // Раздел «Прогрев»: список блюд → наполнение кэша (рецепт + картинка).
   const WARMUP_MAX = 30;
   const [warmupText, setWarmupText] = useState("");
@@ -524,14 +545,23 @@ export default function AdminPage() {
     await loadImages();
   };
 
-  const regenerateOne = async (recipeId: number) => {
-    if (regenId !== null) return;
-    setRegenId(recipeId);
+  // Перегенерация одной карточки галереи. Работает для обоих источников:
+  // recipe → generateRecipeImage(force), dish → generateDishCacheImage(force).
+  // Оба уважают суточный лимит IMAGE_DAILY_LIMIT (стоп-кран на сервере).
+  const regenerateItem = async (item: GalleryItem) => {
+    const key = `${item.source}:${item.id}`;
+    if (regenKey !== null) return;
+    if (!window.confirm(`Перегенерировать картинку для «${item.title || "без названия"}»?`)) return;
+    setRegenKey(key);
     try {
-      await generateOne(recipeId, true);
+      await fetch("/api/admin/images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source: item.source, id: item.id, force: true }),
+      });
       await loadImages();
     } finally {
-      setRegenId(null);
+      setRegenKey(null);
     }
   };
 
@@ -556,11 +586,7 @@ export default function AdminPage() {
 
   const runWarmup = async () => {
     if (warmupRunning) return;
-    const dishes = warmupText
-      .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean)
-      .slice(0, WARMUP_MAX);
+    const dishes = parseWarmupDishes(warmupText).slice(0, WARMUP_MAX);
     if (dishes.length === 0) return;
     setWarmupRunning(true);
     setWarmupResult(null);
@@ -2031,39 +2057,117 @@ export default function AdminPage() {
                     ) : null}
                   </div>
 
-                  <div className="rounded-2xl bg-white p-6 shadow-sm">
-                    <h4 className="text-lg font-semibold text-zinc-950">С картинкой</h4>
-                    {imagesStatus.withImage.length === 0 ? (
-                      <p className="mt-2 text-sm text-zinc-500">Пока ни у одного рецепта нет картинки.</p>
-                    ) : (
-                      <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-                        {imagesStatus.withImage.map((r) => (
-                          <div key={r.id} className="overflow-hidden rounded-xl border border-zinc-200">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={r.image_url}
-                              alt={r.title}
-                              loading="lazy"
-                              className="aspect-[16/10] w-full object-cover"
+                  {(() => {
+                    const q = gallerySearch.trim().toLowerCase();
+                    const items = imagesStatus.gallery.filter((it) => {
+                      if (q && !it.title.toLowerCase().includes(q)) return false;
+                      if (galleryFilter === "no-image") return !it.image_url;
+                      if (galleryFilter === "error") return it.status === "failed";
+                      return true;
+                    });
+                    const statusLabel: Record<ImageStatusValue, string> = {
+                      ready: "готово",
+                      generating: "генерится",
+                      failed: "ошибка",
+                      none: "нет картинки",
+                    };
+                    const statusClass: Record<ImageStatusValue, string> = {
+                      ready: "bg-emerald-50 text-emerald-700",
+                      generating: "bg-amber-50 text-amber-700",
+                      failed: "bg-red-50 text-red-700",
+                      none: "bg-zinc-100 text-zinc-500",
+                    };
+                    return (
+                      <div className="rounded-2xl bg-white p-6 shadow-sm">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <h4 className="text-lg font-semibold text-zinc-950">
+                            Галерея ИИ-картинок
+                            <span className="ml-2 text-sm font-normal text-zinc-400">
+                              рецепты + блюда из кэша ({items.length})
+                            </span>
+                          </h4>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <input
+                              type="text"
+                              value={gallerySearch}
+                              onChange={(e) => setGallerySearch(e.target.value)}
+                              placeholder="Поиск по названию…"
+                              className="w-52 rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
                             />
-                            <div className="p-2">
-                              <p className="truncate text-xs text-zinc-700" title={r.title}>
-                                {r.title}
-                              </p>
-                              <button
-                                type="button"
-                                onClick={() => void regenerateOne(r.id)}
-                                disabled={regenId !== null || batchRunning}
-                                className="mt-2 w-full rounded-lg bg-zinc-100 px-2 py-1.5 text-xs font-medium text-zinc-800 transition hover:bg-zinc-200 disabled:opacity-50"
-                              >
-                                {regenId === r.id ? "Генерация…" : "Перегенерировать"}
-                              </button>
+                            <div className="inline-flex overflow-hidden rounded-xl border border-zinc-200">
+                              {([
+                                ["all", "Все"],
+                                ["no-image", "Без картинки"],
+                                ["error", "С ошибкой"],
+                              ] as [typeof galleryFilter, string][]).map(([val, label]) => (
+                                <button
+                                  key={val}
+                                  type="button"
+                                  onClick={() => setGalleryFilter(val)}
+                                  className={
+                                    "px-3 py-2 text-sm font-medium transition " +
+                                    (galleryFilter === val
+                                      ? "bg-black text-white"
+                                      : "bg-white text-zinc-600 hover:bg-zinc-100")
+                                  }
+                                >
+                                  {label}
+                                </button>
+                              ))}
                             </div>
                           </div>
-                        ))}
+                        </div>
+
+                        {items.length === 0 ? (
+                          <p className="mt-4 text-sm text-zinc-500">Ничего не найдено под текущий фильтр/поиск.</p>
+                        ) : (
+                          <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+                            {items.map((it) => {
+                              const key = `${it.source}:${it.id}`;
+                              return (
+                                <div key={key} className="overflow-hidden rounded-xl border border-zinc-200">
+                                  {it.image_url ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                      src={it.image_url}
+                                      alt={it.title}
+                                      loading="lazy"
+                                      className="aspect-[16/10] w-full object-cover"
+                                    />
+                                  ) : (
+                                    <div className="flex aspect-[16/10] w-full items-center justify-center bg-zinc-50 text-xs text-zinc-400">
+                                      {it.status === "generating" ? "генерится…" : "нет картинки"}
+                                    </div>
+                                  )}
+                                  <div className="p-2">
+                                    <p className="truncate text-xs text-zinc-700" title={it.title}>
+                                      {it.title || "без названия"}
+                                    </p>
+                                    <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                                      <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-600">
+                                        {it.source === "recipe" ? "рецепт" : "блюдо из кэша"}
+                                      </span>
+                                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${statusClass[it.status]}`}>
+                                        {statusLabel[it.status]}
+                                      </span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => void regenerateItem(it)}
+                                      disabled={regenKey !== null || batchRunning}
+                                      className="mt-2 w-full rounded-lg bg-zinc-100 px-2 py-1.5 text-xs font-medium text-zinc-800 transition hover:bg-zinc-200 disabled:opacity-50"
+                                    >
+                                      {regenKey === key ? "Генерация…" : "Перегенерировать"}
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
+                    );
+                  })()}
                 </>
               ) : null}
             </section>
@@ -2071,10 +2175,7 @@ export default function AdminPage() {
 
           {activeTab === "warmup" ? (
             (() => {
-              const dishCount = warmupText
-                .split("\n")
-                .map((s) => s.trim())
-                .filter(Boolean).length;
+              const dishCount = parseWarmupDishes(warmupText).length;
               const willRun = Math.min(dishCount, WARMUP_MAX);
               return (
                 <section className="space-y-4">

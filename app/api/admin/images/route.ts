@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/adminAuth";
 import { createServiceRoleClient } from "@/lib/supabaseAdmin";
-import { generateRecipeImage, COST_PER_IMAGE_USD } from "@/lib/recipeImage";
+import { generateRecipeImage, generateDishCacheImage, COST_PER_IMAGE_USD } from "@/lib/recipeImage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,38 +47,86 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: candError.message }, { status: 500 });
   }
 
-  // Последние рецепты С картинкой — для кнопок «Перегенерировать».
-  const { data: withImage, error: wiError } = await supabase
-    .from("recipes")
-    .select("id, title, image_url")
-    .not("image_url", "is", null)
-    .order("created_at", { ascending: false })
-    .limit(24);
+  // Общая галерея ИИ-картинок из ОБОИХ источников: recipes (этап 1) и
+  // dish_cache (этап 2). Отдаём последние N каждого источника — для админ-
+  // просмотра/поиска/перегенерации. Поиск и фильтры — на клиенте.
+  const GALLERY_LIMIT = 300;
 
-  if (wiError) {
-    return NextResponse.json({ error: wiError.message }, { status: 500 });
+  const { data: recipeRows, error: recError } = await supabase
+    .from("recipes")
+    .select("id, title, image_url, created_at")
+    .order("created_at", { ascending: false })
+    .limit(GALLERY_LIMIT);
+
+  if (recError) {
+    return NextResponse.json({ error: recError.message }, { status: 500 });
   }
+
+  const { data: dishRows, error: dishError } = await supabase
+    .from("dish_cache")
+    .select("id, display_title, image_url, image_status, created_at")
+    .order("created_at", { ascending: false })
+    .limit(GALLERY_LIMIT);
+
+  if (dishError) {
+    return NextResponse.json({ error: dishError.message }, { status: 500 });
+  }
+
+  const gallery = [
+    ...(recipeRows ?? []).map((r) => ({
+      source: "recipe" as const,
+      id: r.id as number,
+      title: (r.title as string) || "",
+      image_url: (r.image_url as string | null) ?? null,
+      // У recipes нет колонки статуса: есть картинка → ready, нет → none.
+      status: r.image_url ? ("ready" as const) : ("none" as const),
+    })),
+    ...(dishRows ?? []).map((d) => ({
+      source: "dish" as const,
+      id: d.id as number,
+      title: (d.display_title as string) || "",
+      image_url: (d.image_url as string | null) ?? null,
+      status: (d.image_status as "none" | "generating" | "ready" | "failed") ?? "none",
+    })),
+  ];
 
   return NextResponse.json({
     withoutImageCount: count ?? 0,
     candidates: candidates ?? [],
-    withImage: withImage ?? [],
+    gallery,
     costPerImageUsd: COST_PER_IMAGE_USD,
     maxBatch: MAX_BATCH,
   });
 }
 
-// POST: сгенерировать/перегенерировать картинку для ОДНОГО рецепта.
-// body: { recipeId: number, force?: boolean }
+// POST: сгенерировать/перегенерировать картинку для ОДНОГО элемента.
+// Формы тела:
+//   • { recipeId, force } — рецепт (обратная совместимость с батчем этапа 1);
+//   • { source: "recipe"|"dish", id, force } — из общей галереи.
+// Перегенерация обоих источников уважает суточный лимит IMAGE_DAILY_LIMIT
+// (recipes — через generateRecipeImage, dish_cache — через generateDishCacheImage).
 export async function POST(req: Request) {
   if (!requireAdminSession(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const body = await req.json().catch(() => null);
-  const recipeId = Number(body?.recipeId);
   const force = body?.force === true;
+  const source: string | undefined = body?.source;
 
+  // Картинка блюда из кэша (этап 2).
+  if (source === "dish") {
+    const dishId = Number(body?.id);
+    if (!Number.isInteger(dishId) || dishId <= 0) {
+      return NextResponse.json({ error: "Некорректный id блюда" }, { status: 400 });
+    }
+    // force:true — из галереи всегда именно перегенерация (заменить файл/URL).
+    const result = await generateDishCacheImage(dishId, { force: true });
+    return NextResponse.json(result);
+  }
+
+  // Рецепт (этап 1). id может прийти как recipeId (батч) или как {source:'recipe', id}.
+  const recipeId = Number(body?.recipeId ?? body?.id);
   if (!Number.isInteger(recipeId) || recipeId <= 0) {
     return NextResponse.json({ error: "Некорректный recipeId" }, { status: 400 });
   }

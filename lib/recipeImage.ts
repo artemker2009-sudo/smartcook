@@ -213,6 +213,7 @@ type DishCacheImageResult =
 
 export async function generateDishCacheImage(
   dishCacheId: number,
+  opts: { force?: boolean } = {},
 ): Promise<DishCacheImageResult> {
   const supabase = createServiceRoleClient();
   try {
@@ -224,8 +225,9 @@ export async function generateDishCacheImage(
 
     if (cacheError || !cache) throw new Error(cacheError?.message || "dish_cache not found");
 
-    // Уже готова — ничего не делаем (идемпотентность фоновых вызовов).
-    if (cache.image_url && cache.image_status === "ready") {
+    // Уже готова — ничего не делаем (идемпотентность фоновых вызовов). При force
+    // (перегенерация из админ-галереи) проходим дальше и заменяем картинку.
+    if (!opts.force && cache.image_url && cache.image_status === "ready") {
       return { ok: true, image_url: cache.image_url, status: "ready" };
     }
 

@@ -1131,6 +1131,48 @@ a.news-card:hover { transform: translateY(-2px); }
   height: 100%;
   object-fit: cover;
   display: block;
+  /* Плавное появление картинки после плейсхолдера (этап 2). */
+  animation: recipe-image-fade-in 0.5s ease;
+}
+@keyframes recipe-image-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Плейсхолдер «Рисуем ваше блюдо… 🎨» пока картинка генерится (этап 2). */
+.recipe-image-placeholder {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  margin-bottom: var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+  background: linear-gradient(
+    100deg,
+    var(--color-bg-subtle) 30%,
+    var(--color-border) 50%,
+    var(--color-bg-subtle) 70%
+  );
+  background-size: 200% 100%;
+  animation: recipe-image-shimmer 1.4s ease-in-out infinite;
+}
+.recipe-image-placeholder span {
+  padding: 0 var(--space-3);
+}
+@keyframes recipe-image-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .recipe-image-placeholder { animation: none; }
+  .recipe-image img { animation: none; }
 }
 .recipe-image-badge {
   position: absolute;

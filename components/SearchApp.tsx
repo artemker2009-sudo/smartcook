@@ -227,6 +227,34 @@ export default function SearchApp() {
     } catch {}
   }, []);
 
+  // Этап 2: поллинг картинки блюда из кэша. Пока image_status==='generating' и
+  // картинки ещё нет — раз в 3 сек (максимум 30 сек = 10 попыток) спрашиваем
+  // статус; как только 'ready' — плавно показываем картинку. По failed/none/
+  // таймауту прекращаем и снимаем плейсхолдер.
+  useEffect(() => {
+    const dishCacheId = recipe?.dish_cache_id;
+    if (!dishCacheId || recipe?.image_status !== "generating" || recipe?.image_url) return;
+    let attempts = 0;
+    let cancelled = false;
+    const timer = setInterval(async () => {
+      attempts += 1;
+      if (attempts > 10) { clearInterval(timer); return; }
+      try {
+        const res = await fetch(`/api/dish-image?id=${dishCacheId}`);
+        const json = await res.json();
+        if (cancelled) return;
+        if (json.image_status === "ready" && json.image_url) {
+          clearInterval(timer);
+          setRecipe((prev) => (prev && prev.dish_cache_id === dishCacheId ? { ...prev, image_url: json.image_url, image_status: "ready" } : prev));
+        } else if (json.image_status === "failed" || json.image_status === "none") {
+          clearInterval(timer);
+          setRecipe((prev) => (prev && prev.dish_cache_id === dishCacheId ? { ...prev, image_status: json.image_status } : prev));
+        }
+      } catch { /* сеть моргнула — попробуем на следующем тике */ }
+    }, 3000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [recipe?.dish_cache_id, recipe?.image_status, recipe?.image_url]);
+
   useEffect(() => {
     let currentSessionId = localStorage.getItem("cook_user_id");
     if (user) {
@@ -743,7 +771,7 @@ export default function SearchApp() {
   const handleRegenerate = async () => {
     if (!analysisResult) return; setIsRegenerating(true);
     try {
-      const response = await fetch("/api/regenerate", { method: "POST", headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) }, body: JSON.stringify({ ingredients: analysisResult.ingredients }) });
+      const response = await fetch("/api/regenerate", { method: "POST", headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) }, body: JSON.stringify({ ingredients: analysisResult.ingredients, allergies, dislikes }) });
       const json = await response.json(); if (handleRateLimitedResponse(response, json)) return; if (json.error) throw new Error(json.error);
       setAnalysisResult({ ...analysisResult, dishes: json.dishes });
     } catch (err: any) { showToast("Ошибка", undefined, 'error'); } finally { setIsRegenerating(false); } 
@@ -806,14 +834,22 @@ export default function SearchApp() {
     setLoadingRecipe(true); setIsHistoryView(false); setFromFeed(false); setServings(1);  
     try { 
       if (analysisResult) {
-        const response = await fetch("/api/regenerate", { method: "POST", headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) }, body: JSON.stringify({ ingredients: analysisResult.ingredients }) });
+        const response = await fetch("/api/regenerate", { method: "POST", headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) }, body: JSON.stringify({ ingredients: analysisResult.ingredients, allergies, dislikes }) });
         const json = await response.json(); if (handleRateLimitedResponse(response, json)) return; if (json.error) throw new Error(json.error);
         const newDishes = json.dishes.filter((d: string) => d !== selectedDish);
         setAnalysisResult({ ...analysisResult, dishes: json.dishes }); 
         await getRecipeFromPhoto(newDishes.length > 0 ? newDishes[0] : json.dishes[0]); 
-      } else if (searchMode === 'text' && textQuery) { 
-        await handleTextSearch();
-      } 
+      } else if (searchMode === 'text' && textQuery) {
+        // Тип B, «подобрать другой рецепт»: просим следующий вариант. Без профиля
+        // и с кэшем сервер отдаёт вариант из кэша мгновенно (либо генерит новый).
+        const response = await fetch("/api/search-recipe", { method: "POST", headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) }, body: JSON.stringify({ query: textQuery, sessionId: userId, allergies, dislikes, requestVariant: true, currentVariantIndex: recipe?.variant_index || 1 }) });
+        const json = await response.json(); if (handleRateLimitedResponse(response, json)) return; if (!response.ok) throw new Error(json.error || "Ошибка");
+        if (json.type === "dish" && json.recipe) {
+          if (json.cacheHit) reachGoal("text_search_cache_hit");
+          setRecipe({ ...json.recipe, id: json.recipe.id, is_favorite: false, missing_ingredients: json.recipe.missing_ingredients || [] });
+          if (userId) fetchMyRecipes(userId);
+        }
+      }
     } catch (err: any) { showToast("Ошибка", undefined, 'error'); } finally { setLoadingRecipe(false); } 
   }; 
 
@@ -836,6 +872,8 @@ export default function SearchApp() {
 
       // Название блюда → сразу рецепт (прежнее поведение).
       reachGoal("text_search_dish");
+      // Этап 2: мгновенный ответ из кэша блюд (без обращения к OpenAI).
+      if (json.cacheHit) reachGoal("text_search_cache_hit");
       setRecipe({ ...json.recipe, id: json.recipe.id, is_favorite: false, missing_ingredients: json.recipe.missing_ingredients || [] });
       if (userId) fetchMyRecipes(userId);
       handleRewardForRecipe();

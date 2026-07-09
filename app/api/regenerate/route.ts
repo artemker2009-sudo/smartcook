@@ -12,18 +12,34 @@ export async function POST(req: Request) {
   try {
     if (!isTrustedOrigin(req)) return originBlockedResponse();
 
-    const { ingredients } = await req.json();
+    const { ingredients, allergies, dislikes } = await req.json();
 
     if (!ingredients || ingredients.length === 0) {
       return NextResponse.json({ error: "Нет ингредиентов" }, { status: 400 });
     }
 
-    if (isStringListTooLong(ingredients)) {
+    if (
+      isStringListTooLong(ingredients) ||
+      isStringListTooLong(allergies) ||
+      isStringListTooLong(dislikes)
+    ) {
       return NextResponse.json({ error: "Слишком длинный список ингредиентов" }, { status: 400 });
     }
 
     const rateLimit = await checkAndConsumeAiRateLimit(req, "regenerate");
     if (!rateLimit.ok) return rateLimitResponse(rateLimit);
+
+    // ФИКС ДЫРЫ (этап 2): профиль вкуса раньше НЕ прокидывался в этот роут, и
+    // «подобрать другой рецепт» мог предложить блюда с аллергенами/нелюбимым.
+    // Тот же блок «ОГРАНИЧЕНИЯ И ПРЕДПОЧТЕНИЯ», что и в остальных роутах.
+    let dietaryInstructions = "";
+    if ((allergies && allergies.length > 0) || (dislikes && dislikes.length > 0)) {
+      dietaryInstructions = `
+            === ОГРАНИЧЕНИЯ И ПРЕДПОЧТЕНИЯ (КРИТИЧЕСКИ ВАЖНО) ===
+            ${allergies && allergies.length > 0 ? `- АЛЛЕРГИЯ НА: ${allergies.join(", ")}. СТРОГО ИСКЛЮЧИ ЭТИ ПРОДУКТЫ ИЗ ПОДБОРКИ.` : ""}
+            ${dislikes && dislikes.length > 0 ? `- НЕ ЛЮБИТ: ${dislikes.join(", ")}. НЕ ПРЕДЛАГАЙ блюда с этим, найди альтернативу.` : ""}
+          `;
+    }
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -32,12 +48,12 @@ export async function POST(req: Request) {
           role: "user",
           content: `
             У меня есть продукты: ${ingredients.join(", ")}.
-            
+
             Пользователю не понравились предыдущие варианты.
             Предложи 3 НОВЫХ, КРЕАТИВНЫХ блюда, которые можно приготовить из этого.
             Старайся предлагать полноценные блюда, а не просто "нарезка".
-            
-            Верни ответ строго в формате JSON: 
+            ${dietaryInstructions}
+            Верни ответ строго в формате JSON:
             { "dishes": ["блюдо1", "блюдо2", "блюдо3"] }
           `
         },

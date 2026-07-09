@@ -199,7 +199,7 @@ export default function RecipeView({
         </button>
       )}
 
-      <RecipeImage src={recipe.image_url} alt={recipe.title} />
+      <RecipeImage src={recipe.image_url} alt={recipe.title} status={recipe.image_status} />
 
       <div
         className="recipe-header"

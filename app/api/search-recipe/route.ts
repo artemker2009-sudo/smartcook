@@ -1,20 +1,57 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import OpenAI from "openai";
 import { checkAndConsumeAiRateLimit, rateLimitResponse } from "@/lib/rateLimit";
 import { isStringListTooLong, isTextTooLong } from "@/lib/inputLimits";
 import { isTrustedOrigin, originBlockedResponse } from "@/lib/originGuard";
 import { sanitizeRecipeForStorage } from "@/lib/recipeValidation";
 import { createRequestScopedClient } from "@/lib/auth";
+import { normalizeQueryKey } from "@/lib/queryNormalize";
+import {
+  isRecipeCacheEnabled,
+  hasTasteProfile,
+  getCachedVariant,
+  getDishCacheByKey,
+  getMaxVariantIndex,
+  createDishCacheEntry,
+  addDishCacheVariant,
+} from "@/lib/dishCache";
+import { generateDishRecipe } from "@/lib/dishGeneration";
+import { generateDishCacheImage } from "@/lib/recipeImage";
+
+export const runtime = "nodejs";
+// Фоновая генерация картинки (after) продлевает жизнь функции — даём запас.
+export const maxDuration = 60;
 
 const openai = new OpenAI({
   apiKey: (process.env.OPENAI_API_KEY || "").trim()
 });
 
+// Сохранение рецепта в личную историю пользователя (recipes) — как раньше.
+// Возвращает id вставленной строки (или null). Работает и для сгенерированного,
+// и для кэшированного рецепта: история пишется параллельно кэшу, независимо.
+async function saveToHistory(req: Request, sessionId: unknown, recipe: any): Promise<number | null> {
+  if (!sessionId) return null;
+  const sanitized = sanitizeRecipeForStorage(recipe);
+  if (!sanitized) {
+    console.error("Рецепт без названия после санитизации — не сохраняем в историю");
+    return null;
+  }
+  const supabase = createRequestScopedClient(req);
+  const { data, error } = await supabase
+    .from("recipes")
+    .insert({ session_id: sessionId, ...sanitized, is_favorite: false })
+    .select("id")
+    .single();
+  if (error) console.error("History save error:", error);
+  return data?.id ?? null;
+}
+
 export async function POST(req: Request) {
   try {
     if (!isTrustedOrigin(req)) return originBlockedResponse();
 
-    const { query, sessionId, allergies, dislikes } = await req.json();
+    const { query, sessionId, allergies, dislikes, requestVariant, currentVariantIndex } =
+      await req.json();
 
     if (!query || query.trim().length < 2) {
        return NextResponse.json({ error: "Введите продукты или название блюда" }, { status: 400 });
@@ -25,9 +62,31 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Слишком длинный запрос" }, { status: 400 });
     }
 
-    const rateLimit = await checkAndConsumeAiRateLimit(req, "search-recipe");
-    if (!rateLimit.ok) return rateLimitResponse(rateLimit);
+    const cacheOn = isRecipeCacheEnabled();
+    const profile = hasTasteProfile(allergies, dislikes);
+    const queryKey = normalizeQueryKey(query);
 
+    // ── «Подобрать другой рецепт» для типа B (этап 2) ─────────────────────────
+    // Клиент шлёт requestVariant:true, зная, что текущий результат — блюдо.
+    if (requestVariant === true) {
+      return await handleVariant(req, {
+        query, sessionId, allergies, dislikes, cacheOn, profile, queryKey,
+        currentVariantIndex: Number(currentVariantIndex) || 1,
+      });
+    }
+
+    // ── Cache hit (вариант 1) — ТОЛЬКО без профиля вкуса ──────────────────────
+    // Персональные рецепты в общий кэш не попадают, значит и читать кэш при
+    // непустом профиле нельзя. Возврат ДО OpenAI — отсюда «мгновенно».
+    if (cacheOn && !profile && queryKey) {
+      const hit = await getCachedVariant(queryKey, 1);
+      if (hit) {
+        const id = await saveToHistory(req, sessionId, hit);
+        return NextResponse.json({ type: "dish", recipe: { ...hit, id }, cacheHit: true });
+      }
+    }
+
+    // ── Промт детекции A/B/C + генерация (как раньше) ─────────────────────────
     let dietaryInstructions = "";
     if ((allergies && allergies.length > 0) || (dislikes && dislikes.length > 0)) {
       dietaryInstructions = `
@@ -123,6 +182,10 @@ export async function POST(req: Request) {
       }
     `;
 
+    // Лимит потребляем только перед реальным вызовом OpenAI (cache hit — бесплатно).
+    const rateLimit = await checkAndConsumeAiRateLimit(req, "search-recipe");
+    if (!rateLimit.ok) return rateLimitResponse(rateLimit);
+
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "system", content: systemPrompt }],
@@ -145,6 +208,7 @@ export async function POST(req: Request) {
     }
 
     // --- Список продуктов: возвращаем подборку блюд (рецепт генерится на след. шаге) ---
+    // НЕ кэшируем: это не одно блюдо, а подборка (кэш — только для типа B).
     if (result.type === "ingredients") {
       const ingredients = Array.isArray(result.ingredients) ? result.ingredients : [];
       const dishes = Array.isArray(result.dishes) ? result.dishes : [];
@@ -157,22 +221,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ type: "ingredients", data: { ingredients, dishes } });
     }
 
-    // --- Название блюда: полная техкарта (как раньше) ---
+    // --- Название блюда: полная техкарта ---
     const recipe = result.recipe && typeof result.recipe === "object" ? result.recipe : result;
 
-    if (sessionId) {
-      const sanitized = sanitizeRecipeForStorage(recipe);
-      if (sanitized) {
-        const supabase = createRequestScopedClient(req);
-        const { data: savedRow, error } = await supabase.from('recipes').insert({
-          session_id: sessionId,
-          ...sanitized,
-          is_favorite: false,
-        }).select('id').single();
-        if (error) console.error("History save error:", error);
-        if (savedRow) recipe.id = savedRow.id;
-      } else {
-        console.error("Рецепт без названия после санитизации — не сохраняем в историю");
+    const id = await saveToHistory(req, sessionId, recipe);
+    if (id) recipe.id = id;
+
+    // Запись в кэш + фоновая генерация картинки — ТОЛЬКО без профиля вкуса.
+    if (cacheOn && !profile && queryKey && recipe?.title) {
+      const entry = await createDishCacheEntry(queryKey, String(recipe.title), recipe, "generating");
+      if (entry) {
+        recipe.dish_cache_id = entry.dishCacheId;
+        recipe.image_status = "generating";
+        // Фоновая генерация картинки: не задерживаем ответ пользователю.
+        after(async () => {
+          await generateDishCacheImage(entry.dishCacheId);
+        });
       }
     }
 
@@ -181,4 +245,66 @@ export async function POST(req: Request) {
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
+}
+
+// Обработчик «другого рецепта» для типа B.
+async function handleVariant(
+  req: Request,
+  ctx: {
+    query: string;
+    sessionId: unknown;
+    allergies?: string[];
+    dislikes?: string[];
+    cacheOn: boolean;
+    profile: boolean;
+    queryKey: string;
+    currentVariantIndex: number;
+  },
+): Promise<Response> {
+  const { query, sessionId, allergies, dislikes, cacheOn, profile, queryKey, currentVariantIndex } = ctx;
+
+  // Без профиля + кэш включён + блюдо уже в кэше → вариант из кэша либо новый.
+  if (cacheOn && !profile && queryKey) {
+    const cache = await getDishCacheByKey(queryKey);
+    if (cache) {
+      // 1) Уже есть следующий вариант в кэше → отдаём мгновенно.
+      const desired = currentVariantIndex + 1;
+      const existing = await getCachedVariant(queryKey, desired);
+      if (existing) {
+        const id = await saveToHistory(req, sessionId, existing);
+        return NextResponse.json({ type: "dish", recipe: { ...existing, id }, cacheHit: true });
+      }
+
+      // 2) Нет — генерируем НОВЫЙ вариант, дописываем в кэш, отдаём.
+      const rateLimit = await checkAndConsumeAiRateLimit(req, "search-recipe");
+      if (!rateLimit.ok) return rateLimitResponse(rateLimit);
+
+      const nextIndex = (await getMaxVariantIndex(cache.id)) + 1;
+      const raw = await generateDishRecipe(query, { variantIndex: nextIndex });
+      await addDishCacheVariant(cache.id, nextIndex, raw);
+
+      // Перечитываем из кэша, чтобы отдать объект с метаданными картинки блюда.
+      const fresh = (await getCachedVariant(queryKey, nextIndex)) || {
+        ...raw,
+        dish_cache_id: cache.id,
+        variant_index: nextIndex,
+        image_status: cache.image_status,
+        image_url: cache.image_url,
+      };
+      const id = await saveToHistory(req, sessionId, fresh);
+      return NextResponse.json({ type: "dish", recipe: { ...fresh, id } });
+    }
+  }
+
+  // С профилем ИЛИ кэш off ИЛИ блюда нет в кэше → генерируем свежий рецепт,
+  // уважая профиль (фикс: раньше «другой рецепт» мог игнорировать профиль).
+  const rateLimit = await checkAndConsumeAiRateLimit(req, "search-recipe");
+  if (!rateLimit.ok) return rateLimitResponse(rateLimit);
+
+  const raw = await generateDishRecipe(query, {
+    allergies, dislikes, variantIndex: currentVariantIndex + 1,
+  });
+  const id = await saveToHistory(req, sessionId, raw);
+  if (id) raw.id = id;
+  return NextResponse.json({ type: "dish", recipe: raw });
 }

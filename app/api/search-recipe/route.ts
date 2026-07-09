@@ -36,10 +36,20 @@ async function saveToHistory(req: Request, sessionId: unknown, recipe: any): Pro
     console.error("Рецепт без названия после санитизации — не сохраняем в историю");
     return null;
   }
+  // Картинка блюда из dish_cache: если она уже готова (cache hit со статусом
+  // ready, либо новый вариант блюда, у которого картинка сгенерирована ранее) —
+  // записываем image_url и в личную историю, чтобы рецепт в истории был с
+  // картинкой. У miss'а картинка ещё генерится в фоне → image_url тут пусто,
+  // историю не трогаем (как для старых записей). sanitizeRecipeForStorage
+  // image_url не пробрасывает намеренно, поэтому добавляем его явно.
+  const payload: Record<string, unknown> = { session_id: sessionId, ...sanitized, is_favorite: false };
+  if (typeof recipe?.image_url === "string" && recipe.image_url) {
+    payload.image_url = recipe.image_url.slice(0, 2000);
+  }
   const supabase = createRequestScopedClient(req);
   const { data, error } = await supabase
     .from("recipes")
-    .insert({ session_id: sessionId, ...sanitized, is_favorite: false })
+    .insert(payload)
     .select("id")
     .single();
   if (error) console.error("History save error:", error);

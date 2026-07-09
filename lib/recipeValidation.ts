@@ -81,6 +81,23 @@ function sanitizeIngredientList(value: unknown, maxItems: number, maxItemLength:
     .filter((item) => item.length > 0);
 }
 
+// cooking_time_minutes: целое число минут. Модель может не вернуть поле, вернуть
+// строку ("35 мин"), 0 или мусор — во всех этих случаях храним null, чтобы UI
+// не рисовал «0 мин». Верхний предел — защита от абсурдных значений.
+const MAX_COOKING_TIME_MINUTES = 60 * 24 * 3; // 3 суток — заведомо больше любого рецепта
+function sanitizeCookingTime(value: unknown): number | null {
+  const raw =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number(value.replace(/[^\d.,]/g, "").replace(",", "."))
+        : NaN;
+  if (!Number.isFinite(raw)) return null;
+  const rounded = Math.round(raw);
+  if (rounded <= 0 || rounded > MAX_COOKING_TIME_MINUTES) return null;
+  return rounded;
+}
+
 function sanitizeDetailedIngredients(value: unknown): { name: string; amount: string }[] {
   if (!Array.isArray(value)) return [];
   return value
@@ -96,6 +113,7 @@ export interface SanitizedRecipeFields {
   title: string;
   description: string;
   time: string;
+  cooking_time_minutes: number | null;
   calories: string;
   steps: string[];
   missing_ingredients: string[];
@@ -115,6 +133,7 @@ export function sanitizeRecipeForStorage(recipe: any): SanitizedRecipeFields | n
     title,
     description: sanitizeText(recipe?.description, MAX_DESCRIPTION_LENGTH),
     time: sanitizeText(recipe?.time, MAX_SHORT_FIELD_LENGTH),
+    cooking_time_minutes: sanitizeCookingTime(recipe?.cooking_time_minutes),
     calories: sanitizeText(recipe?.calories, MAX_SHORT_FIELD_LENGTH),
     steps: sanitizeStringList(recipe?.steps, MAX_LIST_ITEMS, MAX_LIST_ITEM_LENGTH),
     // missing_ingredients — через сплит-нормализацию (AB): если модель склеила

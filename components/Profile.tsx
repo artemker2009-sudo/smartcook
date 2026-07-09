@@ -2,6 +2,7 @@ import React from "react";
 import { User, Edit3, LogOut, Settings, ChevronRight, Heart, Clock, Flame, Trash2, MessageCircle, Camera, Cookie, Store, History, ChefHat, HeartCrack } from "lucide-react";
 import Button from "@/components/ui/Button";
 import { FEATURE_RESTAURANT_GAME } from "@/lib/features";
+import { formatCookingTime } from "@/lib/utils";
 
 export default function Profile(props: any) {
   const {
@@ -107,7 +108,7 @@ export default function Profile(props: any) {
                         {item.is_favorite && <Heart size={14} fill="#dc2626" color="#dc2626" style={{display: 'inline-block', marginLeft: 'var(--space-1)', verticalAlign: 'middle', marginTop: '-2px'}}/>}
                       </div>
                       <div style={{display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'var(--space-2)', fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)'}}>
-                         <div style={{display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--color-bg)', padding: 'var(--space-1) var(--space-2)', borderRadius: 'var(--radius-sm)'}}><Clock size={14}/> {formatTime(item.time)}</div>
+                         <div style={{display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--color-bg)', padding: 'var(--space-1) var(--space-2)', borderRadius: 'var(--radius-sm)'}}><Clock size={14}/> {formatCookingTime(item.cooking_time_minutes) || formatTime(item.time)}</div>
                          {item.calories && <div style={{display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--color-bg)', color: 'var(--color-text-secondary)', padding: 'var(--space-1) var(--space-2)', borderRadius: 'var(--radius-sm)'}}><Flame size={14}/> {formatCalories(item.calories)}</div>}
                       </div>
                     </div>
@@ -133,7 +134,7 @@ export default function Profile(props: any) {
                         {item.title} <Heart size={14} fill="#dc2626" color="#dc2626" style={{display: 'inline-block', marginLeft: 'var(--space-1)', verticalAlign: 'middle', marginTop: '-2px'}}/>
                       </div>
                       <div style={{display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'var(--space-2)', fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)'}}>
-                         <div style={{display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--color-bg)', padding: 'var(--space-1) var(--space-2)', borderRadius: 'var(--radius-sm)'}}><Clock size={14}/> {formatTime(item.time)}</div>
+                         <div style={{display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--color-bg)', padding: 'var(--space-1) var(--space-2)', borderRadius: 'var(--radius-sm)'}}><Clock size={14}/> {formatCookingTime(item.cooking_time_minutes) || formatTime(item.time)}</div>
                          {item.calories && <div style={{display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--color-bg)', color: 'var(--color-text-secondary)', padding: 'var(--space-1) var(--space-2)', borderRadius: 'var(--radius-sm)'}}><Flame size={14}/> {formatCalories(item.calories)}</div>}
                       </div>
                     </div>

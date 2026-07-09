@@ -1551,6 +1551,7 @@ a.news-card:hover { transform: translateY(-2px); }
 .cook-intro-emoji, .cook-finish-emoji { font-size: 72px; line-height: 1; }
 .cook-intro-title, .cook-finish-title { margin: 0; font-size: 28px; font-weight: 700; color: #111111; line-height: 1.25; }
 .cook-intro-text { margin: 0; font-size: 22px; line-height: 1.5; color: #333333; max-width: 480px; }
+.cook-intro-time { display: inline-flex; align-items: center; gap: 8px; font-size: 22px; font-weight: 600; color: #333333; }
 .cook-intro .cook-btn-giant, .cook-finish .cook-btn-giant { width: 100%; max-width: 420px; }
 .cook-intro-exit {
   background: none; border: none; color: #71717a; font-size: 18px; font-weight: 600;

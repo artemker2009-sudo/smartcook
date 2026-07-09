@@ -27,6 +27,7 @@ import DonateButton from "@/components/DonateButton";
 import Button from "@/components/ui/Button";
 import CookMode from "@/components/CookMode";
 import { splitIngredientList } from "@/lib/recipeValidation";
+import { formatCookingTime } from "@/lib/utils";
 
 interface RecipeViewProps {
   recipe: any;
@@ -277,7 +278,7 @@ export default function RecipeView({
 
       <div className="recipe-tags" style={{ marginTop: "var(--space-3)", marginBottom: "var(--space-3)" }}>
         <div className="tag-badge">
-          <Clock size={16} /> {formatTime(recipe.time)}
+          <Clock size={16} /> {formatCookingTime(recipe.cooking_time_minutes) || formatTime(recipe.time)}
         </div>
         {recipe.calories && (
           <div className="tag-badge">
@@ -868,6 +869,7 @@ export default function RecipeView({
           title={recipe.title}
           steps={recipe.steps || []}
           ingredients={cookIngredients}
+          cookingTimeMinutes={recipe.cooking_time_minutes}
           onClose={() => setCooking(false)}
           // Финал: закрываем режим и подводим к готовому флоу «Приготовили? Покажите».
           onCookedPhoto={() => {

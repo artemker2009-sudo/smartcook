@@ -104,7 +104,7 @@ type ImagesStatus = {
   maxBatch: number;
 };
 
-type TabId = "management" | "analytics" | "purchases" | "news" | "articles" | "tips" | "feed" | "images" | "errors";
+type TabId = "management" | "analytics" | "purchases" | "news" | "articles" | "tips" | "feed" | "images" | "warmup" | "errors";
 
 const TABS = [
   { id: "management" as TabId, label: "⚙️ Управление", hint: "Статус сайта и техработы" },
@@ -115,6 +115,7 @@ const TABS = [
   { id: "tips" as TabId, label: "💡 Советы", hint: "Совет дня на главной" },
   { id: "feed" as TabId, label: "🍽️ Лента", hint: "Модерация «Приготовили сегодня»" },
   { id: "images" as TabId, label: "🖼️ Картинки", hint: "ИИ-картинки блюд к рецептам" },
+  { id: "warmup" as TabId, label: "🔥 Прогрев", hint: "Заранее наполнить кэш блюд" },
   { id: "errors" as TabId, label: "🐞 Ошибки", hint: "Баг-репорты пользователей" },
 ];
 
@@ -227,6 +228,13 @@ export default function AdminPage() {
   const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
   const [batchResult, setBatchResult] = useState<{ ok: number; failed: number } | null>(null);
   const [regenId, setRegenId] = useState<number | null>(null);
+  // Раздел «Прогрев»: список блюд → наполнение кэша (рецепт + картинка).
+  const WARMUP_MAX = 30;
+  const [warmupText, setWarmupText] = useState("");
+  const [warmupCostPerImage, setWarmupCostPerImage] = useState(0.02);
+  const [warmupRunning, setWarmupRunning] = useState(false);
+  const [warmupProgress, setWarmupProgress] = useState<{ done: number; total: number } | null>(null);
+  const [warmupResult, setWarmupResult] = useState<{ ok: number; skipped: number; failed: number } | null>(null);
   const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
   const [newsEditingId, setNewsEditingId] = useState<string | null>(null); // null = форма создания
   const [newsTitle, setNewsTitle] = useState("");
@@ -314,6 +322,21 @@ export default function AdminPage() {
     if (isAuthenticated && activeTab === "images" && imagesStatus === null && !imagesLoading) {
       void loadImages();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, activeTab]);
+
+  // Раздел «Прогрев»: подтягиваем цену за картинку (для оценки стоимости прогона).
+  useEffect(() => {
+    if (!isAuthenticated || activeTab !== "warmup") return;
+    void (async () => {
+      try {
+        const res = await fetch("/api/admin/warmup", { cache: "no-store" });
+        if (res.status === 401) { setIsAuthenticated(false); return; }
+        if (!res.ok) return;
+        const data = await res.json();
+        if (typeof data?.costPerImageUsd === "number") setWarmupCostPerImage(data.costPerImageUsd);
+      } catch { /* цена по умолчанию 0.02 */ }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, activeTab]);
 
@@ -510,6 +533,48 @@ export default function AdminPage() {
     } finally {
       setRegenId(null);
     }
+  };
+
+  // Прогрев кэша: одно блюдо = один POST (роут делает рецепт + картинку, не
+  // падает при ошибке). Клиент гонит список ПОСЛЕДОВАТЕЛЬНО, показывая прогресс.
+  const warmupOne = async (dish: string): Promise<"ok" | "skipped" | "error"> => {
+    try {
+      const res = await fetch("/api/admin/warmup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dish }),
+      });
+      if (!res.ok) return "error";
+      const data = await res.json();
+      if (data?.status === "ok") return "ok";
+      if (data?.status === "skipped") return "skipped";
+      return "error";
+    } catch {
+      return "error";
+    }
+  };
+
+  const runWarmup = async () => {
+    if (warmupRunning) return;
+    const dishes = warmupText
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, WARMUP_MAX);
+    if (dishes.length === 0) return;
+    setWarmupRunning(true);
+    setWarmupResult(null);
+    setWarmupProgress({ done: 0, total: dishes.length });
+    let ok = 0, skipped = 0, failed = 0;
+    for (let i = 0; i < dishes.length; i++) {
+      const r = await warmupOne(dishes[i]);
+      if (r === "ok") ok += 1;
+      else if (r === "skipped") skipped += 1;
+      else failed += 1;
+      setWarmupProgress({ done: i + 1, total: dishes.length });
+    }
+    setWarmupResult({ ok, skipped, failed });
+    setWarmupRunning(false);
   };
 
   const resetNewsForm = () => {
@@ -2002,6 +2067,77 @@ export default function AdminPage() {
                 </>
               ) : null}
             </section>
+          ) : null}
+
+          {activeTab === "warmup" ? (
+            (() => {
+              const dishCount = warmupText
+                .split("\n")
+                .map((s) => s.trim())
+                .filter(Boolean).length;
+              const willRun = Math.min(dishCount, WARMUP_MAX);
+              return (
+                <section className="space-y-4">
+                  <div className="rounded-[2rem] border border-zinc-200 bg-white px-6 py-5 shadow-sm">
+                    <p className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-400">Кэш</p>
+                    <h3 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-950">Прогрев кэша блюд</h3>
+                    <p className="mt-2 text-sm text-zinc-500">
+                      Список блюд по одному в строке (максимум {WARMUP_MAX} за запуск). Для каждого:
+                      нормализуем запрос, и если блюда ещё нет в кэше — генерируем рецепт (вариант 1)
+                      и картинку. Уже прогретые блюда пропускаются (бюджет не тратится).
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl bg-white p-6 shadow-sm">
+                    <label className="flex flex-col gap-2 text-sm text-zinc-600">
+                      Блюда (по одному в строке)
+                      <textarea
+                        value={warmupText}
+                        onChange={(e) => setWarmupText(e.target.value)}
+                        disabled={warmupRunning}
+                        rows={10}
+                        placeholder={"борщ\nпаста карбонара\nсырники\nплов"}
+                        className="w-full rounded-xl border border-zinc-200 px-3 py-2 text-base text-zinc-900 disabled:opacity-50"
+                      />
+                    </label>
+
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
+                      <div className="text-sm text-zinc-500">
+                        Будет обработано:{" "}
+                        <span className="font-semibold text-zinc-900">{willRun}</span>
+                        {dishCount > WARMUP_MAX ? (
+                          <span className="text-amber-600"> (лишние {dishCount - WARMUP_MAX} обрежутся)</span>
+                        ) : null}
+                        {" · "}Примерная стоимость:{" "}
+                        <span className="font-semibold text-zinc-900">
+                          ~${(willRun * warmupCostPerImage).toFixed(2)}
+                        </span>
+                        <span className="text-zinc-400"> (~${warmupCostPerImage.toFixed(2)} за картинку)</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void runWarmup()}
+                        disabled={warmupRunning || willRun === 0}
+                        className="rounded-2xl bg-black px-5 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {warmupRunning
+                          ? `Прогрев… ${warmupProgress?.done ?? 0}/${warmupProgress?.total ?? 0}`
+                          : `Прогреть (${willRun})`}
+                      </button>
+                    </div>
+
+                    {warmupResult ? (
+                      <p className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700 ring-1 ring-emerald-100">
+                        Готово. Прогрето: <span className="font-semibold">{warmupResult.ok}</span>,
+                        пропущено (уже в кэше): <span className="font-semibold">{warmupResult.skipped}</span>,
+                        ошибок: <span className="font-semibold">{warmupResult.failed}</span>
+                        {warmupResult.failed > 0 ? " (детали — во вкладке «Ошибки»)" : ""}.
+                      </p>
+                    ) : null}
+                  </div>
+                </section>
+              );
+            })()
           ) : null}
 
           {deleteConfirmId ? (

@@ -28,6 +28,12 @@ export interface RecipeData {
   estimated_cost?: number;
   delivery_cost?: number;
   budget_tier?: number;
+  // Этап 2 (кэш блюд): id записи dish_cache и статус фоновой генерации картинки.
+  // Заполняются только для результатов текстового поиска типа B без профиля
+  // вкуса; для остальных сценариев undefined.
+  dish_cache_id?: number;
+  image_status?: "none" | "generating" | "ready" | "failed";
+  variant_index?: number;
 }
 
 export interface DBRecipe {

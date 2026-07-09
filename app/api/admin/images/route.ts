@@ -52,9 +52,16 @@ export async function GET(req: Request) {
   // просмотра/поиска/перегенерации. Поиск и фильтры — на клиенте.
   const GALLERY_LIMIT = 300;
 
+  // ВАЖНО: из recipes берём ТОЛЬКО строки С картинкой. recipes — это личная
+  // история поиска (одна строка на каждый поиск каждого пользователя), поэтому
+  // популярные блюда без картинки повторяются десятками одинаковых карточек и
+  // затапливают галерею. Такие строки — не «ИИ-картинки», а история людей
+  // (удалять их нельзя). Дедуплицированный набор блюд с картинками живёт в
+  // dish_cache; сюда из recipes пускаем только реальные картинки этапа 1.
   const { data: recipeRows, error: recError } = await supabase
     .from("recipes")
     .select("id, title, image_url, created_at")
+    .not("image_url", "is", null)
     .order("created_at", { ascending: false })
     .limit(GALLERY_LIMIT);
 

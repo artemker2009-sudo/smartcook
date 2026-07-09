@@ -420,6 +420,7 @@ export async function addPartyItemAction(
     category: trimmedCategory,
     ingredients: [],
     votes: [trimmedUserId],
+    source: "manual",
   };
 
   console.log("1. Начинаем добавление блюда:", payload);

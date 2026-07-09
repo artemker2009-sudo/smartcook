@@ -2057,7 +2057,7 @@ export default function ClientRoom({
                 {
                   icon: "👯",
                   title: "Зови друзей",
-                  text: "Кидай ссылку братве. Они смогут зайти, лайкать блюда и добавлять свои идеи.",
+                  text: "Отправьте ссылку родным и гостям — они смогут отмечать любимые блюда и добавлять свои.",
                 },
                 {
                   icon: "✍️",
@@ -2384,9 +2384,9 @@ export default function ClientRoom({
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
         >
           <div className="w-full max-w-sm animate-in zoom-in-95 rounded-3xl bg-white p-6 shadow-2xl duration-200">
-            <h2 id="regenerate-menu-title" className="mb-2 text-xl font-bold text-black">Обновить меню?</h2>
+            <h2 id="regenerate-menu-title" className="mb-2 text-xl font-bold text-black">Собрать меню заново?</h2>
             <p id="regenerate-menu-description" className="mb-6 text-sm leading-6 text-zinc-500">
-              Внимание: текущий список блюд будет полностью удален и заменен новым. Это действие нельзя отменить.
+              Блюда, добавленные вручную, останутся. Блюда от ИИ будут заменены новыми.
             </p>
 
             <div className="flex gap-2">
@@ -2409,7 +2409,7 @@ export default function ClientRoom({
                     Создаем...
                   </>
                 ) : (
-                  "Удалить и создать"
+                  "Пересобрать меню"
                 )}
               </button>
             </div>

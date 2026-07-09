@@ -13,7 +13,7 @@ import {
   ArrowRight,
   Volume2,
 } from "lucide-react";
-import { formatTime, formatCalories, scaleAmount, cleanText } from "@/lib/utils";
+import { formatTime, formatCookingTime, formatCalories, scaleAmount, cleanText } from "@/lib/utils";
 import { shareOrCopy } from "@/lib/share";
 import type { RecipeData } from "@/lib/types";
 import CookMode from "@/components/CookMode";
@@ -70,7 +70,7 @@ export default function SharedRecipe({ recipe }: { recipe: RecipeData }) {
 
         <div className="recipe-tags" style={{ marginTop: "var(--space-3)", marginBottom: "var(--space-3)" }}>
           <div className="tag-badge">
-            <Clock size={16} /> {formatTime(recipe.time)}
+            <Clock size={16} /> {formatCookingTime(recipe.cooking_time_minutes) || formatTime(recipe.time)}
           </div>
           {recipe.calories && (
             <div className="tag-badge">
@@ -187,6 +187,7 @@ export default function SharedRecipe({ recipe }: { recipe: RecipeData }) {
           title={recipe.title}
           steps={recipe.steps || []}
           ingredients={detailed}
+          cookingTimeMinutes={recipe.cooking_time_minutes}
           onClose={() => setCooking(false)}
           // Гость на /recipe/[id]: публикация фото требует аккаунта — ведём в
           // приложение к готовому флоу «Приготовили? Покажите» (тот же вход).

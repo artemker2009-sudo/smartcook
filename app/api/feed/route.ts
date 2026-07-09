@@ -12,7 +12,7 @@ const supabase = createClient(
 // смог бы забрать чужой session_id и дальше действовать от его имени в
 // /api/favorite. Явно перечисляем только то, что реально нужно ленте.
 const FEED_COLUMNS =
-  "id, title, description, time, calories, ingredients, detailed_ingredients, missing_ingredients, steps, likes_count, created_at, recipe_likes(user_id)";
+  "id, title, description, time, cooking_time_minutes, calories, ingredients, detailed_ingredients, missing_ingredients, steps, likes_count, created_at, recipe_likes(user_id)";
 
 export async function POST(req: Request) {
   try {

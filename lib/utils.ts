@@ -37,6 +37,16 @@ export const formatTime = (t: string) => {
   return digits ? `${digits} мин.` : t;
 };
 
+// Структурированное время приготовления (cooking_time_minutes) — целое число
+// минут. Формат «~35 мин» (тильда = это оценка). Возвращает "" для null/0/мусора,
+// чтобы UI мог не показывать ничего для старых рецептов без этого поля.
+export const formatCookingTime = (minutes?: number | null): string => {
+  if (typeof minutes !== "number" || !Number.isFinite(minutes)) return "";
+  const rounded = Math.round(minutes);
+  if (rounded <= 0) return "";
+  return `~${rounded} мин`;
+};
+
 export const formatCalories = (c?: string) => {
   if (!c) return "";
   const match = c.match(/\d+/);

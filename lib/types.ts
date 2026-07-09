@@ -14,6 +14,9 @@ export interface RecipeData {
   title: string;
   description?: string;
   time: string;
+  // Общая оценка времени приготовления в минутах (подготовка + готовка).
+  // null/undefined у старых рецептов — UI тогда ничего не показывает.
+  cooking_time_minutes?: number | null;
   calories?: string;
   steps: string[];
   missing_ingredients?: string[];
@@ -28,6 +31,7 @@ export interface DBRecipe {
   id: number;
   title: string;
   time: string;
+  cooking_time_minutes?: number | null;
   calories?: string;
   is_favorite: boolean;
   created_at: string;
@@ -53,6 +57,7 @@ export interface DailyRecipeType {
   title: string;
   description?: string;
   time: string | number;
+  cooking_time_minutes?: number | null;
   calories: string | number;
   ingredients?: string[];
   detailed_ingredients?: DetailedIngredient[];

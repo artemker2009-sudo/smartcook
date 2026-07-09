@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { X, ChevronLeft, ChevronRight, RotateCw, ListChecks, Check, Mic } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, RotateCw, ListChecks, Check, Mic, Clock } from "lucide-react";
 import { reachGoal } from "@/lib/metrika";
+import { formatCookingTime } from "@/lib/utils";
 
 // Режим «Готовим вместе» (задача Z + AC). Проектирование под целевого
 // пользователя — женщина 60+, готовит, очки сняты, руки в муке:
@@ -42,12 +43,14 @@ export default function CookMode({
   title,
   steps,
   ingredients = [],
+  cookingTimeMinutes,
   onClose,
   onCookedPhoto,
 }: {
   title: string;
   steps: string[];
   ingredients?: CookIngredient[];
+  cookingTimeMinutes?: number | null;
   onClose: () => void;
   onCookedPhoto?: () => void;
 }) {
@@ -479,6 +482,11 @@ export default function CookMode({
         <div className="cook-screen cook-intro">
           <div className="cook-intro-emoji" aria-hidden>🔊</div>
           <h2 className="cook-intro-title">{title}</h2>
+          {formatCookingTime(cookingTimeMinutes) ? (
+            <div className="cook-intro-time">
+              <Clock size={18} aria-hidden /> {formatCookingTime(cookingTimeMinutes)}
+            </div>
+          ) : null}
           <p className="cook-intro-text">
             Я буду читать шаги вслух.
             {srSupported ? (

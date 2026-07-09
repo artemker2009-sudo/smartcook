@@ -27,6 +27,7 @@ import {
 import RecipeView from "@/components/RecipeView";
 import Button from "@/components/ui/Button";
 import { shareOrCopy } from "@/lib/share";
+import { formatCookingTime } from "@/lib/utils";
 
 interface ServiceViewProps {
   isHistoryView: boolean;
@@ -945,7 +946,7 @@ export default function ServiceView({
                           whiteSpace: "nowrap",
                         }}
                       >
-                        <Clock size={12} /> {formatTime(item.time)}
+                        <Clock size={12} /> {formatCookingTime(item.cooking_time_minutes) || formatTime(item.time)}
                       </div>
                       {item.calories && (
                         <div

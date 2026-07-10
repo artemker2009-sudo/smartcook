@@ -1,4 +1,5 @@
 {
+  "id": "/",
   "name": "SmartCook — ужин по фото",
   "short_name": "SmartCook",
   "description": "Сфотографируйте продукты — получите рецепт ужина из того, что есть дома.",
@@ -9,6 +10,8 @@
   "theme_color": "#059669",
   "orientation": "portrait",
   "lang": "ru",
+  "dir": "ltr",
+  "categories": ["food", "lifestyle"],
   "icons": [
     {
       "src": "/icon-192.png",

@@ -66,6 +66,19 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Digital Asset Links для TWA обязаны лежать по каноническому пути
+  // /.well-known/assetlinks.json. Отдаём их из динамического роута (содержимое
+  // из env ASSETLINKS_JSON), а не статикой — отпечаток подписи появится только
+  // после сборки пакета. Rewrite (а не redirect) сохраняет исходный URL, как
+  // того требует проверка Play/RuStore.
+  async rewrites() {
+    return [
+      {
+        source: "/.well-known/assetlinks.json",
+        destination: "/api/assetlinks",
+      },
+    ];
+  },
   // Легаси share-ссылки (/?recipeId=… и /search?recipeId=…) уводим на быстрый
   // серверный маршрут /recipe/:id ещё до загрузки клиента — иначе они снова
   // тянули бы монолит SearchApp (задача T). Редирект на уровне сервера/edge,

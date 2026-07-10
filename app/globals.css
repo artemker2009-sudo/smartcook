@@ -394,14 +394,19 @@ body {
 .install-title { font-size: var(--font-size-body); font-weight: var(--font-weight-semibold); color: var(--color-text); }
 .install-sub { font-size: var(--font-size-caption); color: var(--color-text-secondary); line-height: 1.4; margin-top: 2px; }
 .install-btn { margin-top: 0; }
-.install-ios-help { display: flex; flex-direction: column; gap: var(--space-2); }
-.install-ios-step {
-  display: flex; align-items: center; gap: var(--space-2);
-  font-size: var(--font-size-caption); color: var(--color-text);
+.install-help { display: flex; flex-direction: column; gap: var(--space-2); }
+.install-help-step {
+  display: flex; align-items: center; gap: var(--space-3);
+  font-size: var(--font-size-caption); color: var(--color-text); line-height: 1.35;
   background: var(--color-bg); border: 1px solid var(--color-border);
   border-radius: var(--radius-sm); padding: var(--space-2) var(--space-3);
 }
-.install-ios-step svg { color: var(--color-accent); flex-shrink: 0; }
+.install-help-ico {
+  width: 30px; height: 30px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--color-accent-subtle); color: var(--color-accent);
+  border-radius: var(--radius-sm);
+}
 
 /* --- КНОПКА «ПОДЕЛИТЬСЯ РЕЦЕПТОМ» (экран результата) --- */
 .recipe-share-btn {

@@ -6,6 +6,7 @@ import { Toaster } from "sonner";
 import "./globals.css";
 import YandexMetrika from "@/components/YandexMetrika"; // Импортируем компонент Метрики
 import PWAUpdater from "@/components/PWAUpdater";
+import PWAInstall from "@/components/PWAInstall";
 import Footer from "@/components/Footer";
 import TabBar from "@/components/TabBar";
 import MaintenanceScreen from "@/components/MaintenanceScreen";
@@ -144,6 +145,7 @@ export default async function RootLayout({
           <YandexMetrika />
         </Suspense>
         <PWAUpdater />
+        {!isMaintenance && <PWAInstall />}
 
         {isMaintenance ? (
           <MaintenanceScreen />

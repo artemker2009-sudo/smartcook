@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { X, Download, Share, Plus, Smartphone } from "lucide-react";
+import { X, Download, Share, Plus, Smartphone, MoreVertical } from "lucide-react";
 import { reachGoal } from "@/lib/metrika";
 
 interface BeforeInstallPromptEvent extends Event {
@@ -24,46 +24,57 @@ interface InstallPromptCardProps {
   onClose: () => void;
 }
 
+type Platform = "ios" | "android" | "other";
+
 /**
- * Мягкий промпт установки PWA в нашем дизайн-языке. Показывается родителем в
- * момент успеха (после первой генерации), не системным попапом. На Android/Chrome
- * жмёт нативный beforeinstallprompt; на iOS — краткая инструкция (там события нет).
+ * Мягкий промпт установки PWA в нашем дизайн-языке. Открывается двумя путями:
+ * автоматически в момент успеха (после первой генерации) и вручную по постоянной
+ * точке входа «Установить приложение» в футере — оба через один и тот же
+ * компонент {@link "@/components/PWAInstall"}.
+ *
+ * Android/Chrome: если пойман beforeinstallprompt — жмём нативный промпт; иначе
+ * (событие ещё не прилетело или браузер его не даёт) показываем инструкцию для
+ * меню браузера. iOS: события нет вовсе — сразу наглядная инструкция Share → «На
+ * экран „Домой“». Факт установки трекается глобально (appinstalled /
+ * standalone-запуск), поэтому здесь цель accepted не шлём.
  */
 export default function InstallPromptCard({ open, onClose }: InstallPromptCardProps) {
-  const [isIOS, setIsIOS] = useState(false);
-  const [showIOSHelp, setShowIOSHelp] = useState(false);
+  const [platform, setPlatform] = useState<Platform>("other");
+  const [help, setHelp] = useState<null | "ios" | "android">(null);
 
   useEffect(() => {
     const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
-    const ios = /iphone|ipad|ipod/i.test(ua);
-    // @ts-ignore — navigator.standalone есть только в iOS Safari
-    const standalone = (typeof window !== "undefined" && window.matchMedia("(display-mode: standalone)").matches) || (typeof navigator !== "undefined" && navigator.standalone);
-    setIsIOS(ios && !standalone);
+    if (/iphone|ipad|ipod/i.test(ua)) setPlatform("ios");
+    else if (/android/i.test(ua)) setPlatform("android");
+    else setPlatform("other");
   }, []);
 
   useEffect(() => {
-    if (open) reachGoal("pwa_install_prompt_shown");
+    if (open) {
+      reachGoal("pwa_install_prompt_shown");
+      setHelp(null); // при каждом открытии показываем карточку, а не старую инструкцию
+    }
   }, [open]);
 
   if (!open) return null;
+
+  const isIOS = platform === "ios";
 
   const handleInstall = async () => {
     if (deferredPrompt) {
       try {
         await deferredPrompt.prompt();
-        const choice = await deferredPrompt.userChoice;
-        if (choice.outcome === "accepted") reachGoal("pwa_install_accepted");
+        await deferredPrompt.userChoice; // факт установки ловим глобально (appinstalled)
       } catch {
         /* пользователь мог закрыть — не ошибка */
       }
       deferredPrompt = null;
       onClose();
-    } else if (isIOS) {
-      setShowIOSHelp(true);
-    } else {
-      // Фолбэк для браузеров без beforeinstallprompt — краткая подсказка.
-      setShowIOSHelp(true);
+      return;
     }
+    // Нативного промпта нет: iOS никогда его не даёт, Android — если событие ещё
+    // не прилетело или браузер не поддерживает. Показываем инструкцию под платформу.
+    setHelp(isIOS ? "ios" : "android");
   };
 
   return (
@@ -81,18 +92,31 @@ export default function InstallPromptCard({ open, onClose }: InstallPromptCardPr
         </div>
       </div>
 
-      {!showIOSHelp ? (
+      {help === null ? (
         <button className="btn-primary install-btn" onClick={handleInstall}>
-          {isIOS ? <Share size={18} /> : <Download size={18} />}
-          {isIOS ? "Как установить" : "Установить"}
+          {deferredPrompt ? <Download size={18} /> : <Share size={18} />}
+          {deferredPrompt ? "Установить" : "Как установить"}
         </button>
-      ) : (
-        <div className="install-ios-help">
-          <div className="install-ios-step">
-            <Share size={16} /> 1. Нажмите «Поделиться» внизу браузера
+      ) : help === "ios" ? (
+        <div className="install-help">
+          <div className="install-help-step">
+            <span className="install-help-ico"><Share size={16} /></span>
+            <span>Нажмите «Поделиться» в нижней панели Safari</span>
           </div>
-          <div className="install-ios-step">
-            <Plus size={16} /> 2. Выберите «На экран „Домой“»
+          <div className="install-help-step">
+            <span className="install-help-ico"><Plus size={16} /></span>
+            <span>Выберите «На экран „Домой“»</span>
+          </div>
+        </div>
+      ) : (
+        <div className="install-help">
+          <div className="install-help-step">
+            <span className="install-help-ico"><MoreVertical size={16} /></span>
+            <span>Откройте меню браузера (⋮ справа вверху)</span>
+          </div>
+          <div className="install-help-step">
+            <span className="install-help-ico"><Plus size={16} /></span>
+            <span>Выберите «Добавить на главный экран»</span>
           </div>
         </div>
       )}

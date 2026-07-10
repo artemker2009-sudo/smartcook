@@ -12,7 +12,7 @@ import { claimGuestPartiesToAccount } from "@/lib/claimParties";
 import { preparePhoto, decodeHeicIfNeeded, reportPhotoError } from "@/lib/photo";
 import { FEATURE_RESTAURANT_GAME } from "@/lib/features";
 import { USERNAME_MIN, USERNAME_MAX, PASSWORD_MIN, normalizeUsername } from "@/components/modals/AuthModal";
-import InstallPromptCard from "@/components/InstallPromptCard";
+import { OPEN_INSTALL_EVENT } from "@/components/PWAInstall";
 
 import Profile from "@/components/Profile";
 import DailyRecipe from "@/components/DailyRecipe";
@@ -123,7 +123,6 @@ export default function SearchApp() {
   const [floatingClicks, setFloatingClicks] = useState<{id: number, x: number, y: number, val: number}[]>([]);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
 
-  const [showInstallCard, setShowInstallCard] = useState(false);
 
   const [toast, setToast] = useState<{ message: string; icon?: React.ReactNode; type?: 'success' | 'error' } | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -790,7 +789,7 @@ export default function SearchApp() {
       localStorage.setItem("sc_gen_count", String(count));
       if (!localStorage.getItem("sc_pwa_prompt_seen") && !isStandalone()) {
         localStorage.setItem("sc_pwa_prompt_seen", "1");
-        setShowInstallCard(true);
+        window.dispatchEvent(new Event(OPEN_INSTALL_EVENT));
       } else if (
         count >= 2 &&
         allergies.length === 0 &&
@@ -951,8 +950,6 @@ export default function SearchApp() {
           <button className="sc-toast-close" onClick={() => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current); setToast(null); }}>&times;</button>
         </div>
       )}
-
-      <InstallPromptCard open={showInstallCard} onClose={() => setShowInstallCard(false)} />
 
       <FullScreenImage imageUrl={fullScreenImage} onClose={() => setFullScreenImage(null)} />
 

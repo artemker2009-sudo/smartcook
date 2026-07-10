@@ -1,6 +1,7 @@
 import Link from "next/link";
 import DonateButton from "@/components/DonateButton";
 import ReportError from "@/components/ReportError";
+import InstallAppButton from "@/components/InstallAppButton";
 
 const footerLinkStyle: React.CSSProperties = {
   color: "var(--color-text-secondary)",
@@ -30,6 +31,7 @@ export default function Footer() {
         <Link href="/privacy" style={footerLinkStyle}>Политика конфиденциальности</Link>
         <Link href="/terms" style={footerLinkStyle}>Пользовательское соглашение</Link>
         <Link href="/legal" style={footerLinkStyle}>Правовая информация</Link>
+        <InstallAppButton />
         <ReportError />
       </nav>
 

@@ -17,8 +17,6 @@ import {
   Send,
   Camera,
   X,
-  PiggyBank,
-  Wallet,
   ChefHat,
   UtensilsCrossed,
   Volume2,
@@ -297,57 +295,6 @@ export default function RecipeView({
       >
         <Share2 size={18} /> Поделиться рецептом
       </button>
-
-      {recipe.estimated_cost !== undefined && (() => {
-        const totalCost = (recipe.estimated_cost || 0) * actualServings;
-        const deliveryCost = (recipe.delivery_cost || Math.round((recipe.estimated_cost || 0) * 2.5)) * actualServings;
-        const savings = deliveryCost - totalCost;
-        const tier = recipe.budget_tier || 2;
-        const tierConfig = {
-          1: { label: "Почти бесплатно", bg: "var(--color-accent-subtle)", border: "var(--color-accent)", color: "var(--color-accent-hover)", Icon: PiggyBank },
-          2: { label: "Экономно", bg: "var(--color-bg-subtle)", border: "var(--color-border)", color: "var(--color-text-secondary)", Icon: Wallet },
-          3: { label: "Ресторан дома", bg: "var(--color-bg-subtle)", border: "var(--color-border)", color: "var(--color-text-secondary)", Icon: ChefHat },
-        }[tier as 1 | 2 | 3] || { label: "Экономно", bg: "var(--color-bg-subtle)", border: "var(--color-border)", color: "var(--color-text-secondary)", Icon: Wallet };
-
-        return (
-          <div style={{
-            background: tierConfig.bg,
-            border: `1px solid ${tierConfig.border}`,
-            borderRadius: "var(--radius-md)",
-            padding: "var(--space-3) var(--space-4)",
-            marginBottom: "var(--space-4)",
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: "var(--space-2)" }}>
-              <tierConfig.Icon size={24} color={tierConfig.color} />
-              <span style={{
-                fontSize: "var(--font-size-caption)",
-                fontWeight: "var(--font-weight-semibold)",
-                background: "var(--color-surface)",
-                color: tierConfig.color,
-                padding: "var(--space-1) var(--space-3)",
-                borderRadius: "var(--radius-full)",
-              }}>
-                {tierConfig.label}
-              </span>
-            </div>
-            <div style={{ fontSize: "var(--font-size-body)", fontWeight: "var(--font-weight-semibold)", color: tierConfig.color, lineHeight: 1.4, marginBottom: "var(--space-1)" }}>
-              Цена блюда{actualServings > 1 ? ` (${actualServings} порц.)` : ""}:
-            </div>
-            {totalCost === 0 ? (
-              <div style={{ fontSize: "var(--font-size-body)", fontWeight: "var(--font-weight-medium)", color: tierConfig.color, lineHeight: 1.4 }}>
-                Своё приготовление: 0 руб.
-              </div>
-            ) : (
-              <div style={{ fontSize: "var(--font-size-body)", fontWeight: "var(--font-weight-medium)", color: tierConfig.color, lineHeight: 1.4 }}>
-                Своё приготовление: ~{totalCost} руб.
-              </div>
-            )}
-            <div style={{ fontSize: "var(--font-size-caption)", fontWeight: "var(--font-weight-medium)", color: "var(--color-text-secondary)", marginTop: "var(--space-1)" }}>
-              В сервисах доставки: ~{deliveryCost} руб.
-            </div>
-          </div>
-        );
-      })()}
 
       {recipe.detailed_ingredients && recipe.detailed_ingredients.length > 0 && (
         <div

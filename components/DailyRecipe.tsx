@@ -1,6 +1,7 @@
 import React from 'react';
 import { Clock, Flame, Info, ExternalLink, ShoppingCart, Heart, Share2, Sparkles, Send, Salad, ChefHat } from 'lucide-react';
 import { splitIngredientList } from '@/lib/recipeValidation';
+import { formatCookingTime } from '@/lib/utils';
 
 export default function DailyRecipe(props: any) {
   const {
@@ -28,11 +29,18 @@ export default function DailyRecipe(props: any) {
 
              {/* ТЕГИ (ВРЕМЯ И КАЛОРИИ) */}
              <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'center' }}>
-               {dailyRecipe.time && (
-                 <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', background: 'var(--color-surface)', padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-full)', fontSize: 'var(--font-size-caption)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-accent-hover)', boxShadow: '0 4px 15px rgba(0,0,0,0.15)' }}>
-                   <Clock size={16} /> {formatTime(String(dailyRecipe.time))}
-                 </div>
-               )}
+               {(() => {
+                 // Как в обычном рецепте: предпочитаем структурированное
+                 // cooking_time_minutes, откатываемся на строковое time. Старые
+                 // рецепты дня без time, но с cooking_time_minutes раньше не
+                 // показывали время вовсе — теперь показываем.
+                 const timeLabel = formatCookingTime(dailyRecipe.cooking_time_minutes) || formatTime(String(dailyRecipe.time || ''));
+                 return timeLabel ? (
+                   <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', background: 'var(--color-surface)', padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-full)', fontSize: 'var(--font-size-caption)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-accent-hover)', boxShadow: '0 4px 15px rgba(0,0,0,0.15)' }}>
+                     <Clock size={16} /> {timeLabel}
+                   </div>
+                 ) : null;
+               })()}
                {dailyRecipe.calories && (
                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', background: 'var(--color-surface)', padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-full)', fontSize: 'var(--font-size-caption)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-accent-hover)', boxShadow: '0 4px 15px rgba(0,0,0,0.15)' }}>
                    <Flame size={16} /> {formatCalories(String(dailyRecipe.calories))}

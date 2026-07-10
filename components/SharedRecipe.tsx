@@ -8,8 +8,6 @@ import {
   ChefHat,
   Share2,
   Camera,
-  PiggyBank,
-  Wallet,
   ArrowRight,
   Volume2,
 } from "lucide-react";
@@ -84,52 +82,6 @@ export default function SharedRecipe({ recipe }: { recipe: RecipeData }) {
         <button type="button" onClick={share} className="recipe-share-btn">
           <Share2 size={18} /> Поделиться рецептом
         </button>
-
-        {recipe.estimated_cost !== undefined && (() => {
-          const totalCost = recipe.estimated_cost || 0;
-          const deliveryCost = recipe.delivery_cost || Math.round(totalCost * 2.5);
-          const tier = recipe.budget_tier || 2;
-          const tierConfig =
-            {
-              1: { label: "Почти бесплатно", bg: "var(--color-accent-subtle)", border: "var(--color-accent)", color: "var(--color-accent-hover)", Icon: PiggyBank },
-              2: { label: "Экономно", bg: "var(--color-bg-subtle)", border: "var(--color-border)", color: "var(--color-text-secondary)", Icon: Wallet },
-              3: { label: "Ресторан дома", bg: "var(--color-bg-subtle)", border: "var(--color-border)", color: "var(--color-text-secondary)", Icon: ChefHat },
-            }[tier as 1 | 2 | 3] || { label: "Экономно", bg: "var(--color-bg-subtle)", border: "var(--color-border)", color: "var(--color-text-secondary)", Icon: Wallet };
-
-          return (
-            <div
-              style={{
-                background: tierConfig.bg,
-                border: `1px solid ${tierConfig.border}`,
-                borderRadius: "var(--radius-md)",
-                padding: "var(--space-3) var(--space-4)",
-                marginBottom: "var(--space-4)",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: "var(--space-2)" }}>
-                <tierConfig.Icon size={24} color={tierConfig.color} />
-                <span
-                  style={{
-                    fontSize: "var(--font-size-caption)",
-                    fontWeight: "var(--font-weight-semibold)",
-                    background: "var(--color-surface)",
-                    color: tierConfig.color,
-                    padding: "var(--space-1) var(--space-3)",
-                    borderRadius: "var(--radius-full)",
-                  }}
-                >
-                  {tierConfig.label}
-                </span>
-              </div>
-              <div style={{ fontSize: "var(--font-size-body)", fontWeight: "var(--font-weight-medium)", color: tierConfig.color, lineHeight: 1.4 }}>
-                Своё приготовление: {totalCost === 0 ? "0" : `~${totalCost}`} руб.
-              </div>
-              <div style={{ fontSize: "var(--font-size-caption)", fontWeight: "var(--font-weight-medium)", color: "var(--color-text-secondary)", marginTop: "var(--space-1)" }}>
-                В сервисах доставки: ~{deliveryCost} руб.
-              </div>
-            </div>
-          );
-        })()}
 
         {detailed.length > 0 && (
           <div className="ing-box">

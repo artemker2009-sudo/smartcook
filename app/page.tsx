@@ -3,6 +3,7 @@ import HomeContent from "@/components/HomeContent";
 import type { NewsItem } from "@/components/NewsBoard";
 import type { FeedPhoto } from "@/components/HomeFeed";
 import { type Article, ARTICLE_COLUMNS } from "@/lib/articles";
+import { feedWindowStartISO } from "@/lib/feedWindow";
 
 // Каноникал Главной — apex-корень. title/description/og наследуются из корневого
 // layout (у Главной они и есть дефолтные), здесь добавляем только canonical.
@@ -47,8 +48,12 @@ async function getNews(): Promise<NewsItem[]> {
 
 async function getFeed(): Promise<FeedPhoto[]> {
   // feed_photos_public уже отсортирован (created_at desc) и не отдаёт user_ref.
+  // Тянем окно витрины (последние FEED_WINDOW_DAYS суток по МСК); режим
+  // «сегодня»/«на этой неделе» и скрытие пустого блока решает клиент по факту
+  // наполнения (lib/feedWindow.ts). recipe_id → кнопка «К рецепту» в карточке.
+  const since = encodeURIComponent(feedWindowStartISO());
   return sbFetch<FeedPhoto>(
-    "feed_photos_public?select=id,created_at,user_name,recipe_title,photo_url,likes_count,liked_by_me&limit=20",
+    `feed_photos_public?select=id,created_at,user_name,recipe_title,recipe_id,photo_url,likes_count,liked_by_me&created_at=gte.${since}&order=created_at.desc&limit=20`,
     60,
   );
 }

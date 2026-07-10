@@ -700,6 +700,9 @@ export default function SearchApp() {
     setIsUploadingPhoto(true);
     try {
       const recipeTitle = isStandaloneUploadOpen ? standaloneTitle.trim() : (currentRecipeContext?.title || null);
+      // recipe_id только у публикаций из рецепта (не у standalone «по своему
+      // рецепту») → на витрине появится кнопка «К рецепту». У старых фото NULL.
+      const recipeId = isStandaloneUploadOpen ? null : (currentRecipeContext?.id ?? null);
       // Имя файла — случайный id (не user_ref и не оригинальное имя): не светим
       // идентификаторы в публичном URL.
       const fileName = `${crypto.randomUUID()}.jpg`;
@@ -714,6 +717,7 @@ export default function SearchApp() {
         user_ref: user.id,
         user_name: userName,
         recipe_title: recipeTitle,
+        recipe_id: recipeId,
         photo_url: publicUrlData.publicUrl,
         is_public: true,
       });

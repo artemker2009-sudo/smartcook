@@ -1224,6 +1224,19 @@ a.news-card:hover { transform: translateY(-2px); }
   transition: color 0.15s;
 }
 .feed-like-active { color: #ef4444; }
+.feed-card-recipe-link {
+  margin-top: var(--space-2);
+  display: inline-flex;
+  align-items: center;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--color-accent);
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+}
+.feed-card-recipe-link:hover { text-decoration: underline; }
 
 /* --- Совет дня (Z-2): пассивная плитка, без кнопок --- */
 .tip-card {

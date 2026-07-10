@@ -9,15 +9,25 @@ const IS_DEV = process.env.NODE_ENV !== "production";
 const TAG_SRC = "https://mc.yandex.ru/metrika/tag.js";
 
 // Режим отображения приложения. Standalone = запущено как установленное PWA
-// (с домашнего экрана), browser = обычная вкладка. Определяем оба варианта:
-// matchMedia работает в Android/desktop-PWA, navigator.standalone — в iOS Safari.
+// (с домашнего экрана) ИЛИ как TWA-обёртка из RuStore/Google Play, browser =
+// обычная вкладка. Определяем все варианты:
+// - matchMedia("display-mode: standalone") — Android/desktop-PWA и TWA;
+// - navigator.standalone — iOS Safari, добавленное на экран «Домой»;
+// - document.referrer "android-app://…" — TWA (страховка: браузерная обёртка
+//   Play всегда стартует с этим реферером, даже если display-mode ещё не успел
+//   примениться на самой первой навигации).
+// Все три — только на увеличение: любой true прячет карточку/кнопку установки,
+// что и требуется в установленном приложении и в TWA.
 export function getDisplayMode(): "standalone" | "browser" {
   if (typeof window === "undefined") return "browser";
   const isStandalone =
     (typeof window.matchMedia === "function" &&
       window.matchMedia("(display-mode: standalone)").matches) ||
     // iOS Safari, добавленное на домашний экран
-    (window.navigator as unknown as { standalone?: boolean }).standalone === true;
+    (window.navigator as unknown as { standalone?: boolean }).standalone === true ||
+    // TWA (Android): запуск внутри нативной обёртки из стора
+    (typeof document !== "undefined" &&
+      document.referrer.startsWith("android-app://"));
   return isStandalone ? "standalone" : "browser";
 }
 

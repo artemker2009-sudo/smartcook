@@ -1,7 +1,14 @@
+import type { Metadata } from "next";
 import HomeContent from "@/components/HomeContent";
 import type { NewsItem } from "@/components/NewsBoard";
 import type { FeedPhoto } from "@/components/HomeFeed";
 import { type Article, ARTICLE_COLUMNS } from "@/lib/articles";
+
+// Каноникал Главной — apex-корень. title/description/og наследуются из корневого
+// layout (у Главной они и есть дефолтные), здесь добавляем только canonical.
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
 
 // Главная (/). Серверный компонент (этап 10 W): новости и первые фото витрины
 // читаются на СЕРВЕРЕ и попадают в HTML сразу — раньше оба блока грузились
@@ -74,7 +81,42 @@ async function getTip(): Promise<HomeTip | null> {
   return tips[dayOfYear % tips.length];
 }
 
+// JSON-LD Главной: WebSite (с кириллическим alternateName для брендовых
+// запросов «смарткук») + Organization. Помогает поисковику связать бренд
+// SmartCook / СмартКук с сайтом.
+const JSON_LD = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "https://smart-cook.pro/#website",
+      url: "https://smart-cook.pro",
+      name: "SmartCook",
+      alternateName: ["СмартКук", "Смарт Кук", "smart cook pro"],
+      inLanguage: "ru-RU",
+      publisher: { "@id": "https://smart-cook.pro/#organization" },
+    },
+    {
+      "@type": "Organization",
+      "@id": "https://smart-cook.pro/#organization",
+      name: "SmartCook",
+      alternateName: "СмартКук",
+      url: "https://smart-cook.pro",
+      logo: "https://smart-cook.pro/icon-512.png",
+      sameAs: ["https://t.me/smartcook2026"],
+    },
+  ],
+};
+
 export default async function Home() {
   const [news, feed, articles, tip] = await Promise.all([getNews(), getFeed(), getArticles(), getTip()]);
-  return <HomeContent news={news} feed={feed} articles={articles} tip={tip} />;
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
+      />
+      <HomeContent news={news} feed={feed} articles={articles} tip={tip} />
+    </>
+  );
 }

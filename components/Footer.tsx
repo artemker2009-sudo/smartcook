@@ -42,7 +42,7 @@ export default function Footer() {
           marginBottom: "var(--space-2)",
         }}
       >
-        SmartCook © 2026
+        SmartCook · СмартКук © 2026
       </div>
 
       <p

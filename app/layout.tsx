@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/react";
-import { createClient } from "@supabase/supabase-js";
 import { headers } from "next/headers";
 import { Toaster } from "sonner";
 import "./globals.css";
@@ -9,7 +8,6 @@ import PWAUpdater from "@/components/PWAUpdater";
 import PWAInstall from "@/components/PWAInstall";
 import Footer from "@/components/Footer";
 import TabBar from "@/components/TabBar";
-import MaintenanceScreen from "@/components/MaintenanceScreen";
 import OnboardingModal from "@/components/modals/OnboardingModal";
 import { Suspense } from "react"; // Импортируем Suspense для корректной работы
 
@@ -24,8 +22,16 @@ export const viewport: Viewport = {
 
 // 2. Настройки SEO и метаданные
 export const metadata: Metadata = {
-  title: "SmartCook — Умный ИИ-Шеф и организатор",
-  description: "Ваш личный нейро-шеф. Генерируйте уникальные рецепты, планируйте меню для банкетов и составляйте списки покупок за секунды.",
+  // Канонический хост ВЕЗДЕ — apex без www. metadataBase делает все
+  // относительные ссылки (canonical, og:image, twitter:image) абсолютными
+  // именно на этот origin.
+  metadataBase: new URL("https://smart-cook.pro"),
+  // Дефолтный title = title Главной (у неё нет своего override). Остальные
+  // страницы задают свой полный title сами, поэтому template не используем,
+  // чтобы не задваивать бренд («О сервисе — SmartCook»).
+  title: "SmartCook (СмартКук) — рецепты по фото продуктов | Умный ИИ-шеф",
+  description:
+    "SmartCook (смарт кук, smart cook pro) — умный ИИ-шеф: сфотографируйте продукты и получите рецепты из того, что есть дома. Плюс меню для банкетов и списки покупок.",
   applicationName: "SmartCook",
   
   // --- PWA настройки ---
@@ -59,12 +65,28 @@ export const metadata: Metadata = {
     "zero waste рецепты"
   ],
   openGraph: {
-    title: "SmartCook — Умный ИИ-Шеф",
-    description: "Создайте идеальное меню для любого повода с помощью нейросети. Интерактивный чат, голосование и умный список покупок.",
+    title: "SmartCook (СмартКук) — рецепты по фото продуктов",
+    description:
+      "Сфотографируйте продукты — получите рецепты из того, что есть дома. Плюс меню для банкетов и умные списки покупок.",
     url: "https://smart-cook.pro",
     siteName: "SmartCook",
     locale: "ru_RU",
     type: "website",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "SmartCook — сфотографируйте продукты, получите рецепт",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "SmartCook (СмартКук) — рецепты по фото продуктов",
+    description:
+      "Сфотографируйте продукты — получите рецепты из того, что есть дома. Плюс меню для банкетов и умные списки покупок.",
+    images: ["/og-image.png"],
   },
   robots: {
     index: true,
@@ -98,25 +120,6 @@ export const metadata: Metadata = {
   },
 };
 
-async function getMaintenanceStatus() {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || "https://yjfqwwiqwoighjdlkodg.supabase.co",
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "sb_publishable_E7Fj9ZiOZTyNHAQQKo7Y0A_E8-ExX6Z"
-  );
-
-  const { data, error } = await supabase
-    .from("site_settings")
-    .select("is_maintenance")
-    .eq("id", 1)
-    .single();
-
-  if (error) {
-    return false;
-  }
-
-  return Boolean(data?.is_maintenance);
-}
-
 export default async function RootLayout({
   children,
 }: Readonly<{
@@ -135,28 +138,25 @@ export default async function RootLayout({
   // контент/футер на мобайле (класс has-tabbar, стиль в globals.css).
   const hideFooter = isAdminRoute || isPartyRoom;
   const showTabBar = !hideFooter;
-  const isMaintenance = isAdminRoute ? false : await getMaintenanceStatus();
+  // Режим обслуживания живёт в proxy.ts (middleware): при включённом
+  // обслуживании публичные страницы вообще не доходят до рендера — отдаётся
+  // HTTP 503 с Retry-After, чтобы поисковый робот не индексировал заглушку.
+  // Здесь layout рендерится только для «живого» сайта и для /admin.
 
   return (
     <html lang="ru">
-      <body className={showTabBar && !isMaintenance ? "has-tabbar" : undefined}>
+      <body className={showTabBar ? "has-tabbar" : undefined}>
         {/* Оборачиваем Метрику в Suspense, чтобы Next.js не ругался при сборке */}
         <Suspense fallback={<></>}>
           <YandexMetrika />
         </Suspense>
         <PWAUpdater />
-        {!isMaintenance && <PWAInstall />}
+        <PWAInstall />
 
-        {isMaintenance ? (
-          <MaintenanceScreen />
-        ) : (
-          <>
-            {showTabBar && <TabBar />}
-            {children}
-            {!hideFooter && <Footer />}
-            {!isAdminRoute && <OnboardingModal />}
-          </>
-        )}
+        {showTabBar && <TabBar />}
+        {children}
+        {!hideFooter && <Footer />}
+        {!isAdminRoute && <OnboardingModal />}
 
         <Toaster richColors position="top-center" />
         {/* Компонент аналитики Vercel */}

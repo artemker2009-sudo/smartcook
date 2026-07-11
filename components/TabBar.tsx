@@ -9,9 +9,11 @@ import { reachGoal } from "@/lib/metrika";
 // (safe-area для PWA/iOS), десктоп — те же три пункта в верхней шапке (через
 // CSS). Переходы — next/link (реальная смена маршрута → авто-хит Метрики из
 // YandexMetrika по usePathname). onClick дополнительно шлёт цель nav_*.
-// Порядок: Банкеты — Главная — Найти рецепт. «Найти рецепт» справа — самое
-// частое действие в зоне большого пальца. Лендинг по умолчанию не меняется —
-// заход на Главную (/).
+// Порядок: Банкеты — Главная — Поиск. «Поиск» справа — самое частое действие в
+// зоне большого пальца. Подписи в таб-баре — одно короткое слово (iOS-стиль),
+// чтобы не переносились на узких экранах; в контенте раздел зовётся «Найти
+// рецепт» (хамбургер-меню, заголовки) — это не трогаем. Лендинг по умолчанию не
+// меняется — заход на Главную (/).
 const TABS = [
   {
     href: "/parties",
@@ -21,7 +23,7 @@ const TABS = [
     isActive: (p: string) => p.startsWith("/parties") || p.startsWith("/party"),
   },
   { href: "/", label: "Главная", icon: Home, goal: "nav_home", isActive: (p: string) => p === "/" },
-  { href: "/search", label: "Найти рецепт", icon: Search, goal: "nav_search", isActive: (p: string) => p.startsWith("/search") },
+  { href: "/search", label: "Поиск", icon: Search, goal: "nav_search", isActive: (p: string) => p.startsWith("/search") },
 ] as const;
 
 export default function TabBar() {

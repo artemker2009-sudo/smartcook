@@ -78,7 +78,7 @@ export default function Profile(props: any) {
 
           <div className="card" style={{padding: 'var(--space-4)', marginBottom: 'var(--space-3)'}}>
              <h3 style={{margin: '0 0 var(--space-2) 0', fontSize: 'var(--font-size-body)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text)'}}>Настройки питания</h3>
-             <p style={{fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)', marginBottom: 'var(--space-3)'}}>AI будет учитывать их при создании рецептов.</p>
+             <p style={{fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)', marginBottom: 'var(--space-3)'}}>Будем учитывать их, когда подбираем рецепты.</p>
              <button onClick={() => setIsPreferencesModalOpen(true)} style={{width: '100%', padding: 'var(--space-3)', borderRadius: 'var(--radius-sm)', background: 'var(--color-bg)', border: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: 'var(--color-text)', fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-body)', cursor: 'pointer', transition: 'all 0.2s'}}>
                <div style={{display: 'flex', alignItems: 'center', gap: 'var(--space-2)'}}><Settings size={18} color="var(--color-text-secondary)" /> Фильтры и аллергии</div>
                <ChevronRight size={18} color="var(--color-text-muted)" />

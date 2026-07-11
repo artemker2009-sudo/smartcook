@@ -118,12 +118,34 @@ body {
 .hero-cta-group {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: var(--space-3);
 }
 .hero-cta {
   min-height: 56px;
   text-decoration: none;
+  width: 100%;
 }
+/* Тихая вторичная ссылка под главной CTA (H10): второй сценарий доступен, но не
+   конкурирует за внимание с кнопкой фото. Тап-цель ≥44px по высоте. */
+.hero-textlink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 var(--space-2);
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+.hero-textlink:hover { color: var(--color-accent); }
+.hero-textlink:active { color: var(--color-accent-hover); }
 /* Пастельная плитка-подложка под иконку CTA — как плитки анимационной карточки */
 .hero-cta-icon {
   width: 34px;
@@ -769,7 +791,7 @@ body {
   background: var(--color-surface); border-radius: var(--radius-md); padding: var(--space-3);
   display: flex; align-items: center; gap: var(--space-3);
   box-shadow: var(--shadow-card);
-  border: 1px solid var(--color-border); cursor: pointer; margin-bottom: var(--space-5); transition: transform 0.2s;
+  border: 1px solid var(--color-border); cursor: pointer; margin-bottom: var(--space-4); transition: transform 0.2s;
 }
 .daily-teaser:hover { transform: translateY(-3px); }
 .daily-today-badge {
@@ -1021,7 +1043,7 @@ button.daily-teaser { width: 100%; font: inherit; text-align: left; }
 }
 .tab-item-active { color: var(--color-accent); font-weight: var(--font-weight-semibold); }
 .tab-item-active .tab-icon { background: var(--color-accent-subtle); }
-.tab-label { line-height: 1; }
+.tab-label { line-height: 1; white-space: nowrap; }
 /* Нижний отступ контента, чтобы фиксированный бар не перекрывал футер/контент */
 .has-tabbar { padding-bottom: calc(var(--tab-bar-h) + env(safe-area-inset-bottom)); }
 

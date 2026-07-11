@@ -329,6 +329,20 @@ export default function SearchApp() {
         }, 350);
         window.history.replaceState({}, '', '/search');
       }
+      // Ссылка «или найти рецепт по названию» с Главной (/search?focus=text):
+      // включаем режим текстового поиска, скроллим к полю и ставим в него фокус —
+      // человек сразу может печатать название блюда.
+      if (params.get('focus') === 'text') {
+        setSearchMode('text');
+        setActiveView('service');
+        setTimeout(() => {
+          const input = document.querySelector<HTMLInputElement>('.text-search-input');
+          if (!input) return;
+          input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          input.focus();
+        }, 350);
+        window.history.replaceState({}, '', '/search');
+      }
     }
   }, []);
 
@@ -1051,7 +1065,7 @@ export default function SearchApp() {
                <User size={22} style={{flexShrink: 0}}/> Личный кабинет
             </div>
             <div className="menu-link" onClick={() => switchView('service')} style={{ background: activeView === 'service' ? 'var(--color-accent-subtle)' : 'transparent', color: activeView === 'service' ? 'var(--color-accent)' : 'var(--color-text-secondary)', fontWeight: activeView === 'service' ? 'var(--font-weight-semibold)' : 'var(--font-weight-medium)' }}>
-               <Search size={22} style={{flexShrink: 0}}/> Поиск
+               <Search size={22} style={{flexShrink: 0}}/> Найти рецепт
             </div>
             <a className="menu-link" href="/" style={{ background: 'transparent', color: 'var(--color-text-secondary)', fontWeight: 'var(--font-weight-medium)', textDecoration: 'none' }}>
                <Flame size={22} style={{flexShrink: 0}}/> Главная

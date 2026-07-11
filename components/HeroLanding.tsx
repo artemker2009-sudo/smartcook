@@ -1,16 +1,18 @@
 "use client";
 
-import { Camera, CalendarHeart } from "lucide-react";
+import { Camera } from "lucide-react";
 import { useRouter } from "next/navigation";
 import ProcessAnimation from "@/components/ProcessAnimation";
 import { reachGoal } from "@/lib/metrika";
 
 /**
- * Первый экран Главной: заголовок про боль пользователя, два больших CTA под
- * палец и зацикленная CSS-анимация процесса (эталон). Разделы теперь — реальные
- * роуты, поэтому CTA ведут навигацией: фото → /search с фокусом на зоне загрузки
- * (?focus=photo, ничего не открывается само), банкеты → /parties. Никакой логики
- * распознавания тут нет.
+ * Первый экран Главной (H7/H10): заголовок про боль пользователя, ОДНА крупная
+ * CTA «Сфотографировать продукты» под палец, под ней тихая текстовая ссылка
+ * «или найти рецепт по названию» — второй сценарий не конкурирует за внимание с
+ * основным. Разделы — реальные роуты, поэтому переходы навигационные: фото →
+ * /search с фокусом на зоне загрузки (?focus=photo), текстовый поиск →
+ * /search?focus=text (фокус на поле ввода). Банкеты убраны с первого экрана —
+ * остаются в таб-баре. Никакой логики распознавания тут нет.
  */
 export default function HeroLanding() {
   const router = useRouter();
@@ -19,6 +21,13 @@ export default function HeroLanding() {
     // Цель Метрики — «мягко»: если ym не загрузился, переход всё равно сработает.
     reachGoal("cta_photo_click");
     router.push("/search?focus=photo");
+  };
+
+  const handleTextClick = () => {
+    // Вход в текстовый поиск = переход на экран поиска → шлём nav_search
+    // (та же цель, что и у таб-бара), сохраняя воронку целой.
+    reachGoal("nav_search");
+    router.push("/search?focus=text");
   };
 
   return (
@@ -36,14 +45,9 @@ export default function HeroLanding() {
         <button type="button" className="btn-primary hero-cta" onClick={handlePhotoClick}>
           <Camera size={20} /> Сфотографировать продукты
         </button>
-        <a
-          href="/parties"
-          className="btn-secondary hero-cta"
-          onClick={() => reachGoal("cta_banquet_click")}
-        >
-          <span className="hero-cta-icon"><CalendarHeart size={20} /></span>{" "}
-          Собрать банкет
-        </a>
+        <button type="button" className="hero-textlink" onClick={handleTextClick}>
+          или найти рецепт по названию
+        </button>
       </div>
 
       <ProcessAnimation />

@@ -9,7 +9,7 @@ import { DEVELOPER_ID, scaleAmount, formatCooks, cleanText, formatTime, formatCa
 import { shareOrCopy } from "@/lib/share";
 import { reachGoal } from "@/lib/metrika";
 import { claimGuestPartiesToAccount } from "@/lib/claimParties";
-import { preparePhoto, decodeHeicIfNeeded, reportPhotoError } from "@/lib/photo";
+import { preparePhoto, decodeHeicIfNeeded, reportPhotoError, fetchWithTimeout } from "@/lib/photo";
 import { FEATURE_RESTAURANT_GAME } from "@/lib/features";
 import { USERNAME_MIN, USERNAME_MAX, PASSWORD_MIN, normalizeUsername } from "@/components/modals/AuthModal";
 import { OPEN_INSTALL_EVENT } from "@/components/PWAInstall";
@@ -763,9 +763,12 @@ export default function SearchApp() {
   }; 
 
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => { 
-    const files = e.target.files; if (!files || files.length === 0) return; 
-    setPreview(URL.createObjectURL(files[0])); setAnalysisResult(null); setRecipe(null); setSelectedDish(null); setQuestion(""); setAnswer(null); setIsProcessing(true); setIsHistoryView(false); setFromFeed(false); setServings(1);  
+    const files = e.target.files; if (!files || files.length === 0) return;
+    setAnalysisResult(null); setRecipe(null); setSelectedDish(null); setQuestion(""); setAnswer(null); setIsProcessing(true); setIsHistoryView(false); setFromFeed(false); setServings(1);
     try {
+      // createObjectURL внутри try: на редких битых Blob он бросает — раньше это
+      // падало молча ДО try и оставляло превью/состояние в полупути (#4).
+      setPreview(URL.createObjectURL(files[0]));
       const finalFile = await preparePhoto(files[0], { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true }, "image.jpg");
       setFile(finalFile); setPreview(URL.createObjectURL(finalFile));
     } catch (error) { void reportPhotoError("scan", files[0], error); showToast("Не удалось обработать фото", undefined, 'error'); setFile(null); } finally { setIsProcessing(false); }
@@ -773,17 +776,26 @@ export default function SearchApp() {
 
   const triggerFileInput = () => document.getElementById('hidden-file-input')?.click(); 
 
-  const handleAnalyze = async () => { 
-    if (!file) return; setAnalyzing(true); setRecipe(null); 
-    try { 
+  const handleAnalyze = async () => {
+    if (!file) return; setAnalyzing(true); setRecipe(null);
+    let httpStatus = 0;
+    try {
       const formData = new FormData(); formData.append("image", file); formData.append("mode", cookingMode); formData.append("allergies", allergies.join(', ')); formData.append("dislikes", dislikes.join(', '));
-      const response = await fetch("/api/analyze", { method: "POST", headers: await getAuthHeaders(), body: formData });
+      // fetchWithTimeout: 30с потолок; на таймауте бросает PhotoTimeoutError с
+      // шагом "analyze-timeout" (репорт ляжет с честным шагом).
+      const response = await fetchWithTimeout("/api/analyze", { method: "POST", headers: await getAuthHeaders(), body: formData }, "analyze-timeout");
+      httpStatus = response.status;
       const json = await response.json(); if (handleRateLimitedResponse(response, json)) return; if (json.error) throw new Error(json.error);
       setAnalysisResult(json.data);
       // На фото нет продуктов — честный ответ (карточка в ServiceView), частота важна.
       if (json.data?.no_food) reachGoal("photo_no_food");
-    } catch (err: any) { showToast("Ошибка: " + err.message, undefined, 'error'); } finally { setAnalyzing(false); }
-  }; 
+    } catch (err: any) {
+      // Раньше сбой /api/analyze тонул в одном тосте без телеметрии. Теперь —
+      // репорт photo_client_error с HTTP-статусом и шагом (#1).
+      void reportPhotoError("analyze", file, err, { marker: "photo_client_error", httpStatus: httpStatus || undefined });
+      showToast("Ошибка: " + (err?.message || "не удалось обработать фото"), undefined, 'error');
+    } finally { setAnalyzing(false); }
+  };
 
   const handleRegenerate = async () => {
     if (!analysisResult) return; setIsRegenerating(true);

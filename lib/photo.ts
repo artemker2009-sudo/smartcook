@@ -14,6 +14,41 @@ const HEIC_EXT = /\.(heic|heif)$/i;
 
 const APP_VERSION = (process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA || "dev").slice(0, 7);
 
+// Дефолтный потолок ожидания сетевых шагов пайплайна (конвертация HEIC, анализ).
+// Раньше эти fetch'и висели без таймаута: на плохой сети вкладка «залипала»
+// молча, без телеметрии. 30с — заведомо больше нормального ответа, но спасает
+// от бесконечного ожидания.
+export const PHOTO_STEP_TIMEOUT_MS = 30_000;
+
+// Таймаут сетевого шага пайплайна. Несёт свой `stage` (напр. "analyze-timeout"),
+// чтобы репорт лёг в error_reports с честным шагом, а не с обобщённым "scan".
+export class PhotoTimeoutError extends Error {
+  constructor(public readonly stage: string) {
+    super(`${stage} (превышено ${PHOTO_STEP_TIMEOUT_MS / 1000}s)`);
+    this.name = "PhotoTimeoutError";
+  }
+}
+
+// fetch с жёстким таймаутом через AbortController. На срабатывании таймаута
+// бросает PhotoTimeoutError(timeoutStage); сетевые/иные ошибки пробрасывает как есть.
+export async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutStage: string,
+  ms: number = PHOTO_STEP_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (err) {
+    if (controller.signal.aborted) throw new PhotoTimeoutError(timeoutStage);
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export type CompressionOptions = {
   maxSizeMB: number;
   maxWidthOrHeight: number;
@@ -31,7 +66,11 @@ export function isHeic(file: File): boolean {
 async function convertHeicOnServer(file: File): Promise<File> {
   const form = new FormData();
   form.append("file", file);
-  const res = await fetch("/api/convert-heic", { method: "POST", body: form });
+  const res = await fetchWithTimeout(
+    "/api/convert-heic",
+    { method: "POST", body: form },
+    "convert-heic-timeout",
+  );
   if (!res.ok) throw new Error(`HEIC convert failed (${res.status})`);
   const blob = await res.blob();
   const baseName = (file.name || "photo").replace(HEIC_EXT, "");
@@ -86,9 +125,23 @@ async function readDimensions(file: File): Promise<{ width: number; height: numb
 // photo_processing_error) — метаданные файла, НИКОГДА сам файл. Никогда не
 // бросает. Сделан «пуленепробиваемым» (этап 9 O.1): ни один промежуточный шаг
 // не должен помешать отправке — иначе мы теряем телеметрию с устройства.
-export async function reportPhotoError(stage: string, file: File | null, err: unknown): Promise<void> {
+export async function reportPhotoError(
+  stage: string,
+  file: File | null,
+  err: unknown,
+  opts?: { marker?: string; httpStatus?: number },
+): Promise<void> {
   try {
     const reason = err instanceof Error ? err.message : String(err ?? "unknown");
+
+    // Таймаут-шаг знает честное имя (напр. "convert-heic-timeout") — оно
+    // важнее обобщённого stage вызывающего ("scan"/"analyze"): подменяем.
+    const effectiveStage = err instanceof PhotoTimeoutError ? err.stage : stage;
+    // Маркер по умолчанию — сбой ОБРАБОТКИ фото; вызывающий может пометить сбой
+    // как photo_client_error (ошибка сетевого запроса, а не canvas/декода).
+    const marker = opts?.marker ?? "photo_processing_error";
+    const headline =
+      marker === "photo_client_error" ? "Сбой запроса при обработке фото" : "Не удалось обработать фото";
 
     let fileLine = "нет файла";
     if (file) {
@@ -102,8 +155,9 @@ export async function reportPhotoError(stage: string, file: File | null, err: un
     }
 
     const message =
-      `[photo_processing_error] Не удалось обработать фото\n` +
-      `Этап: ${stage}\n` +
+      `[${marker}] ${headline}\n` +
+      `Этап: ${effectiveStage}\n` +
+      (opts?.httpStatus != null ? `HTTP: ${opts.httpStatus}\n` : "") +
       `Файл: ${fileLine}\n` +
       `Причина: ${reason.slice(0, 500)}`;
 

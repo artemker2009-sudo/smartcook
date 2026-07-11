@@ -3,7 +3,6 @@
 import React from "react";
 import {
   Flame,
-  ArrowRight,
   Camera,
   Image as ImageIcon,
   ImageOff,
@@ -258,38 +257,8 @@ export default function ServiceView({
               </div>
             )}
 
-          <div className={`daily-teaser${dailyRecipe ? " daily-teaser-in" : ""}`} onClick={() => switchView("daily")}>
-            <div
-              style={{
-                background: "var(--color-accent-subtle)",
-                padding: "var(--space-2)",
-                borderRadius: "var(--radius-sm)",
-              }}
-            >
-              <Flame color="var(--color-accent)" size={24} />
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: "2px" }}>
-                <span className="daily-today-badge">Рецепт дня</span>
-                {dailyRecipe?.date && (
-                  <span style={{ fontSize: "var(--font-size-caption)", color: "var(--color-text-muted)", fontWeight: "var(--font-weight-medium)" }}>
-                    {dailyRecipe.date}
-                  </span>
-                )}
-              </div>
-              {dailyRecipe ? (
-                <div style={{ fontWeight: "var(--font-weight-semibold)", fontSize: "var(--font-size-body)", color: "var(--color-text)" }}>
-                  {dailyRecipe.title}
-                </div>
-              ) : (
-                <div
-                  className="sc-skel"
-                  style={{ height: "18px", width: "70%", marginTop: "var(--space-1)" }}
-                />
-              )}
-            </div>
-            <ArrowRight size={20} color="var(--color-text-muted)" />
-          </div>
+          {/* Блок «Рецепт дня» убран из /search (H7/#37): он остаётся только на
+              Главной, чтобы поиск начинался сразу с выбора фото/текста. */}
 
           <div
             style={{

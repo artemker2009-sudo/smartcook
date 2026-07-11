@@ -51,7 +51,7 @@ interface ServiceViewProps {
   isProcessing: boolean;
   textQuery: string;
   setTextQuery: (v: string) => void;
-  handleTextSearch: () => void;
+  handleTextSearch: (opts?: { cacheOnly?: boolean; queryOverride?: string }) => void;
   loadingRecipe: boolean;
   analysisResult: any;
   onNoFoodSwitchToText: () => void;
@@ -583,7 +583,7 @@ export default function ServiceView({
                 </p>
                 <Button
                   variant="primary"
-                  onClick={handleTextSearch}
+                  onClick={() => handleTextSearch()}
                   disabled={loadingRecipe || !textQuery.trim()}
                 >
                   {loadingRecipe ? (

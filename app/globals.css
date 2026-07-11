@@ -159,6 +159,45 @@ body {
   flex-shrink: 0;
 }
 
+/* --- H8 «магия без фото»: демо-чипы под hero-CTA --- */
+.demo-magic {
+  margin-top: var(--space-4);
+  text-align: center;
+}
+.demo-magic-caption {
+  margin: 0 auto var(--space-3);
+  max-width: 320px;
+  font-size: var(--font-size-caption);
+  line-height: 1.4;
+  color: var(--color-text-secondary);
+}
+.demo-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+}
+.demo-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 8px var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  box-shadow: var(--shadow-card);
+  transition: transform 0.15s, border-color 0.15s, background 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.demo-chip:hover { border-color: var(--color-accent); background: var(--color-accent-subtle); }
+.demo-chip:active { transform: translateY(1px); }
+.demo-chip-emoji { font-size: 16px; line-height: 1; }
+
 /* Подсветка карточки поиска после якорного скролла от hero-CTA (1.6с) */
 @keyframes scCardGlow {
   0%   { box-shadow: 0 0 0 0 rgba(5, 150, 105, 0); }

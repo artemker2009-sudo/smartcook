@@ -4,6 +4,7 @@ import { Camera } from "lucide-react";
 import { useRouter } from "next/navigation";
 import ProcessAnimation from "@/components/ProcessAnimation";
 import { reachGoal } from "@/lib/metrika";
+import type { DemoChip } from "@/lib/demoChips";
 
 /**
  * Первый экран Главной (H7/H10): заголовок про боль пользователя, ОДНА крупная
@@ -14,7 +15,7 @@ import { reachGoal } from "@/lib/metrika";
  * /search?focus=text (фокус на поле ввода). Банкеты убраны с первого экрана —
  * остаются в таб-баре. Никакой логики распознавания тут нет.
  */
-export default function HeroLanding() {
+export default function HeroLanding({ demoChips = [] }: { demoChips?: DemoChip[] }) {
   const router = useRouter();
 
   const handlePhotoClick = () => {
@@ -28,6 +29,14 @@ export default function HeroLanding() {
     // (та же цель, что и у таб-бара), сохраняя воронку целой.
     reachGoal("nav_search");
     router.push("/search?focus=text");
+  };
+
+  // H8 «магия без фото»: тап по демо-чипу → цель demo_chip_click (с параметром,
+  // какой чип) + переход в поиск с ?demo=<ключ блюда>. Дальше SearchApp делает
+  // строго кэш-запрос (0 расхода OpenAI), воронка считается text_search_*.
+  const handleDemoChip = (chip: DemoChip) => {
+    reachGoal("demo_chip_click", { chip: chip.key });
+    router.push(`/search?demo=${encodeURIComponent(chip.key)}`);
   };
 
   return (
@@ -49,6 +58,30 @@ export default function HeroLanding() {
           или найти рецепт по названию
         </button>
       </div>
+
+      {/* H8 «магия без фото»: рабочее демо. Показываем ТОЛЬКО если сервер отдал
+          прогретые в кэше чипы (иначе блок не рендерим). Тап → мгновенный рецепт
+          из кэша, без камеры и регистрации. */}
+      {demoChips.length > 0 && (
+        <div className="demo-magic">
+          <p className="demo-magic-caption">
+            Или нажмите на продукты — покажем, что из них приготовить
+          </p>
+          <div className="demo-chip-row">
+            {demoChips.map((chip) => (
+              <button
+                key={chip.key}
+                type="button"
+                className="demo-chip"
+                onClick={() => handleDemoChip(chip)}
+              >
+                <span className="demo-chip-emoji" aria-hidden>{chip.emoji}</span>
+                {chip.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <ProcessAnimation />
     </section>

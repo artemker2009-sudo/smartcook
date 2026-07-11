@@ -60,6 +60,8 @@ export default function SearchApp() {
   const [photosSort, setPhotosSort] = useState<'new' | 'top' | 'old'>('new');
   const [userLevels, setUserLevels] = useState<Record<string, number>>({});
   const [userId, setUserId] = useState<string | null>(null);
+  // H8: отложенный демо-запрос с главной (?demo=). Ждёт готовности userId.
+  const [pendingDemo, setPendingDemo] = useState<string | null>(null);
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const [filterMode, setFilterMode] = useState<'all' | 'favorites'>('all');
   const [question, setQuestion] = useState("");
@@ -343,8 +345,30 @@ export default function SearchApp() {
         }, 350);
         window.history.replaceState({}, '', '/search');
       }
+      // Демо-чип с главной (/search?demo=<ключ блюда>, H8). Включаем текстовый
+      // режим, показываем запрос в поле и запускаем СТРОГО кэш-поиск (0 OpenAI).
+      // Сам запуск — в эффекте ниже, когда готов userId (иначе поиск выйдет по
+      // раннему return). Запрос — короткий ключ блюда, режем на всякий случай.
+      const demoQuery = params.get('demo');
+      if (demoQuery) {
+        const q = demoQuery.slice(0, 100);
+        setSearchMode('text');
+        setActiveView('service');
+        setTextQuery(q);
+        setPendingDemo(q);
+        window.history.replaceState({}, '', '/search');
+      }
     }
   }, []);
+
+  // Запуск отложенного демо-запроса: только когда userId уже есть. cacheOnly —
+  // строго кэш, генерации с главной не будет; воронка дальше — text_search_*.
+  useEffect(() => {
+    if (!pendingDemo || !userId) return;
+    handleTextSearch({ cacheOnly: true, queryOverride: pendingDemo });
+    setPendingDemo(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingDemo, userId]);
 
   useEffect(() => { if (activeView === 'feed') fetchPhotosFeed(photosSort); }, [activeView, photosSort]);
 
@@ -882,11 +906,18 @@ export default function SearchApp() {
     } catch (err: any) { showToast("Ошибка", undefined, 'error'); } finally { setLoadingRecipe(false); } 
   }; 
 
-  const handleTextSearch = async () => {
-    if (!textQuery.trim() || !userId) return; setLoadingRecipe(true); setRecipe(null); setAnalysisResult(null); setSelectedDish(null); setIsHistoryView(false); setFromFeed(false); setServings(1);
+  // opts.cacheOnly — строго кэш (демо-чипы H8, 0 расхода OpenAI); opts.queryOverride —
+  // явный запрос (демо-чип с главной; textQuery к этому моменту может ещё не примениться).
+  const handleTextSearch = async (opts?: { cacheOnly?: boolean; queryOverride?: string }) => {
+    const q = (opts?.queryOverride ?? textQuery).trim();
+    if (!q || !userId) return; setLoadingRecipe(true); setRecipe(null); setAnalysisResult(null); setSelectedDish(null); setIsHistoryView(false); setFromFeed(false); setServings(1);
     try {
-      const response = await fetch("/api/search-recipe", { method: "POST", headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) }, body: JSON.stringify({ query: textQuery, sessionId: userId, allergies, dislikes }) });
+      const response = await fetch("/api/search-recipe", { method: "POST", headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) }, body: JSON.stringify({ query: q, sessionId: userId, allergies, dislikes, cacheOnly: opts?.cacheOnly === true }) });
       const json = await response.json(); if (handleRateLimitedResponse(response, json)) return; if (!response.ok) throw new Error(json.error || "Ошибка поиска");
+
+      // Демо-чип, а блюда в кэше нет (редко: чип показан по кэшу, но он остыл).
+      // OpenAI не трогаем — мягко предлагаем запустить обычный поиск руками.
+      if (json.type === "cache_miss") { showToast("Рецепт готовим — нажмите «Найти рецепт»."); return; }
 
       // Бессмысленный/непонятный ввод — мягкая подсказка, не ошибка.
       if (json.type === "invalid") { showToast(json.message || "Не понял запрос. Введите продукты или название блюда."); return; }

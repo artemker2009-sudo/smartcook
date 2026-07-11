@@ -32,6 +32,7 @@ import FullScreenImage from "@/components/modals/FullScreenImage";
 import ReportError from "@/components/ReportError";
 import BanquetAccountBanner from "@/components/BanquetAccountBanner";
 import { claimGuestPartiesToAccount } from "@/lib/claimParties";
+import { preparePhoto, reportPhotoError, isHeic } from "@/lib/photo";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -1349,7 +1350,10 @@ export default function ClientRoom({
       return;
     }
 
-    if (!file.type.startsWith("image/")) {
+    // HEIC с камеры Android часто приходит с пустым/неверным mime — его нельзя
+    // отсеять по file.type, иначе валидное фото отклоняется. Пропускаем всё, что
+    // image/* ИЛИ распознано как HEIC по имени (декод/сжатие сделает preparePhoto).
+    if (!file.type.startsWith("image/") && !isHeic(file)) {
       toast.error("Можно отправлять только фото");
       return;
     }
@@ -1362,12 +1366,27 @@ export default function ClientRoom({
     await runWriteMutation({
       setLoading: setIsSendingMessage,
       mutate: async () => {
-        const localPhotoUrl = URL.createObjectURL(file);
+        // Прогоняем через общий пайплайн (декод HEIC на сервере + сжатие/ресайз +
+        // очистка EXIF) ДО отправки — раньше в чат уходил сырой файл, из-за чего
+        // HEIC с Android падал 422 на libheif, а гео из EXIF утекало (#3).
+        let prepared: File;
+        try {
+          prepared = await preparePhoto(
+            file,
+            { maxSizeMB: 2, maxWidthOrHeight: 1920, useWebWorker: true },
+            `chat_${Date.now()}.jpg`,
+          );
+        } catch (error) {
+          void reportPhotoError("banquet-chat-photo", file, error);
+          throw new Error("Не удалось обработать фото");
+        }
+
+        const localPhotoUrl = URL.createObjectURL(prepared);
         const formData = new FormData();
         formData.append("partyId", party.id);
         formData.append("userId", currentUserId);
         formData.append("userName", currentUser);
-        formData.append("file", file);
+        formData.append("file", prepared);
 
         const controller = new AbortController();
         const timeoutId = window.setTimeout(() => controller.abort(), CHAT_PHOTO_UPLOAD_TIMEOUT_MS);
@@ -1406,6 +1425,13 @@ export default function ClientRoom({
           window.setTimeout(() => URL.revokeObjectURL(localPhotoUrl), 120000);
         } catch (error) {
           URL.revokeObjectURL(localPhotoUrl);
+          // Логируем тихую ветку загрузки: таймаут — отдельным шагом *-timeout,
+          // остальное — banquet-chat-photo. Раньше сбой уходил только в тост.
+          void reportPhotoError(
+            isAbortError(error) ? "banquet-chat-photo-timeout" : "banquet-chat-photo",
+            prepared,
+            error,
+          );
           if (isAbortError(error)) {
             throw new Error("Не удалось отправить фото: превышено время ожидания (30 сек)");
           }

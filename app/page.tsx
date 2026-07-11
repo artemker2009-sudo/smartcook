@@ -4,6 +4,7 @@ import type { NewsItem } from "@/components/NewsBoard";
 import type { FeedPhoto } from "@/components/HomeFeed";
 import { type Article, ARTICLE_COLUMNS } from "@/lib/articles";
 import { feedWindowStartISO } from "@/lib/feedWindow";
+import { type DemoChip, filterAvailableChips } from "@/lib/demoChips";
 
 // Каноникал Главной — apex-корень. title/description/og наследуются из корневого
 // layout (у Главной они и есть дефолтные), здесь добавляем только canonical.
@@ -68,6 +69,18 @@ async function getArticles(): Promise<Article[]> {
   );
 }
 
+async function getDemoChips(): Promise<DemoChip[]> {
+  // Демо-чипы H8: читаем прогретые ключи блюд из публичного dish_cache и
+  // оставляем только те чипы-кандидаты, что реально есть в кэше. Таблица
+  // небольшая — тянем ключи целиком и пересекаем в памяти (без хрупкого
+  // in.()-фильтра с кириллицей). Кэш живёт долго → ревалидация 5 минут.
+  const rows = await sbFetch<{ query_key: string }>(
+    "dish_cache?select=query_key&limit=500",
+    300,
+  );
+  return filterAvailableChips(new Set(rows.map((r) => r.query_key)));
+}
+
 export type HomeTip = { id: string; body: string; emoji_icon: string | null };
 
 async function getTip(): Promise<HomeTip | null> {
@@ -114,14 +127,16 @@ const JSON_LD = {
 };
 
 export default async function Home() {
-  const [news, feed, articles, tip] = await Promise.all([getNews(), getFeed(), getArticles(), getTip()]);
+  const [news, feed, articles, tip, demoChips] = await Promise.all([
+    getNews(), getFeed(), getArticles(), getTip(), getDemoChips(),
+  ]);
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
       />
-      <HomeContent news={news} feed={feed} articles={articles} tip={tip} />
+      <HomeContent news={news} feed={feed} articles={articles} tip={tip} demoChips={demoChips} />
     </>
   );
 }

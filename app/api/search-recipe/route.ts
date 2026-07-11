@@ -60,7 +60,7 @@ export async function POST(req: Request) {
   try {
     if (!isTrustedOrigin(req)) return originBlockedResponse();
 
-    const { query, sessionId, allergies, dislikes, requestVariant, currentVariantIndex } =
+    const { query, sessionId, allergies, dislikes, requestVariant, currentVariantIndex, cacheOnly } =
       await req.json();
 
     if (!query || query.trim().length < 2) {
@@ -75,6 +75,22 @@ export async function POST(req: Request) {
     const cacheOn = isRecipeCacheEnabled();
     const profile = hasTasteProfile(allergies, dislikes);
     const queryKey = normalizeQueryKey(query);
+
+    // ── Строго кэш (H8 «магия без фото», демо-чипы главной) ───────────────────
+    // Демо-чип на главной тапают по прогретому блюду. cacheOnly:true = отдать
+    // рецепт из кэша ЛИБО честно вернуть cache_miss, НО НИКОГДА не вызывать
+    // OpenAI и не тратить лимит. Гарантия «расход по этим запросам = 0».
+    if (cacheOnly === true) {
+      if (cacheOn && !profile && queryKey) {
+        const hit = await getCachedVariant(queryKey, 1);
+        if (hit) {
+          const id = await saveToHistory(req, sessionId, hit);
+          return NextResponse.json({ type: "dish", recipe: { ...hit, id }, cacheHit: true });
+        }
+      }
+      // Нет в кэше (или профиль вкуса/кэш off) — без генерации.
+      return NextResponse.json({ type: "cache_miss" });
+    }
 
     // ── «Подобрать другой рецепт» для типа B (этап 2) ─────────────────────────
     // Клиент шлёт requestVariant:true, зная, что текущий результат — блюдо.

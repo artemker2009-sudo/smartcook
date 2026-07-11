@@ -8,6 +8,7 @@ import NewsBoard, { type NewsItem } from "@/components/NewsBoard";
 import HomeFeed, { type FeedPhoto } from "@/components/HomeFeed";
 import ArticlesBoard from "@/components/ArticlesBoard";
 import type { Article } from "@/lib/articles";
+import type { DemoChip } from "@/lib/demoChips";
 import AppNavigation from "@/components/AppNavigation";
 import type { DailyRecipeType } from "@/lib/types";
 
@@ -24,11 +25,13 @@ export default function HomeContent({
   feed,
   articles,
   tip,
+  demoChips,
 }: {
   news: NewsItem[];
   feed: FeedPhoto[];
   articles: Article[];
   tip: HomeTip | null;
+  demoChips: DemoChip[];
 }) {
   const router = useRouter();
   const [daily, setDaily] = useState<DailyRecipeType | null>(null);
@@ -61,7 +64,7 @@ export default function HomeContent({
     <div className="container">
       <AppNavigation activeSection="daily" />
 
-      <HeroLanding />
+      <HeroLanding demoChips={demoChips} />
 
       {/* Рецепт дня переезжает на Главную. Клик ведёт в полноэкранный вид на /search. */}
       <button

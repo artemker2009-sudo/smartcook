@@ -14,7 +14,7 @@ type AppNavigationProps = {
 // Старую «Ленту» (feed_posts) из навигации убрали (этап 7).
 const navItems = [
   { id: "home", label: "Главная", href: "/", icon: Home },
-  { id: "service", label: "Поиск", href: "/search", icon: Search },
+  { id: "service", label: "Найти рецепт", href: "/search", icon: Search },
   { id: "parties", label: "Банкеты", href: "/parties", icon: PartyPopper },
   { id: "profile", label: "Личный кабинет", href: "/search?view=profile", icon: User },
   { id: "daily", label: "Рецепт дня", href: "/search?daily=true", icon: Flame },

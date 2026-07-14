@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Cake, ChevronLeft, Flame, Loader2, TreePine, Users, UsersRound, type LucideIcon } from 'lucide-react';
 import { bindPartyHostAction, createPartyAction } from '@/app/actions/party';
 import AuthModal from '@/components/modals/AuthModal';
+import { useAuthModal } from '@/components/modals/useAuthModal';
 import { supabase } from '@/lib/supabase';
 
 type Scenario = {
@@ -69,13 +70,25 @@ export default function CreatePartyPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [createdPartyId, setCreatedPartyId] = useState<string | null>(null);
   const [showSaveChoice, setShowSaveChoice] = useState(false);
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [authUsername, setAuthUsername] = useState("");
-  const [authPassword, setAuthPassword] = useState("");
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('register');
-  const [authLoading, setAuthLoading] = useState(false);
-  const [authError, setAuthError] = useState("");
   const [createError, setCreateError] = useState("");
+
+  // Регистрация/вход — общий хук (см. components/modals/useAuthModal). Хозяина
+  // комнаты привязываем сразу после входа, а редиректим только когда флоу
+  // закрыт: у регистрации между ними есть экран с кодом восстановления.
+  const { open: openAuthModal, authModalProps } = useAuthModal({
+    onAuthenticated: async (authedUser) => {
+      const partyId = createdPartyId || localStorage.getItem(PENDING_PARTY_STORAGE_KEY);
+      if (!partyId) throw new Error("Не удалось сохранить комнату после входа");
+
+      const bindResult = await bindPartyHostAction(partyId, authedUser.id);
+      if (!bindResult.success) throw new Error(bindResult.error);
+
+      localStorage.removeItem(PENDING_PARTY_STORAGE_KEY);
+    },
+    onFinished: () => {
+      if (createdPartyId) redirectToParty(createdPartyId);
+    },
+  });
 
   const normalizedGuestCount = guestCount === "" ? 0 : Number(guestCount);
   const customTitle = customReason.trim();
@@ -86,14 +99,6 @@ export default function CreatePartyPage() {
   const redirectToParty = (partyId: string) => {
     localStorage.setItem(`party_admin_${partyId}`, 'true');
     window.location.href = `/party/${partyId}`;
-  };
-
-  const bindHostAndRedirect = async (partyId: string, hostId: string) => {
-    const bindResult = await bindPartyHostAction(partyId, hostId);
-    if (!bindResult.success) throw new Error(bindResult.error);
-
-    localStorage.removeItem(PENDING_PARTY_STORAGE_KEY);
-    redirectToParty(partyId);
   };
 
   const handleCreate = async () => {
@@ -131,10 +136,8 @@ export default function CreatePartyPage() {
     if (!createdPartyId) return;
 
     localStorage.setItem(PENDING_PARTY_STORAGE_KEY, createdPartyId);
-    setAuthMode('register');
-    setAuthError("");
     setShowSaveChoice(false);
-    setIsAuthModalOpen(true);
+    openAuthModal('register');
   };
 
   const handleIncognitoChoice = () => {
@@ -144,56 +147,6 @@ export default function CreatePartyPage() {
     redirectToParty(createdPartyId);
   };
 
-  const handleAuth = async () => {
-    if (!authUsername.trim() || authPassword.length < 6) {
-      setAuthError("Введите логин и пароль (мин. 6 символов)");
-      return;
-    }
-
-    const safeUsername = authUsername.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
-    if (safeUsername.length < 4) {
-      setAuthError("Логин: только a-z, 0-9, _ (мин. 4 символа)");
-      return;
-    }
-
-    setAuthLoading(true);
-    setAuthError("");
-    const dummyEmail = `${safeUsername}@smartcook.app`;
-
-    try {
-      const authResult = authMode === 'register'
-        ? await supabase.auth.signUp({
-            email: dummyEmail,
-            password: authPassword,
-            options: { data: { full_name: authUsername.trim(), username: safeUsername } },
-          })
-        : await supabase.auth.signInWithPassword({ email: dummyEmail, password: authPassword });
-
-      if (authResult.error) {
-        if (authResult.error.message.includes('already registered') || authResult.error.message.includes('User already exists')) {
-          setAuthError("Этот Username уже занят! Выберите другой или войдите.");
-          return;
-        }
-
-        if (authResult.error.message.includes('Invalid login credentials')) {
-          setAuthError("Неверный Username или пароль!");
-          return;
-        }
-
-        throw authResult.error;
-      }
-
-      const partyId = createdPartyId || localStorage.getItem(PENDING_PARTY_STORAGE_KEY);
-      const authUser = authResult.data.user;
-      if (!partyId || !authUser?.id) throw new Error("Не удалось сохранить комнату после входа");
-
-      await bindHostAndRedirect(partyId, authUser.id);
-    } catch (error) {
-      setAuthError("Ошибка: " + getErrorMessage(error));
-    } finally {
-      setAuthLoading(false);
-    }
-  };
 
   return (
     <div className="min-h-screen overflow-hidden bg-[#faf9f7] px-4 pb-24 pt-5 font-sans text-zinc-950">
@@ -361,26 +314,13 @@ export default function CreatePartyPage() {
       )}
 
       <AuthModal
-        isOpen={isAuthModalOpen}
+        {...authModalProps}
         onClose={() => {
-          setIsAuthModalOpen(false);
+          authModalProps.onClose();
           if (createdPartyId) setShowSaveChoice(true);
         }}
-        authMode={authMode}
-        setAuthMode={setAuthMode}
-        authUsername={authUsername}
-        setAuthUsername={setAuthUsername}
-        authPassword={authPassword}
-        setAuthPassword={setAuthPassword}
-        authLoading={authLoading}
-        handleAuth={handleAuth}
       />
 
-      {authError && (
-        <div className="fixed left-4 right-4 top-4 z-[100001] mx-auto max-w-md rounded-2xl bg-red-50 px-4 py-3 text-center text-sm font-medium text-red-600 shadow-lg">
-          {authError}
-        </div>
-      )}
     </div>
   );
 }

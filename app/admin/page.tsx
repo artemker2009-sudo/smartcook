@@ -225,6 +225,12 @@ export default function AdminPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  // Ручной сброс пароля пользователю (по заявке из Telegram).
+  const [resetUsername, setResetUsername] = useState("");
+  const [resetPassword, setResetPassword] = useState("");
+  const [isResetting, setIsResetting] = useState(false);
+  const [resetError, setResetError] = useState("");
+  const [resetResult, setResetResult] = useState<{ username: string; password: string; recoveryCode: string } | null>(null);
   const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState("");
   const [stats, setStats] = useState<DashboardStats>(EMPTY_STATS);
@@ -382,6 +388,41 @@ export default function AdminPage() {
       await loadDashboard();
     } finally {
       setIsLoggingIn(false);
+    }
+  };
+
+  // Ручной сброс пароля пользователю: приходит заявка в Telegram (логин), ты
+  // задаёшь новый пароль и сообщаешь пользователю его + новый код восстановления.
+  const handleResetUserPassword = async () => {
+    setResetError("");
+    setResetResult(null);
+    setIsResetting(true);
+
+    try {
+      const response = await fetch("/api/admin/reset-user-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: resetUsername.trim().toLowerCase(), newPassword: resetPassword }),
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.ok) {
+        setResetError(payload?.error || "Не удалось сбросить пароль.");
+        return;
+      }
+
+      setResetResult({
+        username: resetUsername.trim().toLowerCase(),
+        password: resetPassword,
+        recoveryCode: payload.recoveryCode as string,
+      });
+      setResetUsername("");
+      setResetPassword("");
+    } catch (error) {
+      console.error("Ошибка сброса пароля", error);
+      setResetError("Не удалось сбросить пароль.");
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -1055,7 +1096,7 @@ export default function AdminPage() {
           </header>
 
           {activeTab === "management" ? (
-            <section className="flex min-h-[calc(100vh-14rem)] items-center justify-center">
+            <section className="flex min-h-[calc(100vh-14rem)] flex-col items-center justify-center gap-8">
               <div
                 className={`w-full max-w-4xl rounded-[2rem] p-8 shadow-sm lg:p-10 ${
                   isLoading
@@ -1156,6 +1197,86 @@ export default function AdminPage() {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              <div className="w-full max-w-4xl rounded-[2rem] border border-zinc-200 bg-white p-8 shadow-sm lg:p-10">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                  Сброс пароля пользователя
+                </p>
+                <h3 className="mt-3 text-2xl font-semibold tracking-tight text-zinc-900">
+                  🔑 Вернуть доступ к аккаунту
+                </h3>
+                <p className="mt-3 max-w-2xl text-base leading-7 text-zinc-700">
+                  Если пользователь забыл и пароль, и код восстановления — он оставляет заявку, и она
+                  приходит тебе в Telegram. Введи его логин, задай новый пароль и передай пользователю
+                  пароль и новый код восстановления.
+                </p>
+
+                <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="text-sm font-semibold text-zinc-600" htmlFor="reset-username">
+                      Логин пользователя
+                    </label>
+                    <input
+                      id="reset-username"
+                      type="text"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      value={resetUsername}
+                      onChange={(e) => setResetUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
+                      placeholder="artem_chef"
+                      className="mt-2 w-full rounded-2xl border border-zinc-200 px-4 py-3 text-base text-zinc-900 outline-none focus:border-zinc-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-zinc-600" htmlFor="reset-password">
+                      Новый пароль (минимум 8 символов)
+                    </label>
+                    <input
+                      id="reset-password"
+                      type="text"
+                      value={resetPassword}
+                      onChange={(e) => setResetPassword(e.target.value)}
+                      placeholder="например: kotleta2026"
+                      className="mt-2 w-full rounded-2xl border border-zinc-200 px-4 py-3 text-base text-zinc-900 outline-none focus:border-zinc-400"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleResetUserPassword}
+                  disabled={isResetting || resetUsername.length < 3 || resetPassword.length < 8}
+                  className="mt-6 inline-flex items-center justify-center rounded-2xl bg-zinc-900 px-6 py-3.5 text-base font-semibold text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isResetting ? "Сбрасываем..." : "Сбросить пароль"}
+                </button>
+
+                {resetError ? (
+                  <p className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                    {resetError}
+                  </p>
+                ) : null}
+
+                {resetResult ? (
+                  <div className="mt-5 rounded-2xl border border-green-200 bg-green-50 px-5 py-4 text-sm text-green-800">
+                    <p className="font-semibold">Пароль сброшен. Передай это пользователю:</p>
+                    <p className="mt-3">
+                      Логин: <span className="font-mono font-semibold">{resetResult.username}</span>
+                    </p>
+                    <p className="mt-1">
+                      Новый пароль: <span className="font-mono font-semibold">{resetResult.password}</span>
+                    </p>
+                    <p className="mt-1">
+                      Новый код восстановления:{" "}
+                      <span className="font-mono font-semibold">{resetResult.recoveryCode}</span>
+                    </p>
+                    <p className="mt-3 text-green-700">
+                      Старый код больше не работает. Посоветуй сменить пароль после входа.
+                    </p>
+                  </div>
+                ) : null}
               </div>
             </section>
           ) : null}

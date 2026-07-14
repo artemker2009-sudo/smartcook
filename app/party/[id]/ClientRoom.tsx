@@ -28,6 +28,7 @@ import {
   updatePartyRoomSettingsAction,
 } from "@/app/actions/party";
 import AuthModal from "@/components/modals/AuthModal";
+import { useAuthModal } from "@/components/modals/useAuthModal";
 import FullScreenImage from "@/components/modals/FullScreenImage";
 import ReportError from "@/components/ReportError";
 import BanquetAccountBanner from "@/components/BanquetAccountBanner";
@@ -455,11 +456,6 @@ export default function ClientRoom({
   const [roomDescriptionInput, setRoomDescriptionInput] = useState((party.description ?? party.theme ?? "").trim());
   const [isSavingRoomSettings, setIsSavingRoomSettings] = useState(false);
   const [authUser, setAuthUser] = useState<User | null>(null);
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [authUsername, setAuthUsername] = useState("");
-  const [authPassword, setAuthPassword] = useState("");
-  const [authMode, setAuthMode] = useState<"login" | "register">("register");
-  const [authLoading, setAuthLoading] = useState(false);
   const [showWelcomeOnboarding, setShowWelcomeOnboarding] = useState(false);
   const [expandedChatPhoto, setExpandedChatPhoto] = useState<string | null>(null);
 
@@ -1199,50 +1195,11 @@ export default function ClientRoom({
     setShowWelcomeOnboarding(false);
   };
 
-  const handleAuth = async () => {
-    if (!authUsername.trim() || authPassword.length < 6) {
-      toast.error("Введите логин и пароль (мин. 6 символов)");
-      return;
-    }
-
-    const safeUsername = authUsername.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
-    if (safeUsername.length < 4) {
-      toast.error("Логин: только a-z, 0-9, _ (мин. 4 символа)");
-      return;
-    }
-
-    setAuthLoading(true);
-    const dummyEmail = `${safeUsername}@smartcook.app`;
-
-    try {
-      const authResult =
-        authMode === "register"
-          ? await supabase.auth.signUp({
-              email: dummyEmail,
-              password: authPassword,
-              options: { data: { full_name: authUsername.trim(), username: safeUsername } },
-            })
-          : await supabase.auth.signInWithPassword({ email: dummyEmail, password: authPassword });
-
-      if (authResult.error) {
-        if (authResult.error.message.includes("already registered") || authResult.error.message.includes("User already exists")) {
-          toast.error("Этот Username уже занят! Выберите другой или войдите.");
-          return;
-        }
-
-        if (authResult.error.message.includes("Invalid login credentials")) {
-          toast.error("Неверный Username или пароль!");
-          return;
-        }
-
-        throw authResult.error;
-      }
-
-      const nextAuthUser = authResult.data.user;
-      if (!nextAuthUser?.id) throw new Error("Не удалось получить пользователя после входа");
-
+  // Регистрация/вход — общий хук (см. components/modals/useAuthModal). Всё, что
+  // раньше делал локальный handleAuth после входа, переехало в onAuthenticated.
+  const { open: openAuthModal, authModalProps } = useAuthModal({
+    onAuthenticated: async (nextAuthUser) => {
       setAuthUser(nextAuthUser);
-      setIsAuthModalOpen(false);
       toast.success("Комната сохранена в аккаунте");
 
       if (currentUser?.trim()) {
@@ -1265,13 +1222,8 @@ export default function ClientRoom({
 
       // Прочие банкеты/участия с этого устройства — тоже привязать к аккаунту.
       await claimGuestPartiesToAccount();
-    } catch (error) {
-      console.error(error);
-      toast.error(getMutationAlertMessage(error));
-    } finally {
-      setAuthLoading(false);
-    }
-  };
+    },
+  });
 
   const handleNotifyOrganizer = async () => {
     if (isNotifyingOrganizer || hasNotifiedOrganizer) return;
@@ -2013,10 +1965,7 @@ export default function ClientRoom({
               <div className="px-4">
                 <BanquetAccountBanner
                   variant={isHost ? "creator" : "guest"}
-                  onSignup={() => {
-                    setAuthMode("register");
-                    setIsAuthModalOpen(true);
-                  }}
+                  onSignup={() => openAuthModal("register")}
                 />
               </div>
             )}
@@ -2807,18 +2756,7 @@ export default function ClientRoom({
         </div>
       )}
 
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-        authMode={authMode}
-        setAuthMode={setAuthMode}
-        authUsername={authUsername}
-        setAuthUsername={setAuthUsername}
-        authPassword={authPassword}
-        setAuthPassword={setAuthPassword}
-        authLoading={authLoading}
-        handleAuth={handleAuth}
-      />
+      <AuthModal {...authModalProps} />
     </div>
   );
 }

@@ -11,7 +11,7 @@ import { reachGoal } from "@/lib/metrika";
 import { claimGuestPartiesToAccount } from "@/lib/claimParties";
 import { preparePhoto, decodeHeicIfNeeded, reportPhotoError, fetchWithTimeout } from "@/lib/photo";
 import { FEATURE_RESTAURANT_GAME } from "@/lib/features";
-import { USERNAME_MIN, USERNAME_MAX, PASSWORD_MIN, normalizeUsername } from "@/components/modals/AuthModal";
+import { useAuthModal } from "@/components/modals/useAuthModal";
 import { OPEN_INSTALL_EVENT } from "@/components/PWAInstall";
 
 import Profile from "@/components/Profile";
@@ -76,13 +76,7 @@ export default function SearchApp() {
   const [servings, setServings] = useState<number | "">(1);
 
   const [user, setUser] = useState<any>(null);
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  
-  const [authUsername, setAuthUsername] = useState("");
-  const [authPassword, setAuthPassword] = useState("");
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('register');
-  const [authLoading, setAuthLoading] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
+
   // Куда вернуть пользователя после входа (напр. лайк из ленты на Главной → ?return=/).
   const [authReturnUrl, setAuthReturnUrl] = useState<string | null>(null);
 
@@ -300,9 +294,8 @@ export default function SearchApp() {
       // Открыть регистрацию из баннера банкетов (?auth=register|login).
       const authParam = params.get('auth');
       if (authParam === 'register' || authParam === 'login') {
-        setAuthMode(authParam);
         setActiveView('profile');
-        setIsAuthModalOpen(true);
+        openAuthModal(authParam);
         // Только относительные пути (защита от open-redirect на чужой домен).
         const ret = params.get('return');
         if (ret && ret.startsWith('/') && !ret.startsWith('//')) setAuthReturnUrl(ret);
@@ -510,66 +503,33 @@ export default function SearchApp() {
     } catch {}
   };
 
-  const handleAuth = async () => {
-    setAuthError(null);
-    const username = normalizeUsername(authUsername);
-
-    if (username.length < USERNAME_MIN || username.length > USERNAME_MAX) {
-      setAuthError(`Логин: латиница, цифры и «_», от ${USERNAME_MIN} до ${USERNAME_MAX} символов.`);
-      return;
-    }
-    if (authPassword.length < PASSWORD_MIN) {
-      setAuthError(`Пароль должен быть не короче ${PASSWORD_MIN} символов.`);
-      return;
-    }
-
-    setAuthLoading(true);
-    // username уже нормализован (латиница/цифры/_), поэтому dummyEmail валиден.
-    const dummyEmail = `${username}@smartcook.app`;
-
-    try {
-      if (authMode === 'register') {
-        const { data, error } = await supabase.auth.signUp({
-          email: dummyEmail,
-          password: authPassword,
-          options: { data: { full_name: username, username } },
-        });
-        if (error) {
-          if (error.message.includes('already registered') || error.message.includes('User already exists')) {
-            setAuthError("Это имя уже занято. Выберите другое или войдите.");
-          } else {
-            setAuthError("Не удалось создать аккаунт. Попробуйте ещё раз.");
-          }
-          return;
-        }
-        reachGoal("auth_signup");
-        await mergeTasteProfileIntoAccount(data.user);
-        await claimGuestPartiesToAccount();
+  // Вся авторизация (регистрация/вход/восстановление пароля) живёт в общем
+  // хуке — раньше она была скопирована сюда и ещё в две страницы банкетов.
+  const {
+    open: openAuthModal,
+    setIsOpen: setIsAuthModalOpen,
+    authModalProps,
+  } = useAuthModal({
+    onAuthenticated: async (authedUser, outcome) => {
+      reachGoal(
+        outcome === "register" ? "auth_signup" : outcome === "recover" ? "auth_recover" : "auth_login",
+      );
+      await mergeTasteProfileIntoAccount(authedUser);
+      await claimGuestPartiesToAccount();
+      if (outcome === "register") {
         showToast("Добро пожаловать, шеф!", <Sparkles size={18} color="var(--color-accent)" />);
-        setIsAuthModalOpen(false);
-        if (authReturnUrl) { const url = authReturnUrl; setAuthReturnUrl(null); window.location.href = url; }
-      } else {
-        const { data, error } = await supabase.auth.signInWithPassword({ email: dummyEmail, password: authPassword });
-        if (error) {
-          if (error.message.includes('Invalid login credentials')) {
-            setAuthError("Неверное имя или пароль.");
-          } else {
-            setAuthError("Не удалось войти. Попробуйте ещё раз.");
-          }
-          return;
-        }
-        reachGoal("auth_login");
-        await mergeTasteProfileIntoAccount(data.user);
-        await claimGuestPartiesToAccount();
-        setIsAuthModalOpen(false);
-        if (authReturnUrl) { const url = authReturnUrl; setAuthReturnUrl(null); window.location.href = url; }
+      } else if (outcome === "recover") {
+        showToast("Пароль изменён", <Sparkles size={18} color="var(--color-accent)" />);
       }
-    } catch {
-      setAuthError("Что-то пошло не так. Попробуйте позже.");
-    } finally {
-      setAuthLoading(false);
-    }
-  };
+    },
+    onFinished: () => {
+      if (authReturnUrl) {
+        const url = authReturnUrl;
+        setAuthReturnUrl(null);
+        window.location.href = url;
+      }
+    },
+  });
 
   const handleLogout = async () => { await supabase.auth.signOut(); setActiveView('service'); setProfileView('main'); };
 
@@ -1043,20 +1003,7 @@ export default function SearchApp() {
         getUserBadges={getUserBadges}
       />
 
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => { setIsAuthModalOpen(false); setAuthError(null); }}
-        authMode={authMode}
-        setAuthMode={setAuthMode}
-        authUsername={authUsername}
-        setAuthUsername={setAuthUsername}
-        authPassword={authPassword}
-        setAuthPassword={setAuthPassword}
-        authLoading={authLoading}
-        authError={authError}
-        setAuthError={setAuthError}
-        handleAuth={handleAuth}
-      />
+      <AuthModal {...authModalProps} />
 
       <EditProfileModal
         isOpen={isEditingProfile}

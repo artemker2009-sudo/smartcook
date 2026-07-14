@@ -145,6 +145,12 @@ const TABS = [
   { id: "errors" as TabId, label: "🐞 Ошибки", hint: "Баг-репорты пользователей" },
 ];
 
+// Репорт со стенда разработки, а не от живого пользователя.
+const isDevReport = (report: ErrorReport) => {
+  const url = report.url ?? "";
+  return url.includes("localhost") || url.includes("127.0.0.1");
+};
+
 const formatDateTime = (value?: string | null) => {
   if (!value) {
     return "Нет даты";
@@ -993,7 +999,13 @@ export default function AdminPage() {
   // «Пропущенное»: сколько необработанного висит на вкладке. Считаем по тем же
   // статусам, что показывает сама вкладка, — цифра в меню и список не разъедутся.
   const newResetRequestsCount = resetRequests.filter((r) => (r.status ?? "new") === "new").length;
-  const newErrorReportsCount = errorReports.filter((r) => (r.status ?? "new") === "new").length;
+  // Репорты с localhost — это наши же прогоны при разработке (в т.ч. намеренная
+  // проверка телеметрии подставными файлами). Они не должны раздувать бейдж:
+  // иначе счётчик «пропущенного» шумит, и за ним теряется живой баг от
+  // пользователя — ровно так и вышло с репортом про регистр логина.
+  const newErrorReportsCount = errorReports.filter(
+    (r) => (r.status ?? "new") === "new" && !isDevReport(r),
+  ).length;
   const tabBadges: Partial<Record<TabId, number>> = {
     requests: newResetRequestsCount,
     errors: newErrorReportsCount,
@@ -2116,9 +2128,13 @@ export default function AdminPage() {
 
               {errorReports.map((report) => {
                 const isNew = (report.status ?? "new") === "new";
+                const isDev = isDevReport(report);
 
                 return (
-                  <article key={report.id} className="mb-4 rounded-2xl bg-white p-6 shadow-sm">
+                  <article
+                    key={report.id}
+                    className={`mb-4 rounded-2xl p-6 shadow-sm ${isDev ? "bg-zinc-100" : "bg-white"}`}
+                  >
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div className="space-y-1 text-sm text-zinc-500">
                         <p>
@@ -2138,6 +2154,14 @@ export default function AdminPage() {
                       </div>
 
                       <div className="flex items-center gap-3">
+                        {isDev ? (
+                          <span
+                            title="Репорт со стенда разработки (localhost), а не от пользователя. В счётчик не идёт."
+                            className="inline-flex rounded-full bg-zinc-200 px-3 py-1 text-xs font-semibold text-zinc-600 ring-1 ring-zinc-300"
+                          >
+                            DEV
+                          </span>
+                        ) : null}
                         <span
                           className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${
                             isNew

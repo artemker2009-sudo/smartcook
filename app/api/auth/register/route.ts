@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabaseAdmin";
-import { checkAndConsumeAiRateLimit, rateLimitResponse } from "@/lib/rateLimit";
+import { checkAndConsumeAuthRateLimit, authRateLimitResponse } from "@/lib/rateLimit";
 import { generateRecoveryCode, hashRecoveryCode, usernameToEmail } from "@/lib/recovery";
 
 export const runtime = "nodejs";
@@ -28,8 +28,8 @@ function cleanName(raw: unknown): string {
 }
 
 export async function POST(req: Request) {
-  const rate = await checkAndConsumeAiRateLimit(req, "auth-register");
-  if (!rate.ok) return rateLimitResponse(rate);
+  const rate = await checkAndConsumeAuthRateLimit(req, "auth-register");
+  if (!rate.ok) return authRateLimitResponse(rate);
 
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: "Некорректный запрос" }, { status: 400 });

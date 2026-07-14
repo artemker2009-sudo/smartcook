@@ -203,6 +203,64 @@ export async function checkAndConsumeReportRateLimit(
   return { ok: true };
 }
 
+// Лимитер AUTH-роутов (регистрация, восстановление пароля, заявка админу).
+// Отдельный префикс "auth:..." — принципиально: раньше эти роуты сидели на
+// общем AI-бюджете, и человек, который днём искал рецепты, при попытке
+// восстановить пароль упирался в лимит и получал «Вы сгенерировали максимум за
+// этот час» — то есть не мог вернуть себе доступ из-за счётчика генераций.
+// Бюджет всё равно жёсткий: это защита от перебора кода восстановления.
+const AUTH_RATE_LIMIT_PER_HOUR = 10;
+const AUTH_RATE_LIMIT_PER_DAY = 40;
+
+export async function checkAndConsumeAuthRateLimit(
+  req: Request,
+  route: string,
+): Promise<RateLimitResult> {
+  const ip = getClientIp(req);
+  const identifier = `auth:ip:${ip}`;
+  const limits = { perHour: AUTH_RATE_LIMIT_PER_HOUR, perDay: AUTH_RATE_LIMIT_PER_DAY };
+
+  const result = await checkIdentifier(identifier, "ip", limits);
+  if (!result.ok) {
+    logRateLimitHit({ route, ip, userId: null, scope: result.scope, window: result.window });
+    return result;
+  }
+
+  const { error } = await supabaseAdmin.from("ai_rate_limit_events").insert([{ identifier, route }]);
+  if (error) console.error("[rateLimit] failed to record auth event", error.message);
+
+  void supabaseAdmin
+    .from("ai_rate_limit_events")
+    .delete()
+    .eq("identifier", identifier)
+    .lt("created_at", new Date(Date.now() - DAY_MS - HOUR_MS).toISOString())
+    .then(() => {});
+
+  return { ok: true };
+}
+
+// Ответ для auth-роутов: текст про попытки, а не про «генерации».
+export function authRateLimitResponse(result: Extract<RateLimitResult, { ok: false }>) {
+  if (result.window === "error") {
+    return NextResponse.json(
+      { error: "Сервис временно недоступен. Попробуйте через минуту.", code: "RATE_LIMIT_UNAVAILABLE" },
+      { status: 503 },
+    );
+  }
+
+  return NextResponse.json(
+    {
+      error:
+        result.window === "hour"
+          ? "Слишком много попыток. Попробуйте через час."
+          : "Слишком много попыток за сегодня. Попробуйте завтра.",
+      code: RATE_LIMIT_ERROR_CODE,
+      window: result.window,
+    },
+    { status: 429 },
+  );
+}
+
 export function readRateLimitResponse(result: Extract<RateLimitResult, { ok: false }>) {
   if (result.window === "error") {
     return NextResponse.json(

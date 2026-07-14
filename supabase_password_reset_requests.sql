@@ -4,14 +4,21 @@
 -- КОД ВОССТАНОВЛЕНИЯ (не пароль!) и лично присылает его в Telegram. Пароль
 -- пользователь задаёт себе сам, введя код в форме «Забыли пароль».
 --
--- Модель доступа — та же, что у error_reports (осознанно, см. тот файл):
---   * INSERT разрешён anon + authenticated: это публичный канал, заявку
---     оставляет тот, кто в аккаунт уже не попадает. WITH CHECK валидирует
---     длины/формат и фиксирует status='new' — подделать статус нельзя.
---   * SELECT / UPDATE / DELETE политик НЕТ вовсе → никто, кроме серверных
---     админ-роутов с service_role (они обходят RLS), не может ни прочитать
---     заявки, ни закрыть их. Это важно: список заявок раскрывает, какие
---     логины существуют.
+-- Модель доступа: RLS включён, политик НЕТ ВООБЩЕ — ни INSERT, ни SELECT.
+-- То есть anon/authenticated не могут ни писать, ни читать таблицу напрямую
+-- через PostgREST. Вся работа идёт только через серверные роуты с service_role
+-- (они обходят RLS):
+--   * /api/auth/support-reset   — создаёт заявку;
+--   * /api/admin/reset-requests — выдаёт код / закрывает заявку (admin-сессия).
+--
+-- Это НЕ то же самое, что у error_reports (там anon-INSERT разрешён). Здесь
+-- публичный INSERT намеренно закрыт по двум причинам:
+--   1) заявки создаёт наш роут, и только он делает rate-limit — прямой доступ
+--      к таблице позволил бы засыпать её заявками в обход лимитера;
+--   2) SELECT закрыт, потому что список заявок раскрывает, какие логины
+--      вообще существуют.
+-- CHECK-констрейнты ниже остаются второй линией обороны на случай, если
+-- когда-нибудь политику всё же добавят.
 --
 -- Откат: drop table public.password_reset_requests;
 
@@ -34,14 +41,7 @@ create index if not exists password_reset_requests_created_at_idx
 
 alter table public.password_reset_requests enable row level security;
 
--- Единственная политика: публичная вставка валидной заявки со status='new'.
--- USING/SELECT нет — оставивший заявку не сможет прочитать таблицу обратно.
-create policy "password_reset_requests_public_insert"
-on public.password_reset_requests
-for insert
-to anon, authenticated
-with check (
-  username ~ '^[a-z0-9_]{3,20}$'
-  and char_length(telegram) between 2 and 100
-  and status = 'new'
-);
+-- Политик намеренно нет: доступ только через service_role в серверных роутах.
+-- Если в ранней версии этого файла политика публичной вставки всё же создалась —
+-- убираем её (idempotent, безопасно гонять повторно).
+drop policy if exists "password_reset_requests_public_insert" on public.password_reset_requests;

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabaseAdmin";
-import { checkAndConsumeAiRateLimit, rateLimitResponse } from "@/lib/rateLimit";
+import { checkAndConsumeAuthRateLimit, authRateLimitResponse } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,8 +18,8 @@ function clean(raw: unknown, max: number): string {
 // ВОССТАНОВЛЕНИЯ (не пароль!) и лично присылает его пользователю; пароль тот
 // задаёт себе сам, введя код в форме «Забыли пароль».
 export async function POST(req: Request) {
-  const rate = await checkAndConsumeAiRateLimit(req, "auth-support-reset");
-  if (!rate.ok) return rateLimitResponse(rate);
+  const rate = await checkAndConsumeAuthRateLimit(req, "auth-support-reset");
+  if (!rate.ok) return authRateLimitResponse(rate);
 
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: "Некорректный запрос" }, { status: 400 });

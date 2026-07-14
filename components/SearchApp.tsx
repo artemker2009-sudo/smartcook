@@ -11,6 +11,7 @@ import { reachGoal } from "@/lib/metrika";
 import { claimGuestPartiesToAccount } from "@/lib/claimParties";
 import { preparePhoto, decodeHeicIfNeeded, reportPhotoError, fetchWithTimeout } from "@/lib/photo";
 import { FEATURE_RESTAURANT_GAME } from "@/lib/features";
+import { addProduct, MAX_PRODUCTS } from "@/lib/products";
 import { useAuthModal } from "@/components/modals/useAuthModal";
 import { OPEN_INSTALL_EVENT } from "@/components/PWAInstall";
 
@@ -51,6 +52,10 @@ export default function SearchApp() {
   const [loadingRecipe, setLoadingRecipe] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false); 
   const [analysisResult, setAnalysisResult] = useState<AnalysisData | null>(null);
+  // Пользователь правил список продуктов (удалил/дописал чип) — значит блюда из
+  // распознавания устарели: подобраны под старый список. Пока флаг взведён,
+  // ServiceView показывает не устаревшие варианты, а кнопку «Подобрать рецепты».
+  const [productsDirty, setProductsDirty] = useState(false);
   const [selectedDish, setSelectedDish] = useState<string | null>(null);
   const [recipe, setRecipe] = useState<RecipeData | null>(null);
   
@@ -761,7 +766,7 @@ export default function SearchApp() {
   const triggerFileInput = () => document.getElementById('hidden-file-input')?.click(); 
 
   const handleAnalyze = async () => {
-    if (!file) return; setAnalyzing(true); setRecipe(null);
+    if (!file) return; setAnalyzing(true); setRecipe(null); setProductsDirty(false);
     let httpStatus = 0;
     try {
       const formData = new FormData(); formData.append("image", file); formData.append("mode", cookingMode); formData.append("allergies", allergies.join(', ')); formData.append("dislikes", dislikes.join(', '));
@@ -782,13 +787,66 @@ export default function SearchApp() {
   };
 
   const handleRegenerate = async () => {
-    if (!analysisResult) return; setIsRegenerating(true);
+    if (!analysisResult || analysisResult.ingredients.length === 0) return; setIsRegenerating(true);
     try {
       const response = await fetch("/api/regenerate", { method: "POST", headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) }, body: JSON.stringify({ ingredients: analysisResult.ingredients, allergies, dislikes }) });
       const json = await response.json(); if (handleRateLimitedResponse(response, json)) return; if (json.error) throw new Error(json.error);
       setAnalysisResult({ ...analysisResult, dishes: json.dishes });
-    } catch (err: any) { showToast("Ошибка", undefined, 'error'); } finally { setIsRegenerating(false); } 
-  }; 
+      // Блюда подобраны под актуальный (уже отредактированный) список продуктов.
+      setProductsDirty(false);
+    } catch (err: any) { showToast("Ошибка", undefined, 'error'); } finally { setIsRegenerating(false); }
+  };
+
+  // --- Правка списка продуктов после распознавания ---------------------------
+  // Ни одна из этих функций не ходит в OpenAI: список живёт в analysisResult, а
+  // генерация запускается только явной кнопкой (handleRegenerate / выбор блюда).
+
+  // raw может содержать несколько продуктов через запятую («сметана, укроп») —
+  // добавляем их одним обновлением состояния. Возвращает true, если добавились
+  // все (тогда ServiceView чистит поле ввода).
+  const handleAddProduct = (raw: string): boolean => {
+    if (!analysisResult) return false;
+    const parts = raw.split(",").map((p) => p.trim()).filter(Boolean);
+    if (parts.length === 0) return false;
+
+    let products = analysisResult.ingredients;
+    let added = 0;
+    let failure: "limit" | "duplicate" | null = null;
+
+    for (const part of parts) {
+      const result = addProduct(products, part);
+      if (result.ok) { products = result.products; added++; }
+      else if (result.reason !== "empty") failure = result.reason;
+    }
+
+    if (added > 0) {
+      setAnalysisResult({ ...analysisResult, ingredients: products });
+      setProductsDirty(true);
+      for (let i = 0; i < added; i++) reachGoal("photo_product_added");
+    }
+    if (failure === "limit") showToast(`Список полон: не больше ${MAX_PRODUCTS} продуктов`, undefined, 'error');
+    else if (failure === "duplicate") showToast("Такой продукт уже в списке");
+
+    return failure === null && added > 0;
+  };
+
+  const handleRemoveProduct = (index: number) => {
+    if (!analysisResult) return;
+    setAnalysisResult({
+      ...analysisResult,
+      ingredients: analysisResult.ingredients.filter((_, i) => i !== index),
+    });
+    setProductsDirty(true);
+    reachGoal("photo_product_removed");
+  };
+
+  // Карточка no_food → тот же интерфейс чипов, но с пустым списком. Провал
+  // распознавания превращается в рабочий сценарий: продукты вводятся руками.
+  const handleNoFoodManualEntry = () => {
+    setAnalysisResult({ ingredients: [], dishes: [], no_food: false, manual: true });
+    setProductsDirty(true);
+    reachGoal("no_food_manual_entry");
+  };
 
   const isStandalone = () =>
     typeof window !== "undefined" &&
@@ -1154,6 +1212,10 @@ export default function SearchApp() {
           handleTextSearch={handleTextSearch}
           loadingRecipe={loadingRecipe}
           analysisResult={analysisResult}
+          productsDirty={productsDirty}
+          onAddProduct={handleAddProduct}
+          onRemoveProduct={handleRemoveProduct}
+          onNoFoodManualEntry={handleNoFoodManualEntry}
           onNoFoodSwitchToText={() => { setSearchMode('text'); setAnalysisResult(null); setFile(null); setPreview(null); }}
           getRecipeFromPhoto={getRecipeFromPhoto}
           selectedDish={selectedDish}

@@ -1,6 +1,11 @@
 export interface AnalysisData {
   ingredients: string[];
   dishes: string[];
+  // Фото есть, но продуктов на нём не нашли (карточка no_food в ServiceView).
+  no_food?: boolean;
+  // Список набран руками с карточки no_food, а не распознан: от этого зависят
+  // формулировки («Ваши продукты», а не «Я вижу продукты»).
+  manual?: boolean;
 }
 
 export interface DetailedIngredient {

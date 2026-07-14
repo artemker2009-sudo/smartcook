@@ -22,9 +22,12 @@ import {
   History,
   Share2,
   BookOpen,
+  Plus,
+  Pencil,
 } from "lucide-react";
 import RecipeView from "@/components/RecipeView";
 import Button from "@/components/ui/Button";
+import { MAX_PRODUCT_LENGTH } from "@/lib/products";
 import { shareOrCopy } from "@/lib/share";
 import { formatCookingTime } from "@/lib/utils";
 
@@ -54,6 +57,10 @@ interface ServiceViewProps {
   handleTextSearch: (opts?: { cacheOnly?: boolean; queryOverride?: string }) => void;
   loadingRecipe: boolean;
   analysisResult: any;
+  productsDirty: boolean;
+  onAddProduct: (raw: string) => boolean;
+  onRemoveProduct: (index: number) => void;
+  onNoFoodManualEntry: () => void;
   onNoFoodSwitchToText: () => void;
   getRecipeFromPhoto: (dishName: string) => void;
   selectedDish: string | null;
@@ -129,6 +136,10 @@ export default function ServiceView({
   handleTextSearch,
   loadingRecipe,
   analysisResult,
+  productsDirty,
+  onAddProduct,
+  onRemoveProduct,
+  onNoFoodManualEntry,
   onNoFoodSwitchToText,
   getRecipeFromPhoto,
   selectedDish,
@@ -189,6 +200,24 @@ export default function ServiceView({
     }, 3000);
     return () => clearInterval(id);
   }, [phFocused]);
+
+  // Поле «+ Добавить продукт» под чипами. Автодополнения нет: только текст,
+  // Enter или кнопка. Запятая — разделитель («сметана, укроп» = два продукта).
+  const [newProduct, setNewProduct] = React.useState("");
+  const products: string[] = analysisResult?.ingredients ?? [];
+
+  const submitNewProduct = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Список правится локально — OpenAI тут не дёргается. Поле чистим только
+    // если продукт реально добавлен (иначе на лимите текст исчез бы молча).
+    if (onAddProduct(newProduct)) setNewProduct("");
+  };
+
+  // Enter обрабатываем явно: на неявную отправку формы полагаться нельзя —
+  // мобильные клавиатуры («Готово») её не всегда запускают.
+  const onProductKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") submitNewProduct(e);
+  };
 
   return (
     <>
@@ -632,89 +661,117 @@ export default function ServiceView({
             Попробуйте снять продукты крупнее и при хорошем свете — или перечислите
             их текстом.
           </div>
-          <button type="button" className="btn-primary no-food-btn" onClick={onNoFoodSwitchToText}>
-            <Search size={18} /> Ввести текстом
-          </button>
+          <div className="no-food-actions">
+            <button type="button" className="btn-primary no-food-btn" onClick={onNoFoodManualEntry}>
+              <Pencil size={18} /> Ввести продукты вручную
+            </button>
+            <button type="button" className="no-food-btn-secondary" onClick={onNoFoodSwitchToText}>
+              <Search size={16} /> Искать по названию блюда
+            </button>
+          </div>
         </div>
       )}
 
       {analysisResult && !isSharedView && !isHistoryView && !analysisResult.no_food && (
         <div className="card">
-          <h3 style={{ textAlign: "center", marginBottom: "var(--space-4)", fontSize: "var(--font-size-heading)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text)" }}>
-            Я вижу продукты:
+          <h3 className="products-title">
+            {analysisResult.manual ? "Ваши продукты" : "Я вижу продукты:"}
           </h3>
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: "var(--space-2)",
-              justifyContent: "center",
-              marginBottom: "var(--space-4)",
-            }}
-          >
-            {analysisResult.ingredients?.map((ing: string, i: number) => (
-              <span
-                key={i}
-                style={{
-                  background: "var(--color-accent-subtle)",
-                  color: "var(--color-accent-hover)",
-                  padding: "var(--space-2) var(--space-3)",
-                  borderRadius: "var(--radius-full)",
-                  fontSize: "var(--font-size-caption)",
-                  fontWeight: "var(--font-weight-medium)",
-                }}
-              >
+          <p className="products-hint">
+            {products.length === 0
+              ? "Добавьте продукты — по одному или через запятую."
+              : analysisResult.manual
+                ? "Уберите лишнее крестиком или допишите ещё продукты."
+                : "Уберите лишнее крестиком и допишите то, чего нет на фото."}
+          </p>
+
+          <div className="products-chips">
+            {products.map((ing: string, i: number) => (
+              <span key={ing + i} className="product-chip">
                 {ing}
+                <button
+                  type="button"
+                  className="product-chip-remove"
+                  aria-label={`Убрать «${ing}»`}
+                  onClick={() => onRemoveProduct(i)}
+                >
+                  <X size={16} strokeWidth={2.5} />
+                </button>
               </span>
             ))}
           </div>
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "var(--space-2)",
-            }}
-          >
-            {analysisResult.dishes?.map((dish: string, i: number) => (
+
+          <form className="product-add-row" onSubmit={submitNewProduct}>
+            <input
+              type="text"
+              className="product-add-input"
+              value={newProduct}
+              onChange={(e) => setNewProduct(e.target.value)}
+              onKeyDown={onProductKeyDown}
+              placeholder="например: сметана, укроп"
+              aria-label="Добавить продукт"
+              maxLength={MAX_PRODUCT_LENGTH * 3}
+              enterKeyHint="done"
+              autoComplete="off"
+            />
+            <button
+              type="submit"
+              className="product-add-btn"
+              disabled={!newProduct.trim()}
+            >
+              <Plus size={18} strokeWidth={2.5} /> Добавить
+            </button>
+          </form>
+
+          {/* Пока список правили — блюда из распознавания устарели: не показываем
+              их, а предлагаем подобрать рецепты под ИТОГОВЫЙ список (1 запрос). */}
+          {productsDirty || !analysisResult.dishes?.length ? (
+            <Button
+              onClick={handleRegenerate}
+              disabled={isRegenerating || loadingRecipe || products.length === 0}
+              style={{ marginTop: "var(--space-4)" }}
+            >
+              <Sparkles size={20} />{" "}
+              {isRegenerating ? "Подбираю рецепты..." : "Подобрать рецепты"}
+            </Button>
+          ) : (
+            <>
+              <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+                {analysisResult.dishes?.map((dish: string, i: number) => (
+                  <Button
+                    key={i}
+                    onClick={() => getRecipeFromPhoto(dish)}
+                    variant="secondary"
+                    disabled={loadingRecipe}
+                    style={{
+                      justifyContent: "space-between",
+                      opacity: loadingRecipe && selectedDish !== dish ? 0.5 : 1,
+                      borderColor:
+                        selectedDish === dish ? "var(--color-accent)" : "var(--color-border)",
+                      background:
+                        selectedDish === dish ? "var(--color-accent-subtle)" : "var(--color-surface)",
+                    }}
+                  >
+                    <span>{dish}</span>
+                    {loadingRecipe && selectedDish === dish ? (
+                      <Sparkles className="animate-spin" size={24} color="var(--color-accent)" />
+                    ) : (
+                      <ChevronRight color="var(--color-text-muted)" />
+                    )}
+                  </Button>
+                ))}
+              </div>
               <Button
-                key={i}
-                onClick={() => getRecipeFromPhoto(dish)}
                 variant="secondary"
-                disabled={loadingRecipe}
-                style={{
-                  justifyContent: "space-between",
-                  opacity:
-                    loadingRecipe && selectedDish !== dish ? 0.5 : 1,
-                  borderColor:
-                    selectedDish === dish ? "var(--color-accent)" : "var(--color-border)",
-                  background:
-                    selectedDish === dish ? "var(--color-accent-subtle)" : "var(--color-surface)",
-                }}
+                onClick={handleRegenerate}
+                disabled={isRegenerating || loadingRecipe}
+                style={{ marginTop: "var(--space-4)" }}
               >
-                <span>{dish}</span>
-                {loadingRecipe && selectedDish === dish ? (
-                  <Sparkles
-                    className="animate-spin"
-                    size={24}
-                    color="var(--color-accent)"
-                  />
-                ) : (
-                  <ChevronRight color="var(--color-text-muted)" />
-                )}
+                <Sparkles size={20} color="var(--color-accent)" />{" "}
+                {isRegenerating ? "Включаю фантазию..." : "Хочу что-то необычное"}
               </Button>
-            ))}
-          </div>
-          <Button
-            variant="secondary"
-            onClick={handleRegenerate}
-            disabled={isRegenerating || loadingRecipe}
-            style={{ marginTop: "var(--space-4)" }}
-          >
-            <Sparkles size={20} color="var(--color-accent)" />{" "}
-            {isRegenerating
-              ? "Включаю фантазию..."
-              : "Хочу что-то необычное"}
-          </Button>
+            </>
+          )}
         </div>
       )}
 

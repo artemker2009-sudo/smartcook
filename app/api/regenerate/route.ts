@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { checkAndConsumeAiRateLimit, rateLimitResponse } from "@/lib/rateLimit";
 import { isStringListTooLong } from "@/lib/inputLimits";
+import { sanitizeProductList } from "@/lib/products";
 import { isTrustedOrigin, originBlockedResponse } from "@/lib/originGuard";
 
 const openai = new OpenAI({
@@ -12,14 +13,18 @@ export async function POST(req: Request) {
   try {
     if (!isTrustedOrigin(req)) return originBlockedResponse();
 
-    const { ingredients, allergies, dislikes } = await req.json();
+    const { ingredients: rawIngredients, allergies, dislikes } = await req.json();
 
-    if (!ingredients || ingredients.length === 0) {
+    // Список продуктов теперь правит пользователь (удаляет/дописывает чипы), так
+    // что клиенту не доверяем: чистим управляющие символы, режем длину и размер
+    // списка ДО промпта (правило 5 CLAUDE.md — защита от раздувания расходов).
+    const ingredients = sanitizeProductList(rawIngredients);
+
+    if (ingredients.length === 0) {
       return NextResponse.json({ error: "Нет ингредиентов" }, { status: 400 });
     }
 
     if (
-      isStringListTooLong(ingredients) ||
       isStringListTooLong(allergies) ||
       isStringListTooLong(dislikes)
     ) {

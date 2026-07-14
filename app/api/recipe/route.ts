@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { checkAndConsumeAiRateLimit, rateLimitResponse } from "@/lib/rateLimit";
 import { isStringListTooLong, isTextTooLong } from "@/lib/inputLimits";
+import { sanitizeProductList } from "@/lib/products";
 import { isTrustedOrigin, originBlockedResponse } from "@/lib/originGuard";
 import { sanitizeRecipeForStorage } from "@/lib/recipeValidation";
 import { createRequestScopedClient } from "@/lib/auth";
@@ -14,15 +15,18 @@ export async function POST(req: Request) {
   try {
     if (!isTrustedOrigin(req)) return originBlockedResponse();
 
-    const { dish, ingredients, sessionId, allergies, dislikes } = await req.json();
+    const { dish, ingredients: rawIngredients, sessionId, allergies, dislikes } = await req.json();
 
     if (!dish) {
       return NextResponse.json({ error: "No dish provided" }, { status: 400 });
     }
 
+    // Продукты приходят из редактируемого списка на клиенте — санитизируем на
+    // сервере теми же правилами (правило 5 CLAUDE.md), клиенту не доверяем.
+    const ingredients = sanitizeProductList(rawIngredients);
+
     if (
       isTextTooLong(dish) ||
-      isStringListTooLong(ingredients) ||
       isStringListTooLong(allergies) ||
       isStringListTooLong(dislikes)
     ) {

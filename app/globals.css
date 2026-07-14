@@ -560,6 +560,76 @@ body {
   line-height: 1.5; max-width: 340px; margin-bottom: var(--space-4);
 }
 .no-food-btn { width: auto; display: inline-flex; }
+.no-food-actions {
+  display: flex; flex-direction: column; align-items: center; gap: var(--space-3);
+}
+.no-food-btn-secondary {
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  background: none; border: none; cursor: pointer;
+  font-size: var(--font-size-caption); font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary); padding: var(--space-1) var(--space-2);
+}
+.no-food-btn-secondary:hover { color: var(--color-text); }
+
+/* --- РЕДАКТИРУЕМЫЙ СПИСОК ПРОДУКТОВ ПОСЛЕ РАСПОЗНАВАНИЯ ---
+   Аудитория 35–65: крупные чипы, заметный крестик (цель ≥ 32px),
+   поле ввода 16px — иначе iOS зумит страницу при фокусе. */
+.products-title {
+  text-align: center; margin-bottom: var(--space-1);
+  font-size: var(--font-size-heading); font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+.products-hint {
+  text-align: center; margin-bottom: var(--space-4);
+  font-size: var(--font-size-caption); color: var(--color-text-secondary); line-height: 1.5;
+}
+.products-chips {
+  display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: center;
+}
+.products-chips:not(:empty) { margin-bottom: var(--space-3); }
+.product-chip {
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  background: var(--color-accent-subtle); color: var(--color-accent-hover);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-body); font-weight: var(--font-weight-medium);
+  line-height: 1.2;
+}
+.product-chip-remove {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; margin: -4px 0;
+  border: none; border-radius: var(--radius-full); cursor: pointer;
+  background: rgba(0, 0, 0, 0.06); color: var(--color-accent-hover);
+  transition: background 0.15s ease;
+}
+.product-chip-remove:hover { background: rgba(0, 0, 0, 0.14); }
+.product-add-row {
+  display: flex; gap: var(--space-2); align-items: stretch;
+}
+/* На телефоне поле и кнопка встают в столбик: иначе плейсхолдер
+   («например: сметана, укроп») обрезается, а цели становятся мелкими. */
+@media (max-width: 480px) {
+  .product-add-row { flex-direction: column; }
+  .product-add-btn { justify-content: center; }
+}
+.product-add-input {
+  flex: 1; min-width: 0;
+  padding: var(--space-3);
+  font-size: 16px; /* меньше — и iOS зумит страницу при фокусе */
+  color: var(--color-text); background: var(--color-surface);
+  border: 1px solid var(--color-border); border-radius: var(--radius-md);
+  outline: none; transition: border-color 0.2s ease;
+}
+.product-add-input:focus { border-color: var(--color-accent); }
+.product-add-btn {
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  padding: var(--space-3) var(--space-4); white-space: nowrap;
+  font-size: 16px; font-weight: var(--font-weight-semibold);
+  color: var(--color-accent-hover); background: var(--color-accent-subtle);
+  border: none; border-radius: var(--radius-md); cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+.product-add-btn:disabled { opacity: 0.5; cursor: default; }
 
 /* --- ИНДИКАТОР ПРОФИЛЯ ВКУСА НА КАРТОЧКЕ ПОИСКА --- */
 .taste-indicator {

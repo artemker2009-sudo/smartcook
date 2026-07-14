@@ -42,6 +42,7 @@ export function useAuthModal(options: Options = {}) {
   const [authUsername, setAuthUsername] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [authRecoveryCode, setAuthRecoveryCode] = useState("");
+  const [authTelegram, setAuthTelegram] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [supportSent, setSupportSent] = useState(false);
@@ -194,11 +195,19 @@ export function useAuthModal(options: Options = {}) {
     }
   };
 
-  // Запасной путь, когда потерян и пароль, и код: заявка админу в Telegram.
+  // Запасной путь, когда потерян и пароль, и код: заявка админу. Пароль админ
+  // не выдаёт — он присылает в Telegram новый КОД, и пользователь возвращается
+  // сюда же (режим «forgot») задать пароль самостоятельно.
   const handleSupportRequest = async () => {
     const username = normalizeUsername(authUsername);
+    const telegram = authTelegram.trim();
+
     if (username.length < USERNAME_MIN) {
       setAuthError("Сначала введите ваш логин.");
+      return;
+    }
+    if (telegram.length < 2) {
+      setAuthError("Укажите ваш Telegram — туда мы пришлём код восстановления.");
       return;
     }
 
@@ -207,10 +216,11 @@ export function useAuthModal(options: Options = {}) {
       const res = await fetch("/api/auth/support-reset", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username }),
+        body: JSON.stringify({ username, telegram }),
       });
-      if (!res.ok) {
-        setAuthError("Не удалось отправить заявку. Попробуйте позже.");
+      const payload = await res.json().catch(() => null);
+      if (!res.ok || !payload?.ok) {
+        setAuthError(payload?.error || "Не удалось отправить заявку. Попробуйте позже.");
         return;
       }
       setAuthError(null);
@@ -235,6 +245,8 @@ export function useAuthModal(options: Options = {}) {
     setAuthPassword,
     authRecoveryCode,
     setAuthRecoveryCode,
+    authTelegram,
+    setAuthTelegram,
     authLoading,
     authError,
     setAuthError,

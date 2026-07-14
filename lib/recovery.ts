@@ -86,8 +86,8 @@ export async function findAuthUserByEmail(
 }
 
 // Ставит пользователю новый пароль и выдаёт новый код восстановления
-// (старый после сброса больше не действует). Используется и при
-// самостоятельном восстановлении по коду, и при сбросе «через админа».
+// (старый после сброса больше не действует). Используется при самостоятельном
+// восстановлении по коду: пользователь сам придумал новый пароль.
 export async function resetUserPasswordByUsername(
   admin: SupabaseClient,
   username: string,
@@ -99,6 +99,25 @@ export async function resetUserPasswordByUsername(
   const recoveryCode = generateRecoveryCode();
   const { error } = await admin.auth.admin.updateUserById(authUser.id, {
     password: newPassword,
+    app_metadata: { ...(authUser.app_metadata || {}), recovery_hash: hashRecoveryCode(recoveryCode) },
+  });
+  if (error) return { ok: false, reason: "update_failed" };
+  return { ok: true, recoveryCode };
+}
+
+// Выдать пользователю НОВЫЙ КОД ВОССТАНОВЛЕНИЯ, не трогая пароль. Это путь
+// «через админа»: админ не придумывает пароль за пользователя и не пересылает
+// его — он присылает в Telegram только код, а пароль человек задаёт себе сам
+// в форме «Забыли пароль». Старый код при этом сгорает.
+export async function issueRecoveryCodeByUsername(
+  admin: SupabaseClient,
+  username: string,
+): Promise<{ ok: true; recoveryCode: string } | { ok: false; reason: "not_found" | "update_failed" }> {
+  const authUser = await findAuthUserByEmail(admin, usernameToEmail(username));
+  if (!authUser) return { ok: false, reason: "not_found" };
+
+  const recoveryCode = generateRecoveryCode();
+  const { error } = await admin.auth.admin.updateUserById(authUser.id, {
     app_metadata: { ...(authUser.app_metadata || {}), recovery_hash: hashRecoveryCode(recoveryCode) },
   });
   if (error) return { ok: false, reason: "update_failed" };

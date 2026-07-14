@@ -19,6 +19,9 @@ interface AuthModalProps {
   setAuthPassword: (v: string) => void;
   authRecoveryCode: string;
   setAuthRecoveryCode: (v: string) => void;
+  // Telegram нужен только для заявки админу: код восстановления присылают туда лично.
+  authTelegram: string;
+  setAuthTelegram: (v: string) => void;
   authLoading: boolean;
   authError?: string | null;
   setAuthError?: (v: string | null) => void;
@@ -40,6 +43,7 @@ export const USERNAME_MAX = 20;
 export const PASSWORD_MIN = 8;
 export const NAME_MIN = 1;
 export const NAME_MAX = 40;
+export const TELEGRAM_MAX = 100;
 
 export function normalizeUsername(raw: string): string {
   return raw.toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, USERNAME_MAX);
@@ -85,6 +89,8 @@ export default function AuthModal({
   setAuthPassword,
   authRecoveryCode,
   setAuthRecoveryCode,
+  authTelegram,
+  setAuthTelegram,
   authLoading,
   authError = null,
   setAuthError = () => {},
@@ -113,6 +119,8 @@ export default function AuthModal({
   const usernameValid = authUsername.length >= USERNAME_MIN && authUsername.length <= USERNAME_MAX;
   const passwordValid = authPassword.length >= PASSWORD_MIN;
   const codeValid = authRecoveryCode.trim().length > 0;
+  // Заявка админу требует и логин, и Telegram — иначе некуда прислать код.
+  const supportReady = usernameValid && authTelegram.trim().length >= 2;
 
   const canSubmit =
     !authLoading &&
@@ -344,22 +352,39 @@ export default function AuthModal({
                 <p style={{ ...hintStyle, marginTop: 0, display: "flex", alignItems: "flex-start", gap: "var(--space-2)" }}>
                   <LifeBuoy size={16} style={{ flexShrink: 0, marginTop: "2px", color: "var(--color-accent)" }} />
                   <span>
-                    <strong>Не помните код?</strong> Оставьте заявку — мы сбросим пароль вручную и сообщим новый код.
+                    <strong>Не помните код?</strong> Оставьте заявку — мы пришлём вам новый код восстановления в Telegram, и вы сами зададите новый пароль. Пароль мы не видим и не придумываем за вас.
                   </span>
                 </p>
                 {supportSent ? (
                   <p style={{ ...hintStyle, color: "var(--color-accent)", fontWeight: "var(--font-weight-semibold)" }}>
-                    Заявка отправлена. Мы свяжемся с вами и вернём доступ.
+                    Заявка отправлена. Мы пришлём вам новый код восстановления в Telegram — вернитесь сюда и введите его, чтобы задать новый пароль.
                   </p>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={handleSupportRequest}
-                    disabled={!usernameValid || authLoading}
-                    style={{ marginTop: "var(--space-2)", background: "transparent", border: "none", padding: 0, color: usernameValid ? "var(--color-accent)" : "var(--color-text-secondary)", fontSize: "var(--font-size-caption)", fontWeight: "var(--font-weight-semibold)", cursor: usernameValid ? "pointer" : "not-allowed", textDecoration: "underline" }}
-                  >
-                    Отправить заявку на сброс пароля
-                  </button>
+                  <>
+                    <input
+                      type="text"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      placeholder="Ваш Telegram, например @artem"
+                      value={authTelegram}
+                      onChange={(e) => {
+                        setAuthError(null);
+                        setAuthTelegram(e.target.value.slice(0, TELEGRAM_MAX));
+                      }}
+                      style={{ ...inputStyle, marginTop: "var(--space-2)" }}
+                      maxLength={TELEGRAM_MAX}
+                    />
+                    <p style={hintStyle}>Заполните логин выше и ваш Telegram — код пришлём туда лично.</p>
+                    <button
+                      type="button"
+                      onClick={handleSupportRequest}
+                      disabled={!supportReady || authLoading}
+                      style={{ marginTop: "var(--space-2)", background: "transparent", border: "none", padding: 0, color: supportReady ? "var(--color-accent)" : "var(--color-text-secondary)", fontSize: "var(--font-size-caption)", fontWeight: "var(--font-weight-semibold)", cursor: supportReady ? "pointer" : "not-allowed", textDecoration: "underline" }}
+                    >
+                      Отправить заявку
+                    </button>
+                  </>
                 )}
               </div>
             ) : null}

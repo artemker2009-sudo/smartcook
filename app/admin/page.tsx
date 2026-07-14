@@ -49,6 +49,14 @@ type ErrorReport = {
   status?: string | null;
 };
 
+type ResetRequest = {
+  id: string;
+  created_at?: string | null;
+  username: string;
+  telegram: string;
+  status?: string | null;
+};
+
 const EMPTY_STATS: DashboardStats = {
   parties: [],
   recentEvents: [],
@@ -121,7 +129,7 @@ type ImagesStatus = {
   maxBatch: number;
 };
 
-type TabId = "management" | "analytics" | "purchases" | "news" | "articles" | "tips" | "feed" | "images" | "warmup" | "errors";
+type TabId = "management" | "analytics" | "purchases" | "news" | "articles" | "tips" | "feed" | "images" | "warmup" | "requests" | "errors";
 
 const TABS = [
   { id: "management" as TabId, label: "⚙️ Управление", hint: "Статус сайта и техработы" },
@@ -133,6 +141,7 @@ const TABS = [
   { id: "feed" as TabId, label: "🍽️ Лента", hint: "Модерация «Приготовили сегодня»" },
   { id: "images" as TabId, label: "🖼️ Картинки", hint: "ИИ-картинки блюд к рецептам" },
   { id: "warmup" as TabId, label: "🔥 Прогрев", hint: "Заранее наполнить кэш блюд" },
+  { id: "requests" as TabId, label: "🔑 Заявки на доступ", hint: "Восстановление пароля" },
   { id: "errors" as TabId, label: "🐞 Ошибки", hint: "Баг-репорты пользователей" },
 ];
 
@@ -225,12 +234,14 @@ export default function AdminPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  // Ручной сброс пароля пользователю (по заявке из Telegram).
-  const [resetUsername, setResetUsername] = useState("");
-  const [resetPassword, setResetPassword] = useState("");
-  const [isResetting, setIsResetting] = useState(false);
-  const [resetError, setResetError] = useState("");
-  const [resetResult, setResetResult] = useState<{ username: string; password: string; recoveryCode: string } | null>(null);
+  // Заявки на восстановление доступа (вкладка «Заявки на доступ»).
+  const [resetRequests, setResetRequests] = useState<ResetRequest[]>([]);
+  const [issuingRequestId, setIssuingRequestId] = useState<string | null>(null);
+  const [closingRequestId, setClosingRequestId] = useState<string | null>(null);
+  const [requestsError, setRequestsError] = useState("");
+  // Выданные коды держим в памяти страницы: показать их можно только сейчас,
+  // в базе лежит лишь хеш.
+  const [issuedCodes, setIssuedCodes] = useState<Record<string, string>>({});
   const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState("");
   const [stats, setStats] = useState<DashboardStats>(EMPTY_STATS);
@@ -318,6 +329,7 @@ export default function AdminPage() {
         recentEvents: (data.recentEvents as AnalyticsEvent[] | null) ?? [],
       });
       setErrorReports((data.errorReports as ErrorReport[] | null) ?? []);
+      setResetRequests((data.resetRequests as ResetRequest[] | null) ?? []);
       setFeedPhotos((data.feedPhotos as FeedPhoto[] | null) ?? []);
       setNewsItems((data.news as NewsItem[] | null) ?? []);
       setArticles((data.articles as Article[] | null) ?? []);
@@ -391,38 +403,55 @@ export default function AdminPage() {
     }
   };
 
-  // Ручной сброс пароля пользователю: приходит заявка в Telegram (логин), ты
-  // задаёшь новый пароль и сообщаешь пользователю его + новый код восстановления.
-  const handleResetUserPassword = async () => {
-    setResetError("");
-    setResetResult(null);
-    setIsResetting(true);
+  // Выдать по заявке новый КОД восстановления (пароль не трогаем — человек
+  // задаст его сам). Код показываем один раз здесь, чтобы ты переслал его
+  // пользователю в Telegram.
+  const handleIssueRecoveryCode = async (id: string) => {
+    setRequestsError("");
+    setIssuingRequestId(id);
 
     try {
-      const response = await fetch("/api/admin/reset-user-password", {
+      const response = await fetch("/api/admin/reset-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: resetUsername.trim().toLowerCase(), newPassword: resetPassword }),
+        body: JSON.stringify({ action: "issue", id }),
       });
       const payload = await response.json().catch(() => null);
 
       if (!response.ok || !payload?.ok) {
-        setResetError(payload?.error || "Не удалось сбросить пароль.");
+        setRequestsError(payload?.error || "Не удалось выдать код.");
         return;
       }
 
-      setResetResult({
-        username: resetUsername.trim().toLowerCase(),
-        password: resetPassword,
-        recoveryCode: payload.recoveryCode as string,
-      });
-      setResetUsername("");
-      setResetPassword("");
+      setIssuedCodes((current) => ({ ...current, [id]: payload.recoveryCode as string }));
     } catch (error) {
-      console.error("Ошибка сброса пароля", error);
-      setResetError("Не удалось сбросить пароль.");
+      console.error("Ошибка выдачи кода", error);
+      setRequestsError("Не удалось выдать код.");
     } finally {
-      setIsResetting(false);
+      setIssuingRequestId(null);
+    }
+  };
+
+  const handleCloseRequest = async (id: string) => {
+    setClosingRequestId(id);
+
+    try {
+      const response = await fetch("/api/admin/reset-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "done", id }),
+      });
+
+      if (!response.ok) throw new Error("Не удалось закрыть заявку");
+
+      setResetRequests((current) =>
+        current.map((r) => (r.id === id ? { ...r, status: "done" } : r)),
+      );
+    } catch (error) {
+      console.error("Ошибка закрытия заявки", error);
+      setRequestsError("Не удалось закрыть заявку.");
+    } finally {
+      setClosingRequestId(null);
     }
   };
 
@@ -961,6 +990,15 @@ export default function AdminPage() {
     });
   const activeTabMeta = TABS.find((tab) => tab.id === activeTab) ?? TABS[0];
 
+  // «Пропущенное»: сколько необработанного висит на вкладке. Считаем по тем же
+  // статусам, что показывает сама вкладка, — цифра в меню и список не разъедутся.
+  const newResetRequestsCount = resetRequests.filter((r) => (r.status ?? "new") === "new").length;
+  const newErrorReportsCount = errorReports.filter((r) => (r.status ?? "new") === "new").length;
+  const tabBadges: Partial<Record<TabId, number>> = {
+    requests: newResetRequestsCount,
+    errors: newErrorReportsCount,
+  };
+
   if (isCheckingSession) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-zinc-50 px-6 py-10 text-zinc-900">
@@ -1029,28 +1067,45 @@ export default function AdminPage() {
           </div>
         </div>
 
-        <nav className="flex-1 space-y-2 px-4 py-6">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`w-full rounded-xl px-4 py-3 text-left transition ${
-                activeTab === tab.id
-                  ? "bg-black text-white shadow-sm"
-                  : "text-zinc-500 hover:bg-zinc-100"
-              }`}
-            >
-              <div className="text-sm font-semibold">{tab.label}</div>
-              <div
-                className={`mt-1 text-xs ${
-                  activeTab === tab.id ? "text-zinc-300" : "text-zinc-400"
+        {/* min-h-0 обязателен: без него flex-элемент не даёт себя сжать ниже
+            контента, overflow-y-auto не срабатывает и список вкладок нельзя
+            прокрутить на невысоком экране. */}
+        <nav className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 py-6">
+          {TABS.map((tab) => {
+            const badge = tabBadges[tab.id] ?? 0;
+
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`w-full rounded-xl px-4 py-3 text-left transition ${
+                  activeTab === tab.id
+                    ? "bg-black text-white shadow-sm"
+                    : "text-zinc-500 hover:bg-zinc-100"
                 }`}
               >
-                {tab.hint}
-              </div>
-            </button>
-          ))}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-sm font-semibold">{tab.label}</div>
+                  {badge > 0 ? (
+                    <span
+                      aria-label={`Новых: ${badge}`}
+                      className="inline-flex h-5 min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-bold text-white"
+                    >
+                      {badge > 99 ? "99+" : badge}
+                    </span>
+                  ) : null}
+                </div>
+                <div
+                  className={`mt-1 text-xs ${
+                    activeTab === tab.id ? "text-zinc-300" : "text-zinc-400"
+                  }`}
+                >
+                  {tab.hint}
+                </div>
+              </button>
+            );
+          })}
         </nav>
 
         <div className="border-t border-zinc-200 px-6 py-5">
@@ -1096,7 +1151,7 @@ export default function AdminPage() {
           </header>
 
           {activeTab === "management" ? (
-            <section className="flex min-h-[calc(100vh-14rem)] flex-col items-center justify-center gap-8">
+            <section className="flex min-h-[calc(100vh-14rem)] items-center justify-center">
               <div
                 className={`w-full max-w-4xl rounded-[2rem] p-8 shadow-sm lg:p-10 ${
                   isLoading
@@ -1199,85 +1254,6 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="w-full max-w-4xl rounded-[2rem] border border-zinc-200 bg-white p-8 shadow-sm lg:p-10">
-                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500">
-                  Сброс пароля пользователя
-                </p>
-                <h3 className="mt-3 text-2xl font-semibold tracking-tight text-zinc-900">
-                  🔑 Вернуть доступ к аккаунту
-                </h3>
-                <p className="mt-3 max-w-2xl text-base leading-7 text-zinc-700">
-                  Если пользователь забыл и пароль, и код восстановления — он оставляет заявку, и она
-                  приходит тебе в Telegram. Введи его логин, задай новый пароль и передай пользователю
-                  пароль и новый код восстановления.
-                </p>
-
-                <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <label className="text-sm font-semibold text-zinc-600" htmlFor="reset-username">
-                      Логин пользователя
-                    </label>
-                    <input
-                      id="reset-username"
-                      type="text"
-                      autoCapitalize="none"
-                      autoCorrect="off"
-                      spellCheck={false}
-                      value={resetUsername}
-                      onChange={(e) => setResetUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
-                      placeholder="artem_chef"
-                      className="mt-2 w-full rounded-2xl border border-zinc-200 px-4 py-3 text-base text-zinc-900 outline-none focus:border-zinc-400"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-semibold text-zinc-600" htmlFor="reset-password">
-                      Новый пароль (минимум 8 символов)
-                    </label>
-                    <input
-                      id="reset-password"
-                      type="text"
-                      value={resetPassword}
-                      onChange={(e) => setResetPassword(e.target.value)}
-                      placeholder="например: kotleta2026"
-                      className="mt-2 w-full rounded-2xl border border-zinc-200 px-4 py-3 text-base text-zinc-900 outline-none focus:border-zinc-400"
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleResetUserPassword}
-                  disabled={isResetting || resetUsername.length < 3 || resetPassword.length < 8}
-                  className="mt-6 inline-flex items-center justify-center rounded-2xl bg-zinc-900 px-6 py-3.5 text-base font-semibold text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isResetting ? "Сбрасываем..." : "Сбросить пароль"}
-                </button>
-
-                {resetError ? (
-                  <p className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-                    {resetError}
-                  </p>
-                ) : null}
-
-                {resetResult ? (
-                  <div className="mt-5 rounded-2xl border border-green-200 bg-green-50 px-5 py-4 text-sm text-green-800">
-                    <p className="font-semibold">Пароль сброшен. Передай это пользователю:</p>
-                    <p className="mt-3">
-                      Логин: <span className="font-mono font-semibold">{resetResult.username}</span>
-                    </p>
-                    <p className="mt-1">
-                      Новый пароль: <span className="font-mono font-semibold">{resetResult.password}</span>
-                    </p>
-                    <p className="mt-1">
-                      Новый код восстановления:{" "}
-                      <span className="font-mono font-semibold">{resetResult.recoveryCode}</span>
-                    </p>
-                    <p className="mt-3 text-green-700">
-                      Старый код больше не работает. Посоветуй сменить пароль после входа.
-                    </p>
-                  </div>
-                ) : null}
-              </div>
             </section>
           ) : null}
 
@@ -2008,6 +1984,111 @@ export default function AdminPage() {
                   ))}
                 </div>
               )}
+            </section>
+          ) : null}
+
+          {activeTab === "requests" ? (
+            <section className="space-y-4">
+              <div className="rounded-[2rem] border border-zinc-200 bg-white px-6 py-5 shadow-sm">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-400">Доступ</p>
+                <h3 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-950">
+                  Заявки на восстановление доступа
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-zinc-500">
+                  Человек забыл и пароль, и код восстановления. Нажми «Выдать код» — мы сгенерируем ему
+                  новый код и покажем его здесь <strong>один раз</strong>. Скопируй код и пришли его
+                  пользователю в Telegram. Пароль он задаст себе сам, введя код в форме «Забыли пароль»,
+                  — мы пароли не придумываем и не пересылаем.
+                </p>
+              </div>
+
+              {requestsError ? (
+                <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                  {requestsError}
+                </p>
+              ) : null}
+
+              {resetRequests.length === 0 ? (
+                <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-12 text-center text-sm text-zinc-500 shadow-sm">
+                  Заявок пока нет.
+                </div>
+              ) : null}
+
+              {resetRequests.map((request) => {
+                const isNew = (request.status ?? "new") === "new";
+                const issuedCode = issuedCodes[request.id];
+
+                return (
+                  <article key={request.id} className="rounded-2xl bg-white p-6 shadow-sm">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="space-y-1 text-sm text-zinc-500">
+                        <p>
+                          <span className="font-semibold text-zinc-900">Дата:</span>{" "}
+                          {formatDateTime(request.created_at)}
+                        </p>
+                        <p>
+                          <span className="font-semibold text-zinc-900">Логин:</span>{" "}
+                          <span className="font-mono font-semibold text-zinc-900">{request.username}</span>
+                        </p>
+                        <p>
+                          <span className="font-semibold text-zinc-900">Telegram:</span>{" "}
+                          <span className="font-mono font-semibold text-zinc-900">{request.telegram}</span>
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span
+                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${
+                            isNew
+                              ? "bg-amber-100 text-amber-700 ring-amber-200"
+                              : "bg-zinc-100 text-zinc-600 ring-zinc-200"
+                          }`}
+                        >
+                          {isNew ? "Новая" : "Закрыта"}
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() => void handleIssueRecoveryCode(request.id)}
+                          disabled={issuingRequestId === request.id}
+                          className="rounded-2xl bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {issuingRequestId === request.id
+                            ? "Генерируем..."
+                            : issuedCode
+                              ? "Выдать код заново"
+                              : "Выдать код"}
+                        </button>
+
+                        {isNew ? (
+                          <button
+                            type="button"
+                            onClick={() => void handleCloseRequest(request.id)}
+                            disabled={closingRequestId === request.id}
+                            className="rounded-2xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {closingRequestId === request.id ? "Закрываем..." : "Закрыть заявку"}
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    {issuedCode ? (
+                      <div className="mt-5 rounded-2xl border border-green-200 bg-green-50 px-5 py-4 text-sm text-green-800">
+                        <p className="font-semibold">Пришли этот код пользователю в Telegram:</p>
+                        <p className="mt-3 font-mono text-xl font-bold tracking-widest text-green-900">
+                          {issuedCode}
+                        </p>
+                        <p className="mt-3 leading-6 text-green-700">
+                          Дальше он открывает «Войти → Забыли пароль», вводит свой логин, этот код и
+                          придумывает новый пароль. Старый код этого пользователя больше не работает.
+                          Код виден только сейчас — в базе хранится лишь его хеш.
+                        </p>
+                      </div>
+                    ) : null}
+                  </article>
+                );
+              })}
             </section>
           ) : null}
 

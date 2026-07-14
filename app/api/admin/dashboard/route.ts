@@ -53,6 +53,14 @@ export async function GET(req: Request) {
     .order("created_at", { ascending: false })
     .limit(200);
 
+  // Заявки на восстановление доступа — мягко: если таблица ещё не создана
+  // (supabase_password_reset_requests.sql не прогнан), админка не падает.
+  const resetRequestsResult = await supabase
+    .from("password_reset_requests")
+    .select("id, created_at, username, telegram, status")
+    .order("created_at", { ascending: false })
+    .limit(200);
+
   // Советы (все, включая черновики — админ видит) — мягко: если таблицы ещё нет.
   const tipsResult = await supabase
     .from("tips")
@@ -65,6 +73,7 @@ export async function GET(req: Request) {
     parties: partiesResult.data ?? [],
     recentEvents: recentEventsResult.data ?? [],
     errorReports: errorReportsResult.data ?? [],
+    resetRequests: resetRequestsResult.error ? [] : (resetRequestsResult.data ?? []),
     feedPhotos: feedResult.error ? [] : (feedResult.data ?? []),
     news: newsResult.error ? [] : (newsResult.data ?? []),
     articles: articlesResult.error ? [] : (articlesResult.data ?? []),

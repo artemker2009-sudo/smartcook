@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/adminAuth";
 import { createServiceRoleClient } from "@/lib/supabaseAdmin";
 import { generateRecipeImage, generateDishCacheImage, COST_PER_IMAGE_USD } from "@/lib/recipeImage";
+import { normalizeQueryKey } from "@/lib/queryNormalize";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,41 +24,13 @@ export async function GET(req: Request) {
 
   const supabase = createServiceRoleClient();
 
-  // Точное число рецептов без картинки.
-  const { count, error: countError } = await supabase
-    .from("recipes")
-    .select("id", { count: "exact", head: true })
-    .is("image_url", null);
-
-  if (countError) {
-    return NextResponse.json({ error: countError.message }, { status: 500 });
-  }
-
-  // Кандидаты: порядок «популярные → новые». Рецепт дня отдельной строки в БД
-  // не имеет (эфемерный) — в этот список он не попадает by design.
-  const { data: candidates, error: candError } = await supabase
-    .from("recipes")
-    .select("id, title, likes_count, created_at")
-    .is("image_url", null)
-    .order("likes_count", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false })
-    .limit(MAX_BATCH);
-
-  if (candError) {
-    return NextResponse.json({ error: candError.message }, { status: 500 });
-  }
-
-  // Общая галерея ИИ-картинок из ОБОИХ источников: recipes (этап 1) и
-  // dish_cache (этап 2). Отдаём последние N каждого источника — для админ-
-  // просмотра/поиска/перегенерации. Поиск и фильтры — на клиенте.
+  // Последние N картинок каждого источника (recipes этапа 1 + dish_cache этапа 2).
   const GALLERY_LIMIT = 300;
 
-  // ВАЖНО: из recipes берём ТОЛЬКО строки С картинкой. recipes — это личная
-  // история поиска (одна строка на каждый поиск каждого пользователя), поэтому
-  // популярные блюда без картинки повторяются десятками одинаковых карточек и
-  // затапливают галерею. Такие строки — не «ИИ-картинки», а история людей
-  // (удалять их нельзя). Дедуплицированный набор блюд с картинками живёт в
-  // dish_cache; сюда из recipes пускаем только реальные картинки этапа 1.
+  // Рецепты С картинкой. recipes — это личная история поиска (одна строка на
+  // каждый поиск), поэтому популярное блюдо имеет много строк, и несколько из
+  // них могут ссылаться на одну и ту же картинку. Дедуп по нормализованному
+  // названию ниже сводит блюдо к ОДНОЙ карточке.
   const { data: recipeRows, error: recError } = await supabase
     .from("recipes")
     .select("id, title, image_url, created_at")
@@ -79,27 +52,114 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: dishError.message }, { status: 500 });
   }
 
-  const gallery = [
-    ...(recipeRows ?? []).map((r) => ({
-      source: "recipe" as const,
-      id: r.id as number,
-      title: (r.title as string) || "",
-      image_url: (r.image_url as string | null) ?? null,
-      // У recipes нет колонки статуса: есть картинка → ready, нет → none.
-      status: r.image_url ? ("ready" as const) : ("none" as const),
-    })),
-    ...(dishRows ?? []).map((d) => ({
-      source: "dish" as const,
-      id: d.id as number,
-      title: (d.display_title as string) || "",
-      image_url: (d.image_url as string | null) ?? null,
-      status: (d.image_status as "none" | "generating" | "ready" | "failed") ?? "none",
-    })),
-  ];
+  // Множество нормализованных блюд, у которых УЖЕ есть картинка (обе системы).
+  // По нему: (а) фильтруем кандидатов на генерацию — блюдо не получает вторую
+  // картинку никогда; (б) считаем счётчик «Блюд с картинкой».
+  const dishesWithImage = new Set<string>();
+  for (const r of recipeRows ?? []) {
+    if (r.image_url) {
+      const key = normalizeQueryKey(r.title as string);
+      if (key) dishesWithImage.add(key);
+    }
+  }
+  for (const d of dishRows ?? []) {
+    if (d.image_url) {
+      const key = normalizeQueryKey(d.display_title as string);
+      if (key) dishesWithImage.add(key);
+    }
+  }
+
+  // Кандидаты на генерацию: строки recipes без картинки, порядок «популярные →
+  // новые». Берём пул с запасом, затем дедуплицируем по нормализованному блюду
+  // и выкидываем блюда, у которых картинка уже есть (в любой системе) — так одно
+  // блюдо получает картинку ровно один раз. Рецепт дня в БД строки не имеет.
+  const CANDIDATE_POOL = 300;
+  const { data: candidatePool, error: candError } = await supabase
+    .from("recipes")
+    .select("id, title, likes_count, created_at")
+    .is("image_url", null)
+    .order("likes_count", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .limit(CANDIDATE_POOL);
+
+  if (candError) {
+    return NextResponse.json({ error: candError.message }, { status: 500 });
+  }
+
+  const candidates: { id: number; title: string; likes_count: number | null; created_at: string }[] = [];
+  const seenCandidateDishes = new Set<string>();
+  for (const c of candidatePool ?? []) {
+    const key = normalizeQueryKey(c.title as string);
+    // блюдо уже с картинкой — не генерируем вторую
+    if (key && dishesWithImage.has(key)) continue;
+    // дедуп внутри пула кандидатов: одно блюдо = один кандидат. Пустое название
+    // не схлопываем (иначе разные «безымянные» строки слиплись бы в одну).
+    const dedupKey = key || `id:${c.id}`;
+    if (seenCandidateDishes.has(dedupKey)) continue;
+    seenCandidateDishes.add(dedupKey);
+    candidates.push({
+      id: c.id as number,
+      title: (c.title as string) || "",
+      likes_count: (c.likes_count as number | null) ?? null,
+      created_at: c.created_at as string,
+    });
+    if (candidates.length >= MAX_BATCH) break;
+  }
+
+  // Галерея: одна карточка на нормализованное блюдо из ОБЕИХ систем. При
+  // коллизии оставляем «лучшую» строку: с картинкой > без; при равенстве —
+  // dish_cache (канонический дедуп) > recipes; затем более новую.
+  type GalleryEntry = {
+    source: "recipe" | "dish";
+    id: number;
+    title: string;
+    image_url: string | null;
+    status: "none" | "generating" | "ready" | "failed";
+    created_at: string;
+  };
+  const recipeEntries: GalleryEntry[] = (recipeRows ?? []).map((r) => ({
+    source: "recipe",
+    id: r.id as number,
+    title: (r.title as string) || "",
+    image_url: (r.image_url as string | null) ?? null,
+    // У recipes нет колонки статуса: есть картинка → ready, нет → none.
+    status: r.image_url ? "ready" : "none",
+    created_at: r.created_at as string,
+  }));
+  const dishEntries: GalleryEntry[] = (dishRows ?? []).map((d) => ({
+    source: "dish",
+    id: d.id as number,
+    title: (d.display_title as string) || "",
+    image_url: (d.image_url as string | null) ?? null,
+    status: (d.image_status as "none" | "generating" | "ready" | "failed") ?? "none",
+    created_at: d.created_at as string,
+  }));
+
+  const hasImg = (e: GalleryEntry) => !!e.image_url;
+  const pickBetter = (a: GalleryEntry, b: GalleryEntry): GalleryEntry => {
+    if (hasImg(a) !== hasImg(b)) return hasImg(a) ? a : b;
+    if (a.source !== b.source) return a.source === "dish" ? a : b;
+    return a.created_at >= b.created_at ? a : b;
+  };
+
+  const byDish = new Map<string, GalleryEntry>();
+  // dish первыми, чтобы при прочих равных выигрывал канонический источник.
+  for (const e of [...dishEntries, ...recipeEntries]) {
+    // Пустое название не схлопываем: ключ уникален по источнику+id.
+    const key = normalizeQueryKey(e.title) || `${e.source}:${e.id}`;
+    const prev = byDish.get(key);
+    byDish.set(key, prev ? pickBetter(prev, e) : e);
+  }
+
+  const gallery = [...byDish.values()]
+    .sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0))
+    // created_at нужен только для дедупа/сортировки — наружу не отдаём.
+    .map(({ created_at, ...rest }) => rest); // eslint-disable-line @typescript-eslint/no-unused-vars
 
   return NextResponse.json({
-    withoutImageCount: count ?? 0,
-    candidates: candidates ?? [],
+    // Уникальные нормализованные блюда, у которых есть картинка (обе системы).
+    dishesWithImageCount: dishesWithImage.size,
+    candidates,
     gallery,
     costPerImageUsd: COST_PER_IMAGE_USD,
     maxBatch: MAX_BATCH,

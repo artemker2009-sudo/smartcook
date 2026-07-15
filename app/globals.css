@@ -489,6 +489,33 @@ body {
 .install-title { font-size: var(--font-size-body); font-weight: var(--font-weight-semibold); color: var(--color-text); }
 .install-sub { font-size: var(--font-size-caption); color: var(--color-text-secondary); line-height: 1.4; margin-top: 2px; }
 .install-btn { margin-top: 0; }
+/* Android-блок «Проще всего — из RuStore» — первый и самый заметный вариант */
+.install-store-cta {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-3);
+  margin-bottom: var(--space-2);
+  background: var(--color-accent-subtle);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: filter 0.2s;
+}
+.install-store-cta:active { filter: brightness(0.97); }
+.install-store-badge {
+  width: 34px; height: 34px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--color-accent); color: #fff;
+  border-radius: var(--radius-sm);
+  font-size: 13px; font-weight: var(--font-weight-bold); letter-spacing: -0.5px;
+}
+.install-store-text { display: flex; flex-direction: column; }
+.install-store-title { font-size: var(--font-size-body); font-weight: var(--font-weight-semibold); color: var(--color-text); }
+.install-store-sub { font-size: var(--font-size-caption); color: var(--color-text-secondary); line-height: 1.35; margin-top: 1px; }
+.install-or {
+  text-align: center; font-size: var(--font-size-caption);
+  color: var(--color-text-secondary); margin: var(--space-2) 0;
+}
 .install-help { display: flex; flex-direction: column; gap: var(--space-2); }
 .install-help-step {
   display: flex; align-items: center; gap: var(--space-3);
@@ -501,6 +528,55 @@ body {
   display: flex; align-items: center; justify-content: center;
   background: var(--color-accent-subtle); color: var(--color-accent);
   border-radius: var(--radius-sm);
+}
+
+/* --- ПЛАШКА «ОТКРОЙТЕ В БРАУЗЕРЕ» (встроенный браузер Telegram) ---
+   Сверху, не блокирует контент (без затемнения), закрывается крестиком. */
+@keyframes tgBannerIn {
+  from { opacity: 0; transform: translateY(-100%); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.tg-banner {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 9500;
+  display: flex; align-items: flex-start; gap: var(--space-2);
+  padding: calc(var(--space-3) + env(safe-area-inset-top)) var(--space-3) var(--space-3);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  box-shadow: 0 8px 24px -12px rgba(0, 0, 0, 0.28);
+  animation: tgBannerIn 0.3s cubic-bezier(0.21, 1.02, 0.73, 1) both;
+}
+.tg-banner-body { flex: 1; min-width: 0; }
+.tg-banner-text {
+  display: block;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+  line-height: 1.35;
+}
+.tg-banner-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+.tg-banner-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 34px; padding: 6px var(--space-3);
+  background: var(--color-accent); color: #fff;
+  border: none; border-radius: var(--radius-full);
+  font-size: var(--font-size-caption); font-weight: var(--font-weight-medium);
+  text-decoration: none; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.tg-banner-btn:active { filter: brightness(0.96); }
+.tg-banner-btn-secondary {
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+}
+.tg-banner-close {
+  flex-shrink: 0;
+  width: 30px; height: 30px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--color-bg-subtle); border: none; border-radius: 50%;
+  color: var(--color-text-secondary); cursor: pointer;
 }
 
 /* --- КНОПКА «ПОДЕЛИТЬСЯ РЕЦЕПТОМ» (экран результата) --- */

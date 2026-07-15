@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { X, Download, Share, Plus, Smartphone, MoreVertical } from "lucide-react";
 import { reachGoal } from "@/lib/metrika";
+import { RUSTORE_URL } from "@/lib/constants";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -91,6 +92,28 @@ export default function InstallPromptCard({ open, onClose }: InstallPromptCardPr
           <div className="install-sub">И ужин будет в одном тапе — без поиска в браузере.</div>
         </div>
       </div>
+
+      {/* Android: первым и самым простым вариантом — установка из RuStore
+          (официальная обёртка живёт там). PWA-инструкция ниже остаётся вторым
+          вариантом. На iOS блока нет — приложения в RuStore для iOS не существует. */}
+      {platform === "android" && (
+        <>
+          <a
+            className="install-store-cta"
+            href={RUSTORE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => reachGoal("install_card_rustore_click")}
+          >
+            <span className="install-store-badge" aria-hidden>RS</span>
+            <span className="install-store-text">
+              <span className="install-store-title">Проще всего — из RuStore</span>
+              <span className="install-store-sub">Официальное приложение, ставится в один тап</span>
+            </span>
+          </a>
+          <div className="install-or">или добавьте на экран вручную</div>
+        </>
+      )}
 
       {help === null ? (
         <button className="btn-primary install-btn" onClick={handleInstall}>

@@ -6,6 +6,10 @@ export interface AnalysisData {
   // Список набран руками с карточки no_food, а не распознан: от этого зависят
   // формулировки («Ваши продукты», а не «Я вижу продукты»).
   manual?: boolean;
+  // Подмножество ingredients, в распознавании которых модель не уверена (плохо
+  // видно / спорная упаковка). Заполняется /api/analyze; клиент пока не
+  // отображает — поле добавлено без слома контракта ingredients: string[].
+  uncertain?: string[];
 }
 
 export interface DetailedIngredient {

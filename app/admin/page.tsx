@@ -122,7 +122,8 @@ function parseWarmupDishes(text: string): string[] {
     .filter(Boolean);
 }
 type ImagesStatus = {
-  withoutImageCount: number;
+  // Уникальные нормализованные блюда с картинкой (обе системы: recipes + dish_cache).
+  dishesWithImageCount: number;
   candidates: ImageCandidate[];
   gallery: GalleryItem[];
   costPerImageUsd: number;
@@ -2221,9 +2222,9 @@ export default function AdminPage() {
                   <div className="rounded-2xl bg-white p-6 shadow-sm">
                     <div className="flex flex-wrap items-end justify-between gap-4">
                       <div>
-                        <p className="text-sm text-zinc-500">Рецептов без картинки</p>
+                        <p className="text-sm text-zinc-500">Блюд с картинкой</p>
                         <p className="text-3xl font-semibold tracking-tight text-zinc-950">
-                          {imagesStatus.withoutImageCount}
+                          {imagesStatus.dishesWithImageCount}
                         </p>
                       </div>
                       <button

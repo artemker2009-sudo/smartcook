@@ -6,6 +6,7 @@ import "./globals.css";
 import YandexMetrika from "@/components/YandexMetrika"; // Импортируем компонент Метрики
 import PWAUpdater from "@/components/PWAUpdater";
 import PWAInstall from "@/components/PWAInstall";
+import TelegramWebViewBanner from "@/components/TelegramWebViewBanner";
 import Footer from "@/components/Footer";
 import TabBar from "@/components/TabBar";
 import OnboardingModal from "@/components/modals/OnboardingModal";
@@ -152,6 +153,7 @@ export default async function RootLayout({
         </Suspense>
         <PWAUpdater />
         <PWAInstall />
+        <TelegramWebViewBanner />
 
         {showTabBar && <TabBar />}
         {children}

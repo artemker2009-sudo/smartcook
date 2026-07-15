@@ -6,7 +6,7 @@
 // размер списка ДО вызова модели. Файл общий для клиента и сервера — сервер не
 // доверяет клиентским лимитам и применяет те же правила ещё раз.
 
-export const MAX_PRODUCT_LENGTH = 30;
+export const MAX_PRODUCT_LENGTH = 50;
 export const MAX_PRODUCTS = 20;
 
 /**

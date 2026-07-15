@@ -3,6 +3,7 @@
 import { Camera } from "lucide-react";
 import { useRouter } from "next/navigation";
 import ProcessAnimation from "@/components/ProcessAnimation";
+import RuStoreBadge from "@/components/RuStoreBadge";
 import { reachGoal } from "@/lib/metrika";
 import type { DemoChip } from "@/lib/demoChips";
 
@@ -57,6 +58,9 @@ export default function HeroLanding({ demoChips = [] }: { demoChips?: DemoChip[]
         <button type="button" className="hero-textlink" onClick={handleTextClick}>
           или найти рецепт по названию
         </button>
+        {/* Вторичная плашка «Скачайте в RuStore» — только Android и только вне
+            установленного приложения. Логика показа внутри компонента. */}
+        <RuStoreBadge />
       </div>
 
       {/* H8 «магия без фото»: рабочее демо. Показываем ТОЛЬКО если сервер отдал

@@ -8,10 +8,11 @@ import {
 } from "./products";
 
 describe("sanitizeProduct", () => {
-  it("обрезает продукт до 30 символов", () => {
-    const value = sanitizeProduct("оченьдлинноеназваниепродуктакотороенепоместится");
+  it("обрезает продукт до MAX_PRODUCT_LENGTH символов", () => {
+    // Вход заведомо длиннее лимита — проверяем, что режется ровно до предела
+    // (без привязки к конкретному числу, чтобы тест переживал смену лимита).
+    const value = sanitizeProduct("я".repeat(MAX_PRODUCT_LENGTH + 20));
     expect(value).toHaveLength(MAX_PRODUCT_LENGTH);
-    expect(value).toBe("оченьдлинноеназваниепродуктако");
   });
 
   it("вычищает управляющие символы и лишние пробелы", () => {

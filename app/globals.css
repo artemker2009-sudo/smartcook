@@ -146,6 +146,40 @@ body {
 }
 .hero-textlink:hover { color: var(--color-accent); }
 .hero-textlink:active { color: var(--color-accent-hover); }
+/* Вторичная плашка «Скачайте в RuStore» (только Android, вне standalone). H7:
+   тихая — контурная, приглушённая, не тянет внимание на себя от главной CTA. */
+.rustore-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 40px;
+  padding: 6px var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.2s, color 0.2s;
+}
+.rustore-badge:hover { border-color: var(--color-accent); color: var(--color-text); }
+.rustore-badge:active { transform: translateY(1px); }
+.rustore-badge-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent-subtle);
+  color: var(--color-accent);
+  font-size: 11px;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.5px;
+}
+.rustore-badge-text { white-space: nowrap; }
 /* Пастельная плитка-подложка под иконку CTA — как плитки анимационной карточки */
 .hero-cta-icon {
   width: 34px;

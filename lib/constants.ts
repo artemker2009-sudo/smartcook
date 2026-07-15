@@ -3,6 +3,7 @@
 export const DONATE_URL = "https://pay.cloudtips.ru/p/6f66d8e3";
 
 // Страница приложения SmartCook в RuStore (единственное место — правь здесь).
-// Каталог RuStore адресуется по package_name TWA-обёртки (pro.smartcook.twa).
-// Если реальный slug/URL отличается — просто подставь его сюда.
-export const RUSTORE_URL = "https://www.rustore.ru/catalog/app/pro.smartcook.twa";
+// ВАЖНО: это точный проверенный адрес. НЕ собирать его по шаблону из
+// package_name — реальный package_name у нас со знаком подчёркивания
+// (pro.smart_cook.twa), и «очевидная» сборка pro.smartcook.twa даёт 404.
+export const RUSTORE_URL = "https://www.rustore.ru/catalog/app/pro.smart_cook.twa";

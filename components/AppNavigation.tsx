@@ -2,19 +2,20 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { CheckCircle, Flame, Home, Menu, PartyPopper, Search, User, X } from "lucide-react";
+import { CheckCircle, Flame, Home, ImageIcon, Menu, PartyPopper, Search, User, X } from "lucide-react";
 
 type AppNavigationProps = {
-  activeSection?: "home" | "parties" | "service" | "profile" | "daily" | "about";
+  activeSection?: "home" | "parties" | "service" | "profile" | "daily" | "about" | "feed";
 };
 
 // Вторичная навигация (хамбургер). Основные 3 раздела дублирует таб-бар;
-// здесь — доступ к личному кабинету, рецепту дня и о проекте. Все пункты ведут
-// на реальные роуты (Поиск/кабинет/рецепт дня — это /search с параметром).
-// Старую «Ленту» (feed_posts) из навигации убрали (этап 7).
+// здесь — доступ к личному кабинету, ленте, рецепту дня и о проекте. Все пункты
+// ведут на реальные роуты (Поиск/кабинет/рецепт дня — это /search с параметром).
+// «Лента» — новая премодерируемая лента сообщества (/feed), НЕ старая feed_posts.
 const navItems = [
   { id: "home", label: "Главная", href: "/", icon: Home },
   { id: "service", label: "Найти рецепт", href: "/search", icon: Search },
+  { id: "feed", label: "Лента", href: "/feed", icon: ImageIcon },
   { id: "parties", label: "Банкеты", href: "/parties", icon: PartyPopper },
   { id: "profile", label: "Личный кабинет", href: "/search?view=profile", icon: User },
   { id: "daily", label: "Рецепт дня", href: "/search?daily=true", icon: Flame },

@@ -39,6 +39,16 @@ export async function GET(req: Request) {
     .order("created_at", { ascending: false })
     .limit(200);
 
+  // Лента сообщества — очередь на модерацию (status='pending'). Явные колонки,
+  // БЕЗ user_ref в пейлоаде. Мягко: если таблицы ещё нет (миграция не прогнана),
+  // не роняем админку.
+  const communityQueueResult = await supabase
+    .from("community_posts")
+    .select("id, created_at, user_name, recipe_title, recipe_id, photo_url, caption, status")
+    .eq("status", "pending")
+    .order("created_at", { ascending: false })
+    .limit(200);
+
   // Новости (все, включая скрытые — админ видит) — мягко: если таблицы ещё нет.
   const newsResult = await supabase
     .from("news")
@@ -75,6 +85,7 @@ export async function GET(req: Request) {
     errorReports: errorReportsResult.data ?? [],
     resetRequests: resetRequestsResult.error ? [] : (resetRequestsResult.data ?? []),
     feedPhotos: feedResult.error ? [] : (feedResult.data ?? []),
+    communityQueue: communityQueueResult.error ? [] : (communityQueueResult.data ?? []),
     news: newsResult.error ? [] : (newsResult.data ?? []),
     articles: articlesResult.error ? [] : (articlesResult.data ?? []),
     tips: tipsResult.error ? [] : (tipsResult.data ?? []),

@@ -72,6 +72,18 @@ type FeedPhoto = {
   is_hidden?: boolean | null;
 };
 
+// Пост ленты сообщества в очереди на модерацию (status='pending'). Без user_ref.
+type CommunityQueueItem = {
+  id: string;
+  created_at?: string | null;
+  user_name?: string | null;
+  recipe_title?: string | null;
+  recipe_id?: number | null;
+  photo_url: string;
+  caption?: string | null;
+  status?: string | null;
+};
+
 type NewsItem = {
   id: string;
   created_at?: string | null;
@@ -139,7 +151,7 @@ const TABS = [
   { id: "news" as TabId, label: "📰 Новости", hint: "Новости проекта на главной" },
   { id: "articles" as TabId, label: "📝 Заметки", hint: "Кухонные заметки на главной" },
   { id: "tips" as TabId, label: "💡 Советы", hint: "Совет дня на главной" },
-  { id: "feed" as TabId, label: "🍽️ Лента", hint: "Модерация «Приготовили сегодня»" },
+  { id: "feed" as TabId, label: "🍽️ Лента", hint: "Премодерация ленты + витрина" },
   { id: "images" as TabId, label: "🖼️ Картинки", hint: "ИИ-картинки блюд к рецептам" },
   { id: "warmup" as TabId, label: "🔥 Прогрев", hint: "Заранее наполнить кэш блюд" },
   { id: "requests" as TabId, label: "🔑 Заявки на доступ", hint: "Восстановление пароля" },
@@ -260,6 +272,8 @@ export default function AdminPage() {
   const [markingReportId, setMarkingReportId] = useState<string | null>(null);
   const [feedPhotos, setFeedPhotos] = useState<FeedPhoto[]>([]);
   const [hidingPhotoId, setHidingPhotoId] = useState<string | null>(null);
+  const [communityQueue, setCommunityQueue] = useState<CommunityQueueItem[]>([]);
+  const [moderatingId, setModeratingId] = useState<string | null>(null);
   // Раздел «Картинки»: статус, батч-генерация и перегенерация.
   const [imagesStatus, setImagesStatus] = useState<ImagesStatus | null>(null);
   const [imagesLoading, setImagesLoading] = useState(false);
@@ -338,6 +352,7 @@ export default function AdminPage() {
       setErrorReports((data.errorReports as ErrorReport[] | null) ?? []);
       setResetRequests((data.resetRequests as ResetRequest[] | null) ?? []);
       setFeedPhotos((data.feedPhotos as FeedPhoto[] | null) ?? []);
+      setCommunityQueue((data.communityQueue as CommunityQueueItem[] | null) ?? []);
       setNewsItems((data.news as NewsItem[] | null) ?? []);
       setArticles((data.articles as Article[] | null) ?? []);
       setTips((data.tips as Tip[] | null) ?? []);
@@ -559,6 +574,25 @@ export default function AdminPage() {
       console.error("Ошибка при модерации ленты", error);
     } finally {
       setHidingPhotoId(null);
+    }
+  };
+
+  // Модерация ленты сообщества: одобрить/отклонить пост из очереди (path «а»).
+  // Тот же статус в БД меняет и Telegram-путь; после решения убираем из очереди.
+  const handleModerateCommunity = async (id: string, action: "approve" | "reject") => {
+    setModeratingId(id);
+    try {
+      const response = await fetch("/api/admin/feed-moderate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, action }),
+      });
+      if (!response.ok) throw new Error("Не удалось обновить пост");
+      setCommunityQueue((current) => current.filter((post) => post.id !== id));
+    } catch (error) {
+      console.error("Ошибка при модерации ленты сообщества", error);
+    } finally {
+      setModeratingId(null);
     }
   };
 
@@ -1008,6 +1042,7 @@ export default function AdminPage() {
     (r) => (r.status ?? "new") === "new" && !isDevReport(r),
   ).length;
   const tabBadges: Partial<Record<TabId, number>> = {
+    feed: communityQueue.length,
     requests: newResetRequestsCount,
     errors: newErrorReportsCount,
   };
@@ -1949,8 +1984,58 @@ export default function AdminPage() {
           {activeTab === "feed" ? (
             <section className="space-y-4">
               <div className="rounded-[2rem] border border-zinc-200 bg-white px-6 py-5 shadow-sm">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-400">Премодерация</p>
+                <h3 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-950">
+                  Лента сообщества — на модерации ({communityQueue.length})
+                </h3>
+                <p className="mt-2 text-sm text-zinc-500">
+                  Новые посты пользователей. «Одобрить» — пост появляется в ленте; «Отклонить» — остаётся скрытым.
+                  То же решение можно принять из Telegram.
+                </p>
+              </div>
+
+              {communityQueue.length === 0 ? (
+                <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-8 text-center text-sm text-zinc-500 shadow-sm">
+                  Постов на модерации нет.
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                  {communityQueue.map((post) => (
+                    <article key={post.id} className="overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-sm">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={post.photo_url} alt={post.recipe_title || "Блюдо"} className="aspect-square w-full object-cover" />
+                      <div className="space-y-1 p-3">
+                        <p className="truncate text-sm font-semibold text-zinc-900">{post.recipe_title || "Блюдо"}</p>
+                        {post.caption ? <p className="line-clamp-2 text-xs text-zinc-600">{post.caption}</p> : null}
+                        <p className="truncate text-xs text-zinc-500">{post.user_name || "Гость"}</p>
+                        <p className="text-xs text-zinc-400">{formatDateTime(post.created_at)}</p>
+                        <div className="mt-2 flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleModerateCommunity(post.id, "approve")}
+                            disabled={moderatingId === post.id}
+                            className="flex-1 rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
+                          >
+                            {moderatingId === post.id ? "..." : "Одобрить"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleModerateCommunity(post.id, "reject")}
+                            disabled={moderatingId === post.id}
+                            className="flex-1 rounded-full bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-red-500 disabled:opacity-50"
+                          >
+                            {moderatingId === post.id ? "..." : "Отклонить"}
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+
+              <div className="rounded-[2rem] border border-zinc-200 bg-white px-6 py-5 shadow-sm">
                 <p className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-400">Модерация</p>
-                <h3 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-950">Лента «Приготовили сегодня»</h3>
+                <h3 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-950">Витрина «Приготовили сегодня»</h3>
                 <p className="mt-2 text-sm text-zinc-500">
                   Фото из витрины на главной. «Скрыть» убирает фото из ленты (is_hidden), «Вернуть» — показывает снова.
                 </p>

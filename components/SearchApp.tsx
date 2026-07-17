@@ -17,14 +17,12 @@ import { OPEN_INSTALL_EVENT } from "@/components/PWAInstall";
 
 import Profile from "@/components/Profile";
 import DailyRecipe from "@/components/DailyRecipe";
-import Feed from "@/components/Feed";
 import Game from "@/components/Game";
 import About from "@/components/About";
 import ServiceView from "@/components/ServiceView";
 
 import FullScreenImage from "@/components/modals/FullScreenImage";
 import CropperModal from "@/components/modals/CropperModal";
-import CommentsModal from "@/components/modals/CommentsModal";
 import AuthModal from "@/components/modals/AuthModal";
 import EditProfileModal from "@/components/modals/EditProfileModal";
 import PreferencesModal from "@/components/modals/PreferencesModal";
@@ -59,10 +57,7 @@ export default function SearchApp() {
   const [selectedDish, setSelectedDish] = useState<string | null>(null);
   const [recipe, setRecipe] = useState<RecipeData | null>(null);
   
-  const [feed, setFeed] = useState<DBRecipe[]>([]); 
-  const [feedTab, setFeedTab] = useState<'photos' | 'recipes'>('photos');
-  const [photosFeed, setPhotosFeed] = useState<any[]>([]);
-  const [photosSort, setPhotosSort] = useState<'new' | 'top' | 'old'>('new');
+  const [feed, setFeed] = useState<DBRecipe[]>([]);
   const [userLevels, setUserLevels] = useState<Record<string, number>>({});
   const [userId, setUserId] = useState<string | null>(null);
   // H8: отложенный демо-запрос с главной (?demo=). Ждёт готовности userId.
@@ -91,14 +86,7 @@ export default function SearchApp() {
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
   const [profileView, setProfileView] = useState<'main' | 'favorites' | 'photos' | 'history'>('main');
-  const [userPhotos, setUserPhotos] = useState<any[]>([]);
 
-  const [commentsModalPostId, setCommentsModalPostId] = useState<number | null>(null);
-  const [postComments, setPostComments] = useState<DBComment[]>([]);
-  const [newCommentText, setNewCommentText] = useState("");
-  const [replyingTo, setReplyingTo] = useState<{id: number, name: string} | null>(null);
-  const [scrollToPostId, setScrollToPostId] = useState<number | null>(null);
-  const [isLoadingComments, setIsLoadingComments] = useState(false);
   const [isStandaloneUploadOpen, setIsStandaloneUploadOpen] = useState(false);
   const [standaloneTitle, setStandaloneTitle] = useState("");
 
@@ -268,12 +256,6 @@ export default function SearchApp() {
     setUserId(currentSessionId); if (currentSessionId) fetchMyRecipes(currentSessionId); 
   }, [user]);
 
-  useEffect(() => {
-    if (activeView === 'profile' && user) {
-      supabase.from('feed_posts').select('*, recipes(title)').eq('user_id', user.id).order('created_at', { ascending: false }).then(({data, error}) => { if (!error && data) setUserPhotos(data); });
-    }
-  }, [activeView, user]);
-
   const loadDailyRecipe = () => {
     setDailyError(false);
     fetch('/api/daily').then(res => res.json()).then(json => {
@@ -368,21 +350,6 @@ export default function SearchApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingDemo, userId]);
 
-  useEffect(() => { if (activeView === 'feed') fetchPhotosFeed(photosSort); }, [activeView, photosSort]);
-
-  useEffect(() => {
-    if (!FEATURE_RESTAURANT_GAME) return; // игровые уровни скрыты (этап 4.2)
-    const uids = new Set<string>();
-    photosFeed.forEach(p => { if (p.user_id) uids.add(p.user_id); });
-    postComments.forEach(c => { if (c.user_id) uids.add(c.user_id); });
-    if (uids.size > 0) {
-      // Узкое публичное view (только user_id + restaurant_level) — см. supabase_game_progress_rls.sql
-      supabase.from('game_public_levels').select('user_id, restaurant_level').in('user_id', Array.from(uids)).then(({data, error}) => {
-          if (data && !error) { const levels: Record<string, number> = {}; data.forEach(d => levels[d.user_id] = d.restaurant_level); setUserLevels(prev => ({...prev, ...levels})); }
-        });
-    }
-  }, [photosFeed, postComments]);
-
   useEffect(() => {
     if (!FEATURE_RESTAURANT_GAME) return; // прогресс игры не грузим (этап 4.2)
     if (user) {
@@ -453,15 +420,6 @@ export default function SearchApp() {
   }, [actualPassiveIncome, maxEnergy]);
 
   useEffect(() => {
-    if (activeView === 'feed' && feedTab === 'photos' && scrollToPostId && photosFeed.length > 0) {
-      const timer = setTimeout(() => {
-        const element = document.getElementById(`feed-post-${scrollToPostId}`);
-        if (element) { element.scrollIntoView({ behavior: 'smooth', block: 'center' }); element.style.transition = 'box-shadow 0.5s'; element.style.boxShadow = '0 0 0 4px var(--color-accent)'; setTimeout(() => { element.style.boxShadow = ''; setScrollToPostId(null); }, 2000); }
-      }, 300); return () => clearTimeout(timer);
-    }
-  }, [activeView, feedTab, photosFeed, scrollToPostId]);
-
-  useEffect(() => {
     if (dailyRecipe && feed.length > 0) {
       const alreadySaved = feed.find(r => r.title === dailyRecipe.title && r.is_favorite); setDailyFavoriteId(alreadySaved ? alreadySaved.id : null);
     }
@@ -478,10 +436,6 @@ export default function SearchApp() {
 
   /* --- ФУНКЦИИ ОБРАБОТЧИКИ --- */
   const fetchMyRecipes = async (currentId: string) => { const { data, error } = await supabase.from('recipes').select('*').eq('session_id', currentId).order('created_at', { ascending: false }); if (!error && data) setFeed(data); };
-  const fetchPhotosFeed = async (sortType: 'new' | 'top' | 'old') => {
-    setPhotosSort(sortType); if (!userId) return;
-    try { const res = await fetch("/api/photo-feed", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sort: sortType, sessionId: userId }) }); const json = await res.json(); if (json.feed) setPhotosFeed(json.feed); } catch (e) {}
-  };
 
   // Перенос профиля вкуса из localStorage (анонимный опыт) в аккаунт при
   // входе/регистрации. МЁРДЖ, а не перезапись: то, что уже сохранено в
@@ -591,78 +545,13 @@ export default function SearchApp() {
       const { data, error } = await supabase.auth.updateUser(updates); 
       if (error) throw error;
 
-      setUser(data.user); setIsEditingProfile(false); 
-      
-      await supabase.from('feed_posts').update({ user_name: editProfileName, user_avatar: avatarUrl }).eq('user_id', user.id);
-      await supabase.from('photo_comments').update({ user_name: editProfileName, user_avatar: avatarUrl }).eq('user_id', user.id);
+      setUser(data.user); setIsEditingProfile(false);
+
       await supabase.from('game_progress').update({ user_name: editProfileName, user_avatar: avatarUrl }).eq('user_id', user.id);
-      
-      setPhotosFeed(prev => prev.map(p => p.user_id === user.id ? { ...p, user_name: editProfileName, user_avatar: avatarUrl } : p));
-      setUserPhotos(prev => prev.map(p => p.user_id === user.id ? { ...p, user_name: editProfileName, user_avatar: avatarUrl } : p));
-    } catch(e: any) { showToast(e.message || "Ошибка сохранения профиля", undefined, 'error'); } finally { setIsSavingProfile(false); } 
+    } catch(e: any) { showToast(e.message || "Ошибка сохранения профиля", undefined, 'error'); } finally { setIsSavingProfile(false); }
   }; 
 
-  const handlePhotoLike = async (e: any, item: any) => {
-    e.stopPropagation(); if (!userId) return;
-    const action = item.is_liked ? 'unlike' : 'like'; const newCount = item.is_liked ? Math.max(0, (item.likes_count || 0) - 1) : (item.likes_count || 0) + 1;
-    setPhotosFeed(photosFeed.map(p => p.id === item.id ? { ...p, is_liked: !item.is_liked, likes_count: newCount } : p));
-    try { 
-      if (action === 'like') await supabase.from('photo_likes').insert({ post_id: item.id, session_id: userId });
-      else await supabase.from('photo_likes').delete().match({ post_id: item.id, session_id: userId });
-    } catch (err) {}
-  };
-
-  const handleDeletePost = async (postId: number) => { 
-    if (!confirm("Вы уверены, что хотите удалить этот пост?")) return; 
-    try { const { error } = await supabase.from('feed_posts').delete().eq('id', postId).eq('user_id', user?.id); if (error) throw error; setPhotosFeed(prev => prev.filter(p => p.id !== postId)); setUserPhotos(prev => prev.filter(p => p.id !== postId)); } catch (e: any) { showToast("Ошибка удаления", undefined, 'error'); } 
-  }; 
-
-  const openComments = async (postId: number) => { 
-    try {
-      setCommentsModalPostId(postId); 
-      setPostComments([]); 
-      setReplyingTo(null); 
-      setIsLoadingComments(true); 
-      
-      const { data, error } = await supabase.from('photo_comments').select('*').eq('post_id', postId).order('created_at', { ascending: true }); 
-      if (error) throw error;
-
-      let likedIds = new Set(); 
-      if (userId && data && data.length > 0) { 
-        const cIds = data.map(c => c.id); 
-        const { data: likes } = await supabase.from('comment_likes').select('comment_id').in('comment_id', cIds).eq('session_id', userId); 
-        if (likes) likes.forEach((l: any) => likedIds.add(l.comment_id)); 
-      } 
-      setPostComments(data?.map(c => ({...c, is_liked: likedIds.has(c.id)})) || []); 
-    } catch (e) {
-      console.error(e);
-      showToast("Не удалось загрузить комментарии", undefined, 'error');
-    } finally {
-      setIsLoadingComments(false);
-    }
-  }; 
-
-  const submitComment = async () => { 
-    if (!user) { setCommentsModalPostId(null); return setIsAuthModalOpen(true); }
-    if (!newCommentText.trim() || !commentsModalPostId) return; 
-    const userName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Шеф'; const userAvatar = user.user_metadata?.avatar_url || null; 
-    const { data, error } = await supabase.from('photo_comments').insert({ post_id: commentsModalPostId, user_id: user.id, user_name: userName, user_avatar: userAvatar, text: newCommentText.trim(), parent_id: replyingTo ? replyingTo.id : null }).select().single(); 
-    if (!error && data) { setPostComments([...postComments, data]); setNewCommentText(""); setReplyingTo(null); setPhotosFeed(photosFeed.map(p => p.id === commentsModalPostId ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p)); } 
-  }; 
-
-  const handleDeleteComment = async (commentId: number) => { 
-    if (!confirm("Удалить комментарий?")) return; 
-    try { const { error } = await supabase.from('photo_comments').delete().eq('id', commentId).eq('user_id', user?.id); if (error) throw error; setPostComments(prev => prev.filter(c => c.id !== commentId && c.parent_id !== commentId)); setPhotosFeed(photosFeed.map(p => p.id === commentsModalPostId ? { ...p, comments_count: Math.max(0, (p.comments_count || 0) - 1) } : p)); } catch (e: any) { showToast("Ошибка удаления", undefined, 'error'); } 
-  }; 
-
-  const handleCommentLike = async (comment: DBComment) => {
-    if (!userId) return;
-    const action = comment.is_liked ? 'unlike' : 'like'; const newCount = comment.is_liked ? Math.max(0, (comment.likes_count || 0) - 1) : (comment.likes_count || 0) + 1;
-    setPostComments(postComments.map(c => c.id === comment.id ? { ...c, is_liked: !c.is_liked, likes_count: newCount } : c));
-    try { if (action === 'like') await supabase.from('comment_likes').insert({ comment_id: comment.id, session_id: userId }); else await supabase.from('comment_likes').delete().match({ comment_id: comment.id, session_id: userId }); } catch (err) {}
-  };
-
-  const toggleFavorite = async (e: any, targetId: number, currentStatus: boolean = false) => { 
+  const toggleFavorite = async (e: any, targetId: number, currentStatus: boolean = false) => {
     e.stopPropagation(); if (!targetId) return; const newStatus = !currentStatus; 
     setFeed(feed?.map(r => r.id === targetId ? { ...r, is_favorite: newStatus } : r) || []); if (recipe && recipe.id === targetId) setRecipe({ ...recipe, is_favorite: newStatus }); 
     try { await fetch("/api/favorite", { method: "POST", headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) }, body: JSON.stringify({ id: targetId, isFavorite: newStatus, sessionId: userId }) }); } catch (err) {}
@@ -993,9 +882,8 @@ export default function SearchApp() {
   }; 
 
   const handleBackToSource = () => { 
-    setRecipe(null); setIsHistoryView(false); 
-    if (fromFeed === 'photos') setActiveView('feed');  
-    else if (fromFeed === 'profile_history') { setProfileView('history'); setActiveView('profile'); }  
+    setRecipe(null); setIsHistoryView(false);
+    if (fromFeed === 'profile_history') { setProfileView('history'); setActiveView('profile'); }
     else if (fromFeed === 'profile_favorites') { setProfileView('favorites'); setActiveView('profile'); }  
     else setActiveView('service'); 
     setFromFeed(false); 
@@ -1047,23 +935,6 @@ export default function SearchApp() {
         onCropComplete={onCropComplete}
         onCancel={() => { setIsCropping(false); setCropImageSrc(null); }}
         onConfirm={handleCropConfirm}
-      />
-
-      <CommentsModal
-        commentsModalPostId={commentsModalPostId}
-        onClose={() => setCommentsModalPostId(null)}
-        isLoadingComments={isLoadingComments}
-        postComments={postComments}
-        newCommentText={newCommentText}
-        setNewCommentText={setNewCommentText}
-        replyingTo={replyingTo}
-        setReplyingTo={setReplyingTo}
-        submitComment={submitComment}
-        handleDeleteComment={handleDeleteComment}
-        handleCommentLike={handleCommentLike}
-        user={user}
-        userLevels={userLevels}
-        getUserBadges={getUserBadges}
       />
 
       <AuthModal {...authModalProps} />
@@ -1146,22 +1017,10 @@ export default function SearchApp() {
       {activeView === 'profile' && (
         <Profile 
           user={user} cooks={cooks} restaurantLevel={restaurantLevel} profileView={profileView} 
-          setProfileView={setProfileView} feed={feed} userPhotos={userPhotos} handleLogout={handleLogout} 
-          setIsEditingProfile={setIsEditingProfile} setIsPreferencesModalOpen={setIsPreferencesModalOpen} 
-          setIsAuthModalOpen={setIsAuthModalOpen} loadFromHistory={loadFromHistory} handleDeletePost={handleDeletePost} 
+          setProfileView={setProfileView} feed={feed} handleLogout={handleLogout}
+          setIsEditingProfile={setIsEditingProfile} setIsPreferencesModalOpen={setIsPreferencesModalOpen}
+          setIsAuthModalOpen={setIsAuthModalOpen} loadFromHistory={loadFromHistory}
           formatCooks={formatCooks} formatTime={formatTime} formatCalories={formatCalories} getUserBadges={getUserBadges} 
-        />
-      )}
-
-      {activeView === 'feed' && (
-        <Feed 
-          photosFeed={photosFeed} photosSort={photosSort} fetchPhotosFeed={fetchPhotosFeed} user={user} userLevels={userLevels} 
-          handleDeletePost={handleDeletePost} setFullScreenImage={setFullScreenImage} handlePhotoLike={handlePhotoLike} 
-          openComments={openComments} loadSharedRecipe={loadSharedRecipe} isStandaloneUploadOpen={isStandaloneUploadOpen} 
-          setIsStandaloneUploadOpen={setIsStandaloneUploadOpen} userPhotoPreview={userPhotoPreview} standaloneTitle={standaloneTitle} 
-          setStandaloneTitle={setStandaloneTitle} userComment={userComment} setUserComment={setUserComment} 
-          setUserPhotoFile={setUserPhotoFile} setUserPhotoPreview={setUserPhotoPreview} submitFeedPost={submitFeedPost} 
-          isUploadingPhoto={isUploadingPhoto} handleUserPhotoChange={handleUserPhotoChange} getUserBadges={getUserBadges} 
         />
       )}
 

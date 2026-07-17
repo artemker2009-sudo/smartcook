@@ -1,72 +1,97 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { timingSafeEqual } from "crypto";
+import { createServiceRoleClient } from "@/lib/supabaseAdmin";
+import {
+  founderChatId,
+  answerCallbackQuery,
+  editCardResult,
+  FEED_APPROVE_PREFIX,
+  FEED_REJECT_PREFIX,
+} from "@/lib/telegram";
 
-// ИСПРАВЛЕНИЕ: Используем SERVICE_ROLE_KEY, чтобы у вебхука были права админа!
-const supabase = createClient(
-  (process.env.NEXT_PUBLIC_SUPABASE_URL || "").trim(),
-  (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "").trim()
-);
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+// Вебхук Telegram для премодерации ленты. Две обязательные проверки:
+//   1) secret token Telegram (заголовок X-Telegram-Bot-Api-Secret-Token) сверяем
+//      с TELEGRAM_WEBHOOK_SECRET из env — отсекаем чужие POST-запросы;
+//   2) callback пришёл из чата основателя (TELEGRAM_CHAT_ID) — только он может
+//      модерировать.
+// Токен и chat_id — только в env на сервере, в ответы/логи не попадают.
+// Всегда отвечаем 200 (кроме проваленной проверки секрета), иначе Telegram
+// зависает и ретраит.
+
+function secretOk(req: Request): boolean {
+  const expected = (process.env.TELEGRAM_WEBHOOK_SECRET || "").trim();
+  if (!expected) {
+    console.error("[telegram-webhook] TELEGRAM_WEBHOOK_SECRET не задан — отклоняю");
+    return false; // fail-closed: без секрета не доверяем никому
+  }
+  const got = req.headers.get("x-telegram-bot-api-secret-token") || "";
+  const a = Buffer.from(got);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
 
 export async function POST(req: Request) {
+  // 1) Секрет вебхука. Не прошёл — 401, дальше не читаем.
+  if (!secretOk(req)) {
+    return NextResponse.json({ error: "forbidden" }, { status: 401 });
+  }
+
   try {
-    const body = await req.json();
+    const body = await req.json().catch(() => null);
+    const callbackQuery = body?.callback_query;
 
-    if (body.callback_query) {
-      const callbackQuery = body.callback_query;
-      const data = callbackQuery.data; 
-      const messageId = callbackQuery.message.message_id;
-      const chatId = callbackQuery.message.chat.id;
-      const botToken = (process.env.TELEGRAM_BOT_TOKEN || "").trim();
+    if (callbackQuery) {
+      // 2) Решение принимается только из чата основателя.
+      const chatId = callbackQuery.message?.chat?.id;
+      const founder = founderChatId();
+      if (!founder || String(chatId) !== founder) {
+        await answerCallbackQuery(callbackQuery.id, "Нет доступа");
+        return NextResponse.json({ ok: true });
+      }
 
-      let newStatus = '';
-      let resultText = '';
+      const data: string = callbackQuery.data || "";
+      let newStatus: "approved" | "rejected" | "" = "";
+      let resultText = "";
 
-      if (data.startsWith('mod_approve_')) {
-        const postId = data.replace('mod_approve_', '');
-        const { error } = await supabase.from('feed_posts').update({ status: 'approved' }).eq('id', postId);
-        if (error) console.error("DB Error Approve:", error);
-        
-        newStatus = 'approved';
-        resultText = '✅ ВЫ ОДОБРИЛИ ЭТО ФОТО. ОНО ДОБАВЛЕНО В ЛЕНТУ.';
-      } 
-      else if (data.startsWith('mod_reject_')) {
-        const postId = data.replace('mod_reject_', '');
-        const { error } = await supabase.from('feed_posts').update({ status: 'rejected' }).eq('id', postId);
-        if (error) console.error("DB Error Reject:", error);
-        
-        newStatus = 'rejected';
-        resultText = '❌ ВЫ ОТКЛОНИЛИ И УДАЛИЛИ ЭТО ФОТО.';
+      if (data.startsWith(FEED_APPROVE_PREFIX)) {
+        newStatus = "approved";
+        resultText = "✅ Одобрено — пост опубликован в ленте.";
+      } else if (data.startsWith(FEED_REJECT_PREFIX)) {
+        newStatus = "rejected";
+        resultText = "❌ Отклонено — пост не опубликован.";
       }
 
       if (newStatus) {
-        // МГНОВЕННО отвечаем Телеграму, чтобы убрать часики
-        await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            callback_query_id: callbackQuery.id,
-            text: "Решение принято!"
-          })
-        });
+        const postId =
+          newStatus === "approved"
+            ? data.slice(FEED_APPROVE_PREFIX.length)
+            : data.slice(FEED_REJECT_PREFIX.length);
 
-        // Меняем текст сообщения и убираем кнопки
-        await fetch(`https://api.telegram.org/bot${botToken}/editMessageCaption`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: chatId,
-            message_id: messageId,
-            caption: `${callbackQuery.message.caption || ''}\n\n➖➖➖➖➖➖\n${resultText}`,
-            reply_markup: { inline_keyboard: [] } 
-          })
-        });
+        const supabase = createServiceRoleClient();
+        const { error } = await supabase
+          .from("community_posts")
+          .update({ status: newStatus, moderated_at: new Date().toISOString() })
+          .eq("id", postId);
+        if (error) console.error("[telegram-webhook] update failed", error.message);
+
+        await answerCallbackQuery(callbackQuery.id, "Решение принято");
+        await editCardResult(
+          chatId,
+          callbackQuery.message.message_id,
+          callbackQuery.message.caption || "",
+          resultText,
+        );
       }
     }
 
-    return NextResponse.json({ success: true });
-  } catch (e: any) {
-    console.error("Webhook error:", e);
-    // Телеграму всегда нужен ответ 200, иначе он зависнет
-    return NextResponse.json({ success: true, error: e.message });
+    return NextResponse.json({ ok: true });
+  } catch (e: unknown) {
+    console.error("[telegram-webhook] error", e instanceof Error ? e.message : "unknown");
+    // Telegram всё равно нужен 200, иначе он ретраит вебхук.
+    return NextResponse.json({ ok: true });
   }
 }

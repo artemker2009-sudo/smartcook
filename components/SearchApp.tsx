@@ -763,7 +763,12 @@ export default function SearchApp() {
     } catch (error) { void reportPhotoError("scan", files[0], error); showToast("Не удалось обработать фото", undefined, 'error'); setFile(null); } finally { setIsProcessing(false); }
   }; 
 
-  const triggerFileInput = () => document.getElementById('hidden-file-input')?.click(); 
+  const triggerFileInput = () => document.getElementById('hidden-file-input')?.click();
+
+  // Тап по всей пунктирной зоне «Выберите фото» = «Из галереи» (тот же input).
+  // Метрика через общий reachGoal; double-open от кликов по кнопкам гасится
+  // stopPropagation на самих кнопках (см. ServiceView upload-zone).
+  const handlePhotoAreaTap = () => { reachGoal('photo_area_tap'); triggerFileInput(); };
 
   const handleAnalyze = async () => {
     if (!file) return; setAnalyzing(true); setRecipe(null); setProductsDirty(false);
@@ -1202,6 +1207,7 @@ export default function SearchApp() {
           handleFileChange={handleFileChange}
           preview={preview}
           triggerFileInput={triggerFileInput}
+          handlePhotoAreaTap={handlePhotoAreaTap}
           cookingMode={cookingMode}
           setCookingMode={setCookingMode}
           handleAnalyze={handleAnalyze}

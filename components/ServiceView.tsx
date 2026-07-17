@@ -47,6 +47,7 @@ interface ServiceViewProps {
   handleFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   preview: string | null;
   triggerFileInput: () => void;
+  handlePhotoAreaTap: () => void;
   cookingMode: "strict" | "extended";
   setCookingMode: (mode: "strict" | "extended") => void;
   handleAnalyze: () => void;
@@ -126,6 +127,7 @@ export default function ServiceView({
   handleFileChange,
   preview,
   triggerFileInput,
+  handlePhotoAreaTap,
   cookingMode,
   setCookingMode,
   handleAnalyze,
@@ -423,7 +425,20 @@ export default function ServiceView({
             {searchMode === "photo" ? (
               <>
                 {!file ? (
-                  <div className="upload-zone" id="photo-upload-zone">
+                  <div
+                    className="upload-zone"
+                    id="photo-upload-zone"
+                    role="button"
+                    tabIndex={0}
+                    aria-label="Выберите фото из галереи"
+                    onClick={handlePhotoAreaTap}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        handlePhotoAreaTap();
+                      }
+                    }}
+                  >
                     <div className="upload-cam-chip">
                       <Camera size={30} color="var(--color-accent)" />
                     </div>
@@ -451,7 +466,10 @@ export default function ServiceView({
                         заднюю камеру; на десктопе/iOS-галерее capture игнорируется. Оба
                         input'а ведут в один handleFileChange → preparePhoto. */}
                     <div className="upload-actions">
-                      <label className="upload-action-btn upload-action-primary">
+                      <label
+                        className="upload-action-btn upload-action-primary"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <Camera size={18} /> Снять фото
                         <input
                           type="file"
@@ -461,7 +479,10 @@ export default function ServiceView({
                           onChange={handleFileChange}
                         />
                       </label>
-                      <label className="upload-action-btn upload-action-secondary">
+                      <label
+                        className="upload-action-btn upload-action-secondary"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <ImageIcon size={18} /> Из галереи
                         <input
                           id="hidden-file-input"

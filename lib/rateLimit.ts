@@ -239,6 +239,40 @@ export async function checkAndConsumeAuthRateLimit(
   return { ok: true };
 }
 
+// Лимитер публикаций в ленту сообщества: защита от спама фотопостами. Отдельный
+// префикс "feed:..." — не делим бюджет ни с AI-генерациями, ни с auth. Считаем
+// и по IP, и по пользователю (владелец из проверенной сессии).
+const FEED_SUBMIT_PER_HOUR = 10;
+const FEED_SUBMIT_PER_DAY = 30;
+
+export async function checkAndConsumeFeedSubmitRateLimit(
+  req: Request,
+  userId: string,
+): Promise<RateLimitResult> {
+  const ip = getClientIp(req);
+  const route = "feed-submit";
+  const limits = { perHour: FEED_SUBMIT_PER_HOUR, perDay: FEED_SUBMIT_PER_DAY };
+
+  const ipResult = await checkIdentifier(`feed:ip:${ip}`, "ip", limits);
+  if (!ipResult.ok) {
+    logRateLimitHit({ route, ip, userId, scope: ipResult.scope, window: ipResult.window });
+    return ipResult;
+  }
+
+  const userResult = await checkIdentifier(`feed:user:${userId}`, "user", limits);
+  if (!userResult.ok) {
+    logRateLimitHit({ route, ip, userId, scope: userResult.scope, window: userResult.window });
+    return userResult;
+  }
+
+  const { error } = await supabaseAdmin
+    .from("ai_rate_limit_events")
+    .insert([{ identifier: `feed:ip:${ip}`, route }, { identifier: `feed:user:${userId}`, route }]);
+  if (error) console.error("[rateLimit] failed to record feed event", error.message);
+
+  return { ok: true };
+}
+
 // Ответ для auth-роутов: текст про попытки, а не про «генерации».
 export function authRateLimitResponse(result: Extract<RateLimitResult, { ok: false }>) {
   if (result.window === "error") {

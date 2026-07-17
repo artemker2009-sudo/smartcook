@@ -6,9 +6,9 @@ import { formatCookingTime } from "@/lib/utils";
 
 export default function Profile(props: any) {
   const {
-    user, cooks, restaurantLevel, profileView, setProfileView, feed, userPhotos,
+    user, cooks, restaurantLevel, profileView, setProfileView, feed,
     handleLogout, setIsEditingProfile, setIsPreferencesModalOpen, setIsAuthModalOpen,
-    loadFromHistory, handleDeletePost, formatCooks, formatTime, formatCalories, getUserBadges
+    loadFromHistory, formatCooks, formatTime, formatCalories, getUserBadges
   } = props;
 
   const { isDev, devBadge, restBadge } = getUserBadges(user?.id, restaurantLevel);
@@ -88,7 +88,6 @@ export default function Profile(props: any) {
           <div style={{display: 'flex', gap: 'var(--space-2)', overflowX: 'auto', paddingBottom: 'var(--space-2)', marginBottom: 'var(--space-3)'}}>
              <button onClick={() => setProfileView('main')} style={{padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-sm)', border: 'none', whiteSpace: 'nowrap', background: profileView === 'main' ? 'var(--color-text)' : 'var(--color-surface)', color: profileView === 'main' ? 'white' : 'var(--color-text-secondary)', fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-caption)', boxShadow: profileView === 'main' ? '0 4px 10px rgba(0,0,0,0.1)' : '0 1px 3px rgba(0,0,0,0.05)', cursor: 'pointer', transition: 'all 0.2s', display: 'inline-flex', alignItems: 'center', gap: 'var(--space-1)'}}><History size={14} /> История</button>
              <button onClick={() => setProfileView('favorites')} style={{padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-sm)', border: 'none', whiteSpace: 'nowrap', background: profileView === 'favorites' ? 'var(--color-text)' : 'var(--color-surface)', color: profileView === 'favorites' ? 'white' : 'var(--color-text-secondary)', fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-caption)', boxShadow: profileView === 'favorites' ? '0 4px 10px rgba(0,0,0,0.1)' : '0 1px 3px rgba(0,0,0,0.05)', cursor: 'pointer', transition: 'all 0.2s', display: 'inline-flex', alignItems: 'center', gap: 'var(--space-1)'}}><Heart size={14} /> Избранное ({feed?.filter((r: any) => r.is_favorite).length || 0})</button>
-             <button onClick={() => setProfileView('photos')} style={{padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-sm)', border: 'none', whiteSpace: 'nowrap', background: profileView === 'photos' ? 'var(--color-text)' : 'var(--color-surface)', color: profileView === 'photos' ? 'white' : 'var(--color-text-secondary)', fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-caption)', boxShadow: profileView === 'photos' ? '0 4px 10px rgba(0,0,0,0.1)' : '0 1px 3px rgba(0,0,0,0.05)', cursor: 'pointer', transition: 'all 0.2s', display: 'inline-flex', alignItems: 'center', gap: 'var(--space-1)'}}><Camera size={14} /> Мои фото</button>
           </div>
 
           {profileView === 'main' && (
@@ -144,42 +143,6 @@ export default function Profile(props: any) {
             </div>
           )}
 
-          {profileView === 'photos' && (
-            <div className="animate-fade-in">
-              {userPhotos.length === 0 ? (
-                 <div style={{textAlign: 'center', padding: 'var(--space-4)'}}>
-                   <Camera size={32} style={{ display: 'block', margin: '0 auto var(--space-2) auto', opacity: 0.6 }} />
-                   <div style={{color: 'var(--color-text)', fontWeight: 'var(--font-weight-semibold)', marginBottom: 'var(--space-1)'}}>Пока нет опубликованных фото</div>
-                   <div style={{color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-caption)'}}>Приготовьте рецепт и поделитесь фото результата в ленте.</div>
-                 </div>
-              ) : (
-                 <div style={{display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--space-3)'}}>
-                   {userPhotos.map((post: any) => (
-                      <div key={post.id} style={{background: 'var(--color-surface)', borderRadius: 'var(--radius-md)', overflow: 'hidden', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', border: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column'}}>
-                         <img src={post.photo_url} alt="Мое блюдо" style={{width: '100%', height: '160px', objectFit: 'cover', display: 'block'}} />
-                         <div style={{padding: 'var(--space-2)', flex: 1, display: 'flex', flexDirection: 'column'}}>
-                            {post.recipe_id ? (
-                               <div style={{fontSize: 'var(--font-size-caption)', fontWeight: 'var(--font-weight-semibold)', marginBottom: 'var(--space-1)', color: 'var(--color-text)', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden'}}>{post.recipes?.title}</div>
-                            ) : (
-                               <div style={{fontSize: 'var(--font-size-caption)', fontWeight: 'var(--font-weight-semibold)', marginBottom: 'var(--space-1)', color: 'var(--color-accent)', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden'}}>{post.custom_title}</div>
-                            )}
-
-                            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: 'var(--space-2)'}}>
-                               <div style={{display: 'flex', gap: 'var(--space-2)', fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)', fontWeight: 'var(--font-weight-medium)'}}>
-                                  <span style={{display: 'flex', alignItems: 'center', gap: '3px'}}><Heart size={12} fill={post.likes_count > 0 ? "#dc2626" : "none"} color={post.likes_count > 0 ? "#dc2626" : "var(--color-text-secondary)"}/> {post.likes_count || 0}</span>
-                                  <span style={{display: 'flex', alignItems: 'center', gap: '3px'}}><MessageCircle size={12} /> {post.comments_count || 0}</span>
-                               </div>
-                               <button onClick={() => handleDeletePost(post.id)} style={{background: 'var(--color-danger-subtle)', border: 'none', color: 'var(--color-danger)', borderRadius: 'var(--radius-sm)', padding: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-                                  <Trash2 size={14}/>
-                               </button>
-                            </div>
-                         </div>
-                      </div>
-                   ))}
-                 </div>
-              )}
-            </div>
-          )}
         </>
       )}
     </div>

@@ -206,37 +206,28 @@ grant select on public.community_posts_public to anon, authenticated;
 --    Каждый блок защищён проверкой существования таблицы (to_regclass), чтобы
 --    файл был самодостаточным и не падал, если таблицы уже нет.
 -- ---------------------------------------------------------------------------
+-- ВАЖНО: дропаем политики name-agnostic — перебором ВСЕХ политик таблицы из
+-- pg_policies, а не по угаданным именам. На живой БД у feed_posts/photo_likes
+-- остались permissive-политики с именами, отличными от тех, что в
+-- supabase_recipes_social_rls.sql (напр. заведены раньше/через дашборд) —
+-- дроп по имени их не снимал, и аноним продолжал читать чужие user_id/session_id.
+-- Перебор гарантированно снимает всё → RLS включён без политик = deny-all для
+-- anon/authenticated (service_role по-прежнему обходит RLS).
 do $$
+declare
+  t text;
+  r record;
 begin
-  if to_regclass('public.feed_posts') is not null then
-    execute 'alter table public.feed_posts enable row level security';
-    execute 'drop policy if exists "Public read access to feed_posts" on public.feed_posts';
-    execute 'drop policy if exists "Insert own feed_posts" on public.feed_posts';
-    execute 'drop policy if exists "Update own feed_posts" on public.feed_posts';
-    execute 'drop policy if exists "Delete own feed_posts" on public.feed_posts';
-  end if;
-
-  if to_regclass('public.photo_comments') is not null then
-    execute 'alter table public.photo_comments enable row level security';
-    execute 'drop policy if exists "Public read access to photo_comments" on public.photo_comments';
-    execute 'drop policy if exists "Insert own photo_comments" on public.photo_comments';
-    execute 'drop policy if exists "Update own photo_comments" on public.photo_comments';
-    execute 'drop policy if exists "Delete own photo_comments" on public.photo_comments';
-  end if;
-
-  if to_regclass('public.photo_likes') is not null then
-    execute 'alter table public.photo_likes enable row level security';
-    execute 'drop policy if exists "Public read access to photo_likes" on public.photo_likes';
-    execute 'drop policy if exists "Insert own photo_likes" on public.photo_likes';
-    execute 'drop policy if exists "Delete own photo_likes" on public.photo_likes';
-  end if;
-
-  if to_regclass('public.comment_likes') is not null then
-    execute 'alter table public.comment_likes enable row level security';
-    execute 'drop policy if exists "Public read access to comment_likes" on public.comment_likes';
-    execute 'drop policy if exists "Insert own comment_likes" on public.comment_likes';
-    execute 'drop policy if exists "Delete own comment_likes" on public.comment_likes';
-  end if;
+  foreach t in array array['feed_posts', 'photo_comments', 'photo_likes', 'comment_likes'] loop
+    if to_regclass('public.' || t) is not null then
+      execute format('alter table public.%I enable row level security', t);
+      for r in
+        select policyname from pg_policies where schemaname = 'public' and tablename = t
+      loop
+        execute format('drop policy if exists %I on public.%I', r.policyname, t);
+      end loop;
+    end if;
+  end loop;
 end $$;
 
 -- ============================================================================

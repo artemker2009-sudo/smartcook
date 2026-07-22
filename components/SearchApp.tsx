@@ -579,9 +579,15 @@ export default function SearchApp() {
     finally { setIsUploadingPhoto(false); }
   }; 
 
-  // Публикация в витрину «Приготовили сегодня» (лента v1). Пишем ТОЛЬКО в новую
-  // feed_photos (старую feed_posts и telegram-модерацию из этого флоу убрали,
-  // этап 7). Только залогиненные; публикация осознанная — по галочке showInFeed.
+  // Публикация блюда — ОДНА кнопка, два адресата:
+  //   (а) витрина «Приготовили сегодня» на главной — прямая запись в feed_photos,
+  //       видно сразу (как и было);
+  //   (б) лента сообщества — пост через /api/feed/submit в статусе pending, в
+  //       ленте появится после модерации (карточка уходит основателю в Telegram).
+  // Порядок именно такой: витрина не должна зависеть от ленты. Шаг (б) —
+  // best-effort, его падение не отменяет уже опубликованное фото, но тогда мы и
+  // НЕ обещаем ленту в тосте (обещать то, чего не случилось, нельзя).
+  // Только залогиненные; публикация осознанная — по галочке showInFeed.
   // Фото уже сжато/очищено от EXIF в handleUserPhotoChange (canvas-перерисовка).
   const submitFeedPost = async (currentRecipeContext: any, showInFeed: boolean = false) => {
     if (!user) return setIsAuthModalOpen(true);
@@ -616,7 +622,32 @@ export default function SearchApp() {
       if (insErr) throw insErr;
 
       reachGoal('feed_photo_publish');
-      showToast("Готово! Ваше блюдо в ленте на главной 🎉", <Sparkles size={18} color="var(--color-accent)" />);
+
+      // (б) Тот же снимок — в ленту сообщества, на премодерацию. Роут сам берёт
+      // владельца из проверенной сессии и шлёт карточку модерации в Telegram.
+      let sentToFeed = false;
+      try {
+        const res = await fetch("/api/feed/submit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) },
+          body: JSON.stringify({
+            photoUrl: publicUrlData.publicUrl,
+            userName,
+            recipeTitle,
+            recipeId,
+            caption: userComment.trim() || null,
+          }),
+        });
+        sentToFeed = res.ok;
+        if (res.ok) reachGoal('feed_post_submit');
+      } catch { /* сеть моргнула — фото на главной уже есть, про ленту молчим */ }
+
+      showToast(
+        sentToFeed
+          ? "На главной уже видно, в ленте появится после проверки 🎉"
+          : "Ваше блюдо на главной 🎉",
+        <Sparkles size={18} color="var(--color-accent)" />,
+      );
       setUserPhotoFile(null); setUserPhotoPreview(null); setUserComment(""); setStandaloneTitle(""); setIsStandaloneUploadOpen(false);
     } catch (err: any) { showToast("Ошибка публикации: " + err.message, undefined, 'error'); } finally { setIsUploadingPhoto(false); }
   };

@@ -6,6 +6,7 @@ import { getVerifiedUserId } from "@/lib/auth";
 export const RATE_LIMIT_PER_HOUR = 10;
 export const RATE_LIMIT_PER_DAY = 30;
 
+const MINUTE_MS = 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 
@@ -271,6 +272,67 @@ export async function checkAndConsumeFeedSubmitRateLimit(
   if (error) console.error("[rateLimit] failed to record feed event", error.message);
 
   return { ok: true };
+}
+
+// Лимитер лайков в ленте. Лайк доступен без регистрации, поэтому единственный
+// заслон от накрутки скриптом — частота с одной гостевой сессии (и с одного IP).
+// Считаем в МИНУТНОМ окне: живой человек не ставит 20 лайков за минуту, а бот
+// упирается сразу. actorKey — "guest:<uuid>" или "user:<uuid>" (владелец из
+// httpOnly-cookie / проверенного JWT, не из тела запроса).
+const LIKE_PER_MINUTE = 20;
+const LIKE_IP_PER_MINUTE = 60; // за одним IP может сидеть подъезд/офис/NAT
+
+export async function checkAndConsumeFeedLikeRateLimit(
+  req: Request,
+  actorKey: string,
+): Promise<RateLimitResult> {
+  const ip = getClientIp(req);
+  const route = "feed-like";
+  const actorId = `like:${actorKey}`;
+  const ipId = `like:ip:${ip}`;
+
+  const actorCount = await countEvents(actorId, MINUTE_MS);
+  if (actorCount === null) return { ok: false, window: "error", scope: "error" };
+  if (actorCount >= LIKE_PER_MINUTE) {
+    logRateLimitHit({ route, ip, userId: actorKey, scope: "user", window: "hour" });
+    return { ok: false, window: "hour", scope: "user" };
+  }
+
+  const ipCount = await countEvents(ipId, MINUTE_MS);
+  if (ipCount === null) return { ok: false, window: "error", scope: "error" };
+  if (ipCount >= LIKE_IP_PER_MINUTE) {
+    logRateLimitHit({ route, ip, userId: actorKey, scope: "ip", window: "hour" });
+    return { ok: false, window: "hour", scope: "ip" };
+  }
+
+  const { error } = await supabaseAdmin
+    .from("ai_rate_limit_events")
+    .insert([{ identifier: actorId, route }, { identifier: ipId, route }]);
+  if (error) console.error("[rateLimit] failed to record like event", error.message);
+
+  // Уборка своих же старых записей — минутному окну хранить сутки незачем.
+  void supabaseAdmin
+    .from("ai_rate_limit_events")
+    .delete()
+    .eq("identifier", actorId)
+    .lt("created_at", new Date(Date.now() - HOUR_MS).toISOString())
+    .then(() => {});
+
+  return { ok: true };
+}
+
+// Ответ на превышение лимита лайков: короткий и без слова «генерации».
+export function likeRateLimitResponse(result: Extract<RateLimitResult, { ok: false }>) {
+  if (result.window === "error") {
+    return NextResponse.json(
+      { error: "Сервис временно недоступен. Попробуйте через минуту.", code: "RATE_LIMIT_UNAVAILABLE" },
+      { status: 503 },
+    );
+  }
+  return NextResponse.json(
+    { error: "Слишком часто. Подождите минуту.", code: RATE_LIMIT_ERROR_CODE },
+    { status: 429 },
+  );
 }
 
 // Ответ для auth-роутов: текст про попытки, а не про «генерации».

@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import HomeContent from "@/components/HomeContent";
-import type { NewsItem } from "@/components/NewsBoard";
 import type { FeedPhoto } from "@/components/HomeFeed";
 import { type Article, ARTICLE_COLUMNS } from "@/lib/articles";
 import { feedWindowStartISO } from "@/lib/feedWindow";
@@ -12,14 +11,14 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
 };
 
-// Главная (/). Серверный компонент (этап 10 W): новости и первые фото витрины
-// читаются на СЕРВЕРЕ и попадают в HTML сразу — раньше оба блока грузились
-// клиентом после гидрации (тот же класс проблемы, что T) и появлялись с задержкой.
+// Главная (/). Серверный компонент (этап 10 W): контент блоков читается на
+// СЕРВЕРЕ и попадает в HTML сразу — раньше блоки грузились клиентом после
+// гидрации (тот же класс проблемы, что T) и появлялись с задержкой.
 // Интерактив и рецепт дня — в клиентском HomeContent.
 //
-// Кэш-ревалидация: новости меняются редко (админка) → 5 минут; витрина живее
-// (новые фото за день) → 60 сек. explicit columns (CLAUDE.md): без session_id/
-// user_ref/is_visible в пейлоаде.
+// Кэш-ревалидация: заметки/советы меняются редко (админка) → 5 минут; витрина
+// живее (новые фото за день) → 60 сек. explicit columns (CLAUDE.md): без
+// session_id/user_ref/is_visible в пейлоаде.
 
 const SUPABASE_URL =
   process.env.NEXT_PUBLIC_SUPABASE_URL || "https://yjfqwwiqwoighjdlkodg.supabase.co";
@@ -40,12 +39,9 @@ async function sbFetch<T>(path: string, revalidate: number): Promise<T[]> {
   }
 }
 
-async function getNews(): Promise<NewsItem[]> {
-  return sbFetch<NewsItem>(
-    "news?select=id,date,title,body&is_visible=eq.true&order=created_at.desc",
-    300,
-  );
-}
+// Блок «Новости проекта» снят с Главной (только UI + этот SSR-запрос). Админка
+// «Новости» и таблица news НЕ тронуты — компонент NewsBoard тоже на месте, так
+// что вернуть блок = вернуть getNews() и одну строку рендера в HomeContent.
 
 async function getFeed(): Promise<FeedPhoto[]> {
   // feed_photos_public уже отсортирован (created_at desc) и не отдаёт user_ref.
@@ -127,8 +123,8 @@ const JSON_LD = {
 };
 
 export default async function Home() {
-  const [news, feed, articles, tip, demoChips] = await Promise.all([
-    getNews(), getFeed(), getArticles(), getTip(), getDemoChips(),
+  const [feed, articles, tip, demoChips] = await Promise.all([
+    getFeed(), getArticles(), getTip(), getDemoChips(),
   ]);
   return (
     <>
@@ -136,7 +132,7 @@ export default async function Home() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
       />
-      <HomeContent news={news} feed={feed} articles={articles} tip={tip} demoChips={demoChips} />
+      <HomeContent feed={feed} articles={articles} tip={tip} demoChips={demoChips} />
     </>
   );
 }

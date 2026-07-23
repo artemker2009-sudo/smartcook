@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Flame, Lightbulb } from "lucide-react";
 import HeroLanding from "@/components/HeroLanding";
-import NewsBoard, { type NewsItem } from "@/components/NewsBoard";
 import HomeFeed, { type FeedPhoto } from "@/components/HomeFeed";
 import ArticlesBoard from "@/components/ArticlesBoard";
 import type { Article } from "@/lib/articles";
@@ -15,19 +14,17 @@ import type { DailyRecipeType } from "@/lib/types";
 type HomeTip = { id: string; body: string; emoji_icon: string | null };
 
 // Клиентская оболочка Главной. Интерактив (редиректы диплинков, рецепт дня из
-// /api/daily) живёт здесь, а тяжёлый контент — новости и первые фото витрины —
-// приходит уже готовым пропом из серверного app/page.tsx (этап 10 W): он в HTML
+// /api/daily) живёт здесь, а тяжёлый контент — заметки, совет и первые фото
+// витрины — приходит уже готовым пропом из серверного app/page.tsx (этап 10 W): он в HTML
 // сразу, без клиентского запроса после гидрации. Рецепт дня оставлен клиентским
 // (генерится через OpenAI с кэшом по дате — блокировать им SSR Главной нельзя),
 // у него свой скелет фиксированной высоты — без прыжка макета.
 export default function HomeContent({
-  news,
   feed,
   articles,
   tip,
   demoChips,
 }: {
-  news: NewsItem[];
   feed: FeedPhoto[];
   articles: Article[];
   tip: HomeTip | null;
@@ -113,10 +110,11 @@ export default function HomeContent({
           Наш первый контент из поиска — потому выше витрины. */}
       <ArticlesBoard initialItems={articles} />
 
+      {/* Витрина — последний блок Главной. Ниже стоял компактный блок «Новости
+          проекта»; он снят (админка и таблица news не тронуты, компонент
+          NewsBoard на месте — вернуть можно одной строкой). Собственный
+          margin-bottom у .home-feed сохраняет нижний отступ страницы. */}
       <HomeFeed initialItems={feed} />
-
-      {/* Новости проекта не потеряли: демонтированы вниз в компактном виде. */}
-      <NewsBoard items={news} variant="compact" />
     </div>
   );
 }

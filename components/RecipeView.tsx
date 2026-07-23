@@ -687,8 +687,9 @@ export default function RecipeView({
             lineHeight: 1.4,
           }}
         >
-          Отметьте галочку — и ваше блюдо появится в ленте{" "}
-          <strong>«Приготовили сегодня»</strong> на главной.
+          Отметьте галочку — и ваше блюдо увидят другие: сразу в{" "}
+          <strong>«Приготовили сегодня»</strong> на главной и, после проверки, в{" "}
+          <strong>ленте сообщества</strong>.
         </p>
         {!user ? (
           <Button
@@ -784,7 +785,7 @@ export default function RecipeView({
                     onChange={(e) => setShowInFeed(e.target.checked)}
                     style={{ marginTop: "2px", width: "18px", height: "18px", accentColor: "var(--color-accent)", flexShrink: 0 }}
                   />
-                  <span>Показать в ленте «Приготовили сегодня» на главной</span>
+                  <span>Показать в «Приготовили сегодня»</span>
                 </label>
                 <div style={{ display: "flex", gap: "var(--space-2)" }}>
                   <Button
@@ -808,6 +809,18 @@ export default function RecipeView({
                     {isUploadingPhoto ? "Публикуем..." : "Опубликовать"}
                   </Button>
                 </div>
+                {/* Честный текст про два адресата: витрина видна сразу, лента —
+                    после премодерации. Обещать «сразу везде» нельзя. */}
+                <p
+                  style={{
+                    margin: "var(--space-2) 0 0",
+                    fontSize: "var(--font-size-caption)",
+                    color: "var(--color-text-secondary)",
+                    lineHeight: 1.4,
+                  }}
+                >
+                  Появится на главной сразу, в ленте — после проверки
+                </p>
               </div>
             )}
           </div>

@@ -55,8 +55,13 @@ export default function CommunityFeed({ initialItems }: { initialItems: Communit
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [authChecked, setAuthChecked] = useState(false);
+
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null));
+    supabase.auth.getUser().then(({ data }) => {
+      setUserId(data.user?.id ?? null);
+      setAuthChecked(true);
+    });
   }, []);
 
   const loadPublic = useCallback(async () => {
@@ -86,14 +91,33 @@ export default function CommunityFeed({ initialItems }: { initialItems: Communit
     }
   }, [userId, loadPublic, loadMine]);
 
+  // У гостя liked_by_me из view всегда false (в SQL гостя не опознать) —
+  // спрашиваем свои лайки у роута по httpOnly-cookie. Если cookie ещё нет
+  // (человек ни разу не лайкал), ответ пустой и новых cookie не появляется.
+  useEffect(() => {
+    if (!authChecked || userId) return;
+    let cancelled = false;
+    fetch("/api/feed/like")
+      .then((r) => (r.ok ? r.json() : { likedPostIds: [] }))
+      .then((json: { likedPostIds?: string[] }) => {
+        const liked = new Set(json.likedPostIds ?? []);
+        if (cancelled || liked.size === 0) return;
+        setItems((prev) => prev.map((p) => (liked.has(p.id) ? { ...p, liked_by_me: true } : p)));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [authChecked, userId]);
+
+  // Лайк работает БЕЗ регистрации. Пишем не напрямую в таблицу, а через
+  // серверный роут: личность гостя он берёт из httpOnly-cookie (сам её и
+  // выдаёт при первом лайке), там же лимит по частоте и склейка гостевого
+  // лайка с аккаунтом. Прямых anon-политик на запись в RLS нет специально.
   const toggleLike = async (item: CommunityPost) => {
-    if (!userId) {
-      reachGoal("feed_like_login_prompt");
-      toast("Войдите, чтобы лайкать — имя и пароль, без email, 30 секунд");
-      router.push("/search?auth=register&return=" + encodeURIComponent("/feed"));
-      return;
-    }
     const liked = item.liked_by_me;
+    // Оптимистично — сердечко и счётчик реагируют мгновенно; сервер вернёт
+    // точное число и мы его применим.
     setItems((prev) =>
       prev.map((p) =>
         p.id === item.id
@@ -102,14 +126,36 @@ export default function CommunityFeed({ initialItems }: { initialItems: Communit
       ),
     );
     try {
-      if (liked) {
-        await supabase.from("community_post_likes").delete().match({ post_id: item.id, user_ref: userId });
-      } else {
-        await supabase.from("community_post_likes").insert({ post_id: item.id, user_ref: userId });
-        reachGoal("feed_like");
-      }
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+      const res = await fetch("/api/feed/like", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ postId: item.id, like: !liked }),
+      });
+      if (!res.ok) throw new Error("like failed");
+      const json = (await res.json()) as { liked: boolean; likesCount: number };
+      // Единственная точка отправки цели — после успешного ответа роута,
+      // одинаково для гостя и залогиненного.
+      reachGoal("feed_like_click");
+      setItems((prev) =>
+        prev.map((p) =>
+          p.id === item.id ? { ...p, liked_by_me: json.liked, likes_count: json.likesCount } : p,
+        ),
+      );
     } catch {
-      loadPublic();
+      // Откатываем оптимистичное состояние фактическим.
+      setItems((prev) =>
+        prev.map((p) =>
+          p.id === item.id
+            ? { ...p, liked_by_me: liked, likes_count: item.likes_count }
+            : p,
+        ),
+      );
+      toast.error("Не удалось поставить лайк");
     }
   };
 

@@ -98,13 +98,16 @@ export async function answerCallbackQuery(callbackQueryId: string, text: string)
   const creds = credentials();
   if (!creds) return;
   try {
-    await fetch(`${TELEGRAM_API}/bot${creds.token}/answerCallbackQuery`, {
+    const res = await fetch(`${TELEGRAM_API}/bot${creds.token}/answerCallbackQuery`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ callback_query_id: callbackQueryId, text }),
     });
+    // Ошибку не проглатываем: именно молчаливый сбой этого вызова оставляет
+    // «часики» на кнопке в вечной загрузке — логируем статус, чтобы было видно.
+    if (!res.ok) console.error("[telegram] answerCallbackQuery не удался, статус", res.status);
   } catch {
-    /* глотаем: это косметика */
+    console.error("[telegram] answerCallbackQuery: сетевая ошибка");
   }
 }
 
@@ -118,7 +121,7 @@ export async function editCardResult(
   const creds = credentials();
   if (!creds) return;
   try {
-    await fetch(`${TELEGRAM_API}/bot${creds.token}/editMessageCaption`, {
+    const res = await fetch(`${TELEGRAM_API}/bot${creds.token}/editMessageCaption`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -128,7 +131,11 @@ export async function editCardResult(
         reply_markup: { inline_keyboard: [] },
       }),
     });
+    // Логируем сбой (напр. 400 «message is not modified» при повторном
+    // нажатии) — раньше он молча терялся. Это перерисовка карточки, поэтому на
+    // ответ вебхука не влияет, но в логах теперь виден.
+    if (!res.ok) console.error("[telegram] editMessageCaption не удался, статус", res.status);
   } catch {
-    /* глотаем */
+    console.error("[telegram] editMessageCaption: сетевая ошибка");
   }
 }

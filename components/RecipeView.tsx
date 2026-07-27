@@ -496,7 +496,9 @@ export default function RecipeView({
           </div>
           {/* Монетизация: заказ продуктов по рецепту через Купер (CPA). Только
               когда есть список ингредиентов — заказывать нечего без него. */}
-          <KuperBuyBlock />
+          <KuperBuyBlock
+            ingredients={recipe.detailed_ingredients.map((ing: any) => ing.name)}
+          />
         </>
       )}
 

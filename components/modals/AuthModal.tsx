@@ -5,6 +5,7 @@ import { X, Sparkles, ShieldCheck, Eye, EyeOff, AlertCircle, KeyRound, Copy, Che
 import Button from "@/components/ui/Button";
 
 export type AuthMode = "login" | "register" | "forgot";
+export type AuthField = "name" | "username" | "password" | "code";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -25,6 +26,9 @@ interface AuthModalProps {
   authLoading: boolean;
   authError?: string | null;
   setAuthError?: (v: string | null) => void;
+  // Поле, к которому относится серверная ошибка (напр. «логин занят»).
+  authErrorField?: AuthField | null;
+  setAuthErrorField?: (v: AuthField | null) => void;
   handleAuth: () => void;
   handleRecover: () => void;
   handleSupportRequest: () => void;
@@ -71,10 +75,43 @@ const labelStyle: React.CSSProperties = {
 
 const hintStyle: React.CSSProperties = {
   margin: "var(--space-1) 0 0 0",
-  fontSize: "var(--font-size-caption)",
+  // ЦА 35–65: держим подсказки крупнее captions, чтобы читалось без прищура.
+  fontSize: "14px",
   color: "var(--color-text-secondary)",
-  lineHeight: 1.4,
+  lineHeight: 1.45,
 };
+
+// Красный текст ошибки под полем — простыми словами, что исправить.
+const errorTextStyle: React.CSSProperties = {
+  margin: "var(--space-1) 0 0 0",
+  fontSize: "14px",
+  fontWeight: "var(--font-weight-semibold)",
+  color: "var(--color-danger)",
+  lineHeight: 1.45,
+  display: "flex",
+  alignItems: "flex-start",
+  gap: "var(--space-1)",
+};
+
+// Поле с ошибкой: красная рамка + мягкое красное кольцо, чтобы точно заметили.
+function inputStyleFor(hasError: boolean, extra?: React.CSSProperties): React.CSSProperties {
+  return {
+    ...inputStyle,
+    ...(hasError
+      ? { border: "1px solid var(--color-danger)", boxShadow: "0 0 0 3px rgba(220,38,38,0.14)" }
+      : null),
+    ...extra,
+  };
+}
+
+function FieldError({ id, children }: { id: string; children: React.ReactNode }) {
+  return (
+    <p id={id} role="alert" style={errorTextStyle}>
+      <AlertCircle size={15} style={{ flexShrink: 0, marginTop: "2px" }} />
+      <span>{children}</span>
+    </p>
+  );
+}
 
 export default function AuthModal({
   isOpen,
@@ -94,6 +131,8 @@ export default function AuthModal({
   authLoading,
   authError = null,
   setAuthError = () => {},
+  authErrorField = null,
+  setAuthErrorField = () => {},
   handleAuth,
   handleRecover,
   handleSupportRequest,
@@ -103,6 +142,10 @@ export default function AuthModal({
 }: AuthModalProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [copied, setCopied] = useState(false);
+  // Поле подсвечиваем ошибкой только после того, как человек его покинул
+  // (blur) или нажал кнопку. Иначе красное лезет в глаза, пока ещё печатают.
+  const [touched, setTouched] = useState<{ name?: boolean; username?: boolean; password?: boolean; code?: boolean }>({});
+  const [submitAttempted, setSubmitAttempted] = useState(false);
   const firstFieldRef = useRef<HTMLInputElement>(null);
 
   // Фокус на первом поле при открытии/смене режима.
@@ -113,25 +156,75 @@ export default function AuthModal({
     }
   }, [isOpen, authMode, recoveryCodeToShow]);
 
+  // Смена режима/переоткрытие — начинаем с чистого листа, без чужих подсветок.
+  // Сбрасываем прямо во время рендера (рекомендованный React паттерн вместо
+  // эффекта): ключ считаем до раннего return, чтобы переход open→close тоже учёлся.
+  const modeKey = `${isOpen}:${authMode}`;
+  const [prevModeKey, setPrevModeKey] = useState(modeKey);
+  if (modeKey !== prevModeKey) {
+    setPrevModeKey(modeKey);
+    setTouched({});
+    setSubmitAttempted(false);
+  }
+
   if (!isOpen) return null;
 
-  const nameValid = authName.trim().length >= NAME_MIN;
-  const usernameValid = authUsername.length >= USERNAME_MIN && authUsername.length <= USERNAME_MAX;
-  const passwordValid = authPassword.length >= PASSWORD_MIN;
-  const codeValid = authRecoveryCode.trim().length > 0;
-  // Заявка админу требует и логин, и Telegram — иначе некуда прислать код.
-  const supportReady = usernameValid && authTelegram.trim().length >= 2;
+  // ── Проверки полей. Текст — простыми словами, без «валидации» и «формата»:
+  //    что именно не так и как поправить. Одни и те же функции гонят и подсветку,
+  //    и блокировку submit, поэтому источник правды один.
+  const validateName = (): string | null => {
+    if (authMode !== "register") return null;
+    return authName.trim().length >= NAME_MIN ? null : "Введите имя пользователя.";
+  };
+  const validateUsername = (): string | null => {
+    if (authUsername.length === 0) return "Введите логин.";
+    // Длину придирчиво проверяем только при регистрации (при входе логин уже есть).
+    if (authMode === "register" && authUsername.length < USERNAME_MIN)
+      return `Логин слишком короткий — нужно минимум ${USERNAME_MIN} символа.`;
+    return null;
+  };
+  const validatePassword = (): string | null => {
+    if (authPassword.length === 0) return "Введите пароль.";
+    if (authPassword.length < PASSWORD_MIN)
+      return `Пароль слишком короткий — нужно минимум ${PASSWORD_MIN} символов.`;
+    return null;
+  };
+  const validateCode = (): string | null => {
+    if (authMode !== "forgot") return null;
+    return authRecoveryCode.trim().length > 0 ? null : "Введите код восстановления.";
+  };
 
-  const canSubmit =
-    !authLoading &&
-    (authMode === "register"
-      ? nameValid && usernameValid && passwordValid
-      : authMode === "login"
-        ? usernameValid && passwordValid
-        : usernameValid && codeValid && passwordValid);
+  // Показываем ошибку поля, если его уже трогали или уже жали кнопку.
+  const shown = (f: keyof typeof touched) => Boolean(touched[f]) || submitAttempted;
+  const serverErrFor = (f: AuthField) => (authErrorField === f ? authError : null);
+
+  const nameErr = (shown("name") ? validateName() : null) || serverErrFor("name");
+  const usernameErr = (shown("username") ? validateUsername() : null) || serverErrFor("username");
+  const passwordErr = (shown("password") ? validatePassword() : null) || serverErrFor("password");
+  const codeErr = (shown("code") ? validateCode() : null) || serverErrFor("code");
+
+  // Общий баннер — только для ошибок, не привязанных к полю (напр. «неверный
+  // логин или пароль», сбой сети). Полевые ошибки живут под своими полями.
+  const bannerErr = authError && !authErrorField ? authError : null;
+
+  // Заявка админу требует и логин, и Telegram — иначе некуда прислать код.
+  const supportReady = authUsername.length >= USERNAME_MIN && authTelegram.trim().length >= 2;
+
+  const hasBlockingError = () =>
+    Boolean(validateName() || validateUsername() || validatePassword() || validateCode());
+
+  const clearErrors = () => {
+    setAuthError(null);
+    setAuthErrorField(null);
+  };
+
+  const touch = (f: keyof typeof touched) => setTouched((t) => ({ ...t, [f]: true }));
 
   const submit = () => {
-    if (!canSubmit) return;
+    if (authLoading) return;
+    // Кнопка не притворяется, что всё прошло: сперва подсвечиваем проблемы.
+    setSubmitAttempted(true);
+    if (hasBlockingError()) return;
     if (authMode === "forgot") handleRecover();
     else handleAuth();
   };
@@ -144,7 +237,9 @@ export default function AuthModal({
   };
 
   const goToMode = (mode: AuthMode) => {
-    setAuthError(null);
+    clearErrors();
+    setTouched({});
+    setSubmitAttempted(false);
     setAuthMode(mode);
   };
 
@@ -242,14 +337,18 @@ export default function AuthModal({
                     placeholder="Например: Артём"
                     value={authName}
                     onChange={(e) => {
-                      setAuthError(null);
+                      clearErrors();
                       setAuthName(e.target.value.slice(0, NAME_MAX));
                     }}
+                    onBlur={() => touch("name")}
                     onKeyDown={onKeyDown}
-                    style={inputStyle}
+                    style={inputStyleFor(Boolean(nameErr))}
+                    aria-invalid={Boolean(nameErr)}
+                    aria-describedby={nameErr ? "auth-name-error" : undefined}
                     maxLength={NAME_MAX}
                   />
                   <p style={hintStyle}>Так вас будут видеть другие: под фото, в ленте и на банкетах. Можно менять в профиле.</p>
+                  {nameErr ? <FieldError id="auth-name-error">{nameErr}</FieldError> : null}
                 </div>
               ) : null}
 
@@ -266,11 +365,14 @@ export default function AuthModal({
                   placeholder="например: artem_chef"
                   value={authUsername}
                   onChange={(e) => {
-                    setAuthError(null);
+                    clearErrors();
                     setAuthUsername(normalizeUsername(e.target.value));
                   }}
+                  onBlur={() => touch("username")}
                   onKeyDown={onKeyDown}
-                  style={inputStyle}
+                  style={inputStyleFor(Boolean(usernameErr))}
+                  aria-invalid={Boolean(usernameErr)}
+                  aria-describedby={usernameErr ? "auth-username-error" : undefined}
                   maxLength={USERNAME_MAX}
                 />
                 {/* При ВХОДЕ правила длины ни к чему — человек логин уже придумал.
@@ -287,6 +389,7 @@ export default function AuthModal({
                     Это ваш логин для входа — он <strong>не виден другим</strong>. Только английские буквы <strong>маленькими</strong>, цифры и «_», от {USERNAME_MIN} до {USERNAME_MAX} символов. Русские буквы, пробелы и заглавные не подойдут — мы их уберём автоматически.
                   </p>
                 )}
+                {usernameErr ? <FieldError id="auth-username-error">{usernameErr}</FieldError> : null}
               </div>
 
               {authMode === "forgot" ? (
@@ -301,13 +404,17 @@ export default function AuthModal({
                     placeholder="CHEF-XXXX-XXXX"
                     value={authRecoveryCode}
                     onChange={(e) => {
-                      setAuthError(null);
+                      clearErrors();
                       setAuthRecoveryCode(e.target.value.toUpperCase().slice(0, 20));
                     }}
+                    onBlur={() => touch("code")}
                     onKeyDown={onKeyDown}
-                    style={{ ...inputStyle, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", letterSpacing: "1px" }}
+                    style={inputStyleFor(Boolean(codeErr), { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", letterSpacing: "1px" })}
+                    aria-invalid={Boolean(codeErr)}
+                    aria-describedby={codeErr ? "auth-code-error" : undefined}
                   />
                   <p style={hintStyle}>Тот самый код, который мы показали при регистрации.</p>
+                  {codeErr ? <FieldError id="auth-code-error">{codeErr}</FieldError> : null}
                 </div>
               ) : null}
 
@@ -322,11 +429,14 @@ export default function AuthModal({
                     placeholder={`Минимум ${PASSWORD_MIN} символов`}
                     value={authPassword}
                     onChange={(e) => {
-                      setAuthError(null);
+                      clearErrors();
                       setAuthPassword(e.target.value);
                     }}
+                    onBlur={() => touch("password")}
                     onKeyDown={onKeyDown}
-                    style={{ ...inputStyle, paddingRight: "44px" }}
+                    style={inputStyleFor(Boolean(passwordErr), { paddingRight: "44px" })}
+                    aria-invalid={Boolean(passwordErr)}
+                    aria-describedby={passwordErr ? "auth-password-error" : "auth-password-hint"}
                   />
                   <button
                     type="button"
@@ -337,16 +447,19 @@ export default function AuthModal({
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
+                {/* Требование видно СРАЗУ, серым — до и без всякой ошибки. */}
+                <p id="auth-password-hint" style={hintStyle}>Минимум {PASSWORD_MIN} символов.</p>
+                {passwordErr ? <FieldError id="auth-password-error">{passwordErr}</FieldError> : null}
               </div>
 
-              {authError ? (
-                <div style={{ display: "flex", alignItems: "flex-start", gap: "var(--space-2)", background: "var(--color-danger-subtle)", color: "var(--color-danger)", borderRadius: "var(--radius-sm)", padding: "var(--space-2) var(--space-3)", fontSize: "var(--font-size-caption)", lineHeight: 1.4 }}>
-                  <AlertCircle size={16} style={{ flexShrink: 0, marginTop: "1px" }} />
-                  <span>{authError}</span>
+              {bannerErr ? (
+                <div role="alert" style={{ display: "flex", alignItems: "flex-start", gap: "var(--space-2)", background: "var(--color-danger-subtle)", color: "var(--color-danger)", borderRadius: "var(--radius-sm)", padding: "var(--space-2) var(--space-3)", fontSize: "14px", lineHeight: 1.45 }}>
+                  <AlertCircle size={16} style={{ flexShrink: 0, marginTop: "2px" }} />
+                  <span>{bannerErr}</span>
                 </div>
               ) : null}
 
-              <Button variant="primary" onClick={submit} disabled={!canSubmit}>
+              <Button variant="primary" onClick={submit} disabled={authLoading}>
                 {authLoading ? <Sparkles className="animate-spin" size={18} /> : null}
                 {authLoading
                   ? "Загрузка..."

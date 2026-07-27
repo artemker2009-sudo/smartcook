@@ -9,6 +9,7 @@ import {
   USERNAME_MIN,
   normalizeUsername,
   type AuthMode,
+  type AuthField,
 } from "@/components/modals/AuthModal";
 
 export type AuthOutcome = "login" | "register" | "recover";
@@ -45,6 +46,9 @@ export function useAuthModal(options: Options = {}) {
   const [authTelegram, setAuthTelegram] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  // К какому полю относится серверная ошибка (напр. «логин занят» → username).
+  // null — общая ошибка, показываем баннером. Поле показывает её красным под собой.
+  const [authErrorField, setAuthErrorField] = useState<AuthField | null>(null);
   const [supportSent, setSupportSent] = useState(false);
   // Код восстановления показываем ровно один раз: в базе лежит только хеш.
   const [recoveryCodeToShow, setRecoveryCodeToShow] = useState<string | null>(null);
@@ -57,6 +61,7 @@ export function useAuthModal(options: Options = {}) {
 
   const open = (mode: AuthMode = "register") => {
     setAuthError(null);
+    setAuthErrorField(null);
     setSupportSent(false);
     setRecoveryCodeToShow(null);
     setAuthModeRaw(mode);
@@ -66,6 +71,7 @@ export function useAuthModal(options: Options = {}) {
   const close = () => {
     setIsOpen(false);
     setAuthError(null);
+    setAuthErrorField(null);
     setSupportSent(false);
     setAuthPassword("");
     setAuthRecoveryCode("");
@@ -79,19 +85,23 @@ export function useAuthModal(options: Options = {}) {
 
   const handleAuth = async () => {
     setAuthError(null);
+    setAuthErrorField(null);
     const username = normalizeUsername(authUsername);
     const name = authName.trim();
 
     if (authMode === "register" && !name) {
-      setAuthError("Введите имя — его будут видеть другие.");
+      setAuthErrorField("name");
+      setAuthError("Введите имя пользователя.");
       return;
     }
     if (username.length < USERNAME_MIN || username.length > USERNAME_MAX) {
+      setAuthErrorField("username");
       setAuthError(`Логин: латиница, цифры и «_», от ${USERNAME_MIN} до ${USERNAME_MAX} символов.`);
       return;
     }
     if (authPassword.length < PASSWORD_MIN) {
-      setAuthError(`Пароль должен быть не короче ${PASSWORD_MIN} символов.`);
+      setAuthErrorField("password");
+      setAuthError(`Пароль слишком короткий — нужно минимум ${PASSWORD_MIN} символов.`);
       return;
     }
 
@@ -106,6 +116,9 @@ export function useAuthModal(options: Options = {}) {
         const payload = await res.json().catch(() => null);
 
         if (!res.ok || !payload?.ok) {
+          // «Логин занят» (409) и прочие ошибки логина показываем у поля логина,
+          // а не системным баннером — так человек сразу видит, что менять.
+          if (res.status === 409) setAuthErrorField("username");
           setAuthError(payload?.error || "Не удалось создать аккаунт. Попробуйте ещё раз.");
           return;
         }
@@ -150,6 +163,7 @@ export function useAuthModal(options: Options = {}) {
 
   const handleRecover = async () => {
     setAuthError(null);
+    setAuthErrorField(null);
     const username = normalizeUsername(authUsername);
 
     if (username.length < USERNAME_MIN || !authRecoveryCode.trim()) {
@@ -157,7 +171,8 @@ export function useAuthModal(options: Options = {}) {
       return;
     }
     if (authPassword.length < PASSWORD_MIN) {
-      setAuthError(`Новый пароль должен быть не короче ${PASSWORD_MIN} символов.`);
+      setAuthErrorField("password");
+      setAuthError(`Пароль слишком короткий — нужно минимум ${PASSWORD_MIN} символов.`);
       return;
     }
 
@@ -250,6 +265,8 @@ export function useAuthModal(options: Options = {}) {
     authLoading,
     authError,
     setAuthError,
+    authErrorField,
+    setAuthErrorField,
     handleAuth,
     handleRecover,
     handleSupportRequest,

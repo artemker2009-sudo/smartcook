@@ -72,19 +72,46 @@ export async function POST(req: Request) {
             : data.slice(FEED_REJECT_PREFIX.length);
 
         const supabase = createServiceRoleClient();
-        const { error } = await supabase
+        // Идемпотентно: переводим ТОЛЬКО из 'pending'. Если пост уже обработан
+        // (админкой, прошлым нажатием или дублем доставки от Telegram) —
+        // затронется 0 строк, и мы отвечаем «Карточка устарела», а не делаем
+        // фантомное повторное решение. Атомарно, без гонки read-then-write.
+        const { data: updated, error } = await supabase
           .from("community_posts")
           .update({ status: newStatus, moderated_at: new Date().toISOString() })
-          .eq("id", postId);
+          .eq("id", postId)
+          .eq("status", "pending")
+          .select("id");
         if (error) console.error("[telegram-webhook] update failed", error.message);
 
-        await answerCallbackQuery(callbackQuery.id, "Решение принято");
-        await editCardResult(
-          chatId,
-          callbackQuery.message.message_id,
-          callbackQuery.message.caption || "",
-          resultText,
-        );
+        const changed = !error && Array.isArray(updated) && updated.length > 0;
+        if (error) {
+          // Не оставляем «часики»: сообщаем о сбое, решение можно повторить.
+          await answerCallbackQuery(callbackQuery.id, "Ошибка, попробуйте ещё раз");
+        } else if (changed) {
+          await answerCallbackQuery(callbackQuery.id, "Решение принято");
+          await editCardResult(
+            chatId,
+            callbackQuery.message.message_id,
+            callbackQuery.message.caption || "",
+            resultText,
+          );
+        } else {
+          // Пост уже был отмодерирован ранее — повторный/устаревший колбэк.
+          await answerCallbackQuery(callbackQuery.id, "Карточка устарела");
+          await editCardResult(
+            chatId,
+            callbackQuery.message.message_id,
+            callbackQuery.message.caption || "",
+            "ℹ️ Карточка устарела — пост уже обработан ранее.",
+          );
+        }
+      } else {
+        // Легитимный колбэк из чата основателя, но callback_data не совпал ни с
+        // одним из наших префиксов — например, старая карточка с mod_* из
+        // удалённого флоу. Всё равно ОБЯЗАТЕЛЬНО отвечаем на колбэк, иначе
+        // «часики» на кнопке крутятся в вечной загрузке.
+        await answerCallbackQuery(callbackQuery.id, "Карточка устарела");
       }
     }
 

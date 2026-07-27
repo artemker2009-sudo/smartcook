@@ -16,6 +16,7 @@ import { shareOrCopy } from "@/lib/share";
 import type { RecipeData } from "@/lib/types";
 import CookMode from "@/components/CookMode";
 import RecipeImage from "@/components/RecipeImage";
+import KuperBuyBlock from "@/components/KuperBuyBlock";
 
 /**
  * Лёгкий read-only просмотр расшаренного рецепта. Рендерится на выделенном
@@ -84,15 +85,19 @@ export default function SharedRecipe({ recipe }: { recipe: RecipeData }) {
         </button>
 
         {detailed.length > 0 && (
-          <div className="ing-box">
-            <h3 style={{ marginTop: 0, marginBottom: "15px" }}>Ингредиенты</h3>
-            {detailed.map((ing, i) => (
-              <div key={i} className="ing-row">
-                <span>{ing.name}</span>
-                <span className="ing-val">{scaleAmount(ing.amount, 1)}</span>
-              </div>
-            ))}
-          </div>
+          <>
+            <div className="ing-box">
+              <h3 style={{ marginTop: 0, marginBottom: "15px" }}>Ингредиенты</h3>
+              {detailed.map((ing, i) => (
+                <div key={i} className="ing-row">
+                  <span>{ing.name}</span>
+                  <span className="ing-val">{scaleAmount(ing.amount, 1)}</span>
+                </div>
+              ))}
+            </div>
+            {/* Монетизация: заказ продуктов по рецепту через Купер (CPA). */}
+            <KuperBuyBlock />
+          </>
         )}
 
         {/* Крупная первичная кнопка запуска режима готовки с озвучкой (задача Z). */}

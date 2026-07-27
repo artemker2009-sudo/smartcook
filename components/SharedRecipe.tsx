@@ -96,7 +96,7 @@ export default function SharedRecipe({ recipe }: { recipe: RecipeData }) {
               ))}
             </div>
             {/* Монетизация: заказ продуктов по рецепту через Купер (CPA). */}
-            <KuperBuyBlock />
+            <KuperBuyBlock ingredients={detailed.map((ing) => ing.name)} />
           </>
         )}
 

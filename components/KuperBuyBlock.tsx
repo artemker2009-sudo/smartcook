@@ -1,22 +1,44 @@
 "use client";
 
 import { ShoppingCart } from "lucide-react";
+import { toast } from "sonner";
 import { KUPER_CPA_URL, KUPER_AD_LABEL } from "@/lib/constants";
 import { reachGoal } from "@/lib/metrika";
+import { copyText } from "@/lib/clipboard";
 
 /**
  * Монетизация: CPA-партнёрка «Купер» (доставка продуктов). Показывается на
- * экране рецепта ПОД списком ингредиентов и ТОЛЬКО когда список есть — заказать
- * можно только то, что перечислено (см. проп-гейт у вызывающих компонентов).
+ * экране рецепта ПОД списком ингредиентов и ТОЛЬКО когда список есть (гейт у
+ * вызывающих компонентов + внутренний ранний return).
  *
- * Текст «Нужно купить: закажите продукты…» дословно зарегистрирован как креатив
- * в ОРД — менять его нельзя. Ссылка (KUPER_CPA_URL) содержит erid — маркировку
- * рекламы; под кнопкой обязательна видимая текстовая пометка KUPER_AD_LABEL.
+ * Купер не принимает готовый список позиций по ссылке — поэтому UX такой:
+ * тап по чипу ингредиента копирует его название в буфер, показывает тост
+ * «„…" скопирован — вставьте в поиск Купера» и открывает витрину Купера в
+ * новой вкладке. Пользователю остаётся вставить (Ctrl/⌘+V) в поиск Купера.
+ * Кнопка «Заказать в Купере» внизу — для тех, кому нужен весь список сразу.
  *
- * Стиль — как у существующих карточек (surface + border), спокойный, не
- * кричащий. Клик шлёт цель Метрики ingredient_buy_click через общий reachGoal.
+ * ВАЖНО (ОРД / закон о рекламе):
+ * - KUPER_CPA_URL менять НЕЛЬЗЯ — в ней трекинг партнёрки и erid (маркировка);
+ * - текст «Нужно купить: закажите продукты…» дословно зарегистрирован как
+ *   креатив, заголовок и текст не менять;
+ * - под блоком обязательна видимая пометка KUPER_AD_LABEL.
+ *
+ * Цель Метрики ingredient_buy_click шлётся при тапе по чипу и по кнопке.
  */
-export default function KuperBuyBlock() {
+export default function KuperBuyBlock({ ingredients }: { ingredients: string[] }) {
+  const names = (ingredients || []).map((n) => (n || "").trim()).filter(Boolean);
+  if (names.length === 0) return null;
+
+  // Тап по чипу: копируем название, показываем тост, шлём цель. Переход на
+  // Купер выполняет НАТИВНЫЙ клик по ссылке (target=_blank) — не отменяем
+  // событие, иначе мобильные блокировщики попапов не откроют новую вкладку.
+  const handleChip = (name: string) => {
+    reachGoal("ingredient_buy_click", { ingredient: name });
+    // fire-and-forget: старт копирования внутри жеста, ждать не нужно.
+    void copyText(name);
+    toast(`«${name}» скопирован — вставьте в поиск Купера`);
+  };
+
   return (
     <div
       style={{
@@ -49,6 +71,44 @@ export default function KuperBuyBlock() {
       >
         Нужно купить: закажите продукты для рецепта с доставкой в Купере
       </p>
+
+      {/* Чипы по каждому ингредиенту: тап → копирование + тост + Купер. */}
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "var(--space-2)",
+          marginBottom: "var(--space-3)",
+        }}
+      >
+        {names.map((name, idx) => (
+          <a
+            key={idx}
+            href={KUPER_CPA_URL}
+            target="_blank"
+            rel="noopener noreferrer sponsored"
+            onClick={() => handleChip(name)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "var(--space-1)",
+              background: "var(--color-bg)",
+              padding: "var(--space-2) var(--space-3)",
+              borderRadius: "var(--radius-full)",
+              fontSize: "var(--font-size-body)",
+              fontWeight: "var(--font-weight-medium)",
+              color: "var(--color-text)",
+              textDecoration: "none",
+              border: "1px solid var(--color-border)",
+              cursor: "pointer",
+            }}
+          >
+            {name}
+          </a>
+        ))}
+      </div>
+
+      {/* Кнопка «весь список сразу» — последним элементом после чипов. */}
       <a
         href={KUPER_CPA_URL}
         target="_blank"
@@ -72,6 +132,7 @@ export default function KuperBuyBlock() {
       >
         Заказать в Купере
       </a>
+
       {/* Обязательная маркировка рекламы (erid в ссылке) — мелко, серым, но видимо. */}
       <div
         style={{

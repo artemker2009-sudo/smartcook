@@ -137,6 +137,13 @@ export default async function RootLayout({
   // полноэкранной комнате банкета (задача D). На остальных страницах он есть,
   // поэтому добавляем нижний отступ body, чтобы фиксированный бар не перекрывал
   // контент/футер на мобайле (класс has-tabbar, стиль в globals.css).
+  // ВАЖНО: showTabBar здесь считается из x-pathname один раз на серверном
+  // рендере и НЕ пересчитывается при клиентской (soft) навигации между детьми
+  // root-layout. Поэтому сам <TabBar> монтируется всегда и решает свою
+  // видимость на клиенте по usePathname (иначе при переходе со списка банкетов
+  // в комнату бар «залипал» и перекрывал переключатель Меню/Чат). Значение ниже
+  // задаёт только КОРРЕКТНЫЙ первый отступ body (has-tabbar) без мигания —
+  // дальше класс синхронизирует сам TabBar.
   const hideFooter = isAdminRoute || isPartyRoom;
   const showTabBar = !hideFooter;
   // Режим обслуживания живёт в proxy.ts (middleware): при включённом
@@ -155,7 +162,7 @@ export default async function RootLayout({
         <PWAInstall />
         <TelegramWebViewBanner />
 
-        {showTabBar && <TabBar />}
+        <TabBar />
         {children}
         {!hideFooter && <Footer />}
         {!isAdminRoute && <OnboardingModal />}

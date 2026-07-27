@@ -25,6 +25,7 @@ import DonateButton from "@/components/DonateButton";
 import Button from "@/components/ui/Button";
 import CookMode from "@/components/CookMode";
 import RecipeImage from "@/components/RecipeImage";
+import KuperBuyBlock from "@/components/KuperBuyBlock";
 import { splitIngredientList } from "@/lib/recipeValidation";
 import { formatCookingTime } from "@/lib/utils";
 
@@ -480,18 +481,23 @@ export default function RecipeView({
         </div>
       )}
 
-      {recipe.detailed_ingredients && (
-        <div className="ing-box">
-          <h3 style={{ marginTop: 0, marginBottom: "15px" }}>Ингредиенты</h3>
-          {recipe.detailed_ingredients.map((ing: any, i: number) => (
-            <div key={i} className="ing-row">
-              <span>{ing.name}</span>
-              <span className="ing-val">
-                {scaleAmount(ing.amount, actualServings)}
-              </span>
-            </div>
-          ))}
-        </div>
+      {recipe.detailed_ingredients && recipe.detailed_ingredients.length > 0 && (
+        <>
+          <div className="ing-box">
+            <h3 style={{ marginTop: 0, marginBottom: "15px" }}>Ингредиенты</h3>
+            {recipe.detailed_ingredients.map((ing: any, i: number) => (
+              <div key={i} className="ing-row">
+                <span>{ing.name}</span>
+                <span className="ing-val">
+                  {scaleAmount(ing.amount, actualServings)}
+                </span>
+              </div>
+            ))}
+          </div>
+          {/* Монетизация: заказ продуктов по рецепту через Купер (CPA). Только
+              когда есть список ингредиентов — заказывать нечего без него. */}
+          <KuperBuyBlock />
+        </>
       )}
 
       {/* Крупная первичная кнопка запуска режима готовки с озвучкой (задача Z). */}

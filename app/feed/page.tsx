@@ -38,7 +38,7 @@ async function getFeed(): Promise<CommunityPost[]> {
 export default async function FeedPage() {
   const items = await getFeed();
   return (
-    <div className="container">
+    <div className="container feed-container">
       <AppNavigation activeSection="feed" />
       <CommunityFeed initialItems={items} />
     </div>

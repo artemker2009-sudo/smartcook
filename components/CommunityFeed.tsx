@@ -342,41 +342,42 @@ export default function CommunityFeed({ initialItems }: { initialItems: Communit
           <div style={{ fontSize: "var(--font-size-caption)" }}>Станьте первым — поделитесь фото своего блюда.</div>
         </div>
       ) : (
-        <div className="feed-grid" style={{ marginTop: "var(--space-3)" }}>
+        // Полноширинная лента (Instagram-стиль): одна колонка, фото крупно с
+        // сохранением пропорций (без кропа в квадрат). Классы feed-post-*
+        // отдельные от сетки витрины (.feed-card на Главной), чтобы её не задеть.
+        <div className="feed-list" style={{ marginTop: "var(--space-3)" }}>
           {items.map((item) => (
-            <article key={item.id} className="feed-card">
+            <article key={item.id} className="feed-post">
               <img
-                className="feed-card-photo"
+                className="feed-post-photo"
                 src={item.photo_url}
                 alt={item.recipe_title || "Блюдо"}
                 loading="lazy"
                 style={{ cursor: item.recipe_id ? "pointer" : "default" }}
                 onClick={() => openPost(item)}
               />
-              <div className="feed-card-body">
-                <div className="feed-card-title">{item.recipe_title || "Блюдо"}</div>
+              <div className="feed-post-body">
+                <span className="feed-post-user">{item.user_name || "Гость"}</span>
+                <div className="feed-post-title">{item.recipe_title || "Блюдо"}</div>
                 {item.caption ? (
-                  <div style={{ fontSize: "var(--font-size-caption)", color: "var(--color-text-secondary)", lineHeight: 1.4, marginTop: "2px" }}>
-                    {item.caption}
-                  </div>
+                  <div className="feed-post-caption">{item.caption}</div>
                 ) : null}
-                <div className="feed-card-meta">
-                  <span className="feed-card-user">{item.user_name || "Гость"}</span>
+                <div className="feed-post-actions">
                   <button
                     type="button"
                     className={`feed-like${item.liked_by_me ? " feed-like-active" : ""}`}
                     onClick={() => toggleLike(item)}
                     aria-label={item.liked_by_me ? "Убрать лайк" : "Лайкнуть"}
                   >
-                    <Heart size={16} fill={item.liked_by_me ? "currentColor" : "none"} />
+                    <Heart size={18} fill={item.liked_by_me ? "currentColor" : "none"} />
                     <span>{item.likes_count}</span>
                   </button>
+                  {item.recipe_id ? (
+                    <button type="button" className="feed-card-recipe-link" onClick={() => openPost(item)}>
+                      К рецепту
+                    </button>
+                  ) : null}
                 </div>
-                {item.recipe_id ? (
-                  <button type="button" className="feed-card-recipe-link" onClick={() => openPost(item)}>
-                    К рецепту
-                  </button>
-                ) : null}
               </div>
             </article>
           ))}

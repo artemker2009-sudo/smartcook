@@ -1484,6 +1484,94 @@ a.news-card:hover { transform: translateY(-2px); }
 }
 .feed-card-recipe-link:hover { text-decoration: underline; }
 
+/* --- Полноширинная лента /feed (Instagram-стиль) --- */
+/* Контейнер /feed чуть шире дефолтного (500px), чтобы одна колонка не жалась. */
+.feed-container { max-width: 600px; }
+
+/* Одна колонка, умеренные отступы между постами. */
+.feed-list { display: flex; flex-direction: column; gap: var(--space-4); }
+.feed-post {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+}
+/* Фото крупно, во всю ширину карточки, пропорции как есть (без кропа в квадрат). */
+.feed-post-photo {
+  width: 100%;
+  height: auto;
+  display: block;
+  background: var(--color-bg-subtle);
+}
+.feed-post-body {
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.feed-post-user {
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-medium);
+}
+.feed-post-title {
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-body);
+  color: var(--color-text);
+  line-height: 1.3;
+}
+.feed-post-caption {
+  font-size: var(--font-size-caption);
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+}
+.feed-post-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: var(--space-2);
+}
+.feed-post-actions .feed-like { font-size: var(--font-size-caption); }
+.feed-post-actions .feed-card-recipe-link { margin-top: 0; }
+
+/* --- Карточка-ссылка на Главной: вход в ленту --- */
+.feed-entry {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  text-decoration: none;
+  transition: transform 0.2s;
+}
+.feed-entry:hover { transform: translateY(-3px); }
+.feed-entry-icon {
+  background: var(--color-accent-subtle);
+  color: var(--color-accent);
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-shrink: 0;
+}
+.feed-entry-text { flex: 1; min-width: 0; }
+.feed-entry-title {
+  display: block;
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-body);
+  color: var(--color-text);
+}
+.feed-entry-sub {
+  display: block;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+.feed-entry-arrow { color: var(--color-text-muted); flex-shrink: 0; }
+
 /* --- Совет дня (Z-2): пассивная плитка, без кнопок --- */
 .tip-card {
   display: flex;

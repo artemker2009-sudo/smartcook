@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Flame, Lightbulb } from "lucide-react";
+import { ArrowRight, Flame, ImageIcon, Lightbulb } from "lucide-react";
+import { reachGoal } from "@/lib/metrika";
 import HeroLanding from "@/components/HeroLanding";
 import HomeFeed, { type FeedPhoto } from "@/components/HomeFeed";
 import ArticlesBoard from "@/components/ArticlesBoard";
@@ -115,6 +117,25 @@ export default function HomeContent({
           NewsBoard на месте — вернуть можно одной строкой). Собственный
           margin-bottom у .home-feed сохраняет нижний отступ страницы. */}
       <HomeFeed initialItems={feed} />
+
+      {/* Вход в полную ленту сообщества. Постов пока мало — на Главной только
+          дневная витрина, а тут аккуратная ссылка на всю ленту (/feed).
+          Цель Метрики home_feed_open меряет интерес к переходу. */}
+      <Link
+        href="/feed"
+        className="feed-entry"
+        onClick={() => reachGoal("home_feed_open")}
+        aria-label="Смотреть все блюда в ленте"
+      >
+        <span className="feed-entry-icon" aria-hidden>
+          <ImageIcon size={22} />
+        </span>
+        <span className="feed-entry-text">
+          <span className="feed-entry-title">Смотреть все блюда в ленте</span>
+          <span className="feed-entry-sub">Фото блюд от сообщества</span>
+        </span>
+        <ArrowRight size={20} className="feed-entry-arrow" aria-hidden />
+      </Link>
     </div>
   );
 }

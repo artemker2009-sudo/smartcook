@@ -17,7 +17,7 @@ const navItems = [
   { id: "service", label: "Найти рецепт", href: "/search", icon: Search },
   { id: "feed", label: "Лента", href: "/feed", icon: ImageIcon },
   { id: "parties", label: "Банкеты", href: "/parties", icon: PartyPopper },
-  { id: "profile", label: "Личный кабинет", href: "/search?view=profile", icon: User },
+  { id: "profile", label: "Личный кабинет", href: "/profile", icon: User },
   { id: "daily", label: "Рецепт дня", href: "/search?daily=true", icon: Flame },
   { id: "about", label: "О проекте", href: "/about", icon: CheckCircle },
 ] as const;

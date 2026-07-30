@@ -9,6 +9,7 @@ import PWAInstall from "@/components/PWAInstall";
 import TelegramWebViewBanner from "@/components/TelegramWebViewBanner";
 import Footer from "@/components/Footer";
 import TabBar from "@/components/TabBar";
+import ProfileEntry from "@/components/ProfileEntry";
 import OnboardingModal from "@/components/modals/OnboardingModal";
 import { Suspense } from "react"; // Импортируем Suspense для корректной работы
 
@@ -163,6 +164,7 @@ export default async function RootLayout({
         <TelegramWebViewBanner />
 
         <TabBar />
+        <ProfileEntry />
         {children}
         {!hideFooter && <Footer />}
         {!isAdminRoute && <OnboardingModal />}

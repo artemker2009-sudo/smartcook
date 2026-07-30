@@ -27,8 +27,35 @@ async function getArticleRefs(): Promise<ArticleRef[]> {
   }
 }
 
+// Страницы рецептов — канал №1 SEO-стратегии, поэтому каждая публичная
+// страница /recipe/[id] должна быть в карте сайта. RLS на recipes открывает
+// SELECT всем (supabase_recipes_social_rls.sql), маршрут /recipe/[id] рендерит
+// рецепт по id. Индексируем только реально рендерящиеся страницы: title и steps
+// должны существовать (маршрут иначе отдаёт «не найдено», а без шагов страница
+// пустая). Explicit-колонки (CLAUDE.md, без select=*): id/created_at/image_url —
+// image_url задаёт приоритет (рецепты с картинкой богаче для выдачи).
+// limit 5000 — предохранитель против будущего роста; лимит sitemap 50 000 URL.
+type RecipeRef = { id: number; created_at: string; image_url: string | null }
+
+async function getRecipeRefs(): Promise<RecipeRef[]> {
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/recipes?select=id,created_at,image_url&title=not.is.null&steps=not.is.null&order=created_at.desc&limit=5000`,
+      {
+        headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+        next: { revalidate: 3600 },
+      },
+    )
+    if (!res.ok) return []
+    const data = await res.json()
+    return Array.isArray(data) ? (data as RecipeRef[]) : []
+  } catch {
+    return []
+  }
+}
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const articles = await getArticleRefs()
+  const [articles, recipes] = await Promise.all([getArticleRefs(), getRecipeRefs()])
 
   return [
     {
@@ -66,6 +93,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: new Date(a.published_at || a.created_at),
       changeFrequency: 'monthly' as const,
       priority: 0.6,
+    })),
+    ...recipes.map((r) => ({
+      url: `https://smart-cook.pro/recipe/${r.id}`,
+      lastModified: new Date(r.created_at),
+      changeFrequency: 'monthly' as const,
+      priority: r.image_url ? 0.7 : 0.6,
     })),
   ]
 }

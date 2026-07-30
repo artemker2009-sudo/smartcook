@@ -67,6 +67,44 @@ export async function generateMetadata({
   };
 }
 
+// Recipe-разметка schema.org (JSON-LD) для расширенных результатов в поиске
+// (Rich Results). SEO — канал №1 стратегии, а страницы рецептов SSR-рендерятся
+// с полными данными, поэтому разметку кладём прямо в HTML серверного маршрута.
+// Правило: включаем ТОЛЬКО реально присутствующие поля рецепта, ничего не
+// выдумываем — иначе валидатор ругается, а выдача получает недостоверные данные.
+function buildRecipeJsonLd(recipe: RecipeData, id: string) {
+  const jsonLd: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "Recipe",
+    name: recipe.title,
+    url: `https://smart-cook.pro/recipe/${id}`,
+  };
+
+  if (recipe.image_url) jsonLd.image = recipe.image_url;
+  if (recipe.description) jsonLd.description = recipe.description;
+
+  // recipeIngredient — список строк «количество + название». Пустые записи и
+  // пробелы отсекаем: у части рецептов amount может быть пустым.
+  const ingredients = (recipe.detailed_ingredients || [])
+    .map((ing) => [ing.amount, ing.name].filter((p) => (p || "").trim()).join(" ").trim())
+    .filter(Boolean);
+  if (ingredients.length > 0) jsonLd.recipeIngredient = ingredients;
+
+  // recipeInstructions — массив HowToStep, каждый шаг отдельным пунктом.
+  const steps = (recipe.steps || [])
+    .map((s) => (s || "").trim())
+    .filter(Boolean)
+    .map((text) => ({ "@type": "HowToStep", text }));
+  if (steps.length > 0) jsonLd.recipeInstructions = steps;
+
+  // totalTime — только если известно время в минутах; формат ISO-8601 (PT#M).
+  if (typeof recipe.cooking_time_minutes === "number" && recipe.cooking_time_minutes > 0) {
+    jsonLd.totalTime = `PT${recipe.cooking_time_minutes}M`;
+  }
+
+  return jsonLd;
+}
+
 export default async function SharedRecipePage({
   params,
 }: {
@@ -93,5 +131,15 @@ export default async function SharedRecipePage({
     );
   }
 
-  return <SharedRecipe recipe={recipe} />;
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        // Разметка не влияет на разметку страницы (невидимый script), поэтому UI
+        // не меняется; данные уже прочитаны серверным запросом — SSR не ломается.
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(buildRecipeJsonLd(recipe, id)) }}
+      />
+      <SharedRecipe recipe={recipe} />
+    </>
+  );
 }

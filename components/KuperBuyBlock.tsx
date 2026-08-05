@@ -1,10 +1,11 @@
 "use client";
 
-import { ShoppingCart } from "lucide-react";
+import { ListPlus, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
 import { KUPER_CPA_URL, KUPER_AD_LABEL } from "@/lib/constants";
 import { reachGoal } from "@/lib/metrika";
 import { copyText } from "@/lib/clipboard";
+import { addNamesToStorage } from "@/lib/shoppingList";
 
 /**
  * Монетизация: CPA-партнёрка «Купер» (доставка продуктов). Показывается на
@@ -37,6 +38,23 @@ export default function KuperBuyBlock({ ingredients }: { ingredients: string[] }
     // fire-and-forget: старт копирования внутри жеста, ждать не нужно.
     void copyText(name);
     toast(`«${name}» скопирован — вставьте в поиск Купера`);
+  };
+
+  // «В список покупок»: добавляет все ингредиенты рецепта в локальный список
+  // покупок (localStorage) с дедупликацией по названию. Список читает раздел
+  // /shopping. Цель Метрики — как у ручного добавления позиции.
+  const handleAddToList = () => {
+    const result = addNamesToStorage(names);
+    reachGoal("shopping_item_added", { source: "recipe" });
+    if (result.added > 0) {
+      toast.success(`Добавлено в список покупок: ${result.added}`, {
+        action: { label: "Открыть", onClick: () => (window.location.href = "/shopping") },
+      });
+    } else if (result.limited) {
+      toast.error("Список покупок полон");
+    } else {
+      toast("Всё это уже в списке покупок");
+    }
   };
 
   return (
@@ -107,6 +125,30 @@ export default function KuperBuyBlock({ ingredients }: { ingredients: string[] }
           </a>
         ))}
       </div>
+
+      {/* «В список покупок» — добавляет все ингредиенты в раздел /shopping. */}
+      <button
+        type="button"
+        onClick={handleAddToList}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "var(--space-2)",
+          width: "100%",
+          padding: "var(--space-3) var(--space-4)",
+          marginBottom: "var(--space-2)",
+          background: "var(--color-accent-subtle)",
+          color: "var(--color-accent)",
+          border: "1px solid var(--color-accent)",
+          borderRadius: "var(--radius-sm)",
+          fontSize: "var(--font-size-body)",
+          fontWeight: "var(--font-weight-semibold)",
+          cursor: "pointer",
+        }}
+      >
+        <ListPlus size={20} /> В список покупок
+      </button>
 
       {/* Кнопка «весь список сразу» — последним элементом после чипов. */}
       <a

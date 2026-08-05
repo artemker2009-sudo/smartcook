@@ -3,25 +3,26 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
-import { Home, Search, PartyPopper } from "lucide-react";
+import { Home, Search, ShoppingCart } from "lucide-react";
 import { reachGoal } from "@/lib/metrika";
 
 // Основная навигация по трём разделам. Мобайл — фиксированный таб-бар снизу
 // (safe-area для PWA/iOS), десктоп — те же три пункта в верхней шапке (через
 // CSS). Переходы — next/link (реальная смена маршрута → авто-хит Метрики из
 // YandexMetrika по usePathname). onClick дополнительно шлёт цель nav_*.
-// Порядок: Банкеты — Главная — Поиск. «Поиск» справа — самое частое действие в
+// Порядок: Покупки — Главная — Поиск. «Поиск» справа — самое частое действие в
 // зоне большого пальца. Подписи в таб-баре — одно короткое слово (iOS-стиль),
 // чтобы не переносились на узких экранах; в контенте раздел зовётся «Найти
 // рецепт» (хамбургер-меню, заголовки) — это не трогаем. Лендинг по умолчанию не
-// меняется — заход на Главную (/).
+// меняется — заход на Главную (/). «Банкеты» переехали в гамбургер-меню; прямые
+// ссылки /parties и /party/<id> работают как раньше.
 const TABS = [
   {
-    href: "/parties",
-    label: "Банкеты",
-    icon: PartyPopper,
-    goal: "nav_banquets",
-    isActive: (p: string) => p.startsWith("/parties") || p.startsWith("/party"),
+    href: "/shopping",
+    label: "Покупки",
+    icon: ShoppingCart,
+    goal: "nav_shopping",
+    isActive: (p: string) => p.startsWith("/shopping"),
   },
   { href: "/", label: "Главная", icon: Home, goal: "nav_home", isActive: (p: string) => p === "/" },
   { href: "/search", label: "Поиск", icon: Search, goal: "nav_search", isActive: (p: string) => p.startsWith("/search") },

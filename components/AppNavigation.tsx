@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { CheckCircle, Flame, Home, ImageIcon, Menu, PartyPopper, Search, User, X } from "lucide-react";
+import { CheckCircle, Flame, Home, ImageIcon, Menu, PartyPopper, Search, ShoppingCart, User, X } from "lucide-react";
 
 type AppNavigationProps = {
-  activeSection?: "home" | "parties" | "service" | "profile" | "daily" | "about" | "feed";
+  activeSection?: "home" | "parties" | "service" | "profile" | "daily" | "about" | "feed" | "shopping";
 };
 
 // Вторичная навигация (хамбургер). Основные 3 раздела дублирует таб-бар;
@@ -15,6 +15,7 @@ type AppNavigationProps = {
 const navItems = [
   { id: "home", label: "Главная", href: "/", icon: Home },
   { id: "service", label: "Найти рецепт", href: "/search", icon: Search },
+  { id: "shopping", label: "Покупки", href: "/shopping", icon: ShoppingCart },
   { id: "feed", label: "Лента", href: "/feed", icon: ImageIcon },
   { id: "parties", label: "Банкеты", href: "/parties", icon: PartyPopper },
   { id: "profile", label: "Личный кабинет", href: "/profile", icon: User },

@@ -321,6 +321,66 @@ export async function checkAndConsumeFeedLikeRateLimit(
   return { ok: true };
 }
 
+// Лимитер умной сортировки списка покупок (/api/shopping/sort). Отдельный
+// префикс "shopping:..." — не делит бюджет ни с AI-генерациями рецептов, ни с
+// прочими лимитами. Считаем и по IP, и по пользователю (если залогинен). Список
+// покупок живёт на устройстве, но сама сортировка дёргает OpenAI — поэтому
+// защищаем расходы так же, как генерации.
+const SHOPPING_SORT_PER_HOUR = 15;
+const SHOPPING_SORT_PER_DAY = 60;
+
+export async function checkAndConsumeShoppingSortRateLimit(
+  req: Request,
+  userId: string | null,
+): Promise<RateLimitResult> {
+  const ip = getClientIp(req);
+  const route = "shopping-sort";
+  const limits = { perHour: SHOPPING_SORT_PER_HOUR, perDay: SHOPPING_SORT_PER_DAY };
+
+  const ipResult = await checkIdentifier(`shopping:ip:${ip}`, "ip", limits);
+  if (!ipResult.ok) {
+    logRateLimitHit({ route, ip, userId, scope: ipResult.scope, window: ipResult.window });
+    return ipResult;
+  }
+
+  if (userId) {
+    const userResult = await checkIdentifier(`shopping:user:${userId}`, "user", limits);
+    if (!userResult.ok) {
+      logRateLimitHit({ route, ip, userId, scope: userResult.scope, window: userResult.window });
+      return userResult;
+    }
+  }
+
+  const rows = [{ identifier: `shopping:ip:${ip}`, route }];
+  if (userId) rows.push({ identifier: `shopping:user:${userId}`, route });
+
+  const { error } = await supabaseAdmin.from("ai_rate_limit_events").insert(rows);
+  if (error) console.error("[rateLimit] failed to record shopping event", error.message);
+
+  return { ok: true };
+}
+
+// Ответ на превышение лимита сортировки списка покупок: без слова «генерации».
+export function shoppingRateLimitResponse(result: Extract<RateLimitResult, { ok: false }>) {
+  if (result.window === "error") {
+    return NextResponse.json(
+      { error: "Сервис временно недоступен. Попробуйте через минуту.", code: "RATE_LIMIT_UNAVAILABLE" },
+      { status: 503 },
+    );
+  }
+  return NextResponse.json(
+    {
+      error:
+        result.window === "hour"
+          ? "Слишком часто. Попробуйте сортировку через час."
+          : "На сегодня хватит сортировок. Возвращайтесь завтра!",
+      code: RATE_LIMIT_ERROR_CODE,
+      window: result.window,
+    },
+    { status: 429 },
+  );
+}
+
 // Ответ на превышение лимита лайков: короткий и без слова «генерации».
 export function likeRateLimitResponse(result: Extract<RateLimitResult, { ok: false }>) {
   if (result.window === "error") {

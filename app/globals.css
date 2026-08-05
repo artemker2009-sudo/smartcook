@@ -85,12 +85,17 @@ body {
 .hero-landing { margin-top: var(--space-4); margin-bottom: var(--space-4); }
 .hero-brand {
   text-align: center;
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: 1px;
+  /* Название-вензель заметно крупнее (было caption/13px). clamp держит ширину
+     в узде на 360–430px: «SMARTCOOK» в верхнем регистре не вылезает даже на
+     360px (min 22px), на широких — до 30px. Letter-spacing уменьшен, чтобы
+     крупные капсы не переполняли строку. */
+  font-size: clamp(22px, 7vw, 30px);
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  line-height: 1.1;
   text-transform: uppercase;
   color: var(--color-accent);
-  margin-bottom: var(--space-2);
+  margin-bottom: var(--space-3);
 }
 .hero-headline {
   text-align: center;

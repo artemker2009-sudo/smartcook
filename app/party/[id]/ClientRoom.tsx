@@ -32,6 +32,7 @@ import { useAuthModal } from "@/components/modals/useAuthModal";
 import FullScreenImage from "@/components/modals/FullScreenImage";
 import ReportError from "@/components/ReportError";
 import BanquetAccountBanner from "@/components/BanquetAccountBanner";
+import BanquetViralCta from "@/components/BanquetViralCta";
 import { claimGuestPartiesToAccount } from "@/lib/claimParties";
 import { preparePhoto, reportPhotoError, isHeic } from "@/lib/photo";
 
@@ -1778,6 +1779,10 @@ export default function ClientRoom({
             </div>
           </>
         )}
+
+        {/* Виральная петля: гостю (не организатору) предлагаем собрать свой
+            банкет. Стоит последним блоком — основному сценарию не мешает. */}
+        {!isHost && <BanquetViralCta />}
     </section>
     );
   };

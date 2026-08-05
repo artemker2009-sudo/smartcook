@@ -1,243 +1,217 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Check, Copy, Loader2, Plus, ShoppingCart, Sparkles, Trash2, X } from "lucide-react";
+import { ChevronRight, MoreHorizontal, Pencil, Plus, Share2, ShoppingCart, Trash2, X } from "lucide-react";
 
-import { KUPER_CPA_URL, KUPER_AD_LABEL } from "@/lib/constants";
 import { reachGoal } from "@/lib/metrika";
 import { copyText } from "@/lib/clipboard";
+import { addNames, itemsToText, type ShoppingItem, type SortCache } from "@/lib/shoppingList";
 import {
-  MAX_SHOPPING_ITEMS,
-  type ShoppingGroup,
-  type ShoppingItem,
-  addFromInput,
-  groupsToText,
-  itemsToText,
-  listSignature,
-  loadItems,
-  loadSortCache,
-  saveItems,
-  saveSortCache,
-} from "@/lib/shoppingList";
+  createList,
+  deleteList,
+  formatListDate,
+  listProgress,
+  loadLists,
+  renameList,
+  setListItems,
+  setListSort,
+  type ShoppingListRecord,
+} from "@/lib/shoppingLists";
+import { buildShareUrl, canShareByLink, decodeSharedList, SHARE_PARAM, type SharedPayload } from "@/lib/shoppingShare";
+import ShoppingListView from "@/components/ShoppingListView";
+import ShoppingSharedImport from "@/components/ShoppingSharedImport";
 
-const EMPTY_TEXT =
-  "Список пуст. Добавьте продукты — и я расставлю их по отделам магазина, чтобы ничего не забыть и не ходить по залу дважды.";
-
-// Позиции внутри группы/списка: сначала невычеркнутые (в своём порядке), потом
-// купленные (серым, вниз). Стабильно — не пересортировываем при каждом рендере.
-function ordered(items: ShoppingItem[]): ShoppingItem[] {
-  return [...items].sort((a, b) => Number(a.checked) - Number(b.checked));
+function pluralizePositions(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return `${n} позиция`;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${n} позиции`;
+  return `${n} позиций`;
 }
 
 export default function ShoppingApp() {
-  const [items, setItems] = useState<ShoppingItem[]>([]);
-  const [input, setInput] = useState("");
-  const [sortedGroups, setSortedGroups] = useState<ShoppingGroup[] | null>(null);
-  const [sortedSig, setSortedSig] = useState<string | null>(null);
-  const [sorting, setSorting] = useState(false);
-  const [sortError, setSortError] = useState<string | null>(null);
+  const router = useRouter();
+  const [lists, setLists] = useState<ShoppingListRecord[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [shared, setShared] = useState<SharedPayload | null>(null);
 
-  // Первичная загрузка списка и кэша сортировки + цель открытия раздела.
+  // Модалки
+  const [sheetList, setSheetList] = useState<ShoppingListRecord | null>(null); // меню списка
+  const [renameTarget, setRenameTarget] = useState<ShoppingListRecord | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<ShoppingListRecord | null>(null);
+  const [shareBig, setShareBig] = useState<ShoppingListRecord | null>(null); // список слишком большой для ссылки
+
   useEffect(() => {
-    const loaded = loadItems();
-    setItems(loaded);
-    const cache = loadSortCache();
-    if (cache && cache.sig === listSignature(loaded)) {
-      setSortedGroups(cache.groups);
-      setSortedSig(cache.sig);
-    }
-    reachGoal("shopping_list_open");
+    // Инициализация вынесена в функцию: localStorage/URL читаются только на
+    // клиенте, а setState не вызывается синхронно прямо в теле эффекта.
+    const init = () => {
+      // Разбираем ?shared= (данные из URL — decodeSharedList жёстко санитизирует
+      // и возвращает null на мусор, страница не ломается).
+      let sharedPayload: SharedPayload | null = null;
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const enc = params.get(SHARE_PARAM);
+        if (enc) sharedPayload = decodeSharedList(enc);
+      } catch {
+        // невалидный URL — просто показываем хаб
+      }
+      setShared(sharedPayload);
+      setLists(loadLists());
+      setLoaded(true);
+      reachGoal("shopping_list_open");
+    };
+    init();
 
-    // Синхронизация между вкладками: список поправили в другой вкладке (или
-    // добавили из рецепта) — перечитываем. Своя вкладка событие 'storage' не
-    // получает, поэтому цикла сохранений нет.
-    const onStorage = () => setItems(loadItems());
+    // Синхронизация между вкладками.
+    const onStorage = () => setLists(loadLists());
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  const sig = useMemo(() => listSignature(items), [items]);
-  const isSorted = sortedGroups !== null && sortedSig === sig;
-  const hasChecked = items.some((it) => it.checked);
-  const nameToItem = useMemo(() => {
-    const map = new Map<string, ShoppingItem>();
-    for (const it of items) map.set(it.name.trim().toLowerCase(), it);
-    return map;
-  }, [items]);
+  const openList = openId ? lists.find((l) => l.id === openId) || null : null;
 
-  const persist = (next: ShoppingItem[]) => {
-    setItems(next);
-    saveItems(next);
+  // --- CRUD ---
+
+  const handleCreate = () => {
+    const { lists: next, list } = createList(lists);
+    setLists(next);
+    reachGoal("shopping_list_created");
+    setOpenId(list.id);
   };
 
-  const handleAdd = () => {
-    if (!input.trim()) return;
-    const result = addFromInput(items, input);
-    setInput("");
-    if (result.added > 0) {
-      persist(result.items);
-      reachGoal("shopping_item_added");
-    }
-    if (result.limited) {
-      toast.error(`Список полон: не больше ${MAX_SHOPPING_ITEMS} позиций`);
-    } else if (result.added === 0 && result.duplicate > 0) {
-      toast("Такой продукт уже в списке");
-    }
+  const handleItemsChange = (id: string, items: ShoppingItem[]) => {
+    setLists(setListItems(lists, id, items));
   };
 
-  const toggle = (id: string) => {
-    persist(items.map((it) => (it.id === id ? { ...it, checked: !it.checked } : it)));
+  const handleSortChange = (id: string, sort: SortCache | null) => {
+    setLists(setListSort(lists, id, sort));
   };
 
-  const remove = (id: string) => {
-    persist(items.filter((it) => it.id !== id));
+  const openRename = (list: ShoppingListRecord) => {
+    setSheetList(null);
+    setRenameValue(list.name);
+    setRenameTarget(list);
   };
 
-  const clearChecked = () => {
-    persist(items.filter((it) => !it.checked));
+  const confirmRename = () => {
+    if (!renameTarget) return;
+    setLists(renameList(lists, renameTarget.id, renameValue));
+    setRenameTarget(null);
   };
 
-  const handleSort = async () => {
-    if (items.length === 0 || sorting) return;
-    reachGoal("shopping_sort_click");
+  const confirmDelete = () => {
+    if (!deleteTarget) return;
+    const id = deleteTarget.id;
+    setLists(deleteList(lists, id));
+    if (openId === id) setOpenId(null);
+    setDeleteTarget(null);
+  };
 
-    const cache = loadSortCache();
-    if (cache && cache.sig === sig) {
-      setSortedGroups(cache.groups);
-      setSortedSig(sig);
+  // --- Поделиться ---
+
+  const handleShare = async (list: ShoppingListRecord) => {
+    setSheetList(null);
+    reachGoal("shopping_share_click");
+
+    if (!canShareByLink(list.items.length)) {
+      setShareBig(list); // слишком большой для ссылки → предложим текст
       return;
     }
 
-    setSorting(true);
-    setSortError(null);
-    try {
-      const res = await fetch("/api/shopping/sort", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: items.map((it) => it.name) }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data?.error || "Не удалось отсортировать список");
+    const url = buildShareUrl(
+      list.name,
+      list.items.map((it) => it.name),
+    );
+
+    const nav = typeof navigator !== "undefined" ? (navigator as Navigator & { share?: (d: ShareData) => Promise<void> }) : null;
+    if (nav?.share) {
+      try {
+        await nav.share({ title: list.name, text: `Список покупок: ${list.name}`, url });
+        return;
+      } catch {
+        // пользователь отменил share sheet или он недоступен — падаем в копирование
       }
-      const data = await res.json();
-      const groups: ShoppingGroup[] = Array.isArray(data?.groups) ? data.groups : [];
-      setSortedGroups(groups);
-      setSortedSig(sig);
-      saveSortCache({ sig, groups });
-    } catch (e) {
-      setSortError(e instanceof Error ? e.message : "Не удалось отсортировать список");
-    } finally {
-      setSorting(false);
     }
+    const ok = await copyText(url);
+    toast(ok ? "Ссылка скопирована — отправьте её кому угодно" : "Не удалось скопировать ссылку");
   };
 
-  const handleCopy = async () => {
-    const text = isSorted && sortedGroups ? groupsToText(sortedGroups) : itemsToText(items);
+  const copyBigAsText = async () => {
+    if (!shareBig) return;
+    const text = `${shareBig.name}\n${itemsToText(shareBig.items)}`;
     const ok = await copyText(text);
-    toast(ok ? "Список скопирован" : "Не удалось скопировать");
+    toast(ok ? "Список скопирован текстом" : "Не удалось скопировать");
+    setShareBig(null);
   };
 
-  const handleKuper = () => {
-    reachGoal("shopping_kuper_click");
+  // --- Импорт из ссылки ---
+
+  const handleImportSave = () => {
+    if (!shared) return;
+    const { lists: afterCreate, list } = createList(lists, shared.name);
+    const withItems = addNames([], shared.items);
+    const next = setListItems(afterCreate, list.id, withItems.items, null);
+    setLists(next);
+    reachGoal("shopping_share_import");
+    clearSharedParam();
+    setShared(null);
+    setOpenId(list.id);
   };
 
-  // Одна строка списка: круглый чекбокс (тап — вычеркнул), название, крестик.
-  const renderRow = (it: ShoppingItem) => (
-    <li
-      key={it.id}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "var(--space-3)",
-        padding: "var(--space-3)",
-        borderBottom: "1px solid var(--color-border)",
-      }}
-    >
-      <button
-        type="button"
-        onClick={() => toggle(it.id)}
-        aria-pressed={it.checked}
-        aria-label={it.checked ? `Вернуть «${it.name}»` : `Вычеркнуть «${it.name}»`}
-        style={{
-          flexShrink: 0,
-          width: 30,
-          height: 30,
-          borderRadius: "var(--radius-full)",
-          border: `2px solid ${it.checked ? "var(--color-accent)" : "var(--color-border)"}`,
-          background: it.checked ? "var(--color-accent)" : "var(--color-surface)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          cursor: "pointer",
-          padding: 0,
-        }}
-      >
-        {it.checked && <Check size={18} color="#fff" strokeWidth={3} />}
-      </button>
+  const clearSharedParam = () => {
+    // Убираем ?shared= из адреса, чтобы обновление страницы не переспрашивало импорт.
+    router.replace("/shopping");
+  };
 
-      <button
-        type="button"
-        onClick={() => toggle(it.id)}
-        style={{
-          flex: 1,
-          textAlign: "left",
-          border: "none",
-          background: "transparent",
-          cursor: "pointer",
-          padding: 0,
-          fontSize: "var(--font-size-heading)",
-          lineHeight: 1.3,
-          color: it.checked ? "var(--color-text-muted)" : "var(--color-text)",
-          textDecoration: it.checked ? "line-through" : "none",
-        }}
-      >
-        {it.name}
-      </button>
+  const dismissShared = () => {
+    clearSharedParam();
+    setShared(null);
+  };
 
-      <button
-        type="button"
-        onClick={() => remove(it.id)}
-        aria-label={`Удалить «${it.name}»`}
-        style={{
-          flexShrink: 0,
-          width: 40,
-          height: 40,
-          borderRadius: "var(--radius-full)",
-          border: "none",
-          background: "transparent",
-          color: "var(--color-text-muted)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          cursor: "pointer",
-        }}
-      >
-        <X size={22} />
-      </button>
-    </li>
-  );
+  if (!loaded) {
+    return <main className="container" style={{ minHeight: "60vh" }} />;
+  }
 
-  const listCard = (children: ReactNode) => (
-    <ul
-      style={{
-        listStyle: "none",
-        margin: "0 0 var(--space-4) 0",
-        padding: 0,
-        background: "var(--color-surface)",
-        border: "1px solid var(--color-border)",
-        borderRadius: "var(--radius-md)",
-        overflow: "hidden",
-      }}
-    >
-      {children}
-    </ul>
-  );
+  // 1) Кто-то поделился списком по ссылке — экран импорта поверх всего.
+  if (shared) {
+    return (
+      <main className="container">
+        <ShoppingSharedImport payload={shared} onSave={handleImportSave} onDismiss={dismissShared} />
+      </main>
+    );
+  }
 
+  // 2) Открыт конкретный список — редактор (экран из MVP).
+  if (openList) {
+    return (
+      <main className="container">
+        <ShoppingListView
+          list={openList}
+          onItemsChange={(items) => handleItemsChange(openList.id, items)}
+          onSortChange={(sort) => handleSortChange(openList.id, sort)}
+          onBack={() => setOpenId(null)}
+          onShare={() => handleShare(openList)}
+        />
+      </main>
+    );
+  }
+
+  // 3) Хаб — все списки.
   return (
     <main className="container">
-      <header style={{ margin: "0 0 var(--space-4) 0" }}>
+      <header
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "var(--space-2)",
+          margin: "0 0 var(--space-4) 0",
+        }}
+      >
         <h1
           style={{
             display: "flex",
@@ -253,57 +227,30 @@ export default function ShoppingApp() {
         </h1>
       </header>
 
-      {/* Ввод: поле + «Добавить». Enter работает; запятая = несколько продуктов. */}
-      <div style={{ display: "flex", gap: "var(--space-2)", marginBottom: "var(--space-4)" }}>
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              handleAdd();
-            }
-          }}
-          placeholder="Молоко, хлеб, яйца…"
-          aria-label="Добавить продукт"
-          enterKeyHint="done"
-          style={{
-            flex: 1,
-            minWidth: 0,
-            padding: "var(--space-3)",
-            fontSize: "var(--font-size-heading)",
-            border: "1px solid var(--color-border)",
-            borderRadius: "var(--radius-sm)",
-            background: "var(--color-surface)",
-            color: "var(--color-text)",
-          }}
-        />
-        <button
-          type="button"
-          onClick={handleAdd}
-          aria-label="Добавить"
-          style={{
-            flexShrink: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "var(--space-1)",
-            padding: "0 var(--space-4)",
-            background: "var(--color-accent)",
-            color: "#fff",
-            border: "none",
-            borderRadius: "var(--radius-sm)",
-            fontSize: "var(--font-size-body)",
-            fontWeight: "var(--font-weight-semibold)",
-            cursor: "pointer",
-          }}
-        >
-          <Plus size={22} strokeWidth={2.6} />
-          Добавить
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={handleCreate}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "var(--space-2)",
+          width: "100%",
+          padding: "var(--space-3) var(--space-4)",
+          marginBottom: "var(--space-4)",
+          background: "var(--color-accent)",
+          color: "#fff",
+          border: "none",
+          borderRadius: "var(--radius-sm)",
+          fontSize: "var(--font-size-heading)",
+          fontWeight: "var(--font-weight-semibold)",
+          cursor: "pointer",
+        }}
+      >
+        <Plus size={22} strokeWidth={2.6} /> Новый список
+      </button>
 
-      {items.length === 0 ? (
+      {lists.length === 0 ? (
         <div
           style={{
             background: "var(--color-surface)",
@@ -314,175 +261,138 @@ export default function ShoppingApp() {
           }}
         >
           <div style={{ fontSize: 48, marginBottom: "var(--space-3)" }}>🛒</div>
-          <p
-            style={{
-              margin: 0,
-              fontSize: "var(--font-size-heading)",
-              lineHeight: 1.5,
-              color: "var(--color-text-secondary)",
-            }}
-          >
-            {EMPTY_TEXT}
+          <p style={{ margin: "0 0 var(--space-1) 0", fontSize: "var(--font-size-heading)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text)" }}>
+            Здесь будут ваши списки
+          </p>
+          <p style={{ margin: 0, fontSize: "var(--font-size-body)", lineHeight: 1.5, color: "var(--color-text-secondary)" }}>
+            Создайте первый — и я расставлю продукты по отделам магазина, чтобы ничего не забыть.
           </p>
         </div>
       ) : (
-        <>
-          {/* Умная сортировка. */}
-          <button
-            type="button"
-            onClick={handleSort}
-            disabled={sorting}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "var(--space-2)",
-              width: "100%",
-              padding: "var(--space-3) var(--space-4)",
-              marginBottom: "var(--space-3)",
-              background: isSorted ? "var(--color-accent-subtle)" : "var(--color-accent)",
-              color: isSorted ? "var(--color-accent)" : "#fff",
-              border: isSorted ? "1px solid var(--color-accent)" : "none",
-              borderRadius: "var(--radius-sm)",
-              fontSize: "var(--font-size-heading)",
-              fontWeight: "var(--font-weight-semibold)",
-              cursor: sorting ? "wait" : "pointer",
-              opacity: sorting ? 0.7 : 1,
-            }}
-          >
-            {sorting ? <Loader2 size={22} className="animate-spin" /> : <Sparkles size={22} />}
-            {sorting ? "Раскладываю по отделам…" : isSorted ? "Отсортировано по отделам" : "Умная сортировка"}
-          </button>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+          {lists.map((list) => {
+            const { total, done } = listProgress(list);
+            const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+            return (
+              <div key={list.id} className="sl-card">
+                <button type="button" className="sl-card-main" onClick={() => setOpenId(list.id)}>
+                  <span className="sl-card-icon" aria-hidden>
+                    <ShoppingCart size={22} />
+                  </span>
+                  <span className="sl-card-text">
+                    <span className="sl-card-title">{list.name}</span>
+                    <span className="sl-card-meta">
+                      {formatListDate(list.createdAt)} · {pluralizePositions(total)}
+                    </span>
+                    {total > 0 && (
+                      <>
+                        <span className="sl-progress-track" aria-hidden>
+                          <span className="sl-progress-fill" style={{ width: `${pct}%` }} />
+                        </span>
+                        <span className="sl-card-progress">куплено {done} из {total}</span>
+                      </>
+                    )}
+                  </span>
+                  <ChevronRight size={20} className="sl-card-arrow" aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  className="sl-card-menu"
+                  onClick={() => setSheetList(list)}
+                  aria-label={`Меню списка «${list.name}»`}
+                >
+                  <MoreHorizontal size={20} />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
-          {sortError && (
-            <div
-              style={{
-                marginBottom: "var(--space-3)",
-                padding: "var(--space-3)",
-                borderRadius: "var(--radius-sm)",
-                background: "var(--color-danger-subtle)",
-                color: "var(--color-danger)",
-                fontSize: "var(--font-size-body)",
-              }}
-            >
-              {sortError}
+      {/* Меню списка (нижний лист): переименовать / поделиться / удалить */}
+      {sheetList && (
+        <div className="sl-overlay" onClick={() => setSheetList(null)}>
+          <div className="sl-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="sl-sheet-title">{sheetList.name}</div>
+            <button type="button" className="sl-sheet-btn" onClick={() => openRename(sheetList)}>
+              <Pencil size={20} /> Переименовать
+            </button>
+            <button type="button" className="sl-sheet-btn" onClick={() => handleShare(sheetList)}>
+              <Share2 size={20} /> Поделиться
+            </button>
+            <button type="button" className="sl-sheet-btn sl-sheet-danger" onClick={() => { setDeleteTarget(sheetList); setSheetList(null); }}>
+              <Trash2 size={20} /> Удалить
+            </button>
+            <button type="button" className="sl-sheet-cancel" onClick={() => setSheetList(null)}>
+              Отмена
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Переименование */}
+      {renameTarget && (
+        <div className="sl-overlay sl-overlay-center" onClick={() => setRenameTarget(null)}>
+          <div className="sl-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="sl-modal-head">
+              <h2 className="sl-modal-title">Переименовать список</h2>
+              <button type="button" className="sl-modal-x" onClick={() => setRenameTarget(null)} aria-label="Закрыть">
+                <X size={20} />
+              </button>
             </div>
-          )}
-
-          {/* Список: сгруппированный после сортировки, иначе плоский. */}
-          {isSorted && sortedGroups
-            ? sortedGroups.map((group) => {
-                const groupItems = ordered(
-                  group.items
-                    .map((name) => nameToItem.get(name.trim().toLowerCase()))
-                    .filter((it): it is ShoppingItem => Boolean(it)),
-                );
-                if (groupItems.length === 0) return null;
-                return (
-                  <section key={group.department} style={{ marginBottom: "var(--space-3)" }}>
-                    <h2
-                      style={{
-                        margin: "0 0 var(--space-2) var(--space-1)",
-                        fontSize: "var(--font-size-caption)",
-                        fontWeight: "var(--font-weight-semibold)",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.05em",
-                        color: "var(--color-accent)",
-                      }}
-                    >
-                      {group.department}
-                    </h2>
-                    {listCard(groupItems.map(renderRow))}
-                  </section>
-                );
-              })
-            : listCard(ordered(items).map(renderRow))}
-
-          {hasChecked && (
-            <button
-              type="button"
-              onClick={clearChecked}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "var(--space-2)",
-                width: "100%",
-                padding: "var(--space-3)",
-                marginBottom: "var(--space-4)",
-                background: "var(--color-surface)",
-                color: "var(--color-text-secondary)",
-                border: "1px solid var(--color-border)",
-                borderRadius: "var(--radius-sm)",
-                fontSize: "var(--font-size-body)",
-                fontWeight: "var(--font-weight-medium)",
-                cursor: "pointer",
-              }}
-            >
-              <Trash2 size={20} /> Очистить купленное
+            <input
+              autoFocus
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") confirmRename(); }}
+              aria-label="Название списка"
+              className="sl-modal-input"
+            />
+            <button type="button" className="sl-modal-primary" onClick={confirmRename}>
+              Сохранить
             </button>
-          )}
+          </div>
+        </div>
+      )}
 
-          {/* Действия внизу: заказ в Купере (реклама) + копирование текстом. */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-            <a
-              href={KUPER_CPA_URL}
-              target="_blank"
-              rel="noopener noreferrer sponsored"
-              onClick={handleKuper}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "var(--space-2)",
-                width: "100%",
-                padding: "var(--space-3) var(--space-4)",
-                background: "var(--color-accent)",
-                color: "#fff",
-                border: "none",
-                borderRadius: "var(--radius-sm)",
-                fontSize: "var(--font-size-heading)",
-                fontWeight: "var(--font-weight-semibold)",
-                textDecoration: "none",
-              }}
-            >
-              <ShoppingCart size={22} /> Заказать всё в Купере
-            </a>
-
-            <button
-              type="button"
-              onClick={handleCopy}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "var(--space-2)",
-                width: "100%",
-                padding: "var(--space-3)",
-                background: "var(--color-surface)",
-                color: "var(--color-accent)",
-                border: "1px solid var(--color-accent)",
-                borderRadius: "var(--radius-sm)",
-                fontSize: "var(--font-size-body)",
-                fontWeight: "var(--font-weight-semibold)",
-                cursor: "pointer",
-              }}
-            >
-              <Copy size={20} /> Скопировать список
-            </button>
-
-            {/* Обязательная маркировка рекламы (erid в ссылке Купера). */}
-            <div
-              style={{
-                fontSize: "var(--font-size-caption)",
-                color: "var(--color-text-muted)",
-                lineHeight: 1.4,
-              }}
-            >
-              {KUPER_AD_LABEL}
+      {/* Удаление */}
+      {deleteTarget && (
+        <div className="sl-overlay sl-overlay-center" onClick={() => setDeleteTarget(null)}>
+          <div className="sl-modal" onClick={(e) => e.stopPropagation()}>
+            <h2 className="sl-modal-title" style={{ marginBottom: "var(--space-2)" }}>Удалить список?</h2>
+            <p style={{ margin: "0 0 var(--space-4) 0", color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
+              «{deleteTarget.name}» и все его позиции будут удалены. Это действие нельзя отменить.
+            </p>
+            <div style={{ display: "flex", gap: "var(--space-2)" }}>
+              <button type="button" className="sl-modal-secondary" onClick={() => setDeleteTarget(null)}>
+                Отмена
+              </button>
+              <button type="button" className="sl-modal-danger" onClick={confirmDelete}>
+                Удалить
+              </button>
             </div>
           </div>
-        </>
+        </div>
+      )}
+
+      {/* Список слишком большой для ссылки → поделиться текстом */}
+      {shareBig && (
+        <div className="sl-overlay sl-overlay-center" onClick={() => setShareBig(null)}>
+          <div className="sl-modal" onClick={(e) => e.stopPropagation()}>
+            <h2 className="sl-modal-title" style={{ marginBottom: "var(--space-2)" }}>Список большой для ссылки</h2>
+            <p style={{ margin: "0 0 var(--space-4) 0", color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
+              В ссылку помещается до 80 позиций. Поделитесь списком текстом — скопируйте и отправьте в любой мессенджер.
+            </p>
+            <div style={{ display: "flex", gap: "var(--space-2)" }}>
+              <button type="button" className="sl-modal-secondary" onClick={() => setShareBig(null)}>
+                Отмена
+              </button>
+              <button type="button" className="sl-modal-primary" style={{ flex: 1 }} onClick={copyBigAsText}>
+                Скопировать
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </main>
   );

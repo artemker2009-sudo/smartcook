@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { KUPER_CPA_URL, KUPER_AD_LABEL } from "@/lib/constants";
 import { reachGoal } from "@/lib/metrika";
 import { copyText } from "@/lib/clipboard";
-import { addNamesToStorage } from "@/lib/shoppingList";
+import { addNamesToDefaultList } from "@/lib/shoppingLists";
 
 /**
  * Монетизация: CPA-партнёрка «Купер» (доставка продуктов). Показывается на
@@ -40,14 +40,14 @@ export default function KuperBuyBlock({ ingredients }: { ingredients: string[] }
     toast(`«${name}» скопирован — вставьте в поиск Купера`);
   };
 
-  // «В список покупок»: добавляет все ингредиенты рецепта в локальный список
-  // покупок (localStorage) с дедупликацией по названию. Список читает раздел
-  // /shopping. Цель Метрики — как у ручного добавления позиции.
+  // «В список покупок»: добавляет все ингредиенты рецепта в список покупок по
+  // умолчанию (первый из мультисписков; если списков нет — создаётся «Мои
+  // покупки»). Дедуп по названию. Список читает раздел /shopping.
   const handleAddToList = () => {
-    const result = addNamesToStorage(names);
+    const result = addNamesToDefaultList(names);
     reachGoal("shopping_item_added", { source: "recipe" });
     if (result.added > 0) {
-      toast.success(`Добавлено в список покупок: ${result.added}`, {
+      toast.success(`Добавлено в «${result.listName}»: ${result.added}`, {
         action: { label: "Открыть", onClick: () => (window.location.href = "/shopping") },
       });
     } else if (result.limited) {

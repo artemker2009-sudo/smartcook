@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Flame, ImageIcon, Lightbulb, ShoppingCart } from "lucide-react";
+import { ArrowRight, Flame, ImageIcon, Lightbulb } from "lucide-react";
 import { reachGoal } from "@/lib/metrika";
 import HeroLanding from "@/components/HeroLanding";
 import ShoppingPromoBanner from "@/components/ShoppingPromoBanner";
+import ShoppingFeatureCard from "@/components/ShoppingFeatureCard";
 import HomeFeed, { type FeedPhoto } from "@/components/HomeFeed";
 import ArticlesBoard from "@/components/ArticlesBoard";
 import type { Article } from "@/lib/articles";
@@ -100,43 +101,9 @@ export default function HomeContent({
         </div>
       </button>
 
-      {/* Карточка функции «Умный список покупок» — сразу после «Рецепта дня».
-          Стиль существующих карточек (.feed-entry): иконка + название + строка
-          пользы + стрелка. Тап ведёт в /shopping. Не кричит — постоянный вход
-          в раздел, в отличие от одноразовой плашки-новинки выше. */}
-      <Link
-        href="/shopping"
-        className="feed-entry"
-        onClick={() => reachGoal("shopping_feature_open")}
-        aria-label="Открыть умный список покупок"
-      >
-        <span className="feed-entry-icon" aria-hidden>
-          <ShoppingCart size={22} />
-        </span>
-        <span className="feed-entry-text">
-          <span className="feed-entry-title">Умный список покупок</span>
-          <span className="feed-entry-sub">Расставит продукты по отделам — ничего не забудете</span>
-        </span>
-        {/* Вся карточка кликабельна (как .feed-entry), «Открыть» — видимая
-            подсказка-действие. Не <button>: она внутри <a>, поэтому span-пилюля. */}
-        <span
-          aria-hidden
-          style={{
-            flexShrink: 0,
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "4px",
-            padding: "6px var(--space-3)",
-            background: "var(--color-accent-subtle)",
-            color: "var(--color-accent)",
-            borderRadius: "var(--radius-full)",
-            fontSize: "var(--font-size-caption)",
-            fontWeight: "var(--font-weight-semibold)",
-          }}
-        >
-          Открыть <ArrowRight size={16} />
-        </span>
-      </Link>
+      {/* Премиальная карточка «Умный список покупок» — сразу после «Рецепта дня».
+          Заметный градиентный блок с живым примером пользы. Тап ведёт в /shopping. */}
+      <ShoppingFeatureCard />
 
       {/* Совет дня (Z-2): пассивная плитка рядом с «Рецептом дня», без кнопок.
           Пусто (нет опубликованных советов) — не показываем вовсе. */}

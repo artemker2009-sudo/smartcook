@@ -2044,3 +2044,280 @@ a.news-card:hover { transform: translateY(-2px); }
 .cook-confirm-title { margin: 0 0 20px; font-size: 26px; font-weight: 700; color: #111111; }
 .cook-confirm-actions { display: flex; flex-direction: column; gap: 12px; }
 .cook-confirm-actions .cook-btn-giant { width: 100%; }
+
+/* =========================================================================
+   ПОКУПКИ 2.0 — премиальная карточка на Главной, карточки списков, модалки.
+   ЦА 35–65: крупные тап-цели, мягкие тени и переходы, тёплый премиум-вид.
+   ========================================================================= */
+
+/* --- Премиальная карточка «Умный список покупок» (Главная) --- */
+.shopping-hero {
+  display: block;
+  text-decoration: none;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-hover) 100%);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+  color: #fff;
+  box-shadow: 0 14px 34px -12px rgba(5, 150, 105, 0.55);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.shopping-hero:hover { transform: translateY(-3px); box-shadow: 0 20px 44px -12px rgba(5, 150, 105, 0.65); }
+.shopping-hero:active { transform: translateY(-1px); }
+/* Мягкое световое пятно в углу — «дорого», не кричаще. */
+.shopping-hero::after {
+  content: "";
+  position: absolute;
+  top: -40px;
+  right: -30px;
+  width: 160px;
+  height: 160px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.18) 0%, transparent 70%);
+  pointer-events: none;
+}
+.shopping-hero-top { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); }
+.shopping-hero-icon {
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+.shopping-hero-heading { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.shopping-hero-kicker {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.85);
+}
+.shopping-hero-title { font-size: var(--font-size-title); font-weight: 700; line-height: 1.15; letter-spacing: -0.5px; }
+.shopping-hero-sub {
+  margin: 0 0 var(--space-3) 0;
+  font-size: var(--font-size-body);
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.92);
+}
+.shopping-hero-examples { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-4); }
+.shopping-hero-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px var(--space-3);
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.16);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+  color: #fff;
+  white-space: nowrap;
+}
+.shopping-hero-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: #fff;
+  color: var(--color-accent);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* --- Карточки списков (хаб /shopping) --- */
+.sl-card {
+  display: flex;
+  align-items: stretch;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.sl-card:hover { transform: translateY(-3px); box-shadow: 0 16px 44px -10px rgba(0, 0, 0, 0.14); }
+.sl-card-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+.sl-card-icon {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent-subtle);
+  color: var(--color-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sl-card-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.sl-card-title {
+  font-size: var(--font-size-heading);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sl-card-meta { font-size: var(--font-size-caption); color: var(--color-text-muted); }
+.sl-progress-track {
+  margin-top: 3px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--color-bg-subtle);
+  overflow: hidden;
+}
+.sl-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--color-accent);
+  transition: width 0.35s ease;
+}
+.sl-card-progress { font-size: var(--font-size-caption); color: var(--color-text-secondary); font-weight: var(--font-weight-medium); }
+.sl-card-arrow { flex-shrink: 0; color: var(--color-text-muted); align-self: center; }
+.sl-card-menu {
+  flex-shrink: 0;
+  width: 48px;
+  border: none;
+  border-left: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sl-card-menu:hover { background: var(--color-bg-subtle); color: var(--color-text); }
+
+/* --- Оверлеи, нижний лист (меню списка), модалки --- */
+.sl-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: var(--space-3);
+}
+.sl-overlay-center { align-items: center; }
+@keyframes slSheetIn { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.sl-sheet {
+  width: 100%;
+  max-width: 460px;
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.2);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .sl-sheet, .sl-modal { animation: slSheetIn 0.22s ease-out both; }
+}
+.sl-sheet-title {
+  padding: var(--space-2) var(--space-2) var(--space-3);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sl-sheet-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+  cursor: pointer;
+}
+.sl-sheet-btn:hover { background: var(--color-bg-subtle); }
+.sl-sheet-danger { color: var(--color-danger); }
+.sl-sheet-cancel {
+  width: 100%;
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  background: var(--color-bg-subtle);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+.sl-modal {
+  width: 100%;
+  max-width: 420px;
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.28);
+}
+.sl-modal-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-3); }
+.sl-modal-title { margin: 0; font-size: var(--font-size-heading); font-weight: var(--font-weight-semibold); color: var(--color-text); }
+.sl-modal-x { background: var(--color-bg-subtle); border: none; border-radius: var(--radius-full); padding: var(--space-2); color: var(--color-text-secondary); cursor: pointer; display: flex; }
+.sl-modal-input {
+  width: 100%;
+  padding: var(--space-3);
+  margin-bottom: var(--space-3);
+  font-size: var(--font-size-heading);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+.sl-modal-primary {
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+.sl-modal-secondary {
+  flex: 1;
+  padding: var(--space-3);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-secondary);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+.sl-modal-danger {
+  flex: 1;
+  padding: var(--space-3);
+  background: var(--color-danger);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}

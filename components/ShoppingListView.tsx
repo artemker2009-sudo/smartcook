@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, Check, Copy, Loader2, Plus, Share2, ShoppingCart, Sparkles, Trash2, X } from "lucide-react";
+import { ArrowLeft, Check, Copy, Loader2, Mic, Plus, Share2, ShoppingCart, Sparkles, Square, Trash2, X } from "lucide-react";
 
 import { KUPER_CPA_URL, KUPER_AD_LABEL } from "@/lib/constants";
 import { reachGoal } from "@/lib/metrika";
@@ -13,11 +13,13 @@ import {
   type ShoppingItem,
   type SortCache,
   addFromInput,
+  addNames,
   groupsToText,
   itemsToText,
   listSignature,
 } from "@/lib/shoppingList";
 import type { ShoppingListRecord } from "@/lib/shoppingLists";
+import { useVoiceInput } from "@/components/useVoiceInput";
 
 const EMPTY_TEXT =
   "Список пуст. Добавьте продукты — и я расставлю их по отделам магазина, чтобы ничего не забыть и не ходить по залу дважды.";
@@ -25,6 +27,14 @@ const EMPTY_TEXT =
 // Позиции: сначала невычеркнутые, потом купленные (серым, вниз). Стабильно.
 function ordered(items: ShoppingItem[]): ShoppingItem[] {
   return [...items].sort((a, b) => Number(a.checked) - Number(b.checked));
+}
+
+function pluralizeProduct(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return `${n} продукт`;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${n} продукта`;
+  return `${n} продуктов`;
 }
 
 type Props = {
@@ -64,6 +74,29 @@ export default function ShoppingListView({ list, onItemsChange, onSortChange, on
     } else if (result.added === 0 && result.duplicate > 0) {
       toast("Такой продукт уже в списке");
     }
+  };
+
+  // Голосовой ввод: браузерный Web Speech API (никакого сервера/OpenAI). Если
+  // API не поддерживается — voice.supported=false, кнопку микрофона не рисуем.
+  const voice = useVoiceInput();
+
+  const handleVoiceConfirm = () => {
+    const result = addNames(items, voice.chips); // та же санитизация/лимиты, что и у текстового ввода
+    if (result.added > 0) {
+      onItemsChange(result.items);
+      reachGoal("shopping_voice_added", { count: result.added });
+      toast.success(`Добавлено: ${pluralizeProduct(result.added)}`);
+    } else if (result.duplicate > 0) {
+      toast("Всё это уже в списке");
+    }
+    if (result.limited) {
+      toast.error(`Список полон: не больше ${MAX_SHOPPING_ITEMS} позиций`);
+    }
+    voice.reset();
+  };
+
+  const handleVoiceCancel = () => {
+    voice.reset();
   };
 
   const toggle = (id: string) => {
@@ -309,7 +342,71 @@ export default function ShoppingListView({ list, onItemsChange, onSortChange, on
           <Plus size={22} strokeWidth={2.6} />
           Добавить
         </button>
+
+        {/* Кнопка-микрофон: только если браузер поддерживает Web Speech API
+            (мягкая деградация — без поддержки кнопки просто нет). Тап во время
+            записи — стоп (обрабатывается внутри voice.start()). */}
+        {voice.supported && (
+          <button
+            type="button"
+            onClick={voice.start}
+            aria-label={voice.status === "listening" ? "Остановить запись" : "Сказать, что купить"}
+            className={voice.status === "listening" ? "voice-mic-btn voice-mic-btn-active" : "voice-mic-btn"}
+          >
+            {voice.status === "listening" ? <Square size={20} fill="currentColor" /> : <Mic size={24} />}
+          </button>
+        )}
       </div>
+
+      {/* Индикатор «Слушаю…» — пока идёт запись и чипов ещё не появилось. */}
+      {voice.status === "listening" && (
+        <div className="voice-listening" role="status">
+          <span className="voice-listening-dot" aria-hidden />
+          <div>
+            <div className="voice-listening-title">Слушаю…</div>
+            <div className="voice-listening-hint">Называйте продукты, я записываю</div>
+          </div>
+        </div>
+      )}
+
+      {/* Спокойная подсказка при отказе в доступе к микрофону — не ошибка. */}
+      {voice.status === "denied" && (
+        <div className="voice-denied">
+          Разрешите доступ к микрофону в настройках браузера, чтобы говорить продукты вслух.
+        </div>
+      )}
+
+      {/* Превью распознанных продуктов: чипами, ничего не улетает в список, пока
+          не нажато «Готово». Показывается и во время записи, и после остановки —
+          пока пользователь не подтвердит или не отменит. */}
+      {(voice.status === "listening" || voice.chips.length > 0) && voice.chips.length > 0 && (
+        <div className="voice-preview">
+          <div className="voice-preview-title">Добавить:</div>
+          <div className="voice-preview-chips">
+            {voice.chips.map((name, i) => (
+              <span key={`${name}-${i}`} className="voice-chip">
+                {name}
+                <button
+                  type="button"
+                  onClick={() => voice.removeChip(i)}
+                  aria-label={`Убрать «${name}»`}
+                  className="voice-chip-x"
+                >
+                  <X size={14} />
+                </button>
+              </span>
+            ))}
+          </div>
+          <div className="voice-preview-actions">
+            <button type="button" className="voice-btn-cancel" onClick={handleVoiceCancel}>
+              Отмена
+            </button>
+            <button type="button" className="voice-btn-done" onClick={handleVoiceConfirm}>
+              Готово
+            </button>
+          </div>
+        </div>
+      )}
 
       {items.length === 0 ? (
         <div

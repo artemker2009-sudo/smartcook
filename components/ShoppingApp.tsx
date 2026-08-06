@@ -12,16 +12,17 @@ import {
   createList,
   deleteList,
   formatListDate,
+  getImportedShareListId,
   listProgress,
   loadLists,
+  recordImportedShare,
   renameList,
   setListItems,
   setListSort,
   type ShoppingListRecord,
 } from "@/lib/shoppingLists";
-import { buildShareUrl, canShareByLink, decodeSharedList, SHARE_PARAM, type SharedPayload } from "@/lib/shoppingShare";
+import { buildShareUrl, canShareByLink, decodeSharedList, SHARE_PARAM } from "@/lib/shoppingShare";
 import ShoppingListView from "@/components/ShoppingListView";
-import ShoppingSharedImport from "@/components/ShoppingSharedImport";
 
 function pluralizePositions(n: number): string {
   const mod10 = n % 10;
@@ -36,7 +37,6 @@ export default function ShoppingApp() {
   const [lists, setLists] = useState<ShoppingListRecord[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
-  const [shared, setShared] = useState<SharedPayload | null>(null);
 
   // Модалки
   const [sheetList, setSheetList] = useState<ShoppingListRecord | null>(null); // меню списка
@@ -50,17 +50,44 @@ export default function ShoppingApp() {
     // клиенте, а setState не вызывается синхронно прямо в теле эффекта.
     const init = () => {
       // Разбираем ?shared= (данные из URL — decodeSharedList жёстко санитизирует
-      // и возвращает null на мусор, страница не ломается).
-      let sharedPayload: SharedPayload | null = null;
+      // и возвращает null на мусор, страница не ломается). Экрана-подтверждения
+      // «Сохранить себе?» больше нет: переход по ссылке сразу сохраняет список
+      // и открывает его — getImportedShareListId бережёт от дублей при повторном
+      // переходе по той же ссылке (обновление страницы, повторный клик в чате).
+      let enc: string | null = null;
       try {
         const params = new URLSearchParams(window.location.search);
-        const enc = params.get(SHARE_PARAM);
-        if (enc) sharedPayload = decodeSharedList(enc);
+        enc = params.get(SHARE_PARAM);
       } catch {
-        // невалидный URL — просто показываем хаб
+        enc = null;
       }
-      setShared(sharedPayload);
-      setLists(loadLists());
+      const sharedPayload = enc ? decodeSharedList(enc) : null;
+      const initialLists = loadLists();
+
+      if (sharedPayload && enc) {
+        const existingId = getImportedShareListId(enc);
+        const existingList = existingId ? initialLists.find((l) => l.id === existingId) : undefined;
+
+        if (existingList) {
+          setLists(initialLists);
+          setOpenId(existingList.id);
+          toast(`Список «${existingList.name}» сохранён`);
+        } else {
+          const { lists: afterCreate, list } = createList(initialLists, sharedPayload.name);
+          const withItems = addNames([], sharedPayload.items);
+          const next = setListItems(afterCreate, list.id, withItems.items, null);
+          recordImportedShare(enc, list.id);
+          setLists(next);
+          setOpenId(list.id);
+          reachGoal("shopping_share_import");
+          toast(`Список «${list.name}» сохранён`);
+        }
+        // Убираем ?shared= из адреса, чтобы обновление страницы не переимпортировало.
+        router.replace("/shopping");
+      } else {
+        setLists(initialLists);
+      }
+
       setLoaded(true);
       reachGoal("shopping_list_open");
     };
@@ -70,6 +97,7 @@ export default function ShoppingApp() {
     const onStorage = () => setLists(loadLists());
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- router (App Router) стабилен между рендерами, эффект должен выполниться только один раз при монтировании.
   }, []);
 
   const openList = openId ? lists.find((l) => l.id === openId) || null : null;
@@ -148,44 +176,12 @@ export default function ShoppingApp() {
     setShareBig(null);
   };
 
-  // --- Импорт из ссылки ---
-
-  const handleImportSave = () => {
-    if (!shared) return;
-    const { lists: afterCreate, list } = createList(lists, shared.name);
-    const withItems = addNames([], shared.items);
-    const next = setListItems(afterCreate, list.id, withItems.items, null);
-    setLists(next);
-    reachGoal("shopping_share_import");
-    clearSharedParam();
-    setShared(null);
-    setOpenId(list.id);
-  };
-
-  const clearSharedParam = () => {
-    // Убираем ?shared= из адреса, чтобы обновление страницы не переспрашивало импорт.
-    router.replace("/shopping");
-  };
-
-  const dismissShared = () => {
-    clearSharedParam();
-    setShared(null);
-  };
-
   if (!loaded) {
     return <main className="container" style={{ minHeight: "60vh" }} />;
   }
 
-  // 1) Кто-то поделился списком по ссылке — экран импорта поверх всего.
-  if (shared) {
-    return (
-      <main className="container">
-        <ShoppingSharedImport payload={shared} onSave={handleImportSave} onDismiss={dismissShared} />
-      </main>
-    );
-  }
-
-  // 2) Открыт конкретный список — редактор (экран из MVP).
+  // 1) Открыт конкретный список — редактор (экран из MVP). Импорт по shared-
+  // ссылке уже произошёл в init() и сразу открыл нужный список этой веткой.
   if (openList) {
     return (
       <main className="container">
@@ -200,7 +196,7 @@ export default function ShoppingApp() {
     );
   }
 
-  // 3) Хаб — все списки.
+  // 2) Хаб — все списки.
   return (
     <main className="container">
       <header

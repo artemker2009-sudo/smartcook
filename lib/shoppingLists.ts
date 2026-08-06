@@ -218,6 +218,49 @@ export function listProgress(list: ShoppingListRecord): { total: number; done: n
   return { total: list.items.length, done: list.items.filter((it) => it.checked).length };
 }
 
+// Дедуп импорта по shared-ссылке: enc (тело ?shared=) → id уже созданного из
+// него списка. Без этого повторный переход по той же ссылке (обновление
+// страницы, повторный клик по той же ссылке в чате) плодил бы дубли списков —
+// импорт теперь происходит автоматически, без экрана-подтверждения.
+const IMPORTED_SHARES_KEY = "smartcook_shopping_imported_shares_v1";
+const MAX_IMPORTED_SHARES = 50;
+
+function readImportedShares(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(IMPORTED_SHARES_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      if (typeof k === "string" && typeof v === "string") out[k] = v;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+/** Список, уже созданный из этой shared-ссылки — если он ещё не удалён. */
+export function getImportedShareListId(enc: string): string | null {
+  return readImportedShares()[enc] ?? null;
+}
+
+/** Запоминает, что shared-ссылка enc уже импортирована в список listId. */
+export function recordImportedShare(enc: string, listId: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    const map = readImportedShares();
+    map[enc] = listId;
+    const entries = Object.entries(map);
+    const trimmed = entries.length > MAX_IMPORTED_SHARES ? entries.slice(entries.length - MAX_IMPORTED_SHARES) : entries;
+    localStorage.setItem(IMPORTED_SHARES_KEY, JSON.stringify(Object.fromEntries(trimmed)));
+  } catch {
+    // Приватный режим / переполнение — молча игнорируем: ломать импорт нельзя.
+  }
+}
+
 /**
  * Добавляет позиции в список по умолчанию (первый; если списков нет — создаёт
  * «Мои покупки»). Используется экраном рецепта («В список покупок»).

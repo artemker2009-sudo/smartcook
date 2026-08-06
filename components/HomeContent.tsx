@@ -9,8 +9,6 @@ import HeroLanding from "@/components/HeroLanding";
 import ShoppingPromoBanner from "@/components/ShoppingPromoBanner";
 import ShoppingFeatureCard from "@/components/ShoppingFeatureCard";
 import HomeFeed, { type FeedPhoto } from "@/components/HomeFeed";
-import ArticlesBoard from "@/components/ArticlesBoard";
-import type { Article } from "@/lib/articles";
 import type { DemoChip } from "@/lib/demoChips";
 import AppNavigation from "@/components/AppNavigation";
 import type { DailyRecipeType } from "@/lib/types";
@@ -25,12 +23,10 @@ type HomeTip = { id: string; body: string; emoji_icon: string | null };
 // у него свой скелет фиксированной высоты — без прыжка макета.
 export default function HomeContent({
   feed,
-  articles,
   tip,
   demoChips,
 }: {
   feed: FeedPhoto[];
-  articles: Article[];
   tip: HomeTip | null;
   demoChips: DemoChip[];
 }) {
@@ -119,9 +115,9 @@ export default function HomeContent({
         </div>
       )}
 
-      {/* Блок «Кухонные заметки» занял место, где раньше были «Новости проекта».
-          Наш первый контент из поиска — потому выше витрины. */}
-      <ArticlesBoard initialItems={articles} />
+      {/* Блок «Кухонные заметки» снят с Главной (полировка PR A) — заметки
+          остаются доступны на /articles (SEO/поисковики, канал №1), компонент
+          ArticlesBoard там не тронут. */}
 
       {/* Витрина — последний блок Главной. Ниже стоял компактный блок «Новости
           проекта»; он снят (админка и таблица news не тронуты, компонент

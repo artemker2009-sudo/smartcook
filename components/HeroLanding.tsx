@@ -10,11 +10,12 @@ import type { DemoChip } from "@/lib/demoChips";
 /**
  * Первый экран Главной (H7/H10): заголовок про боль пользователя, ОДНА крупная
  * CTA «Сфотографировать продукты» под палец, под ней тихая текстовая ссылка
- * «или найти рецепт по названию» — второй сценарий не конкурирует за внимание с
- * основным. Разделы — реальные роуты, поэтому переходы навигационные: фото →
- * /search с фокусом на зоне загрузки (?focus=photo), текстовый поиск →
- * /search?focus=text (фокус на поле ввода). Банкеты убраны с первого экрана —
- * остаются в таб-баре. Никакой логики распознавания тут нет.
+ * «или найти рецепт по названию» и компактная вторичная кнопка «Список
+ * покупок» — обе не конкурируют за внимание с основной CTA. Разделы — реальные
+ * роуты, поэтому переходы навигационные: фото → /search с фокусом на зоне
+ * загрузки (?focus=photo), текстовый поиск → /search?focus=text (фокус на поле
+ * ввода), покупки → /shopping. Банкеты убраны с первого экрана — остаются в
+ * таб-баре. Никакой логики распознавания тут нет.
  */
 export default function HeroLanding({ demoChips = [] }: { demoChips?: DemoChip[] }) {
   const router = useRouter();
@@ -30,6 +31,11 @@ export default function HeroLanding({ demoChips = [] }: { demoChips?: DemoChip[]
     // (та же цель, что и у таб-бара), сохраняя воронку целой.
     reachGoal("nav_search");
     router.push("/search?focus=text");
+  };
+
+  const handleShoppingClick = () => {
+    reachGoal("hero_shopping_click");
+    router.push("/shopping");
   };
 
   // H8 «магия без фото»: тап по демо-чипу → цель demo_chip_click (с параметром,
@@ -55,9 +61,16 @@ export default function HeroLanding({ demoChips = [] }: { demoChips?: DemoChip[]
         <button type="button" className="btn-primary hero-cta" onClick={handlePhotoClick}>
           <Camera size={20} /> Сфотографировать продукты
         </button>
-        <button type="button" className="hero-textlink" onClick={handleTextClick}>
-          или найти рецепт по названию
-        </button>
+        <div className="hero-secondary-row">
+          <button type="button" className="hero-textlink" onClick={handleTextClick}>
+            или найти рецепт по названию
+          </button>
+          {/* Вторая точка входа — заметная, но подчинённая главной CTA (H7 не
+              трогаем: CTA на первом экране остаётся одна). */}
+          <button type="button" className="hero-shopping-link" onClick={handleShoppingClick}>
+            🛒 Список покупок
+          </button>
+        </div>
         {/* Вторичная плашка «Скачайте в RuStore» — только Android и только вне
             установленного приложения. Логика показа внутри компонента. */}
         <RuStoreBadge />

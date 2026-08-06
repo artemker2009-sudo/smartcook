@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { X, Camera, PartyPopper, Zap } from "lucide-react";
+import { X, Camera, ShoppingCart, Zap } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { YANDEX_METRIKA_ID } from "@/components/YandexMetrika";
 import Button from "@/components/ui/Button";
@@ -12,8 +12,8 @@ const BOT_UA_REGEX =
   /bot|crawl|spider|slurp|bingpreview|facebookexternalhit|whatsapp|telegrambot|vkshare|yandex(bot|images|metrika)?|googlebot|duckduckbot|baiduspider|semrushbot|ahrefsbot|mj12bot|petalbot|headlesschrome/i;
 
 const FEATURES = [
-  { icon: Camera, text: "Сфотографируй продукты — получи рецепты из того, что есть" },
-  { icon: PartyPopper, text: "Собери банкет: меню под компанию + список покупок" },
+  { icon: Camera, text: "Сфотографируйте продукты — получим рецепты из того, что есть" },
+  { icon: ShoppingCart, text: "А умный список покупок соберёт всё для магазина" },
   { icon: Zap, text: "Бесплатно и без регистрации" },
 ];
 
@@ -64,10 +64,10 @@ export default function OnboardingModal() {
     router.push("/search?focus=photo");
   };
 
-  const handleBanquetClick = () => {
-    fireGoal("onboarding_banquet_click");
+  const handleShoppingClick = () => {
+    fireGoal("onboarding_shopping_click");
     close();
-    router.push("/party/create");
+    router.push("/shopping");
   };
 
   if (!isOpen) return null;
@@ -146,10 +146,10 @@ export default function OnboardingModal() {
 
         <Button
           variant="secondary"
-          onClick={handleBanquetClick}
+          onClick={handleShoppingClick}
           style={{ marginTop: "var(--space-2)" }}
         >
-          Собрать банкет
+          Список покупок
         </Button>
       </div>
     </div>

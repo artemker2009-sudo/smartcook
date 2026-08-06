@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import HomeContent from "@/components/HomeContent";
 import type { FeedPhoto } from "@/components/HomeFeed";
-import { type Article, ARTICLE_COLUMNS } from "@/lib/articles";
 import { feedWindowStartISO } from "@/lib/feedWindow";
 import { type DemoChip, filterAvailableChips } from "@/lib/demoChips";
 
@@ -16,8 +15,8 @@ export const metadata: Metadata = {
 // гидрации (тот же класс проблемы, что T) и появлялись с задержкой.
 // Интерактив и рецепт дня — в клиентском HomeContent.
 //
-// Кэш-ревалидация: заметки/советы меняются редко (админка) → 5 минут; витрина
-// живее (новые фото за день) → 60 сек. explicit columns (CLAUDE.md): без
+// Кэш-ревалидация: советы меняются редко (админка) → 5 минут; витрина живее
+// (новые фото за день) → 60 сек. explicit columns (CLAUDE.md): без
 // session_id/user_ref/is_visible в пейлоаде.
 
 const SUPABASE_URL =
@@ -52,16 +51,6 @@ async function getFeed(): Promise<FeedPhoto[]> {
   return sbFetch<FeedPhoto>(
     `feed_photos_public?select=id,created_at,user_name,recipe_title,recipe_id,photo_url,likes_count,liked_by_me&created_at=gte.${since}&order=created_at.desc&limit=20`,
     60,
-  );
-}
-
-async function getArticles(): Promise<Article[]> {
-  // articles_public уже отсортирован (свежие сверху) и НЕ отдаёт список
-  // лайкнувших. Тело статьи (body) в карточки не тянем — только read_minutes.
-  // Заметки меняются редко (админка) → кэш 5 минут.
-  return sbFetch<Article>(
-    `articles_public?select=${ARTICLE_COLUMNS}&limit=3`,
-    300,
   );
 }
 
@@ -123,8 +112,8 @@ const JSON_LD = {
 };
 
 export default async function Home() {
-  const [feed, articles, tip, demoChips] = await Promise.all([
-    getFeed(), getArticles(), getTip(), getDemoChips(),
+  const [feed, tip, demoChips] = await Promise.all([
+    getFeed(), getTip(), getDemoChips(),
   ]);
   return (
     <>
@@ -132,7 +121,7 @@ export default async function Home() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
       />
-      <HomeContent feed={feed} articles={articles} tip={tip} demoChips={demoChips} />
+      <HomeContent feed={feed} tip={tip} demoChips={demoChips} />
     </>
   );
 }

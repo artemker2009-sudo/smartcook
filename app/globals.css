@@ -2321,3 +2321,141 @@ a.news-card:hover { transform: translateY(-2px); }
   font-weight: var(--font-weight-semibold);
   cursor: pointer;
 }
+
+/* =========================================================================
+   ГОЛОСОВОЙ ВВОД ПРОДУКТОВ (/shopping) — Web Speech API, без сервера.
+   ========================================================================= */
+
+.voice-mic-btn {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  color: var(--color-accent);
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+}
+.voice-mic-btn:hover { border-color: var(--color-accent); }
+.voice-mic-btn:active { transform: scale(0.96); }
+.voice-mic-btn-active {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: #fff;
+  animation: voicePulse 1.6s ease-in-out infinite;
+}
+@keyframes voicePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.35); }
+  50% { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .voice-mic-btn-active { animation: none; }
+}
+
+.voice-listening {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  margin-bottom: var(--space-3);
+  background: var(--color-danger-subtle);
+  border: 1px solid rgba(220, 38, 38, 0.25);
+  border-radius: var(--radius-md);
+}
+.voice-listening-dot {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--color-danger);
+  animation: voiceDotPulse 1.2s ease-in-out infinite;
+}
+@keyframes voiceDotPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .voice-listening-dot { animation: none; }
+}
+.voice-listening-title { font-size: var(--font-size-body); font-weight: var(--font-weight-semibold); color: var(--color-text); }
+.voice-listening-hint { font-size: var(--font-size-caption); color: var(--color-text-secondary); margin-top: 2px; }
+
+.voice-denied {
+  padding: var(--space-3);
+  margin-bottom: var(--space-3);
+  background: var(--color-warning-subtle);
+  border: 1px solid rgba(217, 119, 6, 0.25);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-size: var(--font-size-body);
+  line-height: 1.4;
+}
+
+.voice-preview {
+  padding: var(--space-3);
+  margin-bottom: var(--space-4);
+  background: var(--color-accent-subtle);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md);
+}
+.voice-preview-title {
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-accent);
+  margin-bottom: var(--space-2);
+}
+.voice-preview-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }
+.voice-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+.voice-chip-x {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-bg-subtle);
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.voice-preview-actions { display: flex; gap: var(--space-2); }
+.voice-btn-cancel {
+  flex: 1;
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+.voice-btn-done {
+  flex: 1;
+  padding: var(--space-3);
+  background: var(--color-accent);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: #fff;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}

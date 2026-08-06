@@ -151,33 +151,6 @@ body {
 }
 .hero-textlink:hover { color: var(--color-accent); }
 .hero-textlink:active { color: var(--color-accent-hover); }
-/* Ряд со второй точкой входа (H10): тихая текстовая ссылка поиска рядом с
-   компактной кнопкой «Список покупок» — обе подчинены главной CTA. */
-.hero-secondary-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-3);
-}
-.hero-shopping-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 36px;
-  padding: 6px var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-full);
-  background: var(--color-surface);
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-medium);
-  cursor: pointer;
-  transition: border-color 0.2s, color 0.2s;
-  -webkit-tap-highlight-color: transparent;
-}
-.hero-shopping-link:hover { border-color: var(--color-accent); color: var(--color-accent); }
-.hero-shopping-link:active { transform: translateY(1px); }
 /* Вторичная плашка «Скачайте в RuStore» (только Android, вне standalone). H7:
    тихая — контурная, приглушённая, не тянет внимание на себя от главной CTA. */
 .rustore-badge {

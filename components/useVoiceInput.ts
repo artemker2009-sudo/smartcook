@@ -54,6 +54,8 @@ export type VoiceInput = {
   supported: boolean;
   status: VoiceStatus;
   chips: string[];
+  /** Текущая нераспознанная до конца фраза — только для показа «слышу…». */
+  interim: string;
   start: () => void;
   stop: () => void;
   removeChip: (index: number) => void;
@@ -68,6 +70,14 @@ export type VoiceInput = {
  * Распознанные продукты копятся ЧИПАМИ (chips), а не летят сразу в список —
  * пользователь может убрать ошибочный до подтверждения. Убранный чип не
  * возвращается, даже если распознавание снова его услышит (removedRef).
+ *
+ * Позиция создаётся ТОЛЬКО из финального результата распознавания, целой фразой.
+ * Промежуточные (interim) результаты нестабильны: «мала» превращается в «молоко»
+ * через полсекунды. Раньше чипы строились из final+interim и только дописывались,
+ * поэтому недораспознанный кусок залипал отдельной позицией — отсюда и было
+ * дробление одной фразы на несколько продуктов. Теперь interim показывается
+ * отдельной строкой «слышу…», а чипы каждый раз пересобираются из финальных
+ * сегментов (finalsRef), то есть самоисправляются.
  */
 export function useVoiceInput(): VoiceInput {
   // Ленивый инициализатор: читает window один раз при первом рендере на клиенте.
@@ -76,9 +86,13 @@ export function useVoiceInput(): VoiceInput {
   const [supported] = useState(() => getRecognitionCtor() !== null);
   const [status, setStatus] = useState<VoiceStatus>("idle");
   const [chips, setChips] = useState<string[]>([]);
+  const [interim, setInterim] = useState("");
 
   const recRef = useRef<SpeechRecognitionInstance | null>(null);
-  const finalRef = useRef<string>(""); // накопленный финальный транскрипт
+  // Финальные и промежуточные куски храним ПО ИНДЕКСУ результата: одно и то же
+  // событие может прийти повторно, присваивание по индексу идемпотентно.
+  const finalsRef = useRef<string[]>([]);
+  const interimRef = useRef<string[]>([]);
   const removedRef = useRef<Set<string>>(new Set()); // убранные пользователем чипы
 
   const stop = useCallback(() => {
@@ -96,9 +110,11 @@ export function useVoiceInput(): VoiceInput {
       // ignore
     }
     recRef.current = null;
-    finalRef.current = "";
+    finalsRef.current = [];
+    interimRef.current = [];
     removedRef.current = new Set();
     setChips([]);
+    setInterim("");
     setStatus("idle");
   }, []);
 
@@ -117,30 +133,39 @@ export function useVoiceInput(): VoiceInput {
     rec.continuous = true;
     rec.interimResults = true;
 
-    finalRef.current = "";
+    finalsRef.current = [];
+    interimRef.current = [];
     removedRef.current = new Set();
 
     rec.onresult = (event) => {
-      let interim = "";
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i];
         const transcript = result[0]?.transcript ?? "";
-        if (result.isFinal) finalRef.current += transcript + " ";
-        else interim += transcript + " ";
+        if (result.isFinal) {
+          finalsRef.current[i] = transcript;
+          interimRef.current[i] = "";
+        } else {
+          interimRef.current[i] = transcript;
+        }
       }
-      const names = parseVoiceTranscript(`${finalRef.current} ${interim}`);
-      setChips((prev) => {
-        const seen = new Set(prev.map((x) => x.toLowerCase()));
-        const next = [...prev];
-        for (const name of names) {
+
+      // Чипы пересобираем целиком из финальных сегментов: каждый сегмент — это
+      // одна фраза между паузами, значит одна позиция (или несколько, если
+      // человек сказал «молоко и хлеб»).
+      const next: string[] = [];
+      const seen = new Set<string>();
+      for (const segment of finalsRef.current) {
+        if (!segment) continue;
+        for (const name of parseVoiceTranscript(segment)) {
           const low = name.toLowerCase();
           if (seen.has(low)) continue;
           if (removedRef.current.has(low)) continue; // не возвращаем убранное
-          next.push(name);
           seen.add(low);
+          next.push(name);
         }
-        return next;
-      });
+      }
+      setChips(next);
+      setInterim(interimRef.current.filter(Boolean).join(" ").replace(/\s+/g, " ").trim());
     };
 
     rec.onerror = (event) => {
@@ -155,7 +180,10 @@ export function useVoiceInput(): VoiceInput {
     };
 
     rec.onend = () => {
-      // Распознавание закончилось (стоп или тишина). Чипы остаются для проверки.
+      // Распознавание закончилось (стоп или тишина). Чипы остаются для проверки,
+      // недоговорённый interim показывать уже незачем.
+      interimRef.current = [];
+      setInterim("");
       setStatus((prev) => (prev === "denied" || prev === "error" ? prev : "idle"));
     };
 
@@ -164,6 +192,7 @@ export function useVoiceInput(): VoiceInput {
       rec.start();
       setStatus("listening");
       setChips([]);
+      setInterim("");
       reachGoal("shopping_voice_start");
     } catch {
       setStatus("error");
@@ -189,5 +218,5 @@ export function useVoiceInput(): VoiceInput {
     };
   }, []);
 
-  return { supported, status, chips, start, stop, removeChip, reset };
+  return { supported, status, chips, interim, start, stop, removeChip, reset };
 }

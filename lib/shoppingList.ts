@@ -6,6 +6,8 @@
 // использует те же лимиты, список отделов и сборку групп, НЕ доверяя клиенту
 // (правило 5 CLAUDE.md — лимиты применяются и на сервере ещё раз).
 
+import { splitPhraseIntoItems } from "./productSplit";
+
 // Защита расходов OpenAI: не больше стольки позиций и стольки символов на
 // позицию уходит в промпт. Совпадает с проверкой в /api/shopping/sort.
 export const MAX_SHOPPING_ITEMS = 60;
@@ -76,12 +78,85 @@ export function sameName(a: string, b: string): boolean {
   return a.trim().toLowerCase() === b.trim().toLowerCase();
 }
 
-/** Запятая = несколько продуктов сразу (как в редакторе продуктов после фото). */
-export function parseNames(raw: string): string[] {
+// --- Разбор вставленного списка ---
+
+// Единицы измерения: нужны, чтобы (а) починить слипшееся «2л» → «2 л»,
+// (б) понять, что обломок «2 л» — это хвост предыдущей позиции, а не продукт.
+const UNITS = new Set([
+  "кг", "г", "гр", "л", "мл", "шт", "уп", "упак", "упаковка", "упаковки",
+  "пач", "пачка", "пачки", "бан", "банка", "банки", "бут", "бутылка", "бутылки",
+  "штук", "штуки", "штука", "пучок", "пучка", "литр", "литра", "литров",
+  "килограмм", "кило", "грамм", "граммов",
+]);
+
+// «2 л», «10 шт», «1.5» — позиция без названия. Такое склеиваем с предыдущей.
+const QUANTITY_ONLY_RE = /^(\d+(?:[.,]\d+)?)\s*([а-яё]{1,10}\.?)?$/i;
+
+function isQuantityOnly(line: string): boolean {
+  const m = QUANTITY_ONLY_RE.exec(line);
+  if (!m) return false;
+  const unit = (m[2] || "").replace(/\.$/, "").toLowerCase();
+  return unit === "" || UNITS.has(unit);
+}
+
+// Строка-заголовок отдела из нашего же «Скопировать список» («Молочное:») — при
+// вставке обратно она не должна стать продуктом. Двоеточие обязательно: «Хлеб»
+// без него — это нормальный продукт, а не заголовок.
+function isDepartmentHeading(line: string): boolean {
+  if (!line.endsWith(":")) return false;
+  const bare = line.slice(0, -1).trim().toLowerCase();
+  return (SHOPPING_DEPARTMENTS as readonly string[]).some((d) => d.toLowerCase() === bare);
+}
+
+/**
+ * Приводит одну вставленную строку к виду «продукт количество единица»:
+ * снимает маркеры списка («—», «•», «1.»), разлепляет число с названием и с
+ * единицей («яйца10шт» → «яйца 10 шт»). Порядок слов НЕ меняем — «2 л молока»
+ * так и останется, это читается нормально и ничего не теряет.
+ */
+function normalizeShoppingLine(raw: string): string {
   return raw
-    .split(",")
-    .map((part) => sanitizeShoppingName(part))
-    .filter(Boolean);
+    .replace(/[\x00-\x1F\x7F]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^[-–—•*·▪]+\s*/, "") // маркер списка
+    .replace(/^\d+[.)]\s+/, "") // нумерация «1. », «2) »
+    .replace(/^\[[ xх]\]\s*/i, "") // чекбоксы из заметок
+    .replace(/([а-яё])(\d)/gi, "$1 $2") // «молоко2» → «молоко 2»
+    .replace(/(\d)\s*(кг|гр|мл|шт|уп|г|л)(?![а-яё])/gi, "$1 $2") // «2л» → «2 л»
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Разбирает ввод в список названий. Разделители — запятая, точка с запятой и
+ * перевод строки, поэтому вставленный из заметок/мессенджера столбик становится
+ * отдельными позициями (раньше переводы строк схлопывались в пробел и весь
+ * список превращался в одну позицию). Внутри строки границы позиций ищет
+ * словарь продуктов (splitPhraseIntoItems) — наша аудитория пишет «молоко яйца
+ * хлеб» без запятых. Количество и единица остаются частью названия — формат
+ * хранения не меняется, и умная сортировка получает те же строки.
+ */
+export function parseNames(raw: string): string[] {
+  if (typeof raw !== "string") return [];
+
+  const lines: string[] = [];
+  for (const part of raw.split(/[\n\r;,]+/)) {
+    const line = normalizeShoppingLine(part);
+    if (!line) continue;
+    if (isDepartmentHeading(line)) continue;
+
+    for (const item of splitPhraseIntoItems(line)) {
+      if (lines.length > 0 && isQuantityOnly(item)) {
+        // «молоко, 2 л» — хвост от предыдущей позиции, а не отдельный продукт.
+        lines[lines.length - 1] = `${lines[lines.length - 1]} ${item}`;
+        continue;
+      }
+      lines.push(item);
+    }
+  }
+
+  return lines.map((line) => sanitizeShoppingName(line)).filter(Boolean);
 }
 
 function newId(): string {

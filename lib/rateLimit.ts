@@ -360,6 +360,66 @@ export async function checkAndConsumeShoppingSortRateLimit(
   return { ok: true };
 }
 
+// Лимитер распознавания списка по фото (/api/shopping/recognize). Отдельный
+// префикс "shopping-photo:..." и СВОЙ, более жёсткий бюджет: vision-запрос с
+// картинкой дороже текстовой сортировки, и делить с ней счётчик нельзя —
+// иначе одно фото съедало бы лимит сортировок и наоборот.
+const SHOPPING_PHOTO_PER_HOUR = 10;
+const SHOPPING_PHOTO_PER_DAY = 30;
+
+export async function checkAndConsumeShoppingPhotoRateLimit(
+  req: Request,
+  userId: string | null,
+): Promise<RateLimitResult> {
+  const ip = getClientIp(req);
+  const route = "shopping-photo";
+  const limits = { perHour: SHOPPING_PHOTO_PER_HOUR, perDay: SHOPPING_PHOTO_PER_DAY };
+
+  const ipResult = await checkIdentifier(`shopping-photo:ip:${ip}`, "ip", limits);
+  if (!ipResult.ok) {
+    logRateLimitHit({ route, ip, userId, scope: ipResult.scope, window: ipResult.window });
+    return ipResult;
+  }
+
+  if (userId) {
+    const userResult = await checkIdentifier(`shopping-photo:user:${userId}`, "user", limits);
+    if (!userResult.ok) {
+      logRateLimitHit({ route, ip, userId, scope: userResult.scope, window: userResult.window });
+      return userResult;
+    }
+  }
+
+  const rows = [{ identifier: `shopping-photo:ip:${ip}`, route }];
+  if (userId) rows.push({ identifier: `shopping-photo:user:${userId}`, route });
+
+  const { error } = await supabaseAdmin.from("ai_rate_limit_events").insert(rows);
+  if (error) console.error("[rateLimit] failed to record shopping photo event", error.message);
+
+  return { ok: true };
+}
+
+// Ответ на превышение лимита распознавания фото: своя формулировка, чтобы
+// человек понял, какой именно лимит кончился.
+export function shoppingPhotoRateLimitResponse(result: Extract<RateLimitResult, { ok: false }>) {
+  if (result.window === "error") {
+    return NextResponse.json(
+      { error: "Сервис временно недоступен. Попробуйте через минуту.", code: "RATE_LIMIT_UNAVAILABLE" },
+      { status: 503 },
+    );
+  }
+  return NextResponse.json(
+    {
+      error:
+        result.window === "hour"
+          ? "Слишком часто. Попробуйте распознать фото через час."
+          : "На сегодня хватит распознаваний. Возвращайтесь завтра!",
+      code: RATE_LIMIT_ERROR_CODE,
+      window: result.window,
+    },
+    { status: 429 },
+  );
+}
+
 // Ответ на превышение лимита сортировки списка покупок: без слова «генерации».
 export function shoppingRateLimitResponse(result: Extract<RateLimitResult, { ok: false }>) {
   if (result.window === "error") {

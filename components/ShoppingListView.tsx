@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, Check, Copy, Loader2, Mic, Plus, Share2, ShoppingCart, Sparkles, Square, Trash2, X } from "lucide-react";
+import { ArrowLeft, Camera, Check, Copy, Image as ImageIcon, Loader2, Mic, Plus, Share2, ShoppingCart, Sparkles, Square, Trash2, X } from "lucide-react";
 
 import { KUPER_CPA_URL, KUPER_AD_LABEL } from "@/lib/constants";
 import { reachGoal } from "@/lib/metrika";
 import { copyText } from "@/lib/clipboard";
+import { fetchWithTimeout, preparePhoto, reportPhotoError } from "@/lib/photo";
 import {
   MAX_SHOPPING_ITEMS,
   type ShoppingGroup,
@@ -96,11 +97,103 @@ export default function ShoppingListView({ list, onItemsChange, onSortChange, on
   // API не поддерживается — voice.supported=false, кнопку микрофона не рисуем.
   const voice = useVoiceInput();
 
-  const handleVoiceConfirm = () => {
-    const result = addNames(items, voice.chips); // та же санитизация/лимиты, что и у текстового ввода
+  // --- Распознавание списка по фото ------------------------------------------
+  // Фото уходит на НАШ роут /api/shopping/recognize — ключ OpenAI живёт только
+  // на сервере. Результат НЕ попадает в список сразу: рукописное читается с
+  // ошибками, поэтому позиции ждут подтверждения в том же блоке чипов, что и
+  // голосовые.
+  const [photoSheet, setPhotoSheet] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoNames, setPhotoNames] = useState<string[] | null>(null);
+
+  // Чипы на подтверждение приходят либо из голоса, либо из фото — одновременно
+  // не бывает: старт одного источника гасит другой.
+  const pendingSource: "photo" | "voice" | null = photoNames ? "photo" : voice.chips.length > 0 ? "voice" : null;
+  const pendingNames = photoNames ?? voice.chips;
+
+  const startVoice = () => {
+    setPhotoNames(null);
+    voice.start();
+  };
+
+  const openPhotoSheet = () => {
+    reachGoal("shopping_photo_click");
+    setPhotoSheet(true);
+  };
+
+  const handlePhotoFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const raw = files[0];
+    e.target.value = ""; // иначе повторный выбор ТОГО ЖЕ файла не даст события
+    setPhotoSheet(false);
+    voice.reset();
+    setPhotoNames(null);
+    setPhotoBusy(true);
+    let httpStatus = 0;
+    try {
+      // Общий клиентский пайплайн фото: HEIC → JPEG (декод на сервере), ресайз,
+      // очистка EXIF. Свой путь тут заводить нельзя — сломается HEIC на Android.
+      const prepared = await preparePhoto(
+        raw,
+        { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true },
+        "shopping-list.jpg",
+      );
+      const form = new FormData();
+      form.append("image", prepared);
+      // 30-секундный потолок: на плохой сети запрос иначе висит молча.
+      const res = await fetchWithTimeout(
+        "/api/shopping/recognize",
+        { method: "POST", body: form },
+        "shopping-recognize-timeout",
+      );
+      httpStatus = res.status;
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error || "Не удалось распознать фото");
+
+      const names: string[] = Array.isArray(json?.items) ? json.items : [];
+      if (json?.noList || names.length === 0) {
+        // Честный отказ вместо пустых чипов.
+        reachGoal("shopping_photo_no_list");
+        toast("Не нашёл список на фото");
+        return;
+      }
+      setPhotoNames(names);
+      reachGoal("shopping_photo_recognized", { count: names.length });
+    } catch (err) {
+      void reportPhotoError("shopping-recognize", raw, err, {
+        marker: "photo_client_error",
+        httpStatus: httpStatus || undefined,
+      });
+      toast.error(err instanceof Error ? err.message : "Не удалось распознать фото");
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
+  const removePending = (index: number) => {
+    if (pendingSource === "photo") {
+      setPhotoNames((prev) => {
+        if (!prev) return prev;
+        const next = prev.filter((_, i) => i !== index);
+        return next.length > 0 ? next : null; // убрали всё — блок закрывается
+      });
+      return;
+    }
+    voice.removeChip(index);
+  };
+
+  const cancelPending = () => {
+    setPhotoNames(null);
+    voice.reset();
+  };
+
+  const confirmPending = () => {
+    const fromPhoto = pendingSource === "photo";
+    const result = addNames(items, pendingNames); // та же санитизация/лимиты, что и у текстового ввода
     if (result.added > 0) {
       onItemsChange(result.items);
-      reachGoal("shopping_voice_added", { count: result.added });
+      reachGoal(fromPhoto ? "shopping_photo_added" : "shopping_voice_added", { count: result.added });
       toast.success(`Добавлено: ${pluralizeProduct(result.added)}`);
     } else if (result.duplicate > 0) {
       toast("Всё это уже в списке");
@@ -108,11 +201,7 @@ export default function ShoppingListView({ list, onItemsChange, onSortChange, on
     if (result.limited) {
       toast.error(`Список полон: не больше ${MAX_SHOPPING_ITEMS} позиций`);
     }
-    voice.reset();
-  };
-
-  const handleVoiceCancel = () => {
-    voice.reset();
+    cancelPending();
   };
 
   const toggle = (id: string) => {
@@ -372,7 +461,7 @@ export default function ShoppingListView({ list, onItemsChange, onSortChange, on
           {voice.supported && (
             <button
               type="button"
-              onClick={voice.start}
+              onClick={startVoice}
               aria-label={voice.status === "listening" ? "Остановить запись" : "Сказать, что купить"}
               className={voice.status === "listening" ? "voice-mic-btn voice-mic-btn-active" : "voice-mic-btn"}
               style={{ marginTop: 2 }}
@@ -380,6 +469,18 @@ export default function ShoppingListView({ list, onItemsChange, onSortChange, on
               {voice.status === "listening" ? <Square size={22} fill="currentColor" /> : <Mic size={26} />}
             </button>
           )}
+
+          {/* Распознать список по фото. Рядом с микрофоном, тот же размер. */}
+          <button
+            type="button"
+            onClick={openPhotoSheet}
+            disabled={photoBusy}
+            aria-label="Распознать список по фото"
+            className="voice-mic-btn"
+            style={{ marginTop: 2, opacity: photoBusy ? 0.6 : 1 }}
+          >
+            {photoBusy ? <Loader2 size={24} className="animate-spin" /> : <Camera size={26} />}
+          </button>
         </div>
 
         <button
@@ -419,9 +520,21 @@ export default function ShoppingListView({ list, onItemsChange, onSortChange, on
           }}
         >
           Можно вписать или вставить сразу весь список — через пробел, запятую
-          или с новой строки.
+          или с новой строки. Или сфотографировать написанный от руки.
         </p>
       </div>
+
+      {/* Пока читаем фото. Отдельный блок, а не тост: распознавание занимает
+          несколько секунд, и человек должен видеть, что процесс идёт. */}
+      {photoBusy && (
+        <div className="sl-photo-status" role="status">
+          <Loader2 size={22} className="animate-spin" style={{ flexShrink: 0, color: "var(--color-accent)" }} />
+          <div style={{ minWidth: 0 }}>
+            <div className="sl-photo-status-title">Читаю список с фото…</div>
+            <div className="sl-photo-status-hint">Это займёт пару секунд</div>
+          </div>
+        </div>
+      )}
 
       {/* Индикатор «Слушаю…». Ниже — то, что распознаётся прямо сейчас: в позицию
           оно попадёт только когда фраза договорена (финальный результат). */}
@@ -444,19 +557,21 @@ export default function ShoppingListView({ list, onItemsChange, onSortChange, on
         </div>
       )}
 
-      {/* Превью распознанных продуктов: чипами, ничего не улетает в список, пока
-          не нажато «Готово». Показывается и во время записи, и после остановки —
-          пока пользователь не подтвердит или не отменит. */}
-      {(voice.status === "listening" || voice.chips.length > 0) && voice.chips.length > 0 && (
+      {/* Превью распознанного: чипами, ничего не улетает в список, пока не нажато
+          «Готово». Один и тот же блок для голоса и для фото — и то и другое
+          читается с ошибками, поэтому подтверждение обязательно. */}
+      {pendingNames.length > 0 && (
         <div className="voice-preview">
-          <div className="voice-preview-title">Добавить:</div>
+          <div className="voice-preview-title">
+            {pendingSource === "photo" ? "Добавить с фото:" : "Добавить:"}
+          </div>
           <div className="voice-preview-chips">
-            {voice.chips.map((name, i) => (
+            {pendingNames.map((name, i) => (
               <span key={`${name}-${i}`} className="voice-chip">
                 {name}
                 <button
                   type="button"
-                  onClick={() => voice.removeChip(i)}
+                  onClick={() => removePending(i)}
                   aria-label={`Убрать «${name}»`}
                   className="voice-chip-x"
                 >
@@ -465,12 +580,50 @@ export default function ShoppingListView({ list, onItemsChange, onSortChange, on
               </span>
             ))}
           </div>
+          {pendingSource === "photo" && (
+            <div className="voice-preview-hint">
+              Проверьте: с фото я мог прочитать что-то неверно. Лишнее уберите крестиком.
+            </div>
+          )}
           <div className="voice-preview-actions">
-            <button type="button" className="voice-btn-cancel" onClick={handleVoiceCancel}>
+            <button type="button" className="voice-btn-cancel" onClick={cancelPending}>
               Отмена
             </button>
-            <button type="button" className="voice-btn-done" onClick={handleVoiceConfirm}>
+            <button type="button" className="voice-btn-done" onClick={confirmPending}>
               Готово
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Выбор источника фото. Две явные кнопки, как в поиске по фото: одно
+          общее меню на Android открывало только галерею, камера была недоступна.
+          capture="environment" — задняя камера; на десктопе игнорируется. */}
+      {photoSheet && (
+        <div className="sl-overlay" onClick={() => setPhotoSheet(false)}>
+          <div className="sl-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="sl-sheet-title">Список по фото</div>
+            <label className="sl-sheet-btn">
+              <Camera size={20} /> Снять фото
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="upload-action-input"
+                onChange={handlePhotoFile}
+              />
+            </label>
+            <label className="sl-sheet-btn">
+              <ImageIcon size={20} /> Из галереи
+              <input
+                type="file"
+                accept="image/png, image/jpeg, image/jpg, .heic, .HEIC"
+                className="upload-action-input"
+                onChange={handlePhotoFile}
+              />
+            </label>
+            <button type="button" className="sl-sheet-cancel" onClick={() => setPhotoSheet(false)}>
+              Отмена
             </button>
           </div>
         </div>

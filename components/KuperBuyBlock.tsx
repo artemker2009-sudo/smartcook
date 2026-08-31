@@ -40,6 +40,15 @@ export default function KuperBuyBlock({ ingredients }: { ingredients: string[] }
     toast(`«${name}» скопирован — вставьте в поиск Купера`);
   };
 
+  // Кнопка «весь список сразу». Тап по чипу кладёт в буфер ОДНО название, а эта
+  // кнопка обещает весь набор — значит и копировать должна весь: раньше она
+  // просто открывала витрину Купера, и человек приходил туда без ингредиентов.
+  const handleAll = () => {
+    reachGoal("ingredient_buy_click");
+    void copyText(names.join("\n"));
+    toast("Список скопирован — вставьте в поиск Купера");
+  };
+
   // «В список покупок»: добавляет все ингредиенты рецепта в список покупок по
   // умолчанию (первый из мультисписков; если списков нет — создаётся «Мои
   // покупки»). Дедуп по названию. Список читает раздел /shopping.
@@ -155,7 +164,7 @@ export default function KuperBuyBlock({ ingredients }: { ingredients: string[] }
         href={KUPER_CPA_URL}
         target="_blank"
         rel="noopener noreferrer sponsored"
-        onClick={() => reachGoal("ingredient_buy_click")}
+        onClick={handleAll}
         style={{
           display: "flex",
           alignItems: "center",

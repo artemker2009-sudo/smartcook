@@ -16,6 +16,7 @@ import {
   groupsToText,
   itemsToText,
   listSignature,
+  namesToBuyText,
 } from "@/lib/shoppingList";
 import { splitListTitle, type ShoppingListRecord } from "@/lib/shoppingLists";
 import ShoppingItemInput from "@/components/ShoppingItemInput";
@@ -127,6 +128,23 @@ export default function ShoppingListView({
     const text = isSorted && sortedGroups ? groupsToText(sortedGroups) : itemsToText(items);
     const ok = await copyText(text);
     toast(ok ? "Список скопирован" : "Не удалось скопировать");
+  };
+
+  // «Заказать всё в Купере». Купер не умеет принимать список позиций по ссылке,
+  // поэтому кнопка раньше просто открывала его главную — человек приходил туда
+  // с пустой корзиной и пустым буфером, а список оставался в другом приложении.
+  // Теперь перед переходом кладём в буфер то, что осталось купить, и говорим об
+  // этом вслух — ровно тот же приём уже работает на экране рецепта.
+  //
+  // Переход выполняет НАТИВНЫЙ клик по ссылке (target=_blank): событие не
+  // отменяем и ничего не ждём, иначе мобильные блокировщики попапов не откроют
+  // новую вкладку. copyText — fire-and-forget внутри жеста.
+  const handleKuper = () => {
+    reachGoal("shopping_kuper_click");
+    const text = namesToBuyText(items);
+    if (!text) return;
+    void copyText(text);
+    toast("Список скопирован — вставьте в поиск Купера");
   };
 
   const renderRow = (it: ShoppingItem) => (
@@ -509,7 +527,7 @@ export default function ShoppingListView({
               href={KUPER_CPA_URL}
               target="_blank"
               rel="noopener noreferrer sponsored"
-              onClick={() => reachGoal("shopping_kuper_click")}
+              onClick={handleKuper}
               style={{
                 display: "flex",
                 alignItems: "center",

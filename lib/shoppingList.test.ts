@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { addNames, parseNames, MAX_SHOPPING_ITEMS,
   signatureFromNames,
   listSignature,
+  namesToBuyText,
 } from "./shoppingList";
 
 describe("parseNames", () => {
@@ -119,5 +120,27 @@ describe("signatureFromNames — подпись набора позиций", ()
     const names = ["Молоко 2 л", "хлеб"];
     const fromItems = listSignature(names.map((n) => ({ id: n, name: n, checked: false })));
     expect(signatureFromNames(names)).toBe(fromItems);
+  });
+});
+
+describe("namesToBuyText", () => {
+  const item = (name: string, checked = false) => ({ name, checked });
+
+  it("отдаёт голые названия по строкам — это вставляют в чужой поиск", () => {
+    // Без «•» и без заголовков отделов: буллет в поиске Купера ничего не найдёт.
+    expect(namesToBuyText([item("молоко"), item("хлеб")])).toBe("молоко\nхлеб");
+  });
+
+  it("купленное не попадает в заказ", () => {
+    expect(namesToBuyText([item("молоко", true), item("хлеб"), item("яйца")])).toBe("хлеб\nяйца");
+  });
+
+  it("куплено всё — отдаём список целиком, а не пустой буфер", () => {
+    // Пустой буфер выглядит как поломка: человек нажал «Заказать всё» и вставлять нечего.
+    expect(namesToBuyText([item("молоко", true), item("хлеб", true)])).toBe("молоко\nхлеб");
+  });
+
+  it("пустой список — пустая строка (кнопка не копирует и не врёт тостом)", () => {
+    expect(namesToBuyText([])).toBe("");
   });
 });

@@ -326,3 +326,25 @@ export function groupsToText(groups: ShoppingGroup[]): string {
 export function itemsToText(items: ShoppingItem[]): string {
   return items.map((it) => `• ${it.name}`).join("\n");
 }
+
+// --- Текст для вставки в поиск магазина (кнопка «Заказать всё в Купере») ---
+
+/**
+ * Голые названия того, что ещё НЕ куплено, по одному в строке.
+ *
+ * Отличается от itemsToText намеренно: там формат «для глаз» (буллеты, отделы),
+ * а это вставляется в чужой поиск — буллет «•» и заголовок отдела там только
+ * мешают. Купер не принимает список позиций по ссылке, поэтому единственный
+ * способ не потерять список при переходе — положить его в буфер обмена.
+ *
+ * Купленные позиции отбрасываем: заказывать нужно остаток. Если куплено уже
+ * всё — отдаём список целиком, пустой буфер бесполезен и выглядит как поломка.
+ */
+export function namesToBuyText(items: Pick<ShoppingItem, "name" | "checked">[]): string {
+  const pending = items.filter((it) => !it.checked);
+  const source = pending.length > 0 ? pending : items;
+  return source
+    .map((it) => it.name.trim())
+    .filter(Boolean)
+    .join("\n");
+}

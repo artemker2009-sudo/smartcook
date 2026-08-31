@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { X, Camera, ShoppingCart, Zap } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { isInviteFlow } from "@/lib/sharedShoppingList";
 import { YANDEX_METRIKA_ID } from "@/components/YandexMetrika";
 import Button from "@/components/ui/Button";
 
@@ -25,17 +26,24 @@ function fireGoal(goal: string) {
   }
 }
 
-// Страницы, где знакомство с приложением неуместно: человек пришёл по личной
-// ссылке с конкретным делом, и реклама «Привет! SmartCook — твой ИИ-шеф»
-// встаёт между ним и этим делом.
+// Человек пришёл по личной ссылке с конкретным делом, и реклама «Привет!
+// SmartCook — твой ИИ-шеф» встаёт между ним и этим делом.
+//
+// Проверок ДВЕ, и вторая появилась после приёмки на живых устройствах:
+//
+//  1. сам маршрут приглашения — /shopping/join/<id>;
+//  2. пометка «этот сеанс начался с приглашения» (sessionStorage).
+//
+// Одного маршрута оказалось мало: с экрана приглашения человек уходит через
+// несколько секунд — на /shopping или по таб-бару, — и плашка встречала его
+// уже там. Формально «не на приглашении», по ощущению — ровно посреди него.
 //
 // Проверяем на КЛИЕНТЕ через usePathname, а не серверным гейтом в root-layout
 // по x-pathname (как сделано для isAdminRoute): тот считается один раз при
 // серверном рендере и не пересчитывается при клиентской навигации — ровно та
 // болячка, из-за которой таб-бар когда-то залипал поверх комнаты банкета.
-function isQuietRoute(pathname: string): boolean {
-  // Приглашение в общий список покупок.
-  return pathname.startsWith("/shopping/join/");
+function isQuietMoment(pathname: string): boolean {
+  return pathname.startsWith("/shopping/join/") || isInviteFlow();
 }
 
 export default function OnboardingModal() {
@@ -48,7 +56,7 @@ export default function OnboardingModal() {
     // Важно: выходим ДО записи STORAGE_KEY. Иначе приглашение «сожгло» бы
     // единственный показ знакомства, и человек не увидел бы его никогда —
     // а он про приложение ещё ничего не знает.
-    if (isQuietRoute(pathname)) return;
+    if (isQuietMoment(pathname)) return;
     if (localStorage.getItem(STORAGE_KEY)) return;
     if (BOT_UA_REGEX.test(navigator.userAgent) || navigator.webdriver) return;
 

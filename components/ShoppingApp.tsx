@@ -24,6 +24,7 @@ import {
 } from "@/lib/shoppingLists";
 import { buildShareUrl, canShareByLink, decodeSharedList, SHARE_PARAM } from "@/lib/shoppingShare";
 import {
+  convertedLocalListIds,
   createSharedList,
   fetchSharedList,
   forgetSharedList,
@@ -69,6 +70,9 @@ export default function ShoppingApp() {
   const [makeSharedName, setMakeSharedName] = useState("");
   const [makeSharedBusy, setMakeSharedBusy] = useState(false);
   const [forgetShared, setForgetShared] = useState<SharedListPointer | null>(null);
+  // Окно «позовите близких» сразу после создания общего списка. Без него
+  // владелец остаётся с общим списком, о котором никто не знает.
+  const [inviteFor, setInviteFor] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     // Инициализация вынесена в функцию: localStorage/URL читаются только на
@@ -127,6 +131,13 @@ export default function ShoppingApp() {
   }, []);
 
   const openList = openId ? lists.find((l) => l.id === openId) || null : null;
+
+  // Локальные списки, которые уже стали общими, в хабе не показываем: иначе
+  // рядом стоят две карточки с одним именем, и не угадать, какая «настоящая».
+  // Сами данные в localStorage целы — убрав общий с устройства, оригинал
+  // получите обратно.
+  const convertedIds = convertedLocalListIds(sharedPointers);
+  const visibleLists = lists.filter((l) => !convertedIds.has(l.id));
 
   // --- CRUD ---
 
@@ -229,8 +240,16 @@ export default function ShoppingApp() {
   };
 
   // «Сделать общим» копирует ТЕКУЩИЕ позиции на сервер как стартовый набор.
-  // Локальный список при этом остаётся у человека нетронутым — дальше это две
-  // независимые сущности.
+  //
+  // Локальный оригинал остаётся в localStorage нетронутым, но в хабе больше НЕ
+  // показывается: связь запоминается в fromLocalId. Иначе получались две
+  // карточки с одинаковым именем — и владелец продукта на приёмке сам открыл не
+  // ту, увидел её пустой и решил, что синхронизация сломана. Уберёте общий с
+  // устройства — оригинал вернётся на место.
+  //
+  // Дальше владелец работает именно с общим списком: он открывается сразу, а
+  // поверх — окно с приглашением, потому что без разосланной ссылки общий
+  // список ничем не отличается от обычного.
   const confirmMakeShared = async () => {
     if (!makeSharedTarget) return;
     const ownerName = makeSharedName.trim();
@@ -255,12 +274,14 @@ export default function ShoppingApp() {
           memberRef: ownerRef,
           role: "owner",
           joinedAt: Date.now(),
+          fromLocalId: makeSharedTarget.id,
         }),
       );
       reachGoal("shopping_shared_created");
       setMakeSharedTarget(null);
+      setOpenId(null); // локальный оригинал больше не открыт — уходим на общий
       setOpenShared({ snapshot: snap, memberRef: ownerRef });
-      toast.success("Список стал общим — позовите близких по ссылке");
+      setInviteFor({ id: snap.id, name: snap.name });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Не удалось создать общий список");
     } finally {
@@ -274,6 +295,122 @@ export default function ShoppingApp() {
     setForgetShared(null);
     toast("Список убран с этого устройства");
   };
+
+  // Отправить ссылку-приглашение. Системное окно «Поделиться» на телефоне,
+  // копирование в буфер — на десктопе и если человек его отменил.
+  const shareInvite = async (listId: string, listName: string) => {
+    const url = `${window.location.origin}/shopping/join/${listId}`;
+    reachGoal("shopping_shared_invite_click");
+    const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
+    if (nav.share) {
+      try {
+        await nav.share({ title: listName, text: `Общий список покупок: ${listName}`, url });
+        setInviteFor(null);
+        return;
+      } catch {
+        // Отменили системное окно — падаем в копирование.
+      }
+    }
+    const ok = await copyText(url);
+    toast(ok ? "Ссылка скопирована — отправьте близким" : "Не удалось скопировать ссылку");
+    if (ok) setInviteFor(null);
+  };
+
+  // Окна «сделать общим» и «позовите близких» объявлены ДО ранних return и
+  // подставляются на КАЖДОМ экране. Иначе получается тихая поломка: кнопка на
+  // экране списка ставит makeSharedTarget, а разметка окна живёт только в
+  // ветке хаба — нажатие визуально не делает ничего. Ровно так и было, пока не
+  // прошли путь владельца целиком.
+  // Сделать список общим: спрашиваем только имя — регистрации нет.
+  const makeSharedModal = makeSharedTarget ? (
+        <div className="sl-overlay sl-overlay-center" onClick={() => !makeSharedBusy && setMakeSharedTarget(null)}>
+          <div className="sl-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="sl-modal-head">
+              <h2 className="sl-modal-title">Сделать общим</h2>
+              <button
+                type="button"
+                className="sl-modal-x"
+                onClick={() => setMakeSharedTarget(null)}
+                aria-label="Закрыть"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <p style={{ margin: "0 0 var(--space-3) 0", color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
+              «{makeSharedTarget.name}» станет общим: вы получите ссылку, и всё, что кто-то отметит,
+              сразу увидят остальные. Этот список останется у вас и таким, как есть.
+            </p>
+            <label
+              htmlFor="make-shared-name"
+              style={{
+                display: "block",
+                marginBottom: "var(--space-2)",
+                fontSize: "var(--font-size-body)",
+                fontWeight: "var(--font-weight-medium)",
+                color: "var(--color-text)",
+              }}
+            >
+              Ваше имя
+            </label>
+            <input
+              id="make-shared-name"
+              autoFocus
+              value={makeSharedName}
+              onChange={(e) => setMakeSharedName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void confirmMakeShared();
+              }}
+              placeholder="Например, Мама"
+              maxLength={50}
+              className="sl-modal-input"
+            />
+            <button
+              type="button"
+              className="sl-modal-primary"
+              onClick={() => void confirmMakeShared()}
+              disabled={makeSharedBusy || !makeSharedName.trim()}
+              style={{ opacity: makeSharedBusy || !makeSharedName.trim() ? 0.5 : 1 }}
+            >
+              {makeSharedBusy ? "Создаю…" : "Сделать общим"}
+            </button>
+          </div>
+        </div>
+  ) : null;
+
+  // Сразу после создания: без разосланной ссылки общий список ничем не
+  // отличается от обычного, и владелец остаётся с ощущением «ничего не
+  // произошло». Поэтому не тост, а окно с одной большой кнопкой.
+  const inviteModal = inviteFor ? (
+        <div className="sl-overlay sl-overlay-center" onClick={() => setInviteFor(null)}>
+          <div className="sl-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="sl-modal-head">
+              <h2 className="sl-modal-title">Список стал общим</h2>
+              <button type="button" className="sl-modal-x" onClick={() => setInviteFor(null)} aria-label="Закрыть">
+                <X size={20} />
+              </button>
+            </div>
+            <p style={{ margin: "0 0 var(--space-4) 0", color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
+              Остался один шаг: отправьте ссылку близким. У них список появится
+              только после того, как они её откроют.
+            </p>
+            <button
+              type="button"
+              className="sl-modal-primary"
+              onClick={() => void shareInvite(inviteFor.id, inviteFor.name)}
+            >
+              Отправить ссылку
+            </button>
+            <button
+              type="button"
+              className="sl-modal-secondary"
+              style={{ width: "100%", marginTop: "var(--space-2)" }}
+              onClick={() => setInviteFor(null)}
+            >
+              Позже
+            </button>
+          </div>
+        </div>
+  ) : null;
 
   if (!loaded) {
     return <main className="container" style={{ minHeight: "60vh" }} />;
@@ -292,6 +429,8 @@ export default function ShoppingApp() {
             setSharedPointers(loadSharedPointers());
           }}
         />
+        {makeSharedModal}
+        {inviteModal}
       </main>
     );
   }
@@ -307,7 +446,10 @@ export default function ShoppingApp() {
           onSortChange={(sort) => handleSortChange(openList.id, sort)}
           onBack={() => setOpenId(null)}
           onShare={() => handleShare(openList)}
+          onMakeShared={() => openMakeShared(openList)}
         />
+        {makeSharedModal}
+        {inviteModal}
       </main>
     );
   }
@@ -362,7 +504,100 @@ export default function ShoppingApp() {
         <Plus size={22} strokeWidth={2.6} /> Новый список
       </button>
 
-      {lists.length === 0 ? (
+      {/* Семейные списки идут ПЕРВЫМИ, до обычных.
+          На приёмке владелец продукта не понял, где его общий список: секция
+          стояла ниже локальных карточек, а на телефоне это уже за краем
+          экрана. Общий список — то, ради чего человек сюда вернулся, поэтому
+          он и должен встречать первым. Локальные никуда не деваются, просто
+          ниже. */}
+      {sharedPointers.length > 0 && (
+        <section style={{ marginBottom: "var(--space-5)" }}>
+          <h2
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "var(--space-2)",
+              margin: "0 0 var(--space-2) 0",
+              fontSize: "var(--font-size-heading)",
+              fontWeight: "var(--font-weight-semibold)",
+              color: "var(--color-text)",
+            }}
+          >
+            <Users size={22} color="var(--color-accent)" /> Общие списки
+          </h2>
+          <p
+            style={{
+              margin: "0 0 var(--space-3) 0",
+              fontSize: "var(--font-size-caption)",
+              lineHeight: 1.4,
+              color: "var(--color-text-secondary)",
+            }}
+          >
+            Их видят все, кого вы позвали. Изменения появляются сразу у всех.
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+            {sharedPointers.map((pointer) => (
+              <div key={pointer.id} className="sl-card">
+                <button
+                  type="button"
+                  className="sl-card-main"
+                  onClick={() => void openSharedList(pointer)}
+                  disabled={sharedLoading === pointer.id}
+                >
+                  <span className="sl-card-icon" aria-hidden>
+                    {sharedLoading === pointer.id ? (
+                      <Loader2 size={22} className="animate-spin" />
+                    ) : (
+                      <Users size={22} />
+                    )}
+                  </span>
+                  <span className="sl-card-text">
+                    <span className="sl-card-title">{pointer.name}</span>
+                    <span className="sl-card-meta">
+                      {sharedLoading === pointer.id
+                        ? "открываю…"
+                        : pointer.role === "owner"
+                          ? "общий · вы создали"
+                          : "общий · вы участник"}
+                    </span>
+                  </span>
+                  <ChevronRight size={20} className="sl-card-arrow" aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  className="sl-card-menu"
+                  onClick={() => setForgetShared(pointer)}
+                  aria-label={`Убрать «${pointer.name}» с этого устройства`}
+                >
+                  <MoreHorizontal size={20} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Заголовок личной секции появляется только когда есть общие списки —
+          иначе на экране одна-единственная группа и подписывать её незачем. */}
+      {sharedPointers.length > 0 && visibleLists.length > 0 && (
+        <h2
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--space-2)",
+            margin: "0 0 var(--space-3) 0",
+            fontSize: "var(--font-size-heading)",
+            fontWeight: "var(--font-weight-semibold)",
+            color: "var(--color-text)",
+          }}
+        >
+          <ShoppingCart size={22} color="var(--color-accent)" /> Мои списки
+        </h2>
+      )}
+
+      {/* Большую заглушку показываем, только когда пусто СОВСЕМ. Если общие
+          списки есть, «Здесь будут ваши списки» звучало бы неправдой. */}
+      {visibleLists.length === 0 && sharedPointers.length > 0 ? null : visibleLists.length === 0 ? (
         <div
           style={{
             background: "var(--color-surface)",
@@ -382,7 +617,7 @@ export default function ShoppingApp() {
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-          {lists.map((list) => {
+          {visibleLists.map((list) => {
             const { total, done } = listProgress(list);
             const pct = total > 0 ? Math.round((done / total) * 100) : 0;
             const dateLabel = formatListDate(list.createdAt);
@@ -429,61 +664,6 @@ export default function ShoppingApp() {
         </div>
       )}
 
-      {/* Семейные списки — отдельная секция РЯДОМ с обычными, а не вместо них.
-          Здесь позиции живут на сервере и видны всем участникам сразу. */}
-      {sharedPointers.length > 0 && (
-        <section style={{ marginTop: "var(--space-5)" }}>
-          <h2
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "var(--space-2)",
-              margin: "0 0 var(--space-3) 0",
-              fontSize: "var(--font-size-heading)",
-              fontWeight: "var(--font-weight-semibold)",
-              color: "var(--color-text)",
-            }}
-          >
-            <Users size={22} color="var(--color-accent)" /> Семейные списки
-          </h2>
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-            {sharedPointers.map((pointer) => (
-              <div key={pointer.id} className="sl-card">
-                <button
-                  type="button"
-                  className="sl-card-main"
-                  onClick={() => void openSharedList(pointer)}
-                  disabled={sharedLoading === pointer.id}
-                >
-                  <span className="sl-card-icon" aria-hidden>
-                    {sharedLoading === pointer.id ? (
-                      <Loader2 size={22} className="animate-spin" />
-                    ) : (
-                      <Users size={22} />
-                    )}
-                  </span>
-                  <span className="sl-card-text">
-                    <span className="sl-card-title">{pointer.name}</span>
-                    <span className="sl-card-meta">
-                      {pointer.role === "owner" ? "вы создали · общий" : "общий список"}
-                    </span>
-                  </span>
-                  <ChevronRight size={20} className="sl-card-arrow" aria-hidden />
-                </button>
-                <button
-                  type="button"
-                  className="sl-card-menu"
-                  onClick={() => setForgetShared(pointer)}
-                  aria-label={`Убрать «${pointer.name}» с этого устройства`}
-                >
-                  <MoreHorizontal size={20} />
-                </button>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
       {/* Меню списка (нижний лист): переименовать / поделиться / сделать общим / удалить */}
       {sheetList && (
         <div className="sl-overlay" onClick={() => setSheetList(null)}>
@@ -496,7 +676,7 @@ export default function ShoppingApp() {
               <Share2 size={20} /> Поделиться
             </button>
             <button type="button" className="sl-sheet-btn" onClick={() => openMakeShared(sheetList)}>
-              <Users size={20} /> Сделать общим
+              <Users size={20} /> Общий список с семьёй
             </button>
             <button type="button" className="sl-sheet-btn sl-sheet-danger" onClick={() => { setDeleteTarget(sheetList); setSheetList(null); }}>
               <Trash2 size={20} /> Удалить
@@ -573,61 +753,8 @@ export default function ShoppingApp() {
         </div>
       )}
 
-      {/* Сделать список общим: спрашиваем только имя — регистрации нет. */}
-      {makeSharedTarget && (
-        <div className="sl-overlay sl-overlay-center" onClick={() => !makeSharedBusy && setMakeSharedTarget(null)}>
-          <div className="sl-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="sl-modal-head">
-              <h2 className="sl-modal-title">Сделать общим</h2>
-              <button
-                type="button"
-                className="sl-modal-x"
-                onClick={() => setMakeSharedTarget(null)}
-                aria-label="Закрыть"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            <p style={{ margin: "0 0 var(--space-3) 0", color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
-              «{makeSharedTarget.name}» станет общим: вы получите ссылку, и всё, что кто-то отметит,
-              сразу увидят остальные. Этот список останется у вас и таким, как есть.
-            </p>
-            <label
-              htmlFor="make-shared-name"
-              style={{
-                display: "block",
-                marginBottom: "var(--space-2)",
-                fontSize: "var(--font-size-body)",
-                fontWeight: "var(--font-weight-medium)",
-                color: "var(--color-text)",
-              }}
-            >
-              Ваше имя
-            </label>
-            <input
-              id="make-shared-name"
-              autoFocus
-              value={makeSharedName}
-              onChange={(e) => setMakeSharedName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void confirmMakeShared();
-              }}
-              placeholder="Например, Мама"
-              maxLength={50}
-              className="sl-modal-input"
-            />
-            <button
-              type="button"
-              className="sl-modal-primary"
-              onClick={() => void confirmMakeShared()}
-              disabled={makeSharedBusy || !makeSharedName.trim()}
-              style={{ opacity: makeSharedBusy || !makeSharedName.trim() ? 0.5 : 1 }}
-            >
-              {makeSharedBusy ? "Создаю…" : "Сделать общим"}
-            </button>
-          </div>
-        </div>
-      )}
+      {makeSharedModal}
+      {inviteModal}
 
       {/* Убрать общий список с устройства. Именно «убрать у себя»: данные
           остаются, у остальных участников список продолжает жить. */}

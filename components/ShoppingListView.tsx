@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, Check, Copy, Loader2, Share2, ShoppingCart, Sparkles, Trash2, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronRight, Copy, Loader2, Share2, ShoppingCart, Sparkles, Trash2, Users, X } from "lucide-react";
 
 import { KUPER_CPA_URL, KUPER_AD_LABEL } from "@/lib/constants";
 import { reachGoal } from "@/lib/metrika";
@@ -42,9 +42,17 @@ type Props = {
   onSortChange: (sort: SortCache | null) => void;
   onBack: () => void;
   onShare: () => void;
+  onMakeShared: () => void;
 };
 
-export default function ShoppingListView({ list, onItemsChange, onSortChange, onBack, onShare }: Props) {
+export default function ShoppingListView({
+  list,
+  onItemsChange,
+  onSortChange,
+  onBack,
+  onShare,
+  onMakeShared,
+}: Props) {
   const [sorting, setSorting] = useState(false);
   const [sortError, setSortError] = useState<string | null>(null);
 
@@ -306,6 +314,59 @@ export default function ShoppingListView({ list, onItemsChange, onSortChange, on
           <Share2 size={20} />
         </button>
       </header>
+
+      {/* Вход в общий список.
+          Стоит ДО поля ввода и виден без прокрутки — на приёмке владелец
+          продукта не нашёл эту функцию вовсе, потому что она пряталась в меню
+          «⋯» на карточке хаба. Для аудитории 45+ вход в новую возможность
+          должен быть на виду и называться человеческими словами, а не иконкой.
+          Работает и на пустом списке: блок нижних кнопок при items.length === 0
+          не рендерится вообще, так что внизу его было бы не найти. */}
+      <button
+        type="button"
+        onClick={onMakeShared}
+        aria-label="Сделать список общим с семьёй"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "var(--space-3)",
+          width: "100%",
+          padding: "var(--space-3)",
+          marginBottom: "var(--space-4)",
+          background: "var(--color-accent-subtle)",
+          border: "1px solid var(--color-accent)",
+          borderRadius: "var(--radius-sm)",
+          cursor: "pointer",
+          textAlign: "left",
+        }}
+      >
+        <Users size={26} color="var(--color-accent)" style={{ flexShrink: 0 }} />
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span
+            style={{
+              display: "block",
+              fontSize: "var(--font-size-heading)",
+              fontWeight: "var(--font-weight-semibold)",
+              color: "var(--color-accent)",
+              lineHeight: 1.25,
+            }}
+          >
+            Общий список с семьёй
+          </span>
+          <span
+            style={{
+              display: "block",
+              marginTop: 2,
+              fontSize: "var(--font-size-caption)",
+              lineHeight: 1.4,
+              color: "var(--color-text-secondary)",
+            }}
+          >
+            Отметки видны всем сразу
+          </span>
+        </span>
+        <ChevronRight size={22} color="var(--color-accent)" style={{ flexShrink: 0 }} aria-hidden />
+      </button>
 
       {/* Ввод: текст, голос и фото. Общий компонент с экраном семейного
           списка — там ровно тот же блок, только позиции уходят на сервер. */}

@@ -11,6 +11,7 @@ import {
   joinSharedList,
   loadMemberIdentity,
   lastKnownMemberName,
+  markInviteFlow,
   newMemberRef,
   rememberSharedList,
   saveMemberIdentity,
@@ -49,6 +50,10 @@ export default function SharedShoppingJoin({ listId }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    // Помечаем сеанс как «начатый с приглашения» — до любой загрузки, чтобы
+    // знакомство не успело выскочить ни здесь, ни на следующем экране, куда
+    // человек уйдёт через несколько секунд.
+    markInviteFlow();
     setLoading(true);
     setError(null);
     try {

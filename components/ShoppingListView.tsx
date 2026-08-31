@@ -19,7 +19,7 @@ import {
   itemsToText,
   listSignature,
 } from "@/lib/shoppingList";
-import type { ShoppingListRecord } from "@/lib/shoppingLists";
+import { splitListTitle, type ShoppingListRecord } from "@/lib/shoppingLists";
 import { useVoiceInput } from "@/components/useVoiceInput";
 
 const EMPTY_TEXT =
@@ -52,6 +52,7 @@ export default function ShoppingListView({ list, onItemsChange, onSortChange, on
   const [sortError, setSortError] = useState<string | null>(null);
 
   const items = list.items;
+  const { title, subtitle } = useMemo(() => splitListTitle(list.name), [list.name]);
   const sig = useMemo(() => listSignature(items), [items]);
   const sortedGroups: ShoppingGroup[] | null = list.sort ? list.sort.groups : null;
   const isSorted = list.sort !== null && list.sort !== undefined && list.sort.sig === sig;
@@ -371,25 +372,45 @@ export default function ShoppingListView({ list, onItemsChange, onSortChange, on
         >
           <ArrowLeft size={22} />
         </button>
+        {/* Имя и дата — разными строками: «Покупки, 31 августа» переносилось по
+            ширине как попало («Покупки, 31» / «августа»). Разбивка чисто
+            визуальная, в хранилище имя остаётся одной строкой. */}
         <h1
           style={{
             flex: 1,
             minWidth: 0,
             margin: 0,
-            fontSize: "var(--font-size-title)",
-            fontWeight: "var(--font-weight-semibold)",
             lineHeight: 1.2,
             color: "var(--color-text)",
-            // Не обрезаем многоточием: длинное название переносится на две
-            // строки и остаётся читаемым.
-            overflowWrap: "anywhere",
-            display: "-webkit-box",
-            WebkitBoxOrient: "vertical",
-            WebkitLineClamp: 2,
-            overflow: "hidden",
           }}
         >
-          {list.name}
+          <span
+            style={{
+              display: "-webkit-box",
+              WebkitBoxOrient: "vertical",
+              WebkitLineClamp: 2,
+              overflow: "hidden",
+              overflowWrap: "anywhere",
+              fontSize: "var(--font-size-title)",
+              fontWeight: "var(--font-weight-semibold)",
+            }}
+          >
+            {title}
+          </span>
+          {subtitle && (
+            <span
+              style={{
+                display: "block",
+                marginTop: 2,
+                fontSize: "var(--font-size-body)",
+                fontWeight: "var(--font-weight-regular)",
+                color: "var(--color-text-secondary)",
+                overflowWrap: "anywhere",
+              }}
+            >
+              {subtitle}
+            </span>
+          )}
         </h1>
         <button
           type="button"

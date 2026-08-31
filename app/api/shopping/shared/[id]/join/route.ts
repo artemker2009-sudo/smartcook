@@ -10,6 +10,7 @@ import {
   isUuid,
   sanitizeMemberName,
   sanitizeMemberRef,
+  sharedSortFromRow,
 } from "@/lib/sharedShoppingServer";
 
 export const runtime = "nodejs";
@@ -141,6 +142,7 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
     updatedAt: list.updated_at,
     joined: true,
     memberRef,
+    sort: sharedSortFromRow(list),
     items: (itemsResult.data ?? []).map((it) => ({
       id: it.id,
       name: it.name,

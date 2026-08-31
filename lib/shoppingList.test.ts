@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { addNames, parseNames, MAX_SHOPPING_ITEMS } from "./shoppingList";
+import { addNames, parseNames, MAX_SHOPPING_ITEMS,
+  signatureFromNames,
+  listSignature,
+} from "./shoppingList";
 
 describe("parseNames", () => {
   it("одна позиция остаётся одной позицией", () => {
@@ -89,5 +92,32 @@ describe("addNames после вставки списка", () => {
     const result = addNames([], parseNames(many));
     expect(result.items).toHaveLength(MAX_SHOPPING_ITEMS);
     expect(result.limited).toBe(true);
+  });
+});
+
+describe("signatureFromNames — подпись набора позиций", () => {
+  it("не зависит от порядка и регистра", () => {
+    expect(signatureFromNames(["Молоко", "хлеб"])).toBe(signatureFromNames(["ХЛЕБ", "молоко"]));
+  });
+
+  it("меняется при добавлении и удалении позиции", () => {
+    const base = signatureFromNames(["молоко", "хлеб"]);
+    expect(signatureFromNames(["молоко", "хлеб", "сыр"])).not.toBe(base);
+    expect(signatureFromNames(["молоко"])).not.toBe(base);
+  });
+
+  it("listSignature — та же формула: галочка подпись НЕ меняет", () => {
+    // Ключевое свойство: пока человек ходит по магазину и вычёркивает купленное,
+    // раскладка по отделам не должна сбрасываться.
+    const item = (name: string, checked: boolean) => ({ id: name, name, checked });
+    const before = listSignature([item("молоко", false), item("хлеб", false)]);
+    const after = listSignature([item("молоко", true), item("хлеб", false)]);
+    expect(after).toBe(before);
+  });
+
+  it("совпадает с listSignature по тем же названиям — клиент и сервер считают одинаково", () => {
+    const names = ["Молоко 2 л", "хлеб"];
+    const fromItems = listSignature(names.map((n) => ({ id: n, name: n, checked: false })));
+    expect(signatureFromNames(names)).toBe(fromItems);
   });
 });

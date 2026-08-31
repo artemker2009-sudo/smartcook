@@ -40,6 +40,24 @@ describe("splitPhraseIntoItems — приёмка", () => {
   it("«молоко 2 л» → 1 позиция", () => {
     expect(splitPhraseIntoItems("молоко 2 л")).toEqual(["молоко 2 л"]);
   });
+
+  it("после завершённой позиции новую начинает даже бренд не из словаря", () => {
+    expect(splitPhraseIntoItems("огурцы три штуки кока-кола две штуки по 1 л")).toEqual([
+      "огурцы три штуки",
+      "кока-кола две штуки по 1 л",
+    ]);
+  });
+
+  it("то же самое с латиницей", () => {
+    expect(splitPhraseIntoItems("огурцы три штуки coca-cola две штуки по 1 л")).toEqual([
+      "огурцы три штуки",
+      "coca-cola две штуки по 1 л",
+    ]);
+  });
+
+  it("«молоко 2 л сыр» → 2 позиции", () => {
+    expect(splitPhraseIntoItems("молоко 2 л сыр")).toEqual(["молоко 2 л", "сыр"]);
+  });
 });
 
 describe("splitPhraseIntoItems — правила", () => {
@@ -70,6 +88,18 @@ describe("splitPhraseIntoItems — правила", () => {
     expect(splitPhraseIntoItems("хлеб и сметана")).toEqual(["хлеб", "сметана"]);
     expect(splitPhraseIntoItems("ну вот молоко")).toEqual(["молоко"]);
     expect(splitPhraseIntoItems("купи батон нарезной")).toEqual(["батон нарезной"]);
+  });
+
+  it("завершённая позиция: цепочка брендов режется, описание — нет", () => {
+    expect(splitPhraseIntoItems("пепси 1 л фанта 1 л спрайт 1 л")).toEqual([
+      "пепси 1 л",
+      "фанта 1 л",
+      "спрайт 1 л",
+    ]);
+    // Прилагательное после количества — это всё ещё та же позиция.
+    expect(splitPhraseIntoItems("яйца 10 шт домашние")).toEqual(["яйца 10 шт домашние"]);
+    // Название без единицы позицию не завершает: «два литра молока» цело.
+    expect(splitPhraseIntoItems("два литра молока")).toEqual(["два литра молока"]);
   });
 
   it("предлог притягивает следующий продукт к текущей позиции", () => {

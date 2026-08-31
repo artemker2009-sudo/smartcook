@@ -11,10 +11,15 @@
 //     («два молока | три яйца») — иначе «молоко 2 л» развалилось бы.
 //  3. Незнакомые слова («охлаждённое», «без кожи и костей») продолжают текущую
 //     позицию и никогда не начинают новую.
-//  4. Связки («и», «ещё», «купи») в начале позиции выбрасываются, в середине
+//  4. Позиция считается ЗАВЕРШЁННОЙ, когда у неё есть название и следом
+//     количество с единицей («огурцы три штуки»). После завершённой позиции
+//     новую начинает любое слово — в том числе незнакомое, бренд или латиница:
+//     «огурцы три штуки | кока-кола две штуки по 1 л». Без этого правила
+//     словарь молчит на брендах и вся фраза слипается в одну позицию.
+//  5. Связки («и», «ещё», «купи») в начале позиции выбрасываются, в середине
 //     сохраняются — «филе без кожи и костей» остаётся как сказано.
 
-import { classifyWord, type WordKind } from "./productWords";
+import { classifyWord, looksLikeAdjective, type WordKind } from "./productWords";
 
 export function splitPhraseIntoItems(phrase: string): string[] {
   if (typeof phrase !== "string" || !phrase.trim()) return [];
@@ -26,12 +31,19 @@ export function splitPhraseIntoItems(phrase: string): string[] {
   let current: string[] = [];
   let currentHasProduct = false;
   let afterPreposition = false; // предыдущее значимое слово — предлог
+  let hasName = false; // в позиции уже есть название (продукт или бренд)
+  let complete = false; // у позиции есть название + количество с единицей
+  let prevKind: WordKind | null = null; // вид последнего ДОБАВЛЕННОГО слова
   let pending: string[] = []; // связки, судьба которых зависит от следующего слова
 
   const closeCurrent = () => {
     if (current.length > 0) items.push(current.join(" "));
     current = [];
     currentHasProduct = false;
+    afterPreposition = false;
+    hasName = false;
+    complete = false;
+    prevKind = null;
     pending = []; // связка на границе позиций («молоко и хлеб») выбрасывается
   };
 
@@ -60,10 +72,12 @@ export function splitPhraseIntoItems(phrase: string): string[] {
 
     if (kind === "product") {
       // После предлога продукт принадлежит текущей позиции: «тефтели в соусе».
-      if (currentHasProduct && !afterPreposition) closeCurrent();
+      if ((currentHasProduct || complete) && !afterPreposition) closeCurrent();
       push(token);
       currentHasProduct = true;
+      hasName = true;
       afterPreposition = false; // хвост «в/для/без …» закрыт своим продуктом
+      prevKind = kind;
       return;
     }
 
@@ -74,13 +88,36 @@ export function splitPhraseIntoItems(phrase: string): string[] {
         closeCurrent();
       }
       push(token);
+      prevKind = "quantity";
       return;
     }
 
-    // Признак «мы внутри предложного хвоста» переживает описания между предлогом
-    // и продуктом: «в томатном соусе». Гасит его только сам продукт (выше).
-    if (kind === "preposition") afterPreposition = true;
+    if (kind === "unit") {
+      push(token);
+      // «огурцы три штуки» — название + количество + единица: позиция закончена.
+      // «два литра молока» — названия ещё не было, поэтому не закончена.
+      if (prevKind === "quantity" && hasName) complete = true;
+      prevKind = kind;
+      return;
+    }
+
+    if (kind === "preposition") {
+      // Предложный хвост продолжает позицию: «кока-кола две штуки ПО 1 л».
+      afterPreposition = true;
+      complete = false;
+      push(token);
+      prevKind = kind;
+      return;
+    }
+
+    // Незнакомое слово. После завершённой позиции оно начинает новую — так
+    // ловятся бренды, которых нет и не будет в словаре («кока-кола»,
+    // «coca-cola»). Прилагательное исключаем: «яйца 10 шт домашние» — это всё
+    // ещё одна позиция.
+    if (complete && !looksLikeAdjective(token)) closeCurrent();
     push(token);
+    hasName = true;
+    prevKind = kind;
   });
 
   closeCurrent();

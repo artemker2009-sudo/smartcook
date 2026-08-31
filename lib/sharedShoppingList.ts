@@ -14,6 +14,19 @@ export type SharedListPointer = {
   memberRef: string;
   role: "owner" | "member";
   joinedAt: number;
+  /**
+   * id локального списка, из которого этот общий был сделан.
+   *
+   * Нужен, чтобы в хабе не показывать ДВЕ карточки с одинаковым именем —
+   * локальный оригинал и общий. Владелец продукта на приёмке сам попался в эту
+   * ловушку: открыл на втором устройстве локальную копию, увидел её пустой и
+   * решил, что синхронизация сломана.
+   *
+   * Локальный список при этом никуда не девается: он лежит в localStorage как
+   * лежал, просто не дублируется в списке карточек. Уберёте общий с
+   * устройства — оригинал снова появится.
+   */
+  fromLocalId?: string;
 };
 
 export type SharedItem = {
@@ -97,6 +110,37 @@ export function lastKnownMemberName(): string {
   return "";
 }
 
+// --- Пометка «человек пришёл по приглашению» --------------------------------
+//
+// Живёт в sessionStorage, то есть на одну вкладку/сессию. Нужна знакомству
+// («Привет! SmartCook — твой ИИ-шеф»), чтобы не выскакивать НИ НА ОДНОМ шаге
+// пути приглашения. Одной проверки маршрута /shopping/join/ мало: человек
+// уходит с этого экрана через несколько секунд — на /shopping или по таб-бару,
+// и плашка встречала его уже там. Приёмка это и показала.
+//
+// Именно session, а не localStorage: в следующий заход человек уже осмотрелся,
+// и знакомство ему показать нормально.
+
+const INVITE_FLOW_KEY = "smartcook_invite_flow";
+
+export function markInviteFlow(): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(INVITE_FLOW_KEY, "1");
+  } catch {
+    // Приватный режим — переживём: в худшем случае человек увидит знакомство.
+  }
+}
+
+export function isInviteFlow(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return sessionStorage.getItem(INVITE_FLOW_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 // --- Указатели «мои общие списки» -------------------------------------------
 
 function normalizePointer(raw: unknown): SharedListPointer | null {
@@ -110,7 +154,18 @@ function normalizePointer(raw: unknown): SharedListPointer | null {
     memberRef: o.memberRef,
     role: o.role === "owner" ? "owner" : "member",
     joinedAt: typeof o.joinedAt === "number" && Number.isFinite(o.joinedAt) ? o.joinedAt : Date.now(),
+    ...(typeof o.fromLocalId === "string" && o.fromLocalId ? { fromLocalId: o.fromLocalId } : {}),
   };
+}
+
+/**
+ * id локальных списков, которые уже стали общими, — чтобы хаб не показывал их
+ * второй раз. Множество, а не массив: проверка идёт на каждой карточке.
+ */
+export function convertedLocalListIds(pointers: SharedListPointer[]): Set<string> {
+  const ids = new Set<string>();
+  for (const p of pointers) if (p.fromLocalId) ids.add(p.fromLocalId);
+  return ids;
 }
 
 export function loadSharedPointers(): SharedListPointer[] {

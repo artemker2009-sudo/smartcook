@@ -41,11 +41,38 @@ describe("isTrustedOrigin", () => {
     expect(isTrustedOrigin(req({ origin: "https://someone-else.vercel.app" }))).toBe(false);
   });
 
-  it("в проде адрес preview-деплоя не разрешён", () => {
+  it("в проде адрес деплоя *.vercel.app не разрешён", () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("VERCEL_ENV", "production");
     vi.stubEnv("VERCEL_URL", "smartcook-lv3gk06xq-artems-projects-f11c3a7b.vercel.app");
     expect(isTrustedOrigin(req({ origin: "https://smartcook-lv3gk06xq-artems-projects-f11c3a7b.vercel.app" }))).toBe(false);
+    // …даже если хост запроса совпадает с origin.
+    expect(
+      isTrustedOrigin(
+        req({
+          origin: "https://smartcook-lv3gk06xq-artems-projects-f11c3a7b.vercel.app",
+          host: "smartcook-lv3gk06xq-artems-projects-f11c3a7b.vercel.app",
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it("если системные переменные Vercel недоступны — спасает совпадение с хостом запроса", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("VERCEL_ENV", "");
+    vi.stubEnv("VERCEL_URL", "");
+    vi.stubEnv("VERCEL_BRANCH_URL", "");
+    const host = "smartcook-69z9qf6rd-artems-projects-f11c3a7b.vercel.app";
+    expect(isTrustedOrigin(req({ origin: `https://${host}`, host }))).toBe(true);
+    // Чужой сайт этим не воспользуется: его origin не равен нашему хосту.
+    expect(isTrustedOrigin(req({ origin: "https://someone-else.vercel.app", host }))).toBe(false);
+  });
+
+  it("не-vercel чужой домен не проходит ни при каких переменных", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("VERCEL_URL", "evil.example");
+    expect(isTrustedOrigin(req({ origin: "https://evil.example", host: "evil.example" }))).toBe(false);
   });
 
   it("Referer используется, когда Origin не пришёл", () => {

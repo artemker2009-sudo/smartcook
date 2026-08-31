@@ -23,10 +23,24 @@ function extractHost(headerValue: string | null): string | null {
  * VERCEL_BRANCH_URL — постоянный адрес ветки). Чужой сайт на *.vercel.app сюда
  * не попадает, а в проде (VERCEL_ENV=production) поведение не меняется вообще.
  */
-function isAllowedHost(host: string): boolean {
+function isAllowedHost(host: string, req: Request): boolean {
   if (ALLOWED_HOSTS.has(host)) return true;
-  if (process.env.VERCEL_ENV !== "preview") return false;
-  return host === process.env.VERCEL_URL || host === process.env.VERCEL_BRANCH_URL;
+
+  // Дальше — только адреса деплоев Vercel. Боевые домены сюда не попадают.
+  if (!host.endsWith(".vercel.app")) return false;
+  // На БОЕВОМ деплое адрес вида *.vercel.app не разрешаем: туда ходят через
+  // smart-cook.pro, он уже проверен выше.
+  if (process.env.VERCEL_ENV === "production") return false;
+
+  // Собственный адрес этого preview-деплоя: уникальный, адрес ветки, либо —
+  // если системные переменные Vercel в проекте не отдаются в рантайм — просто
+  // совпадение с хостом, на который пришёл запрос (то есть страница с этого же
+  // деплоя, а не чужой сайт).
+  return (
+    host === process.env.VERCEL_URL ||
+    host === process.env.VERCEL_BRANCH_URL ||
+    host === req.headers.get("host")
+  );
 }
 
 export function isTrustedOrigin(req: Request): boolean {
@@ -34,10 +48,10 @@ export function isTrustedOrigin(req: Request): boolean {
   if (process.env.NODE_ENV !== "production") return true;
 
   const originHost = extractHost(req.headers.get("origin"));
-  if (originHost) return isAllowedHost(originHost);
+  if (originHost) return isAllowedHost(originHost, req);
 
   const refererHost = extractHost(req.headers.get("referer"));
-  if (refererHost) return isAllowedHost(refererHost);
+  if (refererHost) return isAllowedHost(refererHost, req);
 
   // Ни Origin, ни Referer не пришли — так ведут себя скрипты/curl, а не браузер
   // с нашей страницы (браузер всегда шлет Origin на POST-запросы).

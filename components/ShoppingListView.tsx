@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { ArrowLeft, Check, Copy, Loader2, Mic, Plus, Share2, ShoppingCart, Sparkles, Square, Trash2, X } from "lucide-react";
 
@@ -61,13 +61,29 @@ export default function ShoppingListView({ list, onItemsChange, onSortChange, on
     return map;
   }, [items]);
 
+  // Поле ввода — textarea, а не input: однострочный input по спецификации
+  // ВЫРЕЗАЕТ переводы строк из вставленного текста, и список из заметок
+  // склеивался в одну кашу («молоко 2л» + «яйца» → «молоко 2ляйца»). Textarea
+  // сохраняет строки; растёт по содержимому, Enter = «Добавить».
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const autoGrow = () => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 180)}px`;
+  };
+
   const handleAdd = () => {
     if (!input.trim()) return;
     const result = addFromInput(items, input);
     setInput("");
+    if (inputRef.current) inputRef.current.style.height = "";
     if (result.added > 0) {
       onItemsChange(result.items);
       reachGoal("shopping_item_added");
+      // Вставили сразу несколько — подтверждаем, сколько именно распознали.
+      if (result.added > 1) toast.success(`Добавлено: ${pluralizeProduct(result.added)}`);
     }
     if (result.limited) {
       toast.error(`Список полон: не больше ${MAX_SHOPPING_ITEMS} позиций`);
@@ -147,7 +163,9 @@ export default function ShoppingListView({ list, onItemsChange, onSortChange, on
       key={it.id}
       style={{
         display: "flex",
-        alignItems: "center",
+        // Длинное название переносится на несколько строк — чекбокс и крестик
+        // прижаты к верху, а не к середине трёхстрочной позиции.
+        alignItems: "flex-start",
         gap: "var(--space-3)",
         padding: "var(--space-3)",
         borderBottom: "1px solid var(--color-border)",
@@ -180,13 +198,18 @@ export default function ShoppingListView({ list, onItemsChange, onSortChange, on
         onClick={() => toggle(it.id)}
         style={{
           flex: 1,
+          // minWidth: 0 обязателен — без него флекс-элемент не даёт тексту
+          // переноситься и позиция уезжает за край экрана телефона.
+          minWidth: 0,
           textAlign: "left",
           border: "none",
           background: "transparent",
           cursor: "pointer",
-          padding: 0,
+          padding: "2px 0",
           fontSize: "var(--font-size-heading)",
-          lineHeight: 1.3,
+          lineHeight: 1.35,
+          whiteSpace: "normal",
+          overflowWrap: "anywhere",
           color: it.checked ? "var(--color-text-muted)" : "var(--color-text)",
           textDecoration: it.checked ? "line-through" : "none",
         }}
@@ -200,8 +223,10 @@ export default function ShoppingListView({ list, onItemsChange, onSortChange, on
         aria-label={`Удалить «${it.name}»`}
         style={{
           flexShrink: 0,
-          width: 40,
-          height: 40,
+          width: 44,
+          height: 44,
+          marginTop: -6,
+          marginRight: -8,
           borderRadius: "var(--radius-full)",
           border: "none",
           background: "transparent",
@@ -264,10 +289,15 @@ export default function ShoppingListView({ list, onItemsChange, onSortChange, on
             margin: 0,
             fontSize: "var(--font-size-title)",
             fontWeight: "var(--font-weight-semibold)",
+            lineHeight: 1.2,
             color: "var(--color-text)",
+            // Не обрезаем многоточием: длинное название переносится на две
+            // строки и остаётся читаемым.
+            overflowWrap: "anywhere",
+            display: "-webkit-box",
+            WebkitBoxOrient: "vertical",
+            WebkitLineClamp: 2,
             overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
           }}
         >
           {list.name}
@@ -294,77 +324,114 @@ export default function ShoppingListView({ list, onItemsChange, onSortChange, on
         </button>
       </header>
 
-      {/* Ввод: поле + «Добавить». Enter работает; запятая = несколько продуктов. */}
-      <div style={{ display: "flex", gap: "var(--space-2)", marginBottom: "var(--space-4)" }}>
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              handleAdd();
-            }
-          }}
-          placeholder="Молоко, хлеб, яйца…"
-          aria-label="Добавить продукт"
-          enterKeyHint="done"
-          style={{
-            flex: 1,
-            minWidth: 0,
-            padding: "var(--space-3)",
-            fontSize: "var(--font-size-heading)",
-            border: "1px solid var(--color-border)",
-            borderRadius: "var(--radius-sm)",
-            background: "var(--color-surface)",
-            color: "var(--color-text)",
-          }}
-        />
+      {/* Ввод. Телефон — главный сценарий: поле на всю ширину, микрофон рядом с
+          ним, крупная кнопка «Добавить» отдельной строкой под полем. */}
+      <div style={{ marginBottom: "var(--space-4)" }}>
+        {/* flex-start: когда поле вырастает под вставленный список, микрофон
+            остаётся у первой строки, а не уезжает в середину. */}
+        <div style={{ display: "flex", alignItems: "flex-start", gap: "var(--space-2)" }}>
+          <textarea
+            ref={inputRef}
+            value={input}
+            rows={1}
+            onChange={(e) => {
+              setInput(e.target.value);
+              autoGrow();
+            }}
+            onKeyDown={(e) => {
+              // Enter — добавить (главный сценарий). Shift+Enter — новая строка,
+              // если человек набирает список руками.
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleAdd();
+              }
+            }}
+            placeholder="Молоко 2 л"
+            aria-label="Добавить продукт"
+            enterKeyHint="done"
+            style={{
+              flex: 1,
+              minWidth: 0,
+              minHeight: 52,
+              padding: "var(--space-3)",
+              fontFamily: "inherit",
+              fontSize: "var(--font-size-heading)",
+              lineHeight: 1.3,
+              border: "1px solid var(--color-border)",
+              borderRadius: "var(--radius-sm)",
+              background: "var(--color-surface)",
+              color: "var(--color-text)",
+              resize: "none",
+              overflowY: "auto",
+            }}
+          />
+
+          {/* Кнопка-микрофон: только если браузер поддерживает Web Speech API
+              (мягкая деградация — без поддержки кнопки просто нет). Тап во время
+              записи — стоп (обрабатывается внутри voice.start()). */}
+          {voice.supported && (
+            <button
+              type="button"
+              onClick={voice.start}
+              aria-label={voice.status === "listening" ? "Остановить запись" : "Сказать, что купить"}
+              className={voice.status === "listening" ? "voice-mic-btn voice-mic-btn-active" : "voice-mic-btn"}
+              style={{ marginTop: 2 }}
+            >
+              {voice.status === "listening" ? <Square size={22} fill="currentColor" /> : <Mic size={26} />}
+            </button>
+          )}
+        </div>
+
         <button
           type="button"
           onClick={handleAdd}
-          aria-label="Добавить"
+          disabled={!input.trim()}
           style={{
-            flexShrink: 0,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            gap: "var(--space-1)",
-            padding: "0 var(--space-4)",
+            gap: "var(--space-2)",
+            width: "100%",
+            minHeight: 52,
+            marginTop: "var(--space-2)",
+            padding: "var(--space-3) var(--space-4)",
             background: "var(--color-accent)",
             color: "#fff",
             border: "none",
             borderRadius: "var(--radius-sm)",
-            fontSize: "var(--font-size-body)",
+            fontSize: "var(--font-size-heading)",
             fontWeight: "var(--font-weight-semibold)",
-            cursor: "pointer",
+            cursor: input.trim() ? "pointer" : "default",
+            opacity: input.trim() ? 1 : 0.45,
+            transition: "opacity 0.15s ease",
           }}
         >
-          <Plus size={22} strokeWidth={2.6} />
+          <Plus size={24} strokeWidth={2.6} />
           Добавить
         </button>
 
-        {/* Кнопка-микрофон: только если браузер поддерживает Web Speech API
-            (мягкая деградация — без поддержки кнопки просто нет). Тап во время
-            записи — стоп (обрабатывается внутри voice.start()). */}
-        {voice.supported && (
-          <button
-            type="button"
-            onClick={voice.start}
-            aria-label={voice.status === "listening" ? "Остановить запись" : "Сказать, что купить"}
-            className={voice.status === "listening" ? "voice-mic-btn voice-mic-btn-active" : "voice-mic-btn"}
-          >
-            {voice.status === "listening" ? <Square size={20} fill="currentColor" /> : <Mic size={24} />}
-          </button>
-        )}
+        <p
+          style={{
+            margin: "var(--space-2) 0 0 0",
+            fontSize: "var(--font-size-caption)",
+            lineHeight: 1.4,
+            color: "var(--color-text-muted)",
+          }}
+        >
+          Можно вставить сразу весь список — через запятую или с новой строки.
+        </p>
       </div>
 
-      {/* Индикатор «Слушаю…» — пока идёт запись и чипов ещё не появилось. */}
+      {/* Индикатор «Слушаю…». Ниже — то, что распознаётся прямо сейчас: в позицию
+          оно попадёт только когда фраза договорена (финальный результат). */}
       {voice.status === "listening" && (
         <div className="voice-listening" role="status">
           <span className="voice-listening-dot" aria-hidden />
-          <div>
+          <div style={{ minWidth: 0 }}>
             <div className="voice-listening-title">Слушаю…</div>
-            <div className="voice-listening-hint">Называйте продукты, я записываю</div>
+            <div className="voice-listening-hint">
+              {voice.interim ? voice.interim : "Называйте продукты — по одному, с паузой"}
+            </div>
           </div>
         </div>
       )}

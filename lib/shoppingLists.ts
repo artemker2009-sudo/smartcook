@@ -54,6 +54,25 @@ export function defaultListName(now: Date = new Date()): string {
   return `Покупки, ${RU_DAY_MONTH.format(now)}`;
 }
 
+/**
+ * Разбивает имя списка на заголовок и подпись по ПЕРВОЙ запятой: имя по
+ * умолчанию «Покупки, 31 августа» показывается двумя строками — «Покупки»
+ * крупно, дата ниже помельче. Иначе длинное имя переносилось как попало
+ * («Покупки, 31» / «августа»).
+ *
+ * Только представление: само имя в хранилище не меняется, переименование и
+ * поделиться работают с ним как раньше. Имя без запятой (переименовали в
+ * «Дача») возвращается целиком, подписи нет.
+ */
+export function splitListTitle(name: string): { title: string; subtitle: string | null } {
+  const at = name.indexOf(",");
+  if (at <= 0) return { title: name, subtitle: null };
+  const title = name.slice(0, at).trim();
+  const subtitle = name.slice(at + 1).trim();
+  if (!title || !subtitle) return { title: name, subtitle: null };
+  return { title, subtitle };
+}
+
 /** Санитайз имени списка: без управляющих символов, схлопнутые пробелы, лимит длины. */
 export function sanitizeListName(raw: unknown, fallback: string): string {
   if (typeof raw !== "string") return fallback;

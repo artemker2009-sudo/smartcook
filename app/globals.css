@@ -2170,9 +2170,13 @@ a.news-card:hover { transform: translateY(-2px); }
   font-size: var(--font-size-heading);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text);
-  white-space: nowrap;
+  /* Не обрезаем многоточием: длинное имя переносится на две строки. Дата из
+     имени по умолчанию на карточку не попадает — она уже есть в подписи. */
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 .sl-card-meta { font-size: var(--font-size-caption); color: var(--color-text-muted); }
 .sl-progress-track {
@@ -2240,6 +2244,9 @@ a.news-card:hover { transform: translateY(-2px); }
   text-overflow: ellipsis;
 }
 .sl-sheet-btn {
+  /* relative — чтобы визуально скрытый file-input внутри <label> (пункты
+     «Снять фото» / «Из галереи») позиционировался внутри пункта. */
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -2390,6 +2397,21 @@ a.news-card:hover { transform: translateY(-2px); }
   overflow-wrap: anywhere;
 }
 
+/* Статус распознавания фото. Отдельно от .voice-listening: там красный фон
+   «идёт запись», а чтение фото — спокойный процесс, не тревога. */
+.sl-photo-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  margin-bottom: var(--space-3);
+  background: var(--color-accent-subtle);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md);
+}
+.sl-photo-status-title { font-size: var(--font-size-body); font-weight: var(--font-weight-semibold); color: var(--color-text); }
+.sl-photo-status-hint { font-size: var(--font-size-caption); color: var(--color-text-secondary); margin-top: 2px; }
+
 .voice-denied {
   padding: var(--space-3);
   margin-bottom: var(--space-3);
@@ -2417,6 +2439,14 @@ a.news-card:hover { transform: translateY(-2px); }
   margin-bottom: var(--space-2);
 }
 .voice-preview-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }
+/* Подсказка под чипами, распознанными с фото: рукописное читается с ошибками,
+   поэтому просим проверить перед добавлением. */
+.voice-preview-hint {
+  font-size: var(--font-size-caption);
+  line-height: 1.4;
+  color: var(--color-text-secondary);
+  margin: calc(-1 * var(--space-1)) 0 var(--space-3) 0;
+}
 .voice-chip {
   display: inline-flex;
   align-items: center;

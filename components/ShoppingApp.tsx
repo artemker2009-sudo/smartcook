@@ -19,6 +19,7 @@ import {
   renameList,
   setListItems,
   setListSort,
+  splitListTitle,
   type ShoppingListRecord,
 } from "@/lib/shoppingLists";
 import { buildShareUrl, canShareByLink, decodeSharedList, SHARE_PARAM } from "@/lib/shoppingShare";
@@ -269,6 +270,14 @@ export default function ShoppingApp() {
           {lists.map((list) => {
             const { total, done } = listProgress(list);
             const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+            const dateLabel = formatListDate(list.createdAt);
+            // Имя по умолчанию — «Покупки, 31 августа», а дата и так стоит в
+            // подписи под ним: на карточке она дублировалась и вытесняла само
+            // имя в многоточие. Дату из имени убираем ТОЛЬКО когда она совпала
+            // с датой создания, иначе это осмысленная часть своего названия
+            // («Дача, 1 мая») — такое имя показываем целиком.
+            const parts = splitListTitle(list.name);
+            const cardTitle = parts.subtitle === dateLabel ? parts.title : list.name;
             return (
               <div key={list.id} className="sl-card">
                 <button type="button" className="sl-card-main" onClick={() => setOpenId(list.id)}>
@@ -276,9 +285,9 @@ export default function ShoppingApp() {
                     <ShoppingCart size={22} />
                   </span>
                   <span className="sl-card-text">
-                    <span className="sl-card-title">{list.name}</span>
+                    <span className="sl-card-title">{cardTitle}</span>
                     <span className="sl-card-meta">
-                      {formatListDate(list.createdAt)} · {pluralizePositions(total)}
+                      {dateLabel} · {pluralizePositions(total)}
                     </span>
                     {total > 0 && (
                       <>

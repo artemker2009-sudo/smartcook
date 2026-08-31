@@ -13,15 +13,45 @@ function extractHost(headerValue: string | null): string | null {
   }
 }
 
+/**
+ * Хост разрешён? Кроме боевых доменов пускаем СОБСТВЕННЫЙ хост preview-деплоя
+ * Vercel: превью собирается с NODE_ENV=production, поэтому приёмка PR по
+ * preview-ссылке упиралась в «недопустимый источник» на всех AI-роутах.
+ *
+ * Послабление узкое: только когда VERCEL_ENV=preview И хост совпадает с
+ * адресом самого этого деплоя (VERCEL_URL — уникальный адрес деплоя,
+ * VERCEL_BRANCH_URL — постоянный адрес ветки). Чужой сайт на *.vercel.app сюда
+ * не попадает, а в проде (VERCEL_ENV=production) поведение не меняется вообще.
+ */
+function isAllowedHost(host: string, req: Request): boolean {
+  if (ALLOWED_HOSTS.has(host)) return true;
+
+  // Дальше — только адреса деплоев Vercel. Боевые домены сюда не попадают.
+  if (!host.endsWith(".vercel.app")) return false;
+  // На БОЕВОМ деплое адрес вида *.vercel.app не разрешаем: туда ходят через
+  // smart-cook.pro, он уже проверен выше.
+  if (process.env.VERCEL_ENV === "production") return false;
+
+  // Собственный адрес этого preview-деплоя: уникальный, адрес ветки, либо —
+  // если системные переменные Vercel в проекте не отдаются в рантайм — просто
+  // совпадение с хостом, на который пришёл запрос (то есть страница с этого же
+  // деплоя, а не чужой сайт).
+  return (
+    host === process.env.VERCEL_URL ||
+    host === process.env.VERCEL_BRANCH_URL ||
+    host === req.headers.get("host")
+  );
+}
+
 export function isTrustedOrigin(req: Request): boolean {
-  // В деве/превью не блокируем — иначе локальная разработка сломается.
+  // В деве не блокируем — иначе локальная разработка сломается.
   if (process.env.NODE_ENV !== "production") return true;
 
   const originHost = extractHost(req.headers.get("origin"));
-  if (originHost) return ALLOWED_HOSTS.has(originHost);
+  if (originHost) return isAllowedHost(originHost, req);
 
   const refererHost = extractHost(req.headers.get("referer"));
-  if (refererHost) return ALLOWED_HOSTS.has(refererHost);
+  if (refererHost) return isAllowedHost(refererHost, req);
 
   // Ни Origin, ни Referer не пришли — так ведут себя скрипты/curl, а не браузер
   // с нашей страницы (браузер всегда шлет Origin на POST-запросы).

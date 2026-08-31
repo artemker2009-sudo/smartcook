@@ -2,23 +2,27 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { CheckCircle, Flame, Home, ImageIcon, Menu, PartyPopper, Search, ShoppingCart, User, X } from "lucide-react";
+import { CheckCircle, Flame, Home, ImageIcon, Menu, PartyPopper, Search, ShoppingCart, X } from "lucide-react";
 
 type AppNavigationProps = {
   activeSection?: "home" | "parties" | "service" | "profile" | "daily" | "about" | "feed" | "shopping";
 };
 
 // Вторичная навигация (хамбургер). Основные 3 раздела дублирует таб-бар;
-// здесь — доступ к личному кабинету, ленте, рецепту дня и о проекте. Все пункты
-// ведут на реальные роуты (Поиск/кабинет/рецепт дня — это /search с параметром).
+// здесь — лента, банкеты, рецепт дня и о проекте.
 // «Лента» — новая премодерируемая лента сообщества (/feed), НЕ старая feed_posts.
+//
+// Личного кабинета здесь СОЗНАТЕЛЬНО НЕТ: вход в него один — аватарка справа
+// сверху (ProfileEntry в root-layout), она видна на каждом экране. Пункт в меню
+// был вторым входом в то же место: человек ищет кабинет, находит два пути и не
+// понимает, одно это или разное. Тип activeSection значение "profile" сохраняет —
+// страница /profile по-прежнему передаёт его, просто подсвечивать больше нечего.
 const navItems = [
   { id: "home", label: "Главная", href: "/", icon: Home },
   { id: "service", label: "Найти рецепт", href: "/search", icon: Search },
   { id: "shopping", label: "Покупки", href: "/shopping", icon: ShoppingCart },
   { id: "feed", label: "Лента", href: "/feed", icon: ImageIcon },
   { id: "parties", label: "Банкеты", href: "/parties", icon: PartyPopper },
-  { id: "profile", label: "Личный кабинет", href: "/profile", icon: User },
   { id: "daily", label: "Рецепт дня", href: "/search?daily=true", icon: Flame },
   { id: "about", label: "О проекте", href: "/about", icon: CheckCircle },
 ] as const;

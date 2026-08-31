@@ -331,6 +331,11 @@ export default function SharedShoppingListView({ listId, memberRef, initial, onB
           {it.checked && <Check size={18} color="#fff" strokeWidth={3} />}
         </button>
 
+        {/* Зачёркивание живёт на ВНУТРЕННЕМ span с названием, а не на кнопке.
+            В CSS text-decoration протягивается сквозь потомков, и снять его
+            изнутри через text-decoration: none нельзя — именно поэтому подпись
+            «купил(а) …» тоже оказывалась перечёркнутой. Она не выполненный
+            пункт, а пояснение, и черты на ней быть не должно. */}
         <button
           type="button"
           onClick={() => void toggle(it)}
@@ -347,10 +352,9 @@ export default function SharedShoppingListView({ listId, memberRef, initial, onB
             whiteSpace: "normal",
             overflowWrap: "anywhere",
             color: it.checked ? "var(--color-text-muted)" : "var(--color-text)",
-            textDecoration: it.checked ? "line-through" : "none",
           }}
         >
-          {it.name}
+          <span style={{ textDecoration: it.checked ? "line-through" : "none" }}>{it.name}</span>
           {/* Кто уже взял — главная ценность общего списка: видно, что покупку
               закрыли, и второй раз идти не надо. */}
           {who && (
@@ -360,7 +364,6 @@ export default function SharedShoppingListView({ listId, memberRef, initial, onB
                 marginTop: 2,
                 fontSize: "var(--font-size-caption)",
                 color: "var(--color-text-muted)",
-                textDecoration: "none",
               }}
             >
               купил(а) {who}

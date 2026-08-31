@@ -111,13 +111,13 @@ export default function ShoppingListView({
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data?.error || "Не удалось отсортировать список");
+        throw new Error(data?.error || "Не удалось разложить по отделам");
       }
       const data = await res.json();
       const groups: ShoppingGroup[] = Array.isArray(data?.groups) ? data.groups : [];
       onSortChange({ sig, groups });
     } catch (e) {
-      setSortError(e instanceof Error ? e.message : "Не удалось отсортировать список");
+      setSortError(e instanceof Error ? e.message : "Не удалось разложить по отделам");
     } finally {
       setSorting(false);
     }
@@ -411,7 +411,7 @@ export default function ShoppingListView({
             }}
           >
             {sorting ? <Loader2 size={22} className="animate-spin" /> : <Sparkles size={22} />}
-            {sorting ? "Раскладываю по отделам…" : isSorted ? "Отсортировано по отделам" : "Умная сортировка"}
+            {sorting ? "Раскладываю по отделам…" : isSorted ? "Разложено по отделам" : "Разложить по отделам"}
           </button>
 
           {sortError && (

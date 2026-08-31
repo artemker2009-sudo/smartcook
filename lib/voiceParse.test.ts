@@ -7,6 +7,27 @@ describe("parseVoiceTranscript", () => {
     expect(parseVoiceTranscript("молоко два литра")).toEqual(["молоко два литра"]);
   });
 
+  // Диктовка предложением без пауз — то, на чём провалилась приёмка.
+  it("диктовка без пауз режется по словарю продуктов", () => {
+    expect(parseVoiceTranscript("молоко огурцы")).toEqual(["молоко", "огурцы"]);
+    expect(parseVoiceTranscript("яйца молоко 3 л молоко 2 л")).toEqual([
+      "яйца",
+      "молоко 3 л",
+      "молоко 2 л",
+    ]);
+    expect(parseVoiceTranscript("гречка макароны тефтели")).toEqual([
+      "гречка",
+      "макароны",
+      "тефтели",
+    ]);
+    expect(parseVoiceTranscript("молоко яйца хлеб тефтели")).toEqual([
+      "молоко",
+      "яйца",
+      "хлеб",
+      "тефтели",
+    ]);
+  });
+
   it("понимает союз «и» и запятые как разделители", () => {
     expect(parseVoiceTranscript("молоко и хлеб, огурцы")).toEqual(["молоко", "хлеб", "огурцы"]);
   });

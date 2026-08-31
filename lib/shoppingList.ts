@@ -6,6 +6,8 @@
 // использует те же лимиты, список отделов и сборку групп, НЕ доверяя клиенту
 // (правило 5 CLAUDE.md — лимиты применяются и на сервере ещё раз).
 
+import { splitPhraseIntoItems } from "./productSplit";
+
 // Защита расходов OpenAI: не больше стольки позиций и стольки символов на
 // позицию уходит в промпт. Совпадает с проверкой в /api/shopping/sort.
 export const MAX_SHOPPING_ITEMS = 60;
@@ -130,9 +132,10 @@ function normalizeShoppingLine(raw: string): string {
  * Разбирает ввод в список названий. Разделители — запятая, точка с запятой и
  * перевод строки, поэтому вставленный из заметок/мессенджера столбик становится
  * отдельными позициями (раньше переводы строк схлопывались в пробел и весь
- * список превращался в одну позицию). Количество и единица остаются частью
- * названия — формат хранения не меняется, и умная сортировка получает те же
- * строки.
+ * список превращался в одну позицию). Внутри строки границы позиций ищет
+ * словарь продуктов (splitPhraseIntoItems) — наша аудитория пишет «молоко яйца
+ * хлеб» без запятых. Количество и единица остаются частью названия — формат
+ * хранения не меняется, и умная сортировка получает те же строки.
  */
 export function parseNames(raw: string): string[] {
   if (typeof raw !== "string") return [];
@@ -142,12 +145,15 @@ export function parseNames(raw: string): string[] {
     const line = normalizeShoppingLine(part);
     if (!line) continue;
     if (isDepartmentHeading(line)) continue;
-    if (lines.length > 0 && isQuantityOnly(line)) {
-      // «молоко, 2 л» — хвост от предыдущей позиции, а не отдельный продукт.
-      lines[lines.length - 1] = `${lines[lines.length - 1]} ${line}`;
-      continue;
+
+    for (const item of splitPhraseIntoItems(line)) {
+      if (lines.length > 0 && isQuantityOnly(item)) {
+        // «молоко, 2 л» — хвост от предыдущей позиции, а не отдельный продукт.
+        lines[lines.length - 1] = `${lines[lines.length - 1]} ${item}`;
+        continue;
+      }
+      lines.push(item);
     }
-    lines.push(line);
   }
 
   return lines.map((line) => sanitizeShoppingName(line)).filter(Boolean);

@@ -418,7 +418,8 @@ export default function ShoppingListView({ list, onItemsChange, onSortChange, on
             color: "var(--color-text-muted)",
           }}
         >
-          Можно вставить сразу весь список — через запятую или с новой строки.
+          Можно вписать или вставить сразу весь список — через пробел, запятую
+          или с новой строки.
         </p>
       </div>
 
@@ -430,7 +431,7 @@ export default function ShoppingListView({ list, onItemsChange, onSortChange, on
           <div style={{ minWidth: 0 }}>
             <div className="voice-listening-title">Слушаю…</div>
             <div className="voice-listening-hint">
-              {voice.interim ? voice.interim : "Называйте продукты — по одному, с паузой"}
+              {voice.interim ? voice.interim : "Говорите как удобно — я разберу на продукты"}
             </div>
           </div>
         </div>

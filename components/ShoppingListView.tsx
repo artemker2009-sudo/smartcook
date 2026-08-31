@@ -22,6 +22,10 @@ import {
 import { splitListTitle, type ShoppingListRecord } from "@/lib/shoppingLists";
 import { useVoiceInput } from "@/components/useVoiceInput";
 
+// Потолок для отправки НЕОБРАБОТАННОГО оригинала (когда браузер не смог его
+// подготовить). Совпадает с лимитом роута распознавания — больше он не примет.
+const RAW_PHOTO_MAX_BYTES = 15 * 1024 * 1024;
+
 const EMPTY_TEXT =
   "Список пуст. Добавьте продукты — и я расставлю их по отделам магазина, чтобы ничего не забыть и не ходить по залу дважды.";
 
@@ -135,13 +139,26 @@ export default function ShoppingListView({ list, onItemsChange, onSortChange, on
     try {
       // Общий клиентский пайплайн фото: HEIC → JPEG (декод на сервере), ресайз,
       // очистка EXIF. Свой путь тут заводить нельзя — сломается HEIC на Android.
-      const prepared = await preparePhoto(
-        raw,
-        { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true },
-        "shopping-list.jpg",
-      );
+      //
+      // Если браузер формат не осилил (canvas не знает TIFF, BMP со сканера,
+      // экзотику) — отправляем ОРИГИНАЛ: роут распознавания умеет привести к
+      // JPEG сам. Лучше лишний мегабайт по сети, чем «не удалось обработать
+      // фото» на файле, который на сервере читается прекрасно.
+      let payload: File;
+      try {
+        payload = await preparePhoto(
+          raw,
+          { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true },
+          "shopping-list.jpg",
+        );
+      } catch (prepareErr) {
+        if (raw.size > RAW_PHOTO_MAX_BYTES) throw prepareErr; // слишком тяжёлый для отправки как есть
+        void reportPhotoError("shopping-recognize-prepare", raw, prepareErr);
+        payload = raw;
+      }
+
       const form = new FormData();
-      form.append("image", prepared);
+      form.append("image", payload);
       // 30-секундный потолок: на плохой сети запрос иначе висит молча.
       const res = await fetchWithTimeout(
         "/api/shopping/recognize",
@@ -636,9 +653,12 @@ export default function ShoppingListView({ list, onItemsChange, onSortChange, on
             </label>
             <label className="sl-sheet-btn">
               <ImageIcon size={20} /> Из галереи
+              {/* accept без списка форматов: любой снимок должен быть выбираемым.
+                  Расширения HEIC/HEIF дописаны отдельно — часть Android-пикеров
+                  не относит их к image/* и гасит файл в списке. */}
               <input
                 type="file"
-                accept="image/png, image/jpeg, image/jpg, .heic, .HEIC"
+                accept="image/*,.heic,.HEIC,.heif,.HEIF"
                 className="upload-action-input"
                 onChange={handlePhotoFile}
               />

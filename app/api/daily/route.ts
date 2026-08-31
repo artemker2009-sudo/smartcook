@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { unstable_cache } from "next/cache";
 
+import { isTrustedOriginForRead, originBlockedResponse } from "@/lib/originGuard";
+import { checkAndConsumeReadRateLimit, readRateLimitResponse } from "@/lib/rateLimit";
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
@@ -99,7 +102,22 @@ const getDailyRecipe = unstable_cache(
   }
 );
 
-export async function GET() {
+// Единственный OpenAI-роут, который до аудита стоял без лимита и без гарда.
+// Расход прикрыт суточным unstable_cache (ключ включает дату, модель зовётся
+// ~раз в сутки), поэтому задача защиты тут не «сэкономить токены», а не быть
+// открытым бесплатным прокси и не отдавать наружу внутренние ошибки.
+//
+// Гард — READ-версия (см. lib/originGuard.isTrustedOriginForRead): строгая
+// POST-версия отсекает запросы без Origin/Referer, а именно так выглядит
+// нормальный same-origin GET из браузера — рецепт дня пропал бы с Главной.
+// Лимит — общий read-лимитер по IP (120/час, 1500/сутки): обычной загрузке
+// Главной этого хватает с большим запасом, скрейпинг отсекается.
+export async function GET(req: Request) {
+  if (!isTrustedOriginForRead(req)) return originBlockedResponse();
+
+  const rate = await checkAndConsumeReadRateLimit(req, "daily");
+  if (!rate.ok) return readRateLimitResponse(rate);
+
   try {
     const date = new Date().toLocaleDateString("ru-RU", {
       timeZone: "Europe/Moscow",
@@ -108,9 +126,14 @@ export async function GET() {
     const recipeData = await getDailyRecipe(date);
 
     return NextResponse.json({ ...recipeData, date });
-
-  } catch (error: any) {
-    console.error("Daily recipe error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    // Наружу — только общий текст. Раньше сюда уходил error.message от OpenAI
+    // (модель, лимиты аккаунта, детали запроса) — это внутренняя информация,
+    // клиенту она не нужна и в чужих руках лишняя. Подробности остаются в логе.
+    console.error("[daily] error:", error);
+    return NextResponse.json(
+      { error: "Не удалось приготовить рецепт дня. Попробуйте позже." },
+      { status: 500 },
+    );
   }
 }

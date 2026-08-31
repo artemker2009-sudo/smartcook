@@ -58,6 +58,33 @@ export function isTrustedOrigin(req: Request): boolean {
   return false;
 }
 
+/**
+ * Вариант гарда для ПУБЛИЧНЫХ GET-эндпоинтов (напр. /api/daily).
+ *
+ * Отличие от isTrustedOrigin ровно одно — что делать, когда нет ни Origin, ни
+ * Referer. У POST-роутов это верный признак скрипта: браузер на POST шлёт
+ * Origin всегда. У GET всё наоборот — на SAME-ORIGIN GET браузер Origin НЕ
+ * шлёт вовсе, а Referer могут срезать расширения приватности или
+ * Referrer-Policy: no-referrer. Применить к GET строгую версию — значит
+ * выключить рецепт дня на Главной у части живых людей.
+ *
+ * Поэтому: чужой источник отсекаем (cross-origin fetch из браузера Origin
+ * присылает всегда), а «заголовков нет» трактуем как обычный браузерный
+ * запрос со своей же страницы. Остаток — голый curl без заголовков — упирается
+ * в rate-limit, и стоит он ноль: ответ отдаётся из суточного кэша.
+ */
+export function isTrustedOriginForRead(req: Request): boolean {
+  if (process.env.NODE_ENV !== "production") return true;
+
+  const originHost = extractHost(req.headers.get("origin"));
+  if (originHost) return isAllowedHost(originHost, req);
+
+  const refererHost = extractHost(req.headers.get("referer"));
+  if (refererHost) return isAllowedHost(refererHost, req);
+
+  return true;
+}
+
 export function originBlockedResponse() {
   return NextResponse.json(
     { error: "Запрос отклонен: недопустимый источник" },

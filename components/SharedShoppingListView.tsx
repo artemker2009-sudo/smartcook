@@ -1,23 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, Check, Copy, Loader2, Share2, ShoppingCart, Trash2, Users, WifiOff, X } from "lucide-react";
+import { ArrowLeft, Check, Copy, Loader2, Share2, ShoppingCart, Sparkles, Trash2, Users, WifiOff, X } from "lucide-react";
 
 import { KUPER_CPA_URL, KUPER_AD_LABEL } from "@/lib/constants";
 import { reachGoal } from "@/lib/metrika";
 import { copyText } from "@/lib/clipboard";
 import { supabase } from "@/lib/supabase";
-import { MAX_SHOPPING_ITEMS, itemsToText } from "@/lib/shoppingList";
+import { MAX_SHOPPING_ITEMS, itemsToText, signatureFromNames } from "@/lib/shoppingList";
 import {
   addSharedItems,
   clearSharedChecked,
   fetchSharedList,
   patchSharedItem,
+  sortSharedList,
   updatePointerName,
   type SharedItem,
   type SharedMember,
   type SharedSnapshot,
+  type SharedSort,
 } from "@/lib/sharedShoppingList";
 import { TEMP_ITEM_PREFIX, enqueue, flushPending, pendingCount } from "@/lib/sharedShoppingQueue";
 import { sharedListChannelName } from "@/lib/sharedShoppingBroadcast";
@@ -71,6 +73,11 @@ export default function SharedShoppingListView({ listId, memberRef, initial, onB
   const [offline, setOffline] = useState(false);
   const [pending, setPending] = useState(0);
   const [showMembers, setShowMembers] = useState(false);
+  // Раскладка по отделам приходит с сервера вместе со снимком: посчитал один
+  // участник — видят все.
+  const [sort, setSort] = useState<SharedSort | null>(initial.sort ?? null);
+  const [sorting, setSorting] = useState(false);
+  const [sortError, setSortError] = useState<string | null>(null);
 
   const refetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Не даём двум перечитываниям идти внахлёст: пинги могут прийти пачкой.
@@ -85,6 +92,7 @@ export default function SharedShoppingListView({ listId, memberRef, initial, onB
       setName(snap.name);
       setItems(snap.items);
       setMembers(snap.members);
+      setSort(snap.sort ?? null);
       updatePointerName(listId, snap.name);
     },
     [listId],
@@ -157,7 +165,36 @@ export default function SharedShoppingListView({ listId, memberRef, initial, onB
     };
   }, [listId, memberRef, refetch, syncPendingCount]);
 
+  // Подпись считается из тех же названий и той же формулой, что на сервере
+  // (signatureFromNames). Разъедется формула — раскладка будет вечно считаться
+  // устаревшей, поэтому она одна на обе стороны.
+  const sig = useMemo(() => signatureFromNames(items.map((it) => it.name)), [items]);
+  const isSorted = sort !== null && sort.sig === sig;
+  const nameToItem = useMemo(() => {
+    const map = new Map<string, SharedItem>();
+    for (const it of items) map.set(it.name.trim().toLowerCase(), it);
+    return map;
+  }, [items]);
+
   // --- Действия ---------------------------------------------------------------
+
+  const handleSort = async () => {
+    if (items.length === 0 || sorting || isSorted) return;
+    reachGoal("shopping_sort_click");
+    setSorting(true);
+    setSortError(null);
+    try {
+      const result = await sortSharedList(listId, memberRef);
+      setSort(result);
+      // Перечитываем снимок: пока считалась раскладка, кто-то мог чиркнуть
+      // позицию, и её состояние важнее нашего локального.
+      await refetch();
+    } catch (e) {
+      setSortError(e instanceof Error ? e.message : "Не удалось разложить по отделам");
+    } finally {
+      setSorting(false);
+    }
+  };
 
   const handleAddNames = async (names: string[]) => {
     if (items.length >= MAX_SHOPPING_ITEMS) {
@@ -255,6 +292,123 @@ export default function SharedShoppingListView({ listId, memberRef, initial, onB
   };
 
   const hasChecked = items.some((it) => it.checked);
+
+  // Строка позиции вынесена в функцию: при раскладке по отделам тот же ряд
+  // рисуется внутри каждой группы, без раскладки — одним списком. Так же
+  // устроен личный экран.
+  const renderRow = (it: SharedItem) => {
+    const who = it.checked && it.checkedBy ? memberByRef.get(it.checkedBy) : null;
+    return (
+      <li
+        key={it.id}
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          gap: "var(--space-3)",
+          padding: "var(--space-3)",
+          borderBottom: "1px solid var(--color-border)",
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => void toggle(it)}
+          aria-pressed={it.checked}
+          aria-label={it.checked ? `Вернуть «${it.name}»` : `Вычеркнуть «${it.name}»`}
+          style={{
+            flexShrink: 0,
+            width: 30,
+            height: 30,
+            borderRadius: "var(--radius-full)",
+            border: `2px solid ${it.checked ? "var(--color-accent)" : "var(--color-border)"}`,
+            background: it.checked ? "var(--color-accent)" : "var(--color-surface)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            padding: 0,
+          }}
+        >
+          {it.checked && <Check size={18} color="#fff" strokeWidth={3} />}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => void toggle(it)}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            textAlign: "left",
+            border: "none",
+            background: "transparent",
+            cursor: "pointer",
+            padding: "2px 0",
+            fontSize: "var(--font-size-heading)",
+            lineHeight: 1.35,
+            whiteSpace: "normal",
+            overflowWrap: "anywhere",
+            color: it.checked ? "var(--color-text-muted)" : "var(--color-text)",
+            textDecoration: it.checked ? "line-through" : "none",
+          }}
+        >
+          {it.name}
+          {/* Кто уже взял — главная ценность общего списка: видно, что покупку
+              закрыли, и второй раз идти не надо. */}
+          {who && (
+            <span
+              style={{
+                display: "block",
+                marginTop: 2,
+                fontSize: "var(--font-size-caption)",
+                color: "var(--color-text-muted)",
+                textDecoration: "none",
+              }}
+            >
+              купил(а) {who}
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => void remove(it)}
+          aria-label={`Убрать «${it.name}»`}
+          style={{
+            flexShrink: 0,
+            width: 44,
+            height: 44,
+            marginTop: -6,
+            marginRight: -8,
+            borderRadius: "var(--radius-full)",
+            border: "none",
+            background: "transparent",
+            color: "var(--color-text-muted)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+          }}
+        >
+          <X size={22} />
+        </button>
+      </li>
+    );
+  };
+
+  const listCard = (children: ReactNode) => (
+    <ul
+      style={{
+        listStyle: "none",
+        margin: "0 0 var(--space-4) 0",
+        padding: 0,
+        background: "var(--color-surface)",
+        border: "1px solid var(--color-border)",
+        borderRadius: "var(--radius-md)",
+        overflow: "hidden",
+      }}
+    >
+      {children}
+    </ul>
+  );
   const memberByRef = new Map(members.map((m) => [m.memberRef, m.name]));
 
   return (
@@ -381,115 +535,74 @@ export default function SharedShoppingListView({ listId, memberRef, initial, onB
         </div>
       ) : (
         <>
-          <ul
+          <button
+            type="button"
+            onClick={() => void handleSort()}
+            disabled={sorting}
             style={{
-              listStyle: "none",
-              margin: "0 0 var(--space-4) 0",
-              padding: 0,
-              background: "var(--color-surface)",
-              border: "1px solid var(--color-border)",
-              borderRadius: "var(--radius-md)",
-              overflow: "hidden",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "var(--space-2)",
+              width: "100%",
+              padding: "var(--space-3) var(--space-4)",
+              marginBottom: "var(--space-3)",
+              background: isSorted ? "var(--color-accent-subtle)" : "var(--color-accent)",
+              color: isSorted ? "var(--color-accent)" : "#fff",
+              border: isSorted ? "1px solid var(--color-accent)" : "none",
+              borderRadius: "var(--radius-sm)",
+              fontSize: "var(--font-size-heading)",
+              fontWeight: "var(--font-weight-semibold)",
+              cursor: sorting ? "wait" : "pointer",
+              opacity: sorting ? 0.7 : 1,
             }}
           >
-            {ordered(items).map((it) => {
-              const who = it.checked && it.checkedBy ? memberByRef.get(it.checkedBy) : null;
-              return (
-                <li
-                  key={it.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "var(--space-3)",
-                    padding: "var(--space-3)",
-                    borderBottom: "1px solid var(--color-border)",
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => void toggle(it)}
-                    aria-pressed={it.checked}
-                    aria-label={it.checked ? `Вернуть «${it.name}»` : `Вычеркнуть «${it.name}»`}
-                    style={{
-                      flexShrink: 0,
-                      width: 30,
-                      height: 30,
-                      borderRadius: "var(--radius-full)",
-                      border: `2px solid ${it.checked ? "var(--color-accent)" : "var(--color-border)"}`,
-                      background: it.checked ? "var(--color-accent)" : "var(--color-surface)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      cursor: "pointer",
-                      padding: 0,
-                    }}
-                  >
-                    {it.checked && <Check size={18} color="#fff" strokeWidth={3} />}
-                  </button>
+            {sorting ? <Loader2 size={22} className="animate-spin" /> : <Sparkles size={22} />}
+            {sorting ? "Раскладываю по отделам…" : isSorted ? "Разложено по отделам" : "Разложить по отделам"}
+          </button>
 
-                  <button
-                    type="button"
-                    onClick={() => void toggle(it)}
-                    style={{
-                      flex: 1,
-                      minWidth: 0,
-                      textAlign: "left",
-                      border: "none",
-                      background: "transparent",
-                      cursor: "pointer",
-                      padding: "2px 0",
-                      fontSize: "var(--font-size-heading)",
-                      lineHeight: 1.35,
-                      whiteSpace: "normal",
-                      overflowWrap: "anywhere",
-                      color: it.checked ? "var(--color-text-muted)" : "var(--color-text)",
-                      textDecoration: it.checked ? "line-through" : "none",
-                    }}
-                  >
-                    {it.name}
-                    {/* Кто уже взял — главная ценность общего списка: видно, что
-                        покупку закрыли, и второй раз идти не надо. */}
-                    {who && (
-                      <span
-                        style={{
-                          display: "block",
-                          marginTop: 2,
-                          fontSize: "var(--font-size-caption)",
-                          color: "var(--color-text-muted)",
-                          textDecoration: "none",
-                        }}
-                      >
-                        купил(а) {who}
-                      </span>
-                    )}
-                  </button>
+          {sortError && (
+            <div
+              style={{
+                marginBottom: "var(--space-3)",
+                padding: "var(--space-3)",
+                borderRadius: "var(--radius-sm)",
+                background: "var(--color-danger-subtle)",
+                color: "var(--color-danger)",
+                fontSize: "var(--font-size-body)",
+              }}
+            >
+              {sortError}
+            </div>
+          )}
 
-                  <button
-                    type="button"
-                    onClick={() => void remove(it)}
-                    aria-label={`Убрать «${it.name}»`}
-                    style={{
-                      flexShrink: 0,
-                      width: 44,
-                      height: 44,
-                      marginTop: -6,
-                      marginRight: -8,
-                      borderRadius: "var(--radius-full)",
-                      border: "none",
-                      background: "transparent",
-                      color: "var(--color-text-muted)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <X size={22} />
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+          {isSorted && sort
+            ? sort.groups.map((group) => {
+                const groupItems = ordered(
+                  group.items
+                    .map((name) => nameToItem.get(name.trim().toLowerCase()))
+                    .filter((it): it is SharedItem => Boolean(it)),
+                );
+                if (groupItems.length === 0) return null;
+                return (
+                  <section key={group.department} style={{ marginBottom: "var(--space-3)" }}>
+                    <h2
+                      style={{
+                        margin: "0 0 var(--space-2) var(--space-1)",
+                        fontSize: "var(--font-size-caption)",
+                        fontWeight: "var(--font-weight-semibold)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
+                        color: "var(--color-accent)",
+                      }}
+                    >
+                      {group.department}
+                    </h2>
+                    {listCard(groupItems.map(renderRow))}
+                  </section>
+                );
+              })
+            : listCard(ordered(items).map(renderRow))}
 
           {hasChecked && (
             <button

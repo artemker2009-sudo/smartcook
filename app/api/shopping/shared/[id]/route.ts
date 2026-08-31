@@ -2,7 +2,13 @@ import { NextResponse } from "next/server";
 
 import { createServiceRoleClient } from "@/lib/supabaseAdmin";
 import { checkAndConsumeReadRateLimit, readRateLimitResponse } from "@/lib/rateLimit";
-import { findLiveList, findMembership, isUuid, sanitizeMemberRef } from "@/lib/sharedShoppingServer";
+import {
+  findLiveList,
+  findMembership,
+  isUuid,
+  sanitizeMemberRef,
+  sharedSortFromRow,
+} from "@/lib/sharedShoppingServer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -78,6 +84,7 @@ export async function GET(req: Request, context: { params: Promise<{ id: string 
     updatedAt: list.updated_at,
     joined: true,
     memberRef: membership.member_ref,
+    sort: sharedSortFromRow(list),
     items: (itemsResult.data ?? []).map((it) => ({
       id: it.id,
       name: it.name,

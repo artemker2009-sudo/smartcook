@@ -247,16 +247,24 @@ export function addNamesToStorage(names: string[]): AddNamesResult {
   return result;
 }
 
-// --- Кэш умной сортировки ---
+// --- Кэш раскладки по отделам ---
 
 // Подпись списка по названиям (без учёта галочек/порядка) — по ней решаем,
 // можно ли отдать кэш вместо повторного вызова API. Вычёркивание позиции
 // подпись НЕ меняет, добавление/удаление — меняет.
-export function listSignature(items: ShoppingItem[]): string {
-  return items
-    .map((it) => it.name.trim().toLowerCase())
+//
+// У общего списка подпись считает СЕРВЕР, а сверяет её с текущим набором
+// КЛИЕНТ, поэтому формула обязана быть одна на обе стороны. Отсюда отдельная
+// функция от голых названий: listSignature ниже — просто обёртка над ней.
+export function signatureFromNames(names: string[]): string {
+  return names
+    .map((name) => name.trim().toLowerCase())
     .sort()
     .join("|");
+}
+
+export function listSignature(items: ShoppingItem[]): string {
+  return signatureFromNames(items.map((it) => it.name));
 }
 
 export type SortCache = { sig: string; groups: ShoppingGroup[] };

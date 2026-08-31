@@ -101,6 +101,11 @@ export type SharedListRow = {
   owner_ref: string;
   updated_at: string;
   archived_at: string | null;
+  // Раскладка по отделам: подпись набора позиций, для которого она считалась,
+  // и сами группы. Живут в БД, чтобы результат видели ВСЕ участники, а не
+  // только тот, кто нажал (supabase_shared_list_sort.sql).
+  sort_sig: string | null;
+  sort_groups: unknown;
 };
 
 /** Живой (не архивированный) список по id. */
@@ -110,7 +115,7 @@ export async function findLiveList(
 ): Promise<SharedListRow | null> {
   const { data, error } = await supabase
     .from("shared_lists")
-    .select("id,name,owner_ref,updated_at,archived_at")
+    .select("id,name,owner_ref,updated_at,archived_at,sort_sig,sort_groups")
     .eq("id", listId)
     .is("archived_at", null)
     .maybeSingle();
@@ -135,4 +140,16 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 export function isUuid(value: string): boolean {
   return UUID_RE.test(value);
+}
+
+/**
+ * Раскладка списка в том виде, в каком её ждёт клиент, либо null.
+ *
+ * Колонки заполняются парой, но проверяем обе: строка могла пережить неудачное
+ * сохранение или ручную правку в Dashboard, и половинчатая раскладка сломала бы
+ * группировку на экране.
+ */
+export function sharedSortFromRow(row: SharedListRow): { sig: string; groups: unknown[] } | null {
+  if (!row.sort_sig || !Array.isArray(row.sort_groups)) return null;
+  return { sig: row.sort_sig, groups: row.sort_groups };
 }

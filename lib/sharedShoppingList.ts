@@ -5,6 +5,8 @@
 // отдельная сущность: сюда попадают только указатели «я состою в таком-то
 // списке» и личность участника. Сами позиции живут на сервере.
 
+import type { ShoppingGroup } from "./shoppingList";
+
 export const SHARED_LISTS_KEY = "smartcook_shared_shopping_lists_v1";
 const MEMBER_KEY_PREFIX = "smartcook_shared_member_";
 
@@ -43,6 +45,8 @@ export type SharedMember = {
   joinedAt: string;
 };
 
+export type SharedSort = { sig: string; groups: ShoppingGroup[] };
+
 export type SharedSnapshot = {
   id: string;
   name: string;
@@ -52,6 +56,11 @@ export type SharedSnapshot = {
   memberRef: string;
   items: SharedItem[];
   members: SharedMember[];
+  /**
+   * Раскладка по отделам, посчитанная кем-то из участников и сохранённая на
+   * сервере. Отсутствует у только что созданного списка — отсюда `?` и `null`.
+   */
+  sort?: SharedSort | null;
 };
 
 export type SharedPreview = {
@@ -303,6 +312,30 @@ export async function patchSharedItem(
   // Экран всё равно перечитает снимок, поэтому молча выходим.
   if (res.status === 404) return;
   if (!res.ok) await parseError(res, "Не удалось обновить позицию");
+}
+
+/**
+ * Разложить общий список по отделам.
+ *
+ * Сервер сам возьмёт актуальные позиции из БД, посчитает раскладку (или отдаст
+ * уже посчитанную для этого же набора, не тратя вызов модели), сохранит её и
+ * разошлёт остальным участникам.
+ */
+export async function sortSharedList(
+  listId: string,
+  memberRef: string,
+): Promise<SharedSort> {
+  const res = await fetch(`/api/shopping/shared/${listId}/sort`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ memberRef }),
+  });
+  if (!res.ok) await parseError(res, "Не удалось разложить по отделам");
+  const data = (await res.json()) as { sig?: string; groups?: unknown };
+  return {
+    sig: typeof data.sig === "string" ? data.sig : "",
+    groups: Array.isArray(data.groups) ? (data.groups as ShoppingGroup[]) : [],
+  };
 }
 
 export async function clearSharedChecked(listId: string, memberRef: string): Promise<number> {

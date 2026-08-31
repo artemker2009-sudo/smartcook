@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
 
 import { getVerifiedUserId } from "@/lib/auth";
 import { isTrustedOrigin, originBlockedResponse } from "@/lib/originGuard";
@@ -10,14 +9,9 @@ import {
 import {
   MAX_SHOPPING_ITEMS,
   MAX_SHOPPING_ITEM_LENGTH,
-  SHOPPING_DEPARTMENTS,
-  buildGroups,
   sanitizeShoppingName,
 } from "@/lib/shoppingList";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { groupNamesByDepartment } from "@/lib/shoppingSort";
 
 // Раскладывание списка покупок по отделам магазина. Список хранится на
 // устройстве (localStorage) — сюда приходит только массив названий на один
@@ -80,56 +74,7 @@ export async function POST(req: Request) {
     const rateLimit = await checkAndConsumeShoppingSortRateLimit(req, userId);
     if (!rateLimit.ok) return shoppingRateLimitResponse(rateLimit);
 
-    const numbered = names.map((name, i) => `${i}. ${name}`).join("\n");
-
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      temperature: 0,
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "system",
-          content:
-            "Ты помощник для списка покупок. Тебе дают пронумерованный список продуктов. " +
-            "Отнеси КАЖДУЮ позицию к одному отделу магазина строго из списка отделов. " +
-            "НЕ переименовывай позиции, НЕ добавляй новые, НЕ удаляй, НЕ объединяй. " +
-            "Отвечай строго в формате JSON.\n\n" +
-            `Отделы: ${SHOPPING_DEPARTMENTS.join(", ")}.\n` +
-            "Если позиция ни к чему не подходит — отдел «Прочее».\n" +
-            'Формат ответа: {"assignments":[{"i":<индекс позиции>,"department":"<отдел>"}, ...]} ' +
-            "— по одной записи на КАЖДЫЙ индекс из входа.",
-        },
-        {
-          role: "user",
-          content: `Позиции:\n${numbered}`,
-        },
-      ],
-    });
-
-    const content = completion.choices[0]?.message?.content;
-    if (!content) throw new Error("Пустой ответ модели");
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(content);
-    } catch {
-      // Модель вернула не-JSON — не падаем, отдаём всё «Прочим» как fallback.
-      parsed = {};
-    }
-
-    const assignments = (parsed as { assignments?: unknown })?.assignments;
-    const depByIndex: Array<string | undefined> = new Array(names.length).fill(undefined);
-    if (Array.isArray(assignments)) {
-      for (const a of assignments) {
-        const i = Number((a as { i?: unknown })?.i);
-        const department = (a as { department?: unknown })?.department;
-        if (Number.isInteger(i) && i >= 0 && i < names.length && typeof department === "string") {
-          depByIndex[i] = department;
-        }
-      }
-    }
-
-    const groups = buildGroups(names, depByIndex);
+    const groups = await groupNamesByDepartment(names);
     return NextResponse.json({ groups });
   } catch (error: unknown) {
     console.error("[shopping/sort] error:", error);

@@ -491,6 +491,127 @@ export function readRateLimitResponse(result: Extract<RateLimitResult, { ok: fal
   );
 }
 
+// --- Общий (семейный) список покупок -----------------------------------------
+//
+// Три отдельных префикса со своими бюджетами. Ни один НЕ делится с умной
+// сортировкой ("shopping:") и распознаванием по фото ("shopping-photo:") — тот
+// же принцип, по которому фото в своё время получило собственный счётчик:
+// исчерпать чужой лимит своими действиями нельзя.
+//
+// OpenAI здесь не участвует, так что лимиты защищают не расходы, а сам список:
+// чтобы по одной ссылке нельзя было завалить семью спамом.
+
+const SHARED_CREATE_PER_DAY = 5;
+const SHARED_JOIN_PER_HOUR = 20;
+const SHARED_WRITE_PER_HOUR = 60;
+const SHARED_WRITE_PER_DAY = 300;
+
+export async function checkAndConsumeSharedListCreateRateLimit(req: Request): Promise<RateLimitResult> {
+  const ip = getClientIp(req);
+  const route = "shared-shopping-create";
+  const identifier = `shshop-create:ip:${ip}`;
+
+  // Часовой и суточный потолок совпадают: 5 списков в день — это и есть предел,
+  // отдельного часового смысла нет.
+  const result = await checkIdentifier(identifier, "ip", {
+    perHour: SHARED_CREATE_PER_DAY,
+    perDay: SHARED_CREATE_PER_DAY,
+  });
+  if (!result.ok) {
+    logRateLimitHit({ route, ip, userId: null, scope: result.scope, window: result.window });
+    return result;
+  }
+
+  const { error } = await supabaseAdmin.from("ai_rate_limit_events").insert([{ identifier, route }]);
+  if (error) console.error("[rateLimit] failed to record shared create event", error.message);
+
+  return { ok: true };
+}
+
+export async function checkAndConsumeSharedListJoinRateLimit(req: Request): Promise<RateLimitResult> {
+  const ip = getClientIp(req);
+  const route = "shared-shopping-join";
+  const identifier = `shshop-join:ip:${ip}`;
+
+  const result = await checkIdentifier(identifier, "ip", {
+    perHour: SHARED_JOIN_PER_HOUR,
+    perDay: SHARED_JOIN_PER_HOUR * 4,
+  });
+  if (!result.ok) {
+    logRateLimitHit({ route, ip, userId: null, scope: result.scope, window: result.window });
+    return result;
+  }
+
+  const { error } = await supabaseAdmin.from("ai_rate_limit_events").insert([{ identifier, route }]);
+  if (error) console.error("[rateLimit] failed to record shared join event", error.message);
+
+  return { ok: true };
+}
+
+// memberRef приходит из тела запроса и сервером не подтверждён (та же модель
+// доверия, что у party.user_id) — значит одного счётчика по нему мало:
+// подделав ref, счётчик можно обнулить. Поэтому второй, более широкий, по IP.
+export async function checkAndConsumeSharedListWriteRateLimit(
+  req: Request,
+  memberRef: string,
+): Promise<RateLimitResult> {
+  const ip = getClientIp(req);
+  const route = "shared-shopping-write";
+  const memberId = `shshop:member:${memberRef}`;
+  const ipId = `shshop:ip:${ip}`;
+
+  // Оба счётчика читаем ПАРАЛЛЕЛЬНО. В отличие от AI-роутов, здесь запрос
+  // делается на каждую галочку в магазине, и лишний последовательный round-trip
+  // до Supabase человек чувствует пальцем. Проверки независимы, так что
+  // единственная плата за параллельность — одно лишнее чтение в тот редкий
+  // момент, когда лимит уже превышен.
+  //
+  // По IP потолок кратно выше: за одним адресом сидит вся семья (домашний NAT),
+  // и их совместная работа со списком не должна упираться в лимит одного.
+  const [memberResult, ipResult] = await Promise.all([
+    checkIdentifier(memberId, "user", { perHour: SHARED_WRITE_PER_HOUR, perDay: SHARED_WRITE_PER_DAY }),
+    checkIdentifier(ipId, "ip", { perHour: SHARED_WRITE_PER_HOUR * 4, perDay: SHARED_WRITE_PER_DAY * 4 }),
+  ]);
+
+  if (!memberResult.ok) {
+    logRateLimitHit({ route, ip, userId: memberRef, scope: memberResult.scope, window: memberResult.window });
+    return memberResult;
+  }
+  if (!ipResult.ok) {
+    logRateLimitHit({ route, ip, userId: memberRef, scope: ipResult.scope, window: ipResult.window });
+    return ipResult;
+  }
+
+  const { error } = await supabaseAdmin
+    .from("ai_rate_limit_events")
+    .insert([{ identifier: memberId, route }, { identifier: ipId, route }]);
+  if (error) console.error("[rateLimit] failed to record shared write event", error.message);
+
+  return { ok: true };
+}
+
+// Ответ на превышение лимита общего списка: без слова «генерации» — человек
+// просто добавлял продукты.
+export function sharedListRateLimitResponse(result: Extract<RateLimitResult, { ok: false }>) {
+  if (result.window === "error") {
+    return NextResponse.json(
+      { error: "Сервис временно недоступен. Попробуйте через минуту.", code: "RATE_LIMIT_UNAVAILABLE" },
+      { status: 503 },
+    );
+  }
+  return NextResponse.json(
+    {
+      error:
+        result.window === "hour"
+          ? "Слишком много изменений подряд. Попробуйте через несколько минут."
+          : "На сегодня достаточно изменений в общем списке. Возвращайтесь завтра.",
+      code: RATE_LIMIT_ERROR_CODE,
+      window: result.window,
+    },
+    { status: 429 },
+  );
+}
+
 export function rateLimitResponse(result: Extract<RateLimitResult, { ok: false }>) {
   if (result.window === "error") {
     // Сбой инфраструктуры лимитера — честно говорим об ошибке, а не врем

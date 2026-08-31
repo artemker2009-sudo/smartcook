@@ -1953,6 +1953,11 @@ a.news-card:hover { transform: translateY(-2px); }
 }
 .cook-repeat:active { background: #f4f4f5; }
 
+/* Ряд «Без звука» + «Повторить»: обе кнопки — те же .cook-repeat, делят ширину
+   пополам. Собственный margin-bottom у .cook-repeat держит отступ до гигантов. */
+.cook-audio-row { display: flex; gap: 12px; }
+.cook-audio-row .cook-repeat { flex: 1; min-width: 0; }
+
 /* Два гиганта Назад/Дальше */
 .cook-nav { display: flex; gap: 12px; }
 /* flex:1 ТОЛЬКО в ряду навигации (делят 50/50). В колоночных экранах

@@ -1,7 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { X, ChevronLeft, ChevronRight, RotateCw, ListChecks, Check, Mic, Clock } from "lucide-react";
+import {
+  X,
+  ChevronLeft,
+  ChevronRight,
+  RotateCw,
+  ListChecks,
+  Check,
+  Mic,
+  Clock,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
 import { reachGoal } from "@/lib/metrika";
 import { formatCookingTime } from "@/lib/utils";
 
@@ -18,10 +29,21 @@ import { formatCookingTime } from "@/lib/utils";
 // на iOS показывал системный промпт поверх экрана → «мёртвые кнопки»). Экран
 // выбора показывается КАЖДЫЙ вход — это и предсказуемость для 60+, и жест,
 // разблокирующий TTS/микрофон на iOS.
+//
+// ДВА РАЗНЫХ «голоса», которые раньше путались (аудит):
+//   • ОЗВУЧКА (speechSynthesis) — телефон читает шаги вслух;
+//   • КОМАНДЫ (speechRecognition) — телефон слушает «дальше», «стоп».
+// Кнопка «Начать без звука» отключает ИМЕННО ОЗВУЧКУ: раньше она гасила только
+// микрофон, и телефон всё равно начинал говорить — ровно то, чего человек
+// просил не делать, и выключить это было негде. Теперь состояние озвучки живёт
+// в soundOn, гейтится в speak() и переключается кнопкой на экране шага.
 
 export type CookIngredient = { name: string; amount?: string };
 
 const VOICE_PREF_KEY = "sc_cook_voice_pref"; // "voice" | "buttons" — какая кнопка первична
+// Озвучка шагов (TTS) — отдельная от микрофона настройка. Запоминаем выбор:
+// человек, который однажды выключил звук, не должен выключать его каждый раз.
+const SOUND_PREF_KEY = "sc_cook_sound"; // "on" | "off"
 
 // «Разблокировка» озвучки для iOS: самый первый speak() обязан идти из
 // пользовательского жеста, иначе на iOS дальнейшая озвучка не работает.
@@ -93,14 +115,34 @@ export default function CookMode({
     }
   });
 
+  // Озвучка шагов. По умолчанию включена (режим и придуман как «читаю вслух»),
+  // но запомненный выбор «выключить» уважаем сразу с экрана выбора.
+  const [soundOn, setSoundOn] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(SOUND_PREF_KEY) !== "off";
+    } catch {
+      return true;
+    }
+  });
+
   const wakeLockRef = useRef<any>(null);
   const recognitionRef = useRef<any>(null);
   const voiceUsedRef = useRef(false);
   const finishedGoalRef = useRef(false);
   const spokenKeyRef = useRef<string>(""); // гарантия «озвучка ровно раз на шаг»
 
+  // soundOn в ref: speak() обязан остаться стабильным колбэком (от его
+  // идентичности зависят эффекты автоозвучки и commandsRef), поэтому текущее
+  // состояние звука читаем через ref, а не через замыкание.
+  //
+  // Ref НЕ синхронизируется в рендере: soundOn меняется единственным путём —
+  // через applySound, который пишет и ref, и state. Разъехаться им негде, а
+  // присваивание во время рендера было бы лишним нарушением правил хуков.
+  const soundOnRef = useRef(soundOn);
+
   // --- Озвучка (speechSynthesis) ---
   const speak = useCallback((text: string) => {
+    if (!soundOnRef.current) return; // звук выключен — молчим, это и обещает кнопка
     if (typeof window === "undefined" || !("speechSynthesis" in window) || !text) return;
     try {
       window.speechSynthesis.cancel();
@@ -413,10 +455,43 @@ export default function CookMode({
     }
   };
 
+  // Включить/выключить озвучку. Ref обновляем СИНХРОННО: сразу после вызова в том
+  // же обработчике идёт speak(), а setState к этому моменту ещё не применился.
+  const applySound = useCallback((on: boolean) => {
+    soundOnRef.current = on;
+    setSoundOn(on);
+    try {
+      localStorage.setItem(SOUND_PREF_KEY, on ? "on" : "off");
+    } catch {
+      /* приватный режим — просто не запомним выбор */
+    }
+  }, []);
+
+  // Кнопка звука на экране шага. Выключаем — обрываем текущую фразу немедленно
+  // (иначе кухня слушает ещё полшага). Включаем — сразу читаем текущий шаг, тап
+  // сам по себе является жестом, разблокирующим TTS на iOS.
+  const toggleSound = () => {
+    if (soundOnRef.current) {
+      applySound(false);
+      stopSpeaking();
+      setSpeechPaused(false);
+      return;
+    }
+    primeCookVoice();
+    applySound(true);
+    if (cleanSteps[stepIndexRef.current]) speak(cleanSteps[stepIndexRef.current]);
+  };
+
   // Старт готовки с экрана выбора. primeCookVoice + первая озвучка + (для голоса)
   // старт микрофона — всё СИНХРОННО в жесте тапа.
-  const beginCooking = (withVoice: boolean) => {
+  //
+  // withSound задаёт озвучку: «Начать без звука» → false, и телефон реально
+  // молчит. primeCookVoice зовём в любом случае — фраза из одного пробела
+  // неслышна, но это единственный шанс разблокировать TTS на iOS внутри жеста,
+  // чтобы кнопка «Озвучить шаг» на экране шага потом сработала.
+  const beginCooking = (withVoice: boolean, withSound: boolean) => {
     primeCookVoice();
+    applySound(withSound);
     spokenKeyRef.current = `step:${stepIndex}`;
     setSpeechPaused(false);
     if (withVoice) {
@@ -429,6 +504,7 @@ export default function CookMode({
       savePref("buttons");
       reachGoal("cook_mode_voice_declined");
     }
+    if (!withSound) reachGoal("cook_mode_sound_off");
     setView("step");
     if (cleanSteps[stepIndex]) speak(cleanSteps[stepIndex]);
   };
@@ -456,22 +532,27 @@ export default function CookMode({
   }
 
   const voiceFirst = voicePref === "voice";
+  // «С управлением голосом» подразумевает и озвучку: человек хочет разговор в
+  // обе стороны. Микрофон + звук включаются вместе.
   const voiceButton = (
     <button
       type="button"
       className={`cook-btn-giant ${voiceFirst ? "cook-btn-primary" : "cook-btn-secondary"}`}
-      onClick={() => beginCooking(true)}
+      onClick={() => beginCooking(true, true)}
     >
       <Mic size={26} /> Начать с управлением голосом
     </button>
   );
+  // «Без звука» — ни микрофона, ни озвучки. Название честнее прежнего «без
+  // голоса»: то читалось как «без голосовых команд», а телефон всё равно
+  // начинал говорить.
   const buttonsButton = (
     <button
       type="button"
       className={`cook-btn-giant ${voiceFirst ? "cook-btn-secondary" : "cook-btn-primary"}`}
-      onClick={() => beginCooking(false)}
+      onClick={() => beginCooking(false, false)}
     >
-      Начать без голоса
+      <VolumeX size={26} /> Начать без звука
     </button>
   );
 
@@ -488,13 +569,15 @@ export default function CookMode({
             </div>
           ) : null}
           <p className="cook-intro-text">
-            Я буду читать шаги вслух.
             {srSupported ? (
               <>
-                {" "}Можно управлять голосом — просто скажите:{" "}
-                <b>«дальше», «назад», «повтори», «стоп», «продолжить»</b>.
+                Я буду читать шаги вслух, а вы можете управлять голосом — просто
+                скажите: <b>«дальше», «назад», «повтори», «стоп», «продолжить»</b>.
+                Или начните без звука — шаги будут только на экране.
               </>
-            ) : null}
+            ) : (
+              <>Я буду читать шаги вслух. Звук можно выключить в любой момент.</>
+            )}
           </p>
 
           {srSupported ? (
@@ -512,9 +595,24 @@ export default function CookMode({
               )}
             </>
           ) : (
-            <button type="button" className="cook-btn-giant cook-btn-primary" onClick={() => beginCooking(false)}>
-              Начинаем 🔊
-            </button>
+            // Распознавания нет (часть Android-браузеров, десктоп): выбирать
+            // нечего кроме звука — предлагаем именно его, а не «с голосом».
+            <>
+              <button
+                type="button"
+                className="cook-btn-giant cook-btn-primary"
+                onClick={() => beginCooking(false, true)}
+              >
+                <Volume2 size={26} /> Начать с озвучкой
+              </button>
+              <button
+                type="button"
+                className="cook-btn-giant cook-btn-secondary"
+                onClick={() => beginCooking(false, false)}
+              >
+                <VolumeX size={26} /> Начать без звука
+              </button>
+            </>
           )}
 
           <button type="button" className="cook-intro-exit" onClick={onClose}>
@@ -561,10 +659,36 @@ export default function CookMode({
             <p className="cook-step-text">{cleanSteps[stepIndex]}</p>
           </div>
 
-          <button type="button" className="cook-repeat" onClick={repeat}>
-            <RotateCw size={24} />
-            <span>Повторить</span>
-          </button>
+          {/* Звук и повтор. Со звуком — выключатель слева, повтор шага справа.
+              Без звука повторять нечего (speak() молчит), поэтому вместо ряда
+              одна широкая кнопка: она включает озвучку и сразу читает шаг. */}
+          {soundOn ? (
+            <div className="cook-audio-row">
+              <button
+                type="button"
+                className="cook-repeat"
+                onClick={toggleSound}
+                aria-label="Выключить озвучку шагов"
+              >
+                <VolumeX size={24} />
+                <span>Без звука</span>
+              </button>
+              <button type="button" className="cook-repeat" onClick={repeat}>
+                <RotateCw size={24} />
+                <span>Повторить</span>
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="cook-repeat"
+              onClick={toggleSound}
+              aria-label="Включить озвучку и прочитать шаг"
+            >
+              <Volume2 size={24} />
+              <span>Озвучить шаг</span>
+            </button>
+          )}
 
           <div className="cook-nav">
             <button

@@ -2170,9 +2170,13 @@ a.news-card:hover { transform: translateY(-2px); }
   font-size: var(--font-size-heading);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text);
-  white-space: nowrap;
+  /* Не обрезаем многоточием: длинное имя переносится на две строки. Дата из
+     имени по умолчанию на карточку не попадает — она уже есть в подписи. */
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 .sl-card-meta { font-size: var(--font-size-caption); color: var(--color-text-muted); }
 .sl-progress-track {

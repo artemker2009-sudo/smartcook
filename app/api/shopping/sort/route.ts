@@ -19,7 +19,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Умная сортировка списка покупок по отделам магазина. Список хранится на
+// Раскладывание списка покупок по отделам магазина. Список хранится на
 // устройстве (localStorage) — сюда приходит только массив названий на один
 // проход. Роут НИЧЕГО не хранит и не пишет в БД.
 //
@@ -133,6 +133,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ groups });
   } catch (error: unknown) {
     console.error("[shopping/sort] error:", error);
-    return NextResponse.json({ error: "Не удалось отсортировать список" }, { status: 500 });
+    return NextResponse.json({ error: "Не удалось разложить по отделам" }, { status: 500 });
   }
 }

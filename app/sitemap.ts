@@ -76,6 +76,24 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'weekly',
       priority: 0.8,
     },
+    // «Умный список покупок» — раздел, который продукт называет новинкой и
+    // рекламирует на Главной, но в карте сайта его не было вовсе: для поиска
+    // его просто не существовало. Приоритет как у /parties — это такой же
+    // самостоятельный раздел, а не служебная страница.
+    {
+      url: 'https://smart-cook.pro/shopping',
+      lastModified: new Date(),
+      changeFrequency: 'weekly',
+      priority: 0.8,
+    },
+    // Лента сообщества: контент обновляется чаще разделов, но приоритет ниже —
+    // это витрина, а не точка входа в основной сценарий.
+    {
+      url: 'https://smart-cook.pro/feed',
+      lastModified: new Date(),
+      changeFrequency: 'daily',
+      priority: 0.6,
+    },
     {
       url: 'https://smart-cook.pro/about',
       lastModified: new Date(),

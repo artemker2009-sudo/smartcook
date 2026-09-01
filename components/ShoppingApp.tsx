@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronRight, Loader2, MoreHorizontal, Pencil, Plus, Share2, ShoppingCart, Trash2, Users, X } from "lucide-react";
+import { ChevronRight, Loader2, MoreHorizontal, Pencil, Plus, Send, ShoppingCart, Trash2, Users, X } from "lucide-react";
 
 import { reachGoal } from "@/lib/metrika";
 import { copyText } from "@/lib/clipboard";
@@ -176,7 +176,12 @@ export default function ShoppingApp() {
     setDeleteTarget(null);
   };
 
-  // --- Поделиться ---
+  // --- Отправить копию списка ---
+  //
+  // ВАЖНО не путать с общим списком (openMakeShared): здесь весь список
+  // укладывается в ссылку, и получатель заводит СВОЮ копию — дальше два списка
+  // живут независимо, отметки друг к другу не ходят. Живой сценарий — только
+  // «Позвать в общий список». Тексты и иконки разведены именно поэтому.
 
   const handleShare = async (list: ShoppingListRecord) => {
     setSheetList(null);
@@ -202,7 +207,13 @@ export default function ShoppingApp() {
       }
     }
     const ok = await copyText(url);
-    toast(ok ? "Ссылка скопирована — отправьте её кому угодно" : "Не удалось скопировать ссылку");
+    // Тост честно называет вещь копией: раньше «отправьте её кому угодно»
+    // звучало как приглашение в совместный список, которым эта ссылка не является.
+    toast(
+      ok
+        ? "Ссылка на копию скопирована — у получателя будет свой список"
+        : "Не удалось скопировать ссылку",
+    );
   };
 
   const copyBigAsText = async () => {
@@ -336,9 +347,14 @@ export default function ShoppingApp() {
                 <X size={20} />
               </button>
             </div>
+            {/* Текст обязан совпадать с тем, что реально произойдёт. Прежняя
+                формулировка обещала «этот список останется у вас и таким, как
+                есть» — а локальный оригинал сразу прячется из хаба
+                (convertedLocalListIds), и человек решал, что список пропал. */}
             <p style={{ margin: "0 0 var(--space-3) 0", color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
               «{makeSharedTarget.name}» станет общим: вы получите ссылку, и всё, что кто-то отметит,
-              сразу увидят остальные. Этот список останется у вас и таким, как есть.
+              сразу увидят остальные. Список переедет в «Общие» — позиции и отметки перенесутся, а
+              вместо двух одинаковых карточек останется одна.
             </p>
             <label
               htmlFor="make-shared-name"
@@ -664,7 +680,10 @@ export default function ShoppingApp() {
         </div>
       )}
 
-      {/* Меню списка (нижний лист): переименовать / поделиться / сделать общим / удалить */}
+      {/* Меню списка (нижний лист). Два способа отдать список раньше назывались
+          одинаково («Поделиться» / «Общий список»), стояли рядом и вели к прямо
+          противоположным результатам: живой синхронный список против мёртвого
+          снимка. Теперь у них разные глаголы, разные иконки и живой — первым. */}
       {sheetList && (
         <div className="sl-overlay" onClick={() => setSheetList(null)}>
           <div className="sl-sheet" onClick={(e) => e.stopPropagation()}>
@@ -672,11 +691,11 @@ export default function ShoppingApp() {
             <button type="button" className="sl-sheet-btn" onClick={() => openRename(sheetList)}>
               <Pencil size={20} /> Переименовать
             </button>
-            <button type="button" className="sl-sheet-btn" onClick={() => handleShare(sheetList)}>
-              <Share2 size={20} /> Поделиться
-            </button>
             <button type="button" className="sl-sheet-btn" onClick={() => openMakeShared(sheetList)}>
-              <Users size={20} /> Общий список с семьёй
+              <Users size={20} /> Позвать в общий список
+            </button>
+            <button type="button" className="sl-sheet-btn" onClick={() => handleShare(sheetList)}>
+              <Send size={20} /> Отправить копию
             </button>
             <button type="button" className="sl-sheet-btn sl-sheet-danger" onClick={() => { setDeleteTarget(sheetList); setSheetList(null); }}>
               <Trash2 size={20} /> Удалить

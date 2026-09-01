@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, Check, ChevronRight, Copy, Loader2, Share2, ShoppingCart, Sparkles, Trash2, Users, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronRight, Copy, Loader2, Send, ShoppingCart, Sparkles, Trash2, Users, X } from "lucide-react";
 
 import { KUPER_CPA_URL, KUPER_AD_LABEL } from "@/lib/constants";
 import { reachGoal } from "@/lib/metrika";
@@ -16,6 +16,7 @@ import {
   groupsToText,
   itemsToText,
   listSignature,
+  namesToBuyText,
 } from "@/lib/shoppingList";
 import { splitListTitle, type ShoppingListRecord } from "@/lib/shoppingLists";
 import ShoppingItemInput from "@/components/ShoppingItemInput";
@@ -127,6 +128,23 @@ export default function ShoppingListView({
     const text = isSorted && sortedGroups ? groupsToText(sortedGroups) : itemsToText(items);
     const ok = await copyText(text);
     toast(ok ? "Список скопирован" : "Не удалось скопировать");
+  };
+
+  // «Заказать всё в Купере». Купер не умеет принимать список позиций по ссылке,
+  // поэтому кнопка раньше просто открывала его главную — человек приходил туда
+  // с пустой корзиной и пустым буфером, а список оставался в другом приложении.
+  // Теперь перед переходом кладём в буфер то, что осталось купить, и говорим об
+  // этом вслух — ровно тот же приём уже работает на экране рецепта.
+  //
+  // Переход выполняет НАТИВНЫЙ клик по ссылке (target=_blank): событие не
+  // отменяем и ничего не ждём, иначе мобильные блокировщики попапов не откроют
+  // новую вкладку. copyText — fire-and-forget внутри жеста.
+  const handleKuper = () => {
+    reachGoal("shopping_kuper_click");
+    const text = namesToBuyText(items);
+    if (!text) return;
+    void copyText(text);
+    toast("Список скопирован — вставьте в поиск Купера");
   };
 
   const renderRow = (it: ShoppingItem) => (
@@ -296,7 +314,8 @@ export default function ShoppingListView({
         <button
           type="button"
           onClick={onShare}
-          aria-label="Поделиться списком"
+          aria-label="Отправить копию списка"
+          title="Отправить копию списка"
           style={{
             flexShrink: 0,
             width: 40,
@@ -311,7 +330,7 @@ export default function ShoppingListView({
             cursor: "pointer",
           }}
         >
-          <Share2 size={20} />
+          <Send size={20} />
         </button>
       </header>
 
@@ -362,7 +381,7 @@ export default function ShoppingListView({
               color: "var(--color-text-secondary)",
             }}
           >
-            Отметки видны всем сразу
+            Отмечаете вместе — правки видны сразу у всех
           </span>
         </span>
         <ChevronRight size={22} color="var(--color-accent)" style={{ flexShrink: 0 }} aria-hidden />
@@ -483,6 +502,12 @@ export default function ShoppingListView({
           )}
 
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+            {/* Отдать список можно двумя способами, и раньше оба назывались
+                «поделиться»: плашка «Общий список с семьёй» вверху экрана — живой
+                синхронный список, а эта кнопка — снимок в ссылке. Человек, которому
+                нужно «чтобы дочь отмечала», жал ближнюю кнопку и получал мёртвую
+                копию. Теперь кнопка прямо называет себя копией, а подпись под ней
+                показывает дорогу к живому варианту. */}
             <button
               type="button"
               onClick={onShare}
@@ -493,23 +518,34 @@ export default function ShoppingListView({
                 gap: "var(--space-2)",
                 width: "100%",
                 padding: "var(--space-3) var(--space-4)",
-                background: "var(--color-accent-subtle)",
-                color: "var(--color-accent)",
-                border: "1px solid var(--color-accent)",
+                background: "var(--color-surface)",
+                color: "var(--color-text)",
+                border: "1px solid var(--color-border)",
                 borderRadius: "var(--radius-sm)",
                 fontSize: "var(--font-size-body)",
                 fontWeight: "var(--font-weight-semibold)",
                 cursor: "pointer",
               }}
             >
-              <Share2 size={20} /> Поделиться списком
+              <Send size={20} /> Отправить копию списка
             </button>
+            <p
+              style={{
+                margin: 0,
+                fontSize: "var(--font-size-caption)",
+                lineHeight: 1.4,
+                color: "var(--color-text-muted)",
+              }}
+            >
+              У получателя будет свой список — ваши отметки к нему не попадут. Чтобы
+              отмечать вместе, откройте «Общий список с семьёй» вверху экрана.
+            </p>
 
             <a
               href={KUPER_CPA_URL}
               target="_blank"
               rel="noopener noreferrer sponsored"
-              onClick={() => reachGoal("shopping_kuper_click")}
+              onClick={handleKuper}
               style={{
                 display: "flex",
                 alignItems: "center",

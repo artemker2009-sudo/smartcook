@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { isTrustedOrigin } from "./originGuard";
+import { isTrustedOrigin, isTrustedOriginForRead } from "./originGuard";
 
 // В тестах NODE_ENV=test, а гард в не-проде пропускает всё — поэтому каждый
 // кейс явно поднимает NODE_ENV=production, иначе проверка была бы фиктивной.
@@ -79,5 +79,38 @@ describe("isTrustedOrigin", () => {
     vi.stubEnv("NODE_ENV", "production");
     expect(isTrustedOrigin(req({ referer: "https://smart-cook.pro/shopping" }))).toBe(true);
     expect(isTrustedOrigin(req({ referer: "https://evil.example/page" }))).toBe(false);
+  });
+});
+
+describe("isTrustedOriginForRead — GET-версия для публичных read-роутов", () => {
+  function getReq(headers: Record<string, string>): Request {
+    return new Request("https://example.test/api/daily", { method: "GET", headers });
+  }
+
+  it("в деве пропускает всё", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    expect(isTrustedOriginForRead(getReq({ origin: "https://evil.example" }))).toBe(true);
+  });
+
+  it("чужой Origin отсекается так же строго, как на POST", () => {
+    // Cross-origin fetch из браузера Origin присылает всегда — это ловится.
+    vi.stubEnv("NODE_ENV", "production");
+    expect(isTrustedOriginForRead(getReq({ origin: "https://evil.example" }))).toBe(false);
+    expect(isTrustedOriginForRead(getReq({ referer: "https://evil.example/page" }))).toBe(false);
+  });
+
+  it("свой домен разрешён", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    expect(isTrustedOriginForRead(getReq({ origin: "https://smart-cook.pro" }))).toBe(true);
+    expect(isTrustedOriginForRead(getReq({ referer: "https://smart-cook.pro/" }))).toBe(true);
+  });
+
+  it("без Origin и Referer — ПРОПУСКАЕМ, в отличие от POST-версии", () => {
+    // Ключевое отличие: на same-origin GET браузер Origin не шлёт, а Referer
+    // могут срезать расширения приватности. Отказ здесь выключил бы рецепт дня
+    // на Главной у живых людей. Скрейпинг ловит rate-limit, а не этот гард.
+    vi.stubEnv("NODE_ENV", "production");
+    expect(isTrustedOriginForRead(getReq({}))).toBe(true);
+    expect(isTrustedOrigin(getReq({}))).toBe(false);
   });
 });

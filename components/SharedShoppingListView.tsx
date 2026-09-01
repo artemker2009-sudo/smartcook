@@ -8,7 +8,12 @@ import { KUPER_CPA_URL, KUPER_AD_LABEL } from "@/lib/constants";
 import { reachGoal } from "@/lib/metrika";
 import { copyText } from "@/lib/clipboard";
 import { supabase } from "@/lib/supabase";
-import { MAX_SHOPPING_ITEMS, itemsToText, signatureFromNames } from "@/lib/shoppingList";
+import {
+  MAX_SHOPPING_ITEMS,
+  itemsToText,
+  namesToBuyText,
+  signatureFromNames,
+} from "@/lib/shoppingList";
 import {
   addSharedItems,
   clearSharedChecked,
@@ -289,6 +294,18 @@ export default function SharedShoppingListView({ listId, memberRef, initial, onB
   const handleCopy = async () => {
     const ok = await copyText(itemsToText(items.map((it) => ({ id: it.id, name: it.name, checked: it.checked }))));
     toast(ok ? "Список скопирован" : "Не удалось скопировать");
+  };
+
+  // «Заказать всё в Купере» — см. подробный разбор в ShoppingListView.handleKuper.
+  // Купер не принимает список по ссылке, поэтому кладём остаток покупок в буфер
+  // и переходим нативным кликом по ссылке (событие не отменяем, ничего не ждём).
+  // На общем списке «остаток» особенно важен: часть позиций уже отметили другие.
+  const handleKuper = () => {
+    reachGoal("shopping_kuper_click");
+    const text = namesToBuyText(items);
+    if (!text) return;
+    void copyText(text);
+    toast("Список скопирован — вставьте в поиск Купера");
   };
 
   const hasChecked = items.some((it) => it.checked);
@@ -659,7 +676,7 @@ export default function SharedShoppingListView({ listId, memberRef, initial, onB
               href={KUPER_CPA_URL}
               target="_blank"
               rel="noopener noreferrer sponsored"
-              onClick={() => reachGoal("shopping_kuper_click")}
+              onClick={handleKuper}
               style={{
                 display: "flex",
                 alignItems: "center",

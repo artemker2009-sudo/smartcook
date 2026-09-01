@@ -710,13 +710,17 @@ export default function ServiceView({
             {products.map((ing: string, i: number) => (
               <span key={ing + i} className="product-chip">
                 {ing}
+                {/* Крестик — вторичное действие: иконка заметно мельче текста
+                    чипа (12 против 16) и тоньше. Размер зоны тапа задаёт CSS,
+                    а не эта иконка: кнопка 40×40 «выпущена» за габарит чипа
+                    отрицательными margin. */}
                 <button
                   type="button"
                   className="product-chip-remove"
                   aria-label={`Убрать «${ing}»`}
                   onClick={() => onRemoveProduct(i)}
                 >
-                  <X size={16} strokeWidth={2.5} />
+                  <X size={12} strokeWidth={2} />
                 </button>
               </span>
             ))}
@@ -747,10 +751,11 @@ export default function ServiceView({
           {/* Пока список правили — блюда из распознавания устарели: не показываем
               их, а предлагаем подобрать рецепты под ИТОГОВЫЙ список (1 запрос). */}
           {productsDirty || !analysisResult.dishes?.length ? (
+            /* Отступ сверху даёт margin-bottom формы — одинаковый и здесь, и
+               перед списком блюд. Свой marginTop добавлял бы его вторым разом. */
             <Button
               onClick={handleRegenerate}
               disabled={isRegenerating || loadingRecipe || products.length === 0}
-              style={{ marginTop: "var(--space-4)" }}
             >
               <Sparkles size={20} />{" "}
               {isRegenerating ? "Подбираю рецепты..." : "Подобрать рецепты"}

@@ -701,7 +701,8 @@ body {
 .products-chips {
   display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: center;
 }
-.products-chips:not(:empty) { margin-bottom: var(--space-3); }
+/* Отступ ПОД чипами задаёт .product-add-row своим margin-top — иначе он
+   складывался с ним и получалось 28px против 0 снизу, отсюда и перекос. */
 .product-chip {
   display: inline-flex; align-items: center; gap: var(--space-1);
   background: var(--color-accent-subtle); color: var(--color-accent-hover);
@@ -710,35 +711,82 @@ body {
   font-size: var(--font-size-body); font-weight: var(--font-weight-medium);
   line-height: 1.2;
 }
+/* Крестик на чипе. Правило: видимая иконка мелкая и вторичная, а зона тапа
+   остаётся крупной — уменьшаем то, что видно, а не то, во что попадают.
+
+   Кнопка 40×40 (минимум для пальца), но чип высотой всего 36 — поэтому она
+   «выпущена» за габарит отрицательными margin и чип не растягивает. По
+   горизонтали margin съедает лишний воздух: иначе центрированная в 40px иконка
+   визуально отъезжала бы от текста и правый край чипа раздувался.
+
+   Фона у кнопки в покое НЕТ: серый круг делал крестик вторым по весу элементом
+   чипа. Подсветка появляется только на hover/нажатие. */
 .product-chip-remove {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 28px; height: 28px; margin: -4px 0;
-  border: none; border-radius: var(--radius-full); cursor: pointer;
-  background: rgba(0, 0, 0, 0.06); color: var(--color-accent-hover);
-  transition: background 0.15s ease;
+  width: 40px; height: 40px;
+  /* По вертикали -10px с каждой стороны: вклад кнопки в высоту чипа падает до
+     20px, и чип остаётся прежними 36px, а не растягивается под зону тапа.
+     Слева -9px гасит воздух вокруг мелкой иконки, центрированной в 40px, —
+     иначе на длинных чипах крестик заметно отплывал от названия. */
+  margin: -10px -10px -10px -9px;
+  padding: 0;
+  border: none; cursor: pointer;
+  /* Скругление, а не круг: border-radius обрезает и ХИТ-ТЕСТ, поэтому у круглой
+     кнопки углы зоны 40×40 переставали нажиматься. С 12px кликается почти весь
+     квадрат. Видно это скругление только в момент нажатия — в покое фон
+     прозрачный, так что форма подсветки на внешний вид чипа не влияет. */
+  border-radius: 12px;
+  background: transparent; color: var(--color-accent-hover);
+  /* Бледнее текста чипа — крестик не спорит с названием продукта. */
+  opacity: 0.5;
+  transition: opacity 0.15s ease, background 0.15s ease;
 }
-.product-chip-remove:hover { background: rgba(0, 0, 0, 0.14); }
+.product-chip-remove:hover,
+.product-chip-remove:focus-visible { opacity: 1; background: rgba(0, 0, 0, 0.07); }
+.product-chip-remove:active { opacity: 1; background: rgba(0, 0, 0, 0.12); }
+/* Устройства без hover (телефон): нажатие всё равно даёт отклик, но постоянной
+   подсветки нет — иначе крестик снова становится заметнее названия. */
+@media (hover: none) {
+  .product-chip-remove:hover { background: transparent; opacity: 0.5; }
+}
+/* Строка «дописать продукт». Высота поля и кнопки задаётся ОДНОЙ переменной:
+   раньше она складывалась из padding + line-height по отдельности, и элементы
+   расходились на 2px (58 против 56) — на глаз это читалось как перекос.
+   Ровный ритм вокруг: сверху от чипов, снизу до блюд — одинаковый отступ,
+   раньше снизу не было вообще ничего и форма липла к карточкам рецептов. */
 .product-add-row {
+  --product-add-height: 52px;
   display: flex; gap: var(--space-2); align-items: stretch;
+  margin-top: var(--space-4);
+  margin-bottom: var(--space-4);
 }
 /* На телефоне поле и кнопка встают в столбик: иначе плейсхолдер
-   («например: сметана, укроп») обрезается, а цели становятся мелкими. */
+   («например: сметана, укроп») обрезается, а цели становятся мелкими.
+   В столбике зазор между ними больше, чем в ряду: одинаковая ширина сближает
+   их визуально, и на 8px они читались одним слипшимся блоком. */
 @media (max-width: 480px) {
-  .product-add-row { flex-direction: column; }
+  .product-add-row { flex-direction: column; gap: var(--space-3); }
   .product-add-btn { justify-content: center; }
 }
 .product-add-input {
   flex: 1; min-width: 0;
-  padding: var(--space-3);
+  /* Именно min-height, а не height: в мобильном столбике flex:1 означает
+     flex-basis:0 ПО ВЕРТИКАЛИ и height затирается — поле схлопывалось до
+     высоты строки. min-height флексом не перебивается. */
+  min-height: var(--product-add-height);
+  padding: 0 var(--space-3);
   font-size: 16px; /* меньше — и iOS зумит страницу при фокусе */
+  font-family: inherit;
   color: var(--color-text); background: var(--color-surface);
   border: 1px solid var(--color-border); border-radius: var(--radius-md);
   outline: none; transition: border-color 0.2s ease;
 }
 .product-add-input:focus { border-color: var(--color-accent); }
 .product-add-btn {
-  display: inline-flex; align-items: center; gap: var(--space-1);
-  padding: var(--space-3) var(--space-4); white-space: nowrap;
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: var(--space-1);
+  min-height: var(--product-add-height);
+  padding: 0 var(--space-4); white-space: nowrap;
   font-size: 16px; font-weight: var(--font-weight-semibold);
   color: var(--color-accent-hover); background: var(--color-accent-subtle);
   border: none; border-radius: var(--radius-md); cursor: pointer;

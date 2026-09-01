@@ -5,6 +5,10 @@ import { isStringListTooLong } from "@/lib/inputLimits";
 import { sanitizeProductList } from "@/lib/products";
 import { isTrustedOrigin, originBlockedResponse } from "@/lib/originGuard";
 
+// Подбор других блюд по тем же продуктам — тот же запас, что у остальных
+// AI-роутов (см. пояснение в app/api/analyze/route.ts).
+export const maxDuration = 60;
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });

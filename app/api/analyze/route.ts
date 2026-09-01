@@ -3,6 +3,18 @@ import OpenAI from "openai";
 import { checkAndConsumeAiRateLimit, rateLimitResponse } from "@/lib/rateLimit";
 import { isTrustedOrigin, originBlockedResponse } from "@/lib/originGuard";
 
+// Распознавание фото (vision) — самый долгий вызов в продукте: на снимке
+// открытого холодильника модель возвращает список продуктов, три блюда и
+// uncertain, и это заметно дольше текстовой генерации. Без явного maxDuration
+// платформа убивает функцию по короткому дефолту — соединение рвётся, и на
+// iPhone это выглядит как «Load failed» (репорты в error_reports).
+//
+// Важно: клиентский таймаут PHOTO_STEP_TIMEOUT_MS = 30с. Пока серверный лимит
+// был МЕНЬШЕ клиентского, наш AbortController не успевал сработать, и в
+// телеметрию шёл невнятный "analyze" вместо честного "analyze-timeout".
+// Серверный запас обязан быть больше клиентского — иначе мы не видим таймауты.
+export const maxDuration = 60;
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });

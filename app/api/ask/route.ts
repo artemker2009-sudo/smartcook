@@ -4,6 +4,10 @@ import { checkAndConsumeAiRateLimit, rateLimitResponse } from "@/lib/rateLimit";
 import { isStringListTooLong, isTextTooLong } from "@/lib/inputLimits";
 import { isTrustedOrigin, originBlockedResponse } from "@/lib/originGuard";
 
+// «Спросить шефа» — тот же запас, что у остальных AI-роутов
+// (см. пояснение в app/api/analyze/route.ts).
+export const maxDuration = 60;
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });

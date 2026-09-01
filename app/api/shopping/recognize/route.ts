@@ -11,6 +11,10 @@ import { parseRecognizedList } from "@/lib/shoppingPhoto";
 import { UnsupportedImageError, normalizeToJpeg } from "@/lib/imageNormalize";
 
 export const runtime = "nodejs";
+// Второй vision-роут (фото рукописного списка). Причина та же, что у
+// /api/analyze: без явного лимита платформа рвёт долгий запрос раньше, чем
+// сработает клиентский таймаут, и сбой приходит без внятного шага.
+export const maxDuration = 60;
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,

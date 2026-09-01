@@ -13,7 +13,7 @@ import { preparePhoto, decodeHeicIfNeeded, reportPhotoError, fetchWithTimeout } 
 import { FEATURE_RESTAURANT_GAME } from "@/lib/features";
 import { addProduct, MAX_PRODUCTS } from "@/lib/products";
 import { useAuthModal } from "@/components/modals/useAuthModal";
-import { OPEN_INSTALL_EVENT } from "@/components/PWAInstall";
+import { RECIPE_READY_EVENT } from "@/components/InstallBanner";
 
 import Profile from "@/components/Profile";
 import DailyRecipe from "@/components/DailyRecipe";
@@ -782,21 +782,18 @@ export default function SearchApp() {
     reachGoal("no_food_manual_entry");
   };
 
-  const isStandalone = () =>
-    typeof window !== "undefined" &&
-    (window.matchMedia("(display-mode: standalone)").matches || (navigator as any).standalone === true);
-
   // Момент успеха: после генерации рецепта. Считаем генерации и:
-  // 1) после первой — один раз мягко предлагаем установить PWA;
-  // 2) со второй, если профиль вкуса пуст — один раз предлагаем его заполнить.
+  // 1) сообщаем плашке установки, что рецепт готов — она сама решит, показываться
+  //    ли и когда (раньше здесь ОТКРЫВАЛАСЬ карточка установки, и всплывала она
+  //    ровно поверх свежего рецепта; теперь это только сигнал, а ожидание и все
+  //    условия показа живут в InstallBanner);
+  // 2) со второй генерации, если профиль вкуса пуст — один раз предлагаем его заполнить.
   const onRecipeGenerated = () => {
     try {
       const count = Number(localStorage.getItem("sc_gen_count") || 0) + 1;
       localStorage.setItem("sc_gen_count", String(count));
-      if (!localStorage.getItem("sc_pwa_prompt_seen") && !isStandalone()) {
-        localStorage.setItem("sc_pwa_prompt_seen", "1");
-        window.dispatchEvent(new Event(OPEN_INSTALL_EVENT));
-      } else if (
+      window.dispatchEvent(new Event(RECIPE_READY_EVENT));
+      if (
         count >= 2 &&
         allergies.length === 0 &&
         dislikes.length === 0 &&

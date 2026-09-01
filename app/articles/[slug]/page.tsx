@@ -74,6 +74,24 @@ export async function generateMetadata({
       type: "article",
       siteName: "SmartCook",
       url: `https://smart-cook.pro/articles/${article.slug}`,
+      // Та же болезнь, что была у /recipe/[id]: заданный здесь openGraph не
+      // добирает images из корневого layout, и ссылка на заметку уходила в чат
+      // без картинки. Своей картинки у заметок нет (обложка рисуется на клиенте
+      // из эмодзи и тона по slug), поэтому — брендовая.
+      images: [
+        {
+          url: "/og-image.png",
+          width: 1200,
+          height: 630,
+          alt: "SmartCook — кухонные заметки",
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: ["/og-image.png"],
     },
   };
 }

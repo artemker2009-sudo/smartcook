@@ -13,6 +13,10 @@ import {
 } from "@/lib/shoppingList";
 import { groupNamesByDepartment } from "@/lib/shoppingSort";
 
+// Раскладка по отделам ходит в модель — запас как у остальных AI-роутов
+// (см. пояснение в app/api/analyze/route.ts). Список до 60 позиций.
+export const maxDuration = 60;
+
 // Раскладывание списка покупок по отделам магазина. Список хранится на
 // устройстве (localStorage) — сюда приходит только массив названий на один
 // проход. Роут НИЧЕГО не хранит и не пишет в БД.

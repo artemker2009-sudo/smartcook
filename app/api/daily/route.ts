@@ -12,6 +12,11 @@ const openai = new OpenAI({
 // Заставляем маршрут быть динамическим, чтобы проверять дату
 export const dynamic = 'force-dynamic';
 
+// Кэш суточный, но ПЕРВЫЙ запрос дня реально генерирует рецепт — и если его
+// оборвать по короткому дефолту платформы, «Рецепт дня» не появится на Главной
+// вообще (кэшу нечего будет отдать). Запас как у остальных AI-роутов.
+export const maxDuration = 60;
+
 const getDailyRecipe = unstable_cache(
   async (dateStr: string) => {
     console.log(`Generating Seasonal & Strict Daily Recipe for ${dateStr}...`); 

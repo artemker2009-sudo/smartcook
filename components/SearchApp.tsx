@@ -703,10 +703,19 @@ export default function SearchApp() {
       setAnalysisResult(json.data);
       // На фото нет продуктов — честный ответ (карточка в ServiceView), частота важна.
       if (json.data?.no_food) reachGoal("photo_no_food");
+      // Продукты распознаны — первая ПОЛОЖИТЕЛЬНАЯ точка фото-воронки. До этого
+      // с фото-пути в Метрику уходили только клики и неудачи (photo_no_food,
+      // photo_client_error), поэтому «сколько людей вообще доходят до списка
+      // продуктов» было не посчитать. Параметром отдаём число найденных
+      // продуктов: пустое распознавание и щедрое — разные истории.
+      else reachGoal("photo_analyze_success", { ingredients: json.data?.ingredients?.length ?? 0 });
     } catch (err: any) {
       // Раньше сбой /api/analyze тонул в одном тосте без телеметрии. Теперь —
       // репорт photo_client_error с HTTP-статусом и шагом (#1).
       void reportPhotoError("analyze", file, err, { marker: "photo_client_error", httpStatus: httpStatus || undefined });
+      // Та же неудача — целью, а не только строкой в error_reports: в Метрике
+      // она встаёт рядом с photo_analyze_success и даёт долю сбоев на шаге.
+      reachGoal("photo_analyze_error");
       showToast("Ошибка: " + (err?.message || "не удалось обработать фото"), undefined, 'error');
     } finally { setAnalyzing(false); }
   };
@@ -823,8 +832,20 @@ export default function SearchApp() {
       if (userId) fetchMyRecipes(userId);
       handleRewardForRecipe();
       onRecipeGenerated();
-    } catch (err: any) { showToast("Ошибка: " + err.message, undefined, 'error'); } finally { setLoadingRecipe(false); } 
-  }; 
+      // Конец фото-воронки: человек сфотографировал продукты и ДЕРЖИТ рецепт.
+      // Главный шаг сценария №1 — до этого он не измерялся вообще, и по фото-пути
+      // нельзя было ответить даже на вопрос «доходит ли кто-нибудь до результата».
+      //
+      // Гейт по searchMode обязателен: эта же функция обслуживает текстовый путь
+      // (запрос-перечисление продуктов возвращает type "ingredients", дальше клик
+      // по блюду идёт сюда же). Без гейта текстовые генерации подмешивались бы в
+      // фото-воронку и завышали её.
+      if (searchMode === 'photo') reachGoal("photo_recipe_success");
+    } catch (err: any) {
+      if (searchMode === 'photo') reachGoal("photo_recipe_error");
+      showToast("Ошибка: " + err.message, undefined, 'error');
+    } finally { setLoadingRecipe(false); }
+  };
 
   const handleSmartVariant = async () => { 
     setLoadingRecipe(true); setIsHistoryView(false); setFromFeed(false); setServings(1);  

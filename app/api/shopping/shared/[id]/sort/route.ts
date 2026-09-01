@@ -7,6 +7,10 @@ import { checkAndConsumeShoppingSortRateLimit, shoppingRateLimitResponse } from 
 import { MAX_SHOPPING_ITEMS, signatureFromNames } from "@/lib/shoppingList";
 import { groupNamesByDepartment } from "@/lib/shoppingSort";
 import { broadcastSharedListChanged } from "@/lib/sharedShoppingBroadcast";
+
+// Раскладка общего списка: модель + запись результата в БД + Broadcast всем
+// участникам. Запас как у остальных AI-роутов (см. app/api/analyze/route.ts).
+export const maxDuration = 60;
 import {
   findLiveList,
   findMembership,

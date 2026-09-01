@@ -60,10 +60,48 @@ export async function generateMetadata({
   const description =
     recipe.description ||
     "Рецепт, подобранный нейро-шефом SmartCook по вашим продуктам.";
+
+  // Картинка превью. ГЛАВНОЕ: она обязана быть — вся дистрибуция рецептов это
+  // ссылка, отправленная в чат, а ссылка без картинки в мессенджере выглядит
+  // как строчка текста, и её не открывают. Раньше og:image тут не было вовсе:
+  // openGraph, заданный в дочернем маршруте, НЕ добирает images из корневого
+  // layout — проверено запросом к готовой странице, тег отсутствовал.
+  //
+  // Своя картинка блюда (ИИ-генерация, WebP 1024×1024) — лучшее превью. Если её
+  // нет, отдаём брендовую /og-image.png (1200×630): размеры разные, поэтому и
+  // width/height подставляем свои, а не одни на оба случая.
+  const image = recipe.image_url
+    ? { url: recipe.image_url, width: 1024, height: 1024, alt: recipe.title }
+    : {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "SmartCook — сфотографируйте продукты, получите рецепт",
+      };
+  const url = `https://smart-cook.pro/recipe/${id}`;
+
   return {
     title,
     description,
-    openGraph: { title, description, type: "article", siteName: "SmartCook" },
+    // Канонический адрес: страница доступна и по /recipe/<id>, и (исторически)
+    // через share-ссылки с параметрами — поисковику нужен один адрес.
+    alternates: { canonical: url },
+    openGraph: {
+      title,
+      description,
+      type: "article",
+      siteName: "SmartCook",
+      url,
+      images: [image],
+    },
+    // Telegram и WhatsApp читают og:*, но VK и X смотрят на twitter:* —
+    // summary_large_image даёт крупное превью вместо иконки сбоку.
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [image.url],
+    },
   };
 }
 

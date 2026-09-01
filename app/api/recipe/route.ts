@@ -7,6 +7,11 @@ import { isTrustedOrigin, originBlockedResponse } from "@/lib/originGuard";
 import { sanitizeRecipeForStorage } from "@/lib/recipeValidation";
 import { createRequestScopedClient } from "@/lib/auth";
 
+// Генерация рецепта — длинный ответ модели (шаги + ингредиенты). Запас на
+// уровне остальных AI-роутов; без него платформа обрывает функцию по короткому
+// дефолту, и клиент видит сетевую ошибку вместо результата.
+export const maxDuration = 60;
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });

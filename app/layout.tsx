@@ -75,9 +75,13 @@ export const metadata: Metadata = {
     siteName: "SmartCook",
     locale: "ru_RU",
     type: "website",
+    // Имя файла версионируем (-v2), а не подменяем содержимое /og-image.png:
+    // Telegram, VK и WhatsApp кэшируют превью по URL и месяцами отдают старую
+    // картинку. Новый адрес — единственный надёжный способ показать новую.
+    // Старый файл оставлен как /og-image-old.png.
     images: [
       {
-        url: "/og-image.png",
+        url: "/og-image-v2.png",
         width: 1200,
         height: 630,
         alt: "SmartCook — сфотографируйте продукты, получите рецепт",
@@ -89,7 +93,7 @@ export const metadata: Metadata = {
     title: "SmartCook (СмартКук) — рецепты по фото продуктов",
     description:
       "Сфотографируйте продукты — получите рецепты из того, что есть дома. Плюс меню для банкетов и умные списки покупок.",
-    images: ["/og-image.png"],
+    images: ["/og-image-v2.png"],
   },
   robots: {
     index: true,

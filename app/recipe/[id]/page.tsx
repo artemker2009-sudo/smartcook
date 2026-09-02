@@ -68,12 +68,12 @@ export async function generateMetadata({
   // layout — проверено запросом к готовой странице, тег отсутствовал.
   //
   // Своя картинка блюда (ИИ-генерация, WebP 1024×1024) — лучшее превью. Если её
-  // нет, отдаём брендовую /og-image.png (1200×630): размеры разные, поэтому и
+  // нет, отдаём брендовую /og-image-v2.png (1200×630): размеры разные, поэтому и
   // width/height подставляем свои, а не одни на оба случая.
   const image = recipe.image_url
     ? { url: recipe.image_url, width: 1024, height: 1024, alt: recipe.title }
     : {
-        url: "/og-image.png",
+        url: "/og-image-v2.png",
         width: 1200,
         height: 630,
         alt: "SmartCook — сфотографируйте продукты, получите рецепт",

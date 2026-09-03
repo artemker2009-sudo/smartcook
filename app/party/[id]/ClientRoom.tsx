@@ -35,6 +35,7 @@ import BanquetAccountBanner from "@/components/BanquetAccountBanner";
 import BanquetViralCta from "@/components/BanquetViralCta";
 import { claimGuestPartiesToAccount } from "@/lib/claimParties";
 import { preparePhoto, reportPhotoError, isHeic } from "@/lib/photo";
+import { getNativePlatform, useIsNativeIOS } from "@/lib/native";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -459,6 +460,10 @@ export default function ClientRoom({
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [showWelcomeOnboarding, setShowWelcomeOnboarding] = useState(false);
   const [expandedChatPhoto, setExpandedChatPhoto] = useState<string | null>(null);
+  // Нативный iOS: мягкий Telegram-гейт банкета снят (App Store 3.1.1). Список
+  // покупок и участие доступны сразу; подписка на канал — необязательное
+  // предложение. В вебе и Android-TWA флаг всегда false — поведение прежнее.
+  const isNativeIOSShell = useIsNativeIOS();
 
   const [guests, setGuests] = useState<PartyMember[]>(initialMembers ?? []);
   const [messages, setMessages] = useState<PartyMessage[]>(initialMessages ?? []);
@@ -737,7 +742,7 @@ export default function ClientRoom({
 
     let isCancelled = false;
 
-    void joinPartyAction(party.id, storedName, storedUserId)
+    void joinPartyAction(party.id, storedName, storedUserId, getNativePlatform())
       .then((result) => {
         if (isCancelled) return;
 
@@ -1074,7 +1079,7 @@ export default function ClientRoom({
       const userId = getAuthenticatedParticipantId() || session?.user?.id?.trim() || generateSafeUserId();
       if (session?.user && !authUser) setAuthUser(session.user);
       const result = await withTimeout(
-        joinPartyAction(party.id, trimmedName, userId),
+        joinPartyAction(party.id, trimmedName, userId, getNativePlatform()),
         SUPABASE_TIMEOUT_MS,
         "Не удалось завершить вход",
       );
@@ -1157,7 +1162,7 @@ export default function ClientRoom({
         if (session?.user && !authUser) setAuthUser(session.user);
 
         const joinResult = await withTimeout(
-          joinPartyAction(party.id, name, userId),
+          joinPartyAction(party.id, name, userId, getNativePlatform()),
           SUPABASE_TIMEOUT_MS,
           "Не удалось завершить вход после подписки",
         );
@@ -1205,7 +1210,7 @@ export default function ClientRoom({
 
       if (currentUser?.trim()) {
         const joinResult = await withTimeout(
-          joinPartyAction(party.id, currentUser.trim(), nextAuthUser.id),
+          joinPartyAction(party.id, currentUser.trim(), nextAuthUser.id, getNativePlatform()),
           SUPABASE_TIMEOUT_MS,
           "Не удалось обновить участника после входа",
         );
@@ -1749,7 +1754,7 @@ export default function ClientRoom({
             <button
               type="button"
               onClick={() => {
-                if (currentParty.is_paid) {
+                if (currentParty.is_paid || isNativeIOSShell) {
                   setShowShoppingList(true);
                   void trackEvent("shopping_list_opened");
                 } else {
@@ -1759,7 +1764,7 @@ export default function ClientRoom({
               }}
               className="w-full bg-white text-black font-medium p-4 rounded-3xl flex items-center justify-center gap-2 shadow-sm border border-black/5 active:scale-95 transition-transform"
             >
-              <span>🛒</span> {currentParty.is_paid ? "Показать список покупок" : "Открыть список покупок через канал"}
+              <span>🛒</span> {currentParty.is_paid || isNativeIOSShell ? "Показать список покупок" : "Открыть список покупок через канал"}
             </button>
 
             <div className="mt-6 border-t border-zinc-100 pt-6">

@@ -254,9 +254,17 @@ export async function joinPartyAction(
   partyId: string,
   userName: string,
   userId: string,
+  // Платформа клиента. В нативном iOS ("ios") мягкий Telegram-гейт банкета НЕ
+  // применяется: правила App Store 3.1.1 не позволяют открывать функциональность
+  // за подписку на сторонний канал. Веб и Android-TWA присылают "web" (или
+  // ничего) и работают как раньше. Сам гейт и так self-serve (activatePartyPass
+  // ставит is_paid без проверки подписки), поэтому этот bypass ничего сверх уже
+  // существующего не ослабляет.
+  platform?: string,
 ): Promise<JoinPartyActionResult> {
   const trimmedName = userName.trim();
   const trimmedUserId = userId.trim();
+  const bypassGate = platform === "ios";
 
   if (!partyId || !trimmedName || !trimmedUserId) {
     return { success: false, error: "Не удалось войти: не хватает данных участника" };
@@ -285,6 +293,8 @@ export async function joinPartyAction(
     if (existingBrowserMemberError) throw new Error(existingBrowserMemberError.message);
 
     const isPaid = Boolean(party?.is_paid);
+    // paidNow может стать true в iOS-ветке ниже (авто-снятие гейта).
+    let paidNow = isPaid;
 
     if (existingBrowserMember?.id) {
       const candidateNames = [trimmedName, `${trimmedName}${makeInvisibleSuffix(trimmedUserId)}`];
@@ -315,7 +325,22 @@ export async function joinPartyAction(
     }
 
     if (!isPaid && (count ?? 0) >= FREE_GUEST_LIMIT) {
-      return { success: false, error: "PAYWALL_REACHED", isPaid: false };
+      if (bypassGate) {
+        // Нативный iOS: снимаем мягкий гейт автоматически — то же самое, что
+        // делает кнопка «Я подписался» (activatePartyPassAction). Без этого
+        // DB-триггер enforce_party_member_free_limit заблокирует вставку 3-го
+        // гостя. Флаг общий для банкета (как и при ручном снятии), поэтому new
+        // web-гости этого же банкета тоже перестанут упираться в лимит — ровно
+        // так же, как если бы любой участник нажал «Я подписался».
+        const { error: unlockError } = await supabase
+          .from("parties")
+          .update({ is_paid: true })
+          .eq("id", partyId);
+        if (unlockError) throw new Error(unlockError.message);
+        paidNow = true;
+      } else {
+        return { success: false, error: "PAYWALL_REACHED", isPaid: false };
+      }
     }
 
     const candidateNames = [trimmedName, `${trimmedName}${makeInvisibleSuffix(trimmedUserId)}`];
@@ -328,7 +353,7 @@ export async function joinPartyAction(
         .single();
 
       if (!insertError) {
-        return { success: true, isPaid, userId: trimmedUserId, guestData: insertedMember };
+        return { success: true, isPaid: paidNow, userId: trimmedUserId, guestData: insertedMember };
       }
 
       if (insertError.message === "PAYWALL_REACHED") {

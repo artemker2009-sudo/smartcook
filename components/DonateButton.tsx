@@ -4,6 +4,7 @@ import { useState } from "react";
 import { HeartHandshake } from "lucide-react";
 import DonateModal from "@/components/modals/DonateModal";
 import { YANDEX_METRIKA_ID } from "@/components/YandexMetrika";
+import { useIsNativeIOS } from "@/lib/native";
 
 interface DonateButtonProps {
   variant?: "footer" | "inline";
@@ -11,6 +12,10 @@ interface DonateButtonProps {
 
 export default function DonateButton({ variant = "inline" }: DonateButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
+  // App Store 3.1.1: сбор донатов в пользу разработчика вне IAP запрещён.
+  // В нативном iOS кнопку прячем целиком. В вебе и Android-TWA — без изменений.
+  const isNativeIOS = useIsNativeIOS();
+  if (isNativeIOS) return null;
 
   const handleClick = () => {
     // @ts-ignore

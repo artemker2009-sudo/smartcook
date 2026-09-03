@@ -93,6 +93,51 @@ export async function sendModerationCard(input: {
   }
 }
 
+// Уведомление основателю о ЖАЛОБЕ на публикацию в ленте (App Store 1.2 — UGC).
+// Информационная карточка без кнопок: решение (скрыть/оставить) принимается в
+// админке. Best-effort: возвращает true при успехе, ошибки глотает и логирует
+// без токена — жалоба не должна падать из-за недоступности Telegram.
+export async function sendReportCard(input: {
+  postId: string;
+  recipeTitle: string | null;
+  userName: string | null;
+  reason: string | null;
+  reportsCount: number;
+  hidden: boolean;
+}): Promise<boolean> {
+  const creds = credentials();
+  if (!creds) {
+    console.error("[telegram] TELEGRAM_BOT_TOKEN/CHAT_ID не заданы — жалоба не отправлена");
+    return false;
+  }
+
+  const text =
+    `🚩 Жалоба на пост в ленте\n\n` +
+    `Блюдо: ${plain(input.recipeTitle, 200)}\n` +
+    `Автор: ${plain(input.userName, 100)}\n` +
+    `Причина: ${plain(input.reason, 300)}\n` +
+    `Всего жалоб: ${input.reportsCount}\n` +
+    (input.hidden
+      ? `\n⛔️ Пост автоматически скрыт (порог жалоб достигнут). Проверьте в админке.`
+      : `\nПроверьте в админке и при необходимости скройте.`);
+
+  try {
+    const res = await fetch(`${TELEGRAM_API}/bot${creds.token}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: creds.chatId, text }),
+    });
+    if (!res.ok) {
+      console.error("[telegram] sendMessage (report) не удался, статус", res.status);
+      return false;
+    }
+    return true;
+  } catch {
+    console.error("[telegram] sendReportCard: сетевая ошибка");
+    return false;
+  }
+}
+
 // Ответ на нажатие инлайн-кнопки (убирает «часики» в клиенте Telegram).
 export async function answerCallbackQuery(callbackQueryId: string, text: string): Promise<void> {
   const creds = credentials();

@@ -5,6 +5,7 @@ export const metadata: Metadata = {
   title: "Пользовательское соглашение — SmartCook",
   description:
     "Правила использования SmartCook: рецепты носят рекомендательный характер, проверяйте аллергены.",
+  alternates: { canonical: "/terms" },
 };
 
 export default function TermsPage() {

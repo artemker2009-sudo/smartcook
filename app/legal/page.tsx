@@ -5,6 +5,7 @@ export const metadata: Metadata = {
   title: "Правовая информация — SmartCook",
   description:
     "Правовая информация SmartCook: авторские права на материалы и оформление, условия использования, характер рецептов, контакт для обращений.",
+  alternates: { canonical: "/legal" },
 };
 
 export default function LegalPage() {

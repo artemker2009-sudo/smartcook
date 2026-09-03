@@ -5,6 +5,7 @@ export const metadata: Metadata = {
   title: "Политика конфиденциальности — SmartCook",
   description:
     "Какие данные собирает SmartCook и как они используются: регистрация по юзернейму, без email и телефона.",
+  alternates: { canonical: "/privacy" },
 };
 
 export default function PrivacyPage() {

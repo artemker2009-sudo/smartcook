@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<title>SmartCook — нет соединения</title>
+<style>
+  /* Экран лежит В БАНДЛЕ приложения и показывается, когда сайт не открылся
+     (server.errorPath). Поэтому здесь нет ни одного внешнего ресурса: ни шрифтов,
+     ни картинок, ни скриптов с сети — иначе он сам не отрисуется без интернета. */
+  :root {
+    --bg: #faf9f7;
+    --surface: #ffffff;
+    --text: #18181b;
+    --text-secondary: #52525b;
+    --accent: #059669;
+    --accent-hover: #047857;
+    --border: #e4e4e7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #18181b; --surface: #27272a; --text: #fafafa;
+      --text-secondary: #a1a1aa; --border: #3f3f46;
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+    display: flex; align-items: center; justify-content: center;
+    padding: calc(env(safe-area-inset-top) + 24px) 24px calc(env(safe-area-inset-bottom) + 24px);
+    -webkit-user-select: none; user-select: none;
+    overscroll-behavior: none;
+  }
+  .card { width: 100%; max-width: 360px; text-align: center; }
+  .hat {
+    width: 88px; height: 88px; margin: 0 auto 24px;
+    background: var(--accent); border-radius: 24px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .hat svg { width: 52px; height: 52px; }
+  h1 { font-size: 24px; font-weight: 650; letter-spacing: -0.02em; margin: 0 0 10px; }
+  p { color: var(--text-secondary); margin: 0 0 28px; font-size: 15px; }
+  button {
+    width: 100%; min-height: 52px; border: none; border-radius: 14px;
+    background: var(--accent); color: #fff; font-size: 17px; font-weight: 600;
+    font-family: inherit; cursor: pointer; transition: background .15s, transform .1s;
+  }
+  button:active { background: var(--accent-hover); transform: scale(.985); }
+  button[disabled] { opacity: .6; }
+  .hint { margin: 16px 0 0; font-size: 13px; color: var(--text-secondary); min-height: 18px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="hat" aria-hidden="true">
+      <!-- Тот же колпак, что в иконке. Инлайновый SVG — файлов рядом нет. -->
+      <svg viewBox="0 0 24 24" fill="#fff" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 3a4.5 4.5 0 0 0-4.36 3.4A4 4 0 0 0 5 14v.5h14V14a4 4 0 0 0-2.64-7.6A4.5 4.5 0 0 0 12 3Z"/>
+        <path d="M5 16h14v3a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-3Z"/>
+      </svg>
+    </div>
+
+    <h1>Нет соединения</h1>
+    <p>SmartCook не может связаться с сервером. Проверьте интернет — и мы продолжим готовить.</p>
+
+    <button id="retry" type="button">Повторить</button>
+    <p class="hint" id="hint"></p>
+  </div>
+
+<script>
+(function () {
+  var SITE = "https://smart-cook.pro/";
+  var retry = document.getElementById("retry");
+  var hint = document.getElementById("hint");
+  var busy = false;
+
+  function go() {
+    if (busy) return;
+    busy = true;
+    retry.disabled = true;
+    retry.textContent = "Подключаемся…";
+    hint.textContent = "";
+    // Небольшая пауза: iOS иногда рапортует о сети чуть раньше, чем она реально
+    // готова отдавать данные.
+    setTimeout(function () {
+      location.replace(SITE);
+      // Если переход не удался, страница останется этой — вернём кнопку.
+      setTimeout(function () {
+        busy = false;
+        retry.disabled = false;
+        retry.textContent = "Повторить";
+        hint.textContent = "Всё ещё нет сети";
+      }, 4000);
+    }, 350);
+  }
+
+  retry.addEventListener("click", go);
+
+  // Сеть вернулась сама — уходим на сайт без нажатия. Слушаем и браузерное
+  // событие, и плагин Capacitor (он точнее знает состояние на iOS).
+  window.addEventListener("online", go);
+
+  try {
+    var Network = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Network;
+    if (Network) {
+      Network.addListener("networkStatusChange", function (status) {
+        if (status && status.connected) go();
+      });
+      Network.getStatus().then(function (status) {
+        if (status && status.connected) hint.textContent = "Сеть есть — попробуйте ещё раз";
+      }).catch(function () {});
+    }
+  } catch (e) {}
+})();
+</script>
+</body>
+</html>

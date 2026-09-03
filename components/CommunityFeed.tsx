@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { reachGoal } from "@/lib/metrika";
 import { preparePhoto, reportPhotoError } from "@/lib/photo";
+import { pickImageIntoInputHandler } from "@/lib/native";
 
 // Лента сообщества (премодерируемая). Публичные данные — ТОЛЬКО из view
 // community_posts_public (не раскрывает user_ref/status, счётчик лайков —
@@ -489,7 +490,11 @@ export default function CommunityFeed({ initialItems }: { initialItems: Communit
             ) : (
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
+                onClick={async () => {
+                  // В нативе — системный выбор (камера/галерея); в вебе всё как было.
+                  if (await pickImageIntoInputHandler(handlePhotoChange)) return;
+                  fileInputRef.current?.click();
+                }}
                 disabled={isPreparing}
                 style={{ width: "100%", padding: "var(--space-5)", borderRadius: "var(--radius-sm)", border: "1px dashed var(--color-border)", background: "var(--color-bg)", color: "var(--color-text-secondary)", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--space-2)", marginBottom: "var(--space-3)" }}
               >

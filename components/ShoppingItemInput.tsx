@@ -1,4 +1,5 @@
 "use client";
+import { pickImageIntoInputHandler } from "@/lib/native";
 
 import { useRef, useState, type ChangeEvent } from "react";
 import { toast } from "sonner";
@@ -364,7 +365,12 @@ export default function ShoppingItemInput({ onAdd, busy = false, placeholder = "
         <div className="sl-overlay" onClick={() => setPhotoSheet(false)}>
           <div className="sl-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="sl-sheet-title">Список по фото</div>
-            <label className="sl-sheet-btn">
+            <label
+              className="sl-sheet-btn"
+              onClick={async (e) => {
+                if (await pickImageIntoInputHandler(handlePhotoFile, "camera")) { e.preventDefault(); setPhotoSheet(false); }
+              }}
+            >
               <Camera size={20} /> Снять фото
               <input
                 type="file"
@@ -374,7 +380,12 @@ export default function ShoppingItemInput({ onAdd, busy = false, placeholder = "
                 onChange={handlePhotoFile}
               />
             </label>
-            <label className="sl-sheet-btn">
+            <label
+              className="sl-sheet-btn"
+              onClick={async (e) => {
+                if (await pickImageIntoInputHandler(handlePhotoFile, "photos")) { e.preventDefault(); setPhotoSheet(false); }
+              }}
+            >
               <ImageIcon size={20} /> Из галереи
               {/* accept без списка форматов: любой снимок должен быть выбираемым.
                   Расширения HEIC/HEIF дописаны отдельно — часть Android-пикеров

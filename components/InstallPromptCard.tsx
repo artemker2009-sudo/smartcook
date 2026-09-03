@@ -1,5 +1,7 @@
 "use client";
 
+import { useIsNative } from "@/lib/native";
+
 import React, { useEffect, useState } from "react";
 import { X, Download, Share, Plus, Smartphone, MoreVertical } from "lucide-react";
 import { reachGoal } from "@/lib/metrika";
@@ -39,7 +41,7 @@ type Platform = "ios" | "android" | "other";
  * экран „Домой“». Факт установки трекается глобально (appinstalled /
  * standalone-запуск), поэтому здесь цель accepted не шлём.
  */
-export default function InstallPromptCard({ open, onClose }: InstallPromptCardProps) {
+function InstallPromptCardInner({ open, onClose }: InstallPromptCardProps) {
   const [platform, setPlatform] = useState<Platform>("other");
   const [help, setHelp] = useState<null | "ios" | "android">(null);
 
@@ -145,4 +147,15 @@ export default function InstallPromptCard({ open, onClose }: InstallPromptCardPr
       )}
     </div>
   );
+}
+
+// В нативной оболочке звать «установить приложение» бессмысленно — мы уже внутри
+// приложения. Обёртка вынесена отдельным компонентом намеренно: ранний return
+// внутри InstallPromptCardInner менял бы число вызванных хуков между первым рендером
+// (флаг ещё false) и следующим, а это ошибка React. Здесь хук ровно один и
+// вызывается всегда. В вебе флаг всегда false — поведение не меняется.
+export default function InstallPromptCard(props: InstallPromptCardProps) {
+  const isNative = useIsNative();
+  if (isNative) return null;
+  return <InstallPromptCardInner {...props} />;
 }

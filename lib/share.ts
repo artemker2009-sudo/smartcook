@@ -34,6 +34,14 @@ export async function shareOrCopy({ title, text, url, goal }: SharePayload): Pro
 
   const shareData: ShareData = { title, text: `${text}\n${url}`, url };
 
+  // В нативной оболочке — системный share sheet через плагин Capacitor.
+  // navigator.share в WKWebView работает не всегда (требует жеста и доверенного
+  // контекста), а нативный лист — всегда и с полным набором приложений. Это
+  // один из device capability, на которые мы ссылаемся по App Store 4.2.
+  // На вебе shareNative вернёт false, и дальше всё как раньше — без изменений.
+  const { shareNative } = await import("@/lib/native");
+  if (await shareNative({ title, text, url, dialogTitle: title })) return;
+
   if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
     try {
       await navigator.share(shareData);

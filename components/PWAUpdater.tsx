@@ -1,5 +1,7 @@
 "use client";
 
+import { useIsNative } from "@/lib/native";
+
 import { useEffect } from "react";
 
 /**
@@ -27,7 +29,7 @@ import { useEffect } from "react";
  * Осознанная плата: обновление доезжает на один запуск позже. Для приложения,
  * где человек стоит в магазине с открытым списком, это верный размен.
  */
-export default function PWAUpdater() {
+function PWAUpdaterInner() {
   useEffect(() => {
     if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
 
@@ -53,4 +55,15 @@ export default function PWAUpdater() {
   }, []);
 
   return null;
+}
+
+// В нативной оболочке звать «установить приложение» бессмысленно — мы уже внутри
+// приложения. Обёртка вынесена отдельным компонентом намеренно: ранний return
+// внутри PWAUpdaterInner менял бы число вызванных хуков между первым рендером
+// (флаг ещё false) и следующим, а это ошибка React. Здесь хук ровно один и
+// вызывается всегда. В вебе флаг всегда false — поведение не меняется.
+export default function PWAUpdater() {
+  const isNative = useIsNative();
+  if (isNative) return null;
+  return <PWAUpdaterInner />;
 }

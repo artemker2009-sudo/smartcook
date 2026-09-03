@@ -1,4 +1,5 @@
 "use client";
+import { pickImageIntoInputHandler } from "@/lib/native";
 
 import React, { ChangeEvent } from "react";
 import { Camera } from "lucide-react";
@@ -38,7 +39,10 @@ export default function EditProfileModal({
       <div className="animate-fade-in" style={{ background: 'var(--color-surface)', borderRadius: 'var(--radius-md)', width: '100%', maxWidth: '400px', padding: 'var(--space-5) var(--space-4)', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', textAlign: 'center' }}>
         <h2 style={{fontSize: 'var(--font-size-heading)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text)', margin: '0 0 var(--space-4) 0'}}>Редактировать профиль</h2>
 
-        <div style={{position: 'relative', width: '100px', height: '100px', margin: '0 auto var(--space-4) auto', cursor: 'pointer'}} onClick={() => document.getElementById('avatar-upload')?.click()}>
+        <div style={{position: 'relative', width: '100px', height: '100px', margin: '0 auto var(--space-4) auto', cursor: 'pointer'}} onClick={async () => {
+          if (await pickImageIntoInputHandler(handleAvatarChange)) return;
+          document.getElementById('avatar-upload')?.click();
+        }}>
           {editAvatarPreview ? (
             <img src={editAvatarPreview} alt="Avatar" style={{width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--color-accent)'}} />
           ) : (

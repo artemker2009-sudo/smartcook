@@ -3,6 +3,7 @@
 import { ListPlus, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
 import { KUPER_CPA_URL, KUPER_AD_LABEL } from "@/lib/constants";
+import { isNativePlatform, openExternal } from "@/lib/native";
 import { reachGoal } from "@/lib/metrika";
 import { copyText } from "@/lib/clipboard";
 import { addNamesToDefaultList } from "@/lib/shoppingLists";
@@ -114,7 +115,13 @@ export default function KuperBuyBlock({ ingredients }: { ingredients: string[] }
             href={KUPER_CPA_URL}
             target="_blank"
             rel="noopener noreferrer sponsored"
-            onClick={() => handleChip(name)}
+            onClick={(e) => {
+              handleChip(name);
+              // В нативе партнёрская ссылка уходит в СИСТЕМНЫЙ браузер, а не внутрь
+              // WebView: «браузер внутри приложения» — прямая претензия по 4.2.
+              // Цель метрики из handleChip при этом уже отправлена.
+              if (isNativePlatform()) { e.preventDefault(); void openExternal(KUPER_CPA_URL); }
+            }}
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -164,7 +171,10 @@ export default function KuperBuyBlock({ ingredients }: { ingredients: string[] }
         href={KUPER_CPA_URL}
         target="_blank"
         rel="noopener noreferrer sponsored"
-        onClick={handleAll}
+        onClick={(e) => {
+          handleAll();
+          if (isNativePlatform()) { e.preventDefault(); void openExternal(KUPER_CPA_URL); }
+        }}
         style={{
           display: "flex",
           alignItems: "center",

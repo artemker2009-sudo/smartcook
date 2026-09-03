@@ -30,6 +30,7 @@ import {
   Trash2,
   ImageIcon,
   Code2,
+  AlertTriangle,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -51,6 +52,7 @@ import AuthModal from "@/components/modals/AuthModal";
 import PreferencesModal from "@/components/modals/PreferencesModal";
 import EditProfileModal from "@/components/modals/EditProfileModal";
 import CropperModal from "@/components/modals/CropperModal";
+import DeleteAccountModal from "@/components/modals/DeleteAccountModal";
 
 type MyPost = {
   id: string;
@@ -100,6 +102,10 @@ export default function ProfileApp() {
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isCropping, setIsCropping] = useState(false);
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+
+  // Удаление аккаунта (App Store 5.1.1(v)).
+  const [isDeleteAccountOpen, setIsDeleteAccountOpen] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
@@ -214,6 +220,46 @@ export default function ProfileApp() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push("/");
+  };
+
+  // Полное удаление аккаунта: серверный роут сносит данные пользователя в БД и
+  // storage, затем чистим ВСЕ локальные следы приложения на устройстве
+  // (профиль вкуса, счётчики, списки покупок, гостевые банкеты) и выходим.
+  const clearLocalAppData = () => {
+    try {
+      const keys: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith("sc_") || k.startsWith("cook_") || k.startsWith("smartcook_"))) {
+          keys.push(k);
+        }
+      }
+      keys.forEach((k) => localStorage.removeItem(k));
+    } catch {}
+  };
+
+  const handleDeleteAccount = async () => {
+    if (isDeletingAccount) return;
+    setIsDeletingAccount(true);
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+      const res = await fetch("/api/account/delete", {
+        method: "POST",
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
+      if (!res.ok) throw new Error("delete failed");
+      reachGoal("account_deleted");
+      clearLocalAppData();
+      await supabase.auth.signOut();
+      setIsDeleteAccountOpen(false);
+      toast.success("Аккаунт удалён");
+      router.push("/");
+    } catch {
+      toast.error("Не удалось удалить аккаунт. Попробуйте позже");
+    } finally {
+      setIsDeletingAccount(false);
+    }
   };
 
   // --- Редактирование профиля (имя/username/аватар). ---
@@ -505,6 +551,18 @@ export default function ProfileApp() {
             )}
           </div>
         )}
+
+        {/* Опасная зона: удаление аккаунта (App Store 5.1.1(v)). Внизу, отдельно,
+            неакцентная ссылка — не провоцирует случайный тап, но всегда доступна. */}
+        <div style={{ marginTop: "var(--space-6)", paddingTop: "var(--space-4)", borderTop: "1px solid var(--color-border)", textAlign: "center" }}>
+          <button
+            type="button"
+            onClick={() => setIsDeleteAccountOpen(true)}
+            style={{ background: "none", border: "none", color: "var(--color-danger)", fontSize: "var(--font-size-caption)", fontWeight: "var(--font-weight-semibold)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "var(--space-1)", padding: "var(--space-2)" }}
+          >
+            <AlertTriangle size={14} /> Удалить аккаунт
+          </button>
+        </div>
       </div>
 
       {/* Модалки */}
@@ -546,6 +604,12 @@ export default function ProfileApp() {
         onCropComplete={onCropComplete}
         onCancel={() => { setIsCropping(false); setCropImageSrc(null); }}
         onConfirm={handleCropConfirm}
+      />
+      <DeleteAccountModal
+        isOpen={isDeleteAccountOpen}
+        isDeleting={isDeletingAccount}
+        onConfirm={handleDeleteAccount}
+        onClose={() => setIsDeleteAccountOpen(false)}
       />
     </div>
   );

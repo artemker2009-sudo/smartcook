@@ -142,7 +142,27 @@ type ImagesStatus = {
   maxBatch: number;
 };
 
-type TabId = "management" | "analytics" | "purchases" | "news" | "articles" | "tips" | "feed" | "images" | "warmup" | "requests" | "errors";
+type TabId = "management" | "analytics" | "purchases" | "news" | "articles" | "tips" | "feed" | "images" | "warmup" | "requests" | "errors" | "reports";
+
+// Жалобы на посты ленты (вкладка «Жалобы»). Личность жалобщика сервер отдаёт
+// обезличенно: тип + последние 4 символа идентификатора.
+type ReportState = "open" | "hidden" | "dismissed" | "post_deleted";
+type CommunityReport = {
+  id: string;
+  createdAt: string;
+  reason: string | null;
+  reporter: { kind: "user" | "guest"; short: string };
+  state: ReportState;
+  reportsOnPost: number;
+  post: {
+    id: string;
+    title: string | null;
+    author: string | null;
+    photoUrl: string;
+    recipeId: number | null;
+    status: string;
+  } | null;
+};
 
 const TABS = [
   { id: "management" as TabId, label: "⚙️ Управление", hint: "Статус сайта и техработы" },
@@ -156,6 +176,7 @@ const TABS = [
   { id: "warmup" as TabId, label: "🔥 Прогрев", hint: "Заранее наполнить кэш блюд" },
   { id: "requests" as TabId, label: "🔑 Заявки на доступ", hint: "Восстановление пароля" },
   { id: "errors" as TabId, label: "🐞 Ошибки", hint: "Баг-репорты пользователей" },
+  { id: "reports" as TabId, label: "🚩 Жалобы", hint: "Жалобы на посты ленты" },
 ];
 
 // Репорт со стенда разработки, а не от живого пользователя.
@@ -253,6 +274,12 @@ export default function AdminPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  // Жалобы на посты ленты (вкладка «Жалобы»). Грузятся лениво при открытии.
+  const [reports, setReports] = useState<CommunityReport[] | null>(null);
+  const [reportsLoading, setReportsLoading] = useState(false);
+  const [reportsError, setReportsError] = useState("");
+  const [reportsStatusColumnReady, setReportsStatusColumnReady] = useState(true);
+  const [actingReportId, setActingReportId] = useState<string | null>(null);
   // Заявки на восстановление доступа (вкладка «Заявки на доступ»).
   const [resetRequests, setResetRequests] = useState<ResetRequest[]>([]);
   const [issuingRequestId, setIssuingRequestId] = useState<string | null>(null);
@@ -385,6 +412,13 @@ export default function AdminPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, activeTab]);
+
+  // Раздел «Жалобы» грузим лениво — при первом открытии вкладки.
+  useEffect(() => {
+    if (isAuthenticated && activeTab === "reports" && reports === null && !reportsLoading) {
+      void loadReports();
+    }
+  }, [isAuthenticated, activeTab, reports, reportsLoading]);
 
   // Раздел «Прогрев»: подтягиваем цену за картинку (для оценки стоимости прогона).
   useEffect(() => {
@@ -553,6 +587,82 @@ export default function AdminPage() {
       console.error("Ошибка при обновлении репорта", error);
     } finally {
       setMarkingReportId(null);
+    }
+  };
+
+  // --- Вкладка «Жалобы» ---------------------------------------------------
+  const loadReports = async () => {
+    setReportsLoading(true);
+    setReportsError("");
+    try {
+      const response = await fetch("/api/admin/reports", { cache: "no-store" });
+      if (response.status === 401) {
+        setIsAuthenticated(false);
+        return;
+      }
+      if (!response.ok) throw new Error("Не удалось загрузить жалобы");
+      const data = await response.json();
+      setReports(Array.isArray(data?.items) ? (data.items as CommunityReport[]) : []);
+      setReportsStatusColumnReady(data?.statusColumnReady !== false);
+    } catch (error) {
+      console.error("Ошибка при загрузке жалоб", error);
+      setReportsError("Не удалось загрузить жалобы");
+      setReports([]);
+    } finally {
+      setReportsLoading(false);
+    }
+  };
+
+  // Скрыть пост по жалобе. Тот же механизм, что в «Ленте»: статус меняет только
+  // service_role через /api/admin/feed-moderate (у community_posts нет
+  // UPDATE-политики для клиента, самоскрытие/самоодобрение невозможно).
+  const handleHideReportedPost = async (reportId: string, postId: string) => {
+    setActingReportId(reportId);
+    try {
+      const response = await fetch("/api/admin/feed-moderate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: postId, action: "reject" }),
+      });
+      if (!response.ok) throw new Error("Не удалось скрыть пост");
+      // Скрытым становится пост — значит все жалобы на него закрываются.
+      setReports((current) =>
+        (current ?? []).map((r) =>
+          r.post?.id === postId && r.state === "open"
+            ? { ...r, state: "hidden", post: { ...r.post, status: "rejected" } }
+            : r,
+        ),
+      );
+    } catch (error) {
+      console.error("Ошибка при скрытии поста", error);
+      setReportsError("Не удалось скрыть пост");
+    } finally {
+      setActingReportId(null);
+    }
+  };
+
+  const handleDismissReport = async (reportId: string) => {
+    setActingReportId(reportId);
+    try {
+      const response = await fetch("/api/admin/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: reportId, dismissed: true }),
+      });
+      if (response.status === 409) {
+        const data = await response.json().catch(() => null);
+        setReportsError(data?.error || "Нужна миграция для статусов жалоб");
+        return;
+      }
+      if (!response.ok) throw new Error("Не удалось отклонить жалобу");
+      setReports((current) =>
+        (current ?? []).map((r) => (r.id === reportId ? { ...r, state: "dismissed" } : r)),
+      );
+    } catch (error) {
+      console.error("Ошибка при отклонении жалобы", error);
+      setReportsError("Не удалось отклонить жалобу");
+    } finally {
+      setActingReportId(null);
     }
   };
 
@@ -2273,6 +2383,153 @@ export default function AdminPage() {
                     <p className="mt-4 whitespace-pre-wrap text-base font-medium text-zinc-950">
                       {report.message?.trim() || "Текст репорта отсутствует."}
                     </p>
+                  </article>
+                );
+              })}
+            </section>
+          ) : null}
+
+          {activeTab === "reports" ? (
+            <section className="space-y-4">
+              <div className="rounded-[2rem] border border-zinc-200 bg-white px-6 py-5 shadow-sm">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-400">Модерация</p>
+                <h3 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-950">Жалобы на посты ленты</h3>
+                <p className="mt-2 text-sm text-zinc-500">
+                  Жалобы пользователей на публикации в ленте сообщества. Открытые — сверху.
+                  Пост скрывается автоматически после 3 жалоб; здесь можно скрыть раньше или
+                  отклонить жалобу. Личность жалобщика не раскрывается.
+                </p>
+              </div>
+
+              {!reportsStatusColumnReady ? (
+                <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                  Не прогнана миграция <span className="font-mono">supabase_community_post_reports_status.sql</span> —
+                  статус «отклонена» недоступен. Остальное работает.
+                </p>
+              ) : null}
+
+              {reportsError ? (
+                <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                  {reportsError}
+                </p>
+              ) : null}
+
+              {reportsLoading ? (
+                <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-12 text-center text-sm text-zinc-500 shadow-sm">
+                  Загружаем жалобы...
+                </div>
+              ) : null}
+
+              {!reportsLoading && reports !== null && reports.length === 0 ? (
+                <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-12 text-center text-sm text-zinc-500 shadow-sm">
+                  Жалоб пока нет.
+                </div>
+              ) : null}
+
+              {(reports ?? []).map((report) => {
+                const badge =
+                  report.state === "open"
+                    ? { text: "Открыта", cls: "bg-amber-100 text-amber-700 ring-amber-200" }
+                    : report.state === "hidden"
+                      ? { text: "Пост скрыт", cls: "bg-zinc-100 text-zinc-600 ring-zinc-200" }
+                      : report.state === "dismissed"
+                        ? { text: "Отклонена", cls: "bg-zinc-100 text-zinc-600 ring-zinc-200" }
+                        : { text: "Пост удалён", cls: "bg-zinc-100 text-zinc-600 ring-zinc-200" };
+                const isActing = actingReportId === report.id;
+
+                return (
+                  <article key={report.id} className="mb-4 rounded-2xl bg-white p-6 shadow-sm">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="flex min-w-0 gap-4">
+                        {report.post ? (
+                          <img
+                            src={report.post.photoUrl}
+                            alt={report.post.title || "Блюдо"}
+                            loading="lazy"
+                            className="h-20 w-20 shrink-0 rounded-2xl object-cover ring-1 ring-zinc-200"
+                          />
+                        ) : (
+                          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-zinc-100 text-2xl ring-1 ring-zinc-200">
+                            🗑️
+                          </div>
+                        )}
+
+                        <div className="min-w-0 space-y-1 text-sm text-zinc-500">
+                          <p className="truncate text-base font-semibold text-zinc-950">
+                            {report.post?.title || "Блюдо без названия"}
+                          </p>
+                          <p>
+                            <span className="font-semibold text-zinc-900">Автор поста:</span>{" "}
+                            {report.post?.author || "—"}
+                          </p>
+                          <p>
+                            <span className="font-semibold text-zinc-900">Дата жалобы:</span>{" "}
+                            {formatDateTime(report.createdAt)}
+                          </p>
+                          <p>
+                            <span className="font-semibold text-zinc-900">Пожаловался:</span>{" "}
+                            {report.reporter.kind === "user" ? "аккаунт" : "гость"} ····{report.reporter.short}
+                          </p>
+                          <p>
+                            <span className="font-semibold text-zinc-900">Причина:</span>{" "}
+                            {report.reason?.trim() || "не указана"}
+                          </p>
+                          <p>
+                            <span className="font-semibold text-zinc-900">Жалоб на пост:</span>{" "}
+                            {report.reportsOnPost}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex shrink-0 flex-col items-start gap-3 lg:items-end">
+                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${badge.cls}`}>
+                          {badge.text}
+                        </span>
+
+                        <div className="flex flex-wrap gap-2">
+                          {report.post ? (
+                            <a
+                              href={report.post.photoUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="rounded-2xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
+                            >
+                              Открыть пост
+                            </a>
+                          ) : null}
+                          {report.post?.recipeId ? (
+                            <a
+                              href={`/recipe/${report.post.recipeId}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="rounded-2xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
+                            >
+                              К рецепту
+                            </a>
+                          ) : null}
+                          {report.state === "open" && report.post ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => void handleHideReportedPost(report.id, report.post!.id)}
+                                disabled={isActing}
+                                className="rounded-2xl bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                {isActing ? "Сохраняем..." : "Скрыть пост"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void handleDismissReport(report.id)}
+                                disabled={isActing}
+                                className="rounded-2xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                Отклонить жалобу
+                              </button>
+                            </>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
                   </article>
                 );
               })}

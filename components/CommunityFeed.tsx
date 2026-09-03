@@ -342,6 +342,9 @@ export default function CommunityFeed({ initialItems }: { initialItems: Communit
     return { text: "На модерации", color: "var(--color-warning)", icon: <Clock size={12} /> };
   };
 
+  // Пост, для которого открыт нижний лист действий.
+  const menuPost = menuPostId ? items.find((p) => p.id === menuPostId) ?? null : null;
+
   // Публичная лента за вычетом скрытых авторов (локальный блок-лист).
   const visibleItems =
     blockedAuthors.length === 0
@@ -426,37 +429,20 @@ export default function CommunityFeed({ initialItems }: { initialItems: Communit
                 onClick={() => openPost(item)}
               />
               <div className="feed-post-body">
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "var(--space-2)", position: "relative" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "var(--space-2)" }}>
                   <span className="feed-post-user">{item.user_name || "Гость"}</span>
+                  {/* Меню действий открывается нижним листом (см. ниже), а не
+                      выпадающим списком: внутри карточки список упирался в её
+                      нижний край и «Скрыть автора» обрезалось на последнем посте. */}
                   <button
                     type="button"
                     aria-label="Действия с публикацией"
-                    onClick={() => setMenuPostId(menuPostId === item.id ? null : item.id)}
-                    style={{ background: "none", border: "none", color: "var(--color-text-muted)", cursor: "pointer", padding: "var(--space-1)", display: "flex", flexShrink: 0 }}
+                    aria-haspopup="menu"
+                    onClick={() => setMenuPostId(item.id)}
+                    style={{ background: "none", border: "none", color: "var(--color-text-muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, width: "44px", height: "44px", margin: "-10px -10px -10px 0" }}
                   >
-                    <MoreHorizontal size={18} />
+                    <MoreHorizontal size={20} />
                   </button>
-                  {menuPostId === item.id && (
-                    <>
-                      <div onClick={() => setMenuPostId(null)} style={{ position: "fixed", inset: 0, zIndex: 30 }} />
-                      <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 31, background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", boxShadow: "0 10px 30px -10px rgba(0,0,0,0.25)", overflow: "hidden", minWidth: "190px" }}>
-                        <button
-                          type="button"
-                          onClick={() => { setMenuPostId(null); setReportPost(item); setReportReason(""); }}
-                          style={{ width: "100%", textAlign: "left", padding: "var(--space-3)", background: "none", border: "none", color: "var(--color-text)", fontSize: "var(--font-size-caption)", cursor: "pointer", display: "flex", alignItems: "center", gap: "var(--space-2)" }}
-                        >
-                          <Flag size={15} /> Пожаловаться
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => blockAuthor(item.user_name)}
-                          style={{ width: "100%", textAlign: "left", padding: "var(--space-3)", background: "none", border: "none", borderTop: "1px solid var(--color-border)", color: "var(--color-text)", fontSize: "var(--font-size-caption)", cursor: "pointer", display: "flex", alignItems: "center", gap: "var(--space-2)" }}
-                        >
-                          <EyeOff size={15} /> Скрыть автора
-                        </button>
-                      </div>
-                    </>
-                  )}
                 </div>
                 <div className="feed-post-title">{item.recipe_title || "Блюдо"}</div>
                 {item.caption ? (
@@ -564,6 +550,58 @@ export default function CommunityFeed({ initialItems }: { initialItems: Communit
                 Отправить на модерацию
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Меню действий с публикацией — нижний лист, как у выбора фото.
+          Рендерится один на всю ленту и позиционируется от низа ЭКРАНА, поэтому
+          не зависит от того, первый это пост или последний, и не может быть
+          обрезан карточкой. Пункты — по 56px, крупные зоны тапа. */}
+      {menuPost && (
+        <div
+          onClick={() => setMenuPostId(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 100000, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            role="menu"
+            style={{ background: "var(--color-surface)", width: "100%", maxWidth: "520px", borderTopLeftRadius: "var(--radius-md)", borderTopRightRadius: "var(--radius-md)", padding: "var(--space-3) var(--space-3) calc(env(safe-area-inset-bottom) + var(--space-3)) var(--space-3)" }}
+          >
+            <div style={{ padding: "var(--space-2) var(--space-2) var(--space-3) var(--space-2)", borderBottom: "1px solid var(--color-border)", marginBottom: "var(--space-2)" }}>
+              <div style={{ fontWeight: "var(--font-weight-semibold)", color: "var(--color-text)", fontSize: "var(--font-size-body)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {menuPost.recipe_title || "Блюдо"}
+              </div>
+              <div style={{ fontSize: "var(--font-size-caption)", color: "var(--color-text-secondary)", marginTop: "2px" }}>
+                {menuPost.user_name || "Гость"}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => { setMenuPostId(null); setReportPost(menuPost); setReportReason(""); }}
+              style={{ width: "100%", minHeight: "56px", textAlign: "left", padding: "0 var(--space-2)", background: "none", border: "none", borderRadius: "var(--radius-sm)", color: "var(--color-text)", fontSize: "var(--font-size-body)", fontWeight: "var(--font-weight-medium)", cursor: "pointer", display: "flex", alignItems: "center", gap: "var(--space-3)" }}
+            >
+              <Flag size={20} color="var(--color-danger)" /> Пожаловаться
+            </button>
+
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => blockAuthor(menuPost.user_name)}
+              style={{ width: "100%", minHeight: "56px", textAlign: "left", padding: "0 var(--space-2)", background: "none", border: "none", borderRadius: "var(--radius-sm)", color: "var(--color-text)", fontSize: "var(--font-size-body)", fontWeight: "var(--font-weight-medium)", cursor: "pointer", display: "flex", alignItems: "center", gap: "var(--space-3)" }}
+            >
+              <EyeOff size={20} color="var(--color-text-secondary)" /> Скрыть автора
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMenuPostId(null)}
+              style={{ width: "100%", minHeight: "56px", marginTop: "var(--space-2)", background: "var(--color-bg)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", color: "var(--color-text-secondary)", fontSize: "var(--font-size-body)", fontWeight: "var(--font-weight-semibold)", cursor: "pointer" }}
+            >
+              Отмена
+            </button>
           </div>
         </div>
       )}

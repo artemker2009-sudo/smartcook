@@ -32,9 +32,11 @@ const config: CapacitorConfig = {
     //   CAP_SERVER_URL=https://<preview>.vercel.app npx cap sync ios
     // В коммит уходит всегда прод — переменная только для локальной проверки.
     url: process.env.CAP_SERVER_URL || "https://smart-cook.pro",
-    // Явный hostname: WKWebView считает origin своим и не режет куки сессии
-    // (иначе логин и гостевая cookie sc_guest теряются между запусками).
-    hostname: "smart-cook.pro",
+    // hostname здесь НЕ задаём. Он предназначен для режима с локальным бандлом
+    // (когда Capacitor сам раздаёт файлы) и при удалённом server.url ломает
+    // разрешение относительных путей: запросы за /_next/static/... уходили на
+    // чужой origin, и приложение открывалось вообще без стилей.
+    // Origin и куки при удалённом адресе и так берутся с самого сайта.
     androidScheme: "https",
     iosScheme: "https",
     // Локальная страница из бандла на случай, когда сайт недоступен.

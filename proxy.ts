@@ -47,7 +47,13 @@ const CONTENT_SECURITY_POLICY = [
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
-  "upgrade-insecure-requests",
+  // upgrade-insecure-requests — ТОЛЬКО в проде. В dev сайт отдаётся по http, и
+  // эта директива заставляет браузер поднимать все подзапросы на https://
+  // localhost:3000, которого нет: страница приходит вообще без CSS и JS. В
+  // обычном браузере это незаметно (он открывает http напрямую), а вот WKWebView
+  // нативной оболочки, смотрящий на dev-сервер, получал голый HTML.
+  // На проде поведение не меняется ни на байт.
+  ...(IS_DEV ? [] : ["upgrade-insecure-requests"]),
 ].join("; ");
 
 function withSecurityHeaders(response: NextResponse) {

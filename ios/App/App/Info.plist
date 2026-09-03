@@ -28,6 +28,8 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Камера нужна, чтобы сфотографировать продукты — SmartCook распознает их и подберёт рецепт. / SmartCook uses the camera to photograph your groceries, recognise them and suggest a recipe.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Понадобится, только если вы сами сохраните фото блюда в свою галерею. SmartCook не записывает туда ничего без вашего действия. / Needed only if you choose to save a dish photo to your library. SmartCook never writes there on its own.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Доступ к фото нужен, чтобы выбрать снимок продуктов или готового блюда — SmartCook распознает продукты и подберёт рецепт. / SmartCook needs access to your photos to pick a picture of groceries or a finished dish, recognise the products and suggest a recipe.</string>
 	<key>UIApplicationSceneManifest</key>

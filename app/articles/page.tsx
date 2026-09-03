@@ -20,6 +20,7 @@ export const metadata: Metadata = {
   title: "Кухонные заметки — SmartCook",
   description:
     "Короткие практичные заметки о готовке от команды SmartCook: без воды, только применимые советы.",
+  alternates: { canonical: "/articles" },
   openGraph: {
     title: "Кухонные заметки — SmartCook",
     description: "Короткие практичные заметки о готовке от команды SmartCook.",

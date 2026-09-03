@@ -18,6 +18,29 @@ const SUPABASE_HOST = (() => {
 // возможные будущие проверки не расходились.
 const CANONICAL_HOST = "smart-cook.pro";
 
+// Хосты, на которых сайт «настоящий». Всё остальное (адреса деплоя Vercel,
+// localhost, любой будущий алиас) — не наш канонический адрес: такие ответы
+// помечаем noindex/nofollow и отдаём на них запрещающий robots.txt.
+const CANONICAL_HOSTS = new Set([CANONICAL_HOST, `www.${CANONICAL_HOST}`]);
+
+// Пути, которые НЕЛЬЗЯ уводить редиректом на канонический хост, даже когда
+// запрос пришёл на *.vercel.app:
+//   /api/            — весь API. Здесь же вебхук Telegram (/api/telegram-webhook):
+//                      Telegram шлёт POST и за 30x не ходит, редирект = молчащий
+//                      бот. Плюс POST-редирект вообще теряет тело запроса.
+//   /.well-known/    — assetlinks.json (TWA) и security.txt обязаны отдаваться
+//                      с того хоста, который проверяют.
+//   /_vercel/        — маяки Vercel Analytics/Speed Insights.
+//   /_next/          — чанки и RSC-пейлоады текущего деплоя.
+// Статика (файлы с точкой в имени, /og-image-v2.png в том числе) до proxy не
+// доходит вовсе — её отсекает matcher внизу файла.
+const NO_REDIRECT_PREFIXES = ["/api/", "/.well-known/", "/_vercel/", "/_next/"];
+
+function hostnameOf(request: NextRequest): string {
+  // host приходит с портом (localhost:3000) — для сравнения он лишний.
+  return (request.headers.get("host") || "").toLowerCase().split(":")[0];
+}
+
 // В dev-режиме Next.js (webpack + React Fast Refresh) исполняет клиентские
 // модули через eval — без 'unsafe-eval' строгий CSP блокирует ВЕСЬ клиентский
 // бандл, страница не гидрируется и ни одна кнопка не реагирует. В проде бандл
@@ -50,7 +73,13 @@ const CONTENT_SECURITY_POLICY = [
   "upgrade-insecure-requests",
 ].join("; ");
 
-function withSecurityHeaders(response: NextResponse) {
+function withSecurityHeaders(response: NextResponse, options?: { noindex?: boolean }) {
+  // Любой неканонический хост (адрес деплоя Vercel, localhost) не должен
+  // попадать в выдачу: одинаковый контент на двух адресах — это дубль, а
+  // превью-деплои вообще не предназначены для людей из поиска.
+  if (options?.noindex) {
+    response.headers.set("X-Robots-Tag", "noindex, nofollow");
+  }
   response.headers.set("Content-Security-Policy", CONTENT_SECURITY_POLICY);
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("X-Frame-Options", "DENY");
@@ -120,6 +149,24 @@ const MAINTENANCE_HTML = `<!doctype html>
   <div class="thanks">Спасибо, что вы с нами 💚</div>
 </div></body></html>`;
 
+// robots.txt для неканонического хоста. На smart-cook.pro этот код не
+// срабатывает — там robots.txt по-прежнему целиком генерирует app/robots.ts
+// (и sitemap.xml — app/sitemap.ts), они не тронуты.
+const ROBOTS_DENY_ALL = "User-agent: *\nDisallow: /\n";
+
+function robotsDenyAllResponse() {
+  return withSecurityHeaders(
+    new NextResponse(ROBOTS_DENY_ALL, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-store",
+      },
+    }),
+    { noindex: true },
+  );
+}
+
 function maintenanceResponse() {
   return withSecurityHeaders(
     new NextResponse(MAINTENANCE_HTML, {
@@ -156,11 +203,47 @@ export async function proxy(request: NextRequest) {
     return withSecurityHeaders(NextResponse.redirect(apexUrl, 308));
   }
 
-  // Режим обслуживания: отдаём 503 всем публичным страницам. Админку и API не
-  // трогаем — из админки обслуживание и выключается.
+  const hostname = hostnameOf(request);
+  const isCanonicalHost = CANONICAL_HOSTS.has(hostname);
   const { pathname } = request.nextUrl;
+
+  // БОЕВОЙ деплой, открытый по адресу вида *.vercel.app, — тот же сайт на
+  // втором адресе: дубль для поисковика и трафик мимо бренда. Уводим 301-м
+  // (постоянным — чтобы выдача переклеилась на канонический адрес), сохраняя
+  // путь и query.
+  //
+  // ПРЕВЬЮ (VERCEL_ENV === "preview") НЕ трогаем: превью-ссылки существуют
+  // ровно для приёмки PR, редирект убил бы её. От индексации превью закрыто
+  // ниже — заголовком X-Robots-Tag и запрещающим robots.txt.
+  const isVercelDeployHost = hostname.endsWith(".vercel.app");
+  const skipRedirect = NO_REDIRECT_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+  if (
+    process.env.VERCEL_ENV === "production" &&
+    isVercelDeployHost &&
+    !skipRedirect
+  ) {
+    // Собираем адрес заново от канонического origin, а не правим host у
+    // nextUrl: так в Location гарантированно не утечёт ни хост деплоя, ни
+    // http-схема.
+    const canonicalUrl = new URL(
+      `${pathname}${request.nextUrl.search}`,
+      `https://${CANONICAL_HOST}`,
+    );
+    return withSecurityHeaders(NextResponse.redirect(canonicalUrl, 301), { noindex: true });
+  }
+
+  // На неканоническом хосте (превью-деплой, адрес деплоя, localhost) отдаём
+  // robots.txt, запрещающий всё. Боевой robots.txt остаётся как был.
+  if (!isCanonicalHost && pathname === "/robots.txt") {
+    return robotsDenyAllResponse();
+  }
+
+  // Режим обслуживания: отдаём 503 всем публичным страницам. Админку и API не
+  // трогаем — из админки обслуживание и выключается. robots.txt тоже пропускаем
+  // мимо заглушки: он попал под matcher только ради ветки выше, а на боевом
+  // хосте должен вести себя ровно так же, как до этой правки.
   const bypassMaintenance =
-    pathname.startsWith("/admin") || pathname.startsWith("/api/");
+    pathname.startsWith("/admin") || pathname.startsWith("/api/") || pathname === "/robots.txt";
   if (!bypassMaintenance && (await isMaintenance())) {
     return maintenanceResponse();
   }
@@ -174,9 +257,14 @@ export async function proxy(request: NextRequest) {
     },
   });
 
-  return withSecurityHeaders(response);
+  return withSecurityHeaders(response, { noindex: !isCanonicalHost });
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest.json|sw.js|.*\\..*).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|manifest.json|sw.js|.*\\..*).*)",
+    // Имена с точкой matcher выше отсекает, а robots.txt нужен здесь: на
+    // неканоническом хосте мы подменяем его на «Disallow: /».
+    "/robots.txt",
+  ],
 };

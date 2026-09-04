@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import { reachGoal } from "@/lib/metrika";
 import { formatCookingTime } from "@/lib/utils";
+import { useIsNativeIOS } from "@/lib/native";
+import AiRecipeDisclaimer from "@/components/AiRecipeDisclaimer";
 
 // Режим «Готовим вместе» (задача Z + AC). Проектирование под целевого
 // пользователя — женщина 60+, готовит, очки сняты, руки в муке:
@@ -101,11 +103,23 @@ export default function CookMode({
 
   // Поддержка распознавания — вычисляем один раз на клиенте (компонент не
   // рендерится на сервере, поэтому lazy-init без риска рассинхрона гидрации).
-  const [srSupported] = useState(
+  const [hasRecognitionApi] = useState(
     () =>
       typeof window !== "undefined" &&
       !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition),
   );
+  // Нативный iOS: голосовых КОМАНД в готовке нет — ровно по той же причине, что
+  // и микрофона в «Покупках» (см. useVoiceInput): распознавание в WKWebView
+  // требует NSMicrophoneUsageDescription + NSSpeechRecognitionUsageDescription,
+  // которых в Info.plist нет, и тап по «Начать с управлением голосом» уронил бы
+  // приложение.
+  //
+  // Озвучка шагов (TTS, speechSynthesis) НЕ трогается: она не просит никаких
+  // разрешений и остаётся смыслом режима. Гасим ровно один флаг — дальше по
+  // файлу он и так переключает экран выбора на пару «с озвучкой / без звука»,
+  // а voiceMode остаётся false, поэтому микрофон не стартует нигде.
+  const isNativeIOSShell = useIsNativeIOS();
+  const srSupported = hasRecognitionApi && !isNativeIOSShell;
   // Последний выбор: какая кнопка первична по умолчанию (по умолчанию — с голосом).
   const [voicePref, setVoicePref] = useState<"voice" | "buttons">(() => {
     try {
@@ -579,6 +593,10 @@ export default function CookMode({
               <>Я буду читать шаги вслух. Звук можно выключить в любой момент.</>
             )}
           </p>
+
+          {/* App Store 1.4.1: та же строка, что в карточке рецепта — на входе в
+              готовку, когда человек уже встал к плите. */}
+          <AiRecipeDisclaimer />
 
           {srSupported ? (
             <>

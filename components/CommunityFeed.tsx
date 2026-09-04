@@ -1,13 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, ChangeEvent } from "react";
-import { Heart, ImagePlus, Loader2, Clock, CheckCircle2, XCircle, Trash2, MoreHorizontal, Flag, EyeOff } from "lucide-react";
+import { Heart, ImagePlus, Loader2, Clock, CheckCircle2, XCircle, Trash2, MoreHorizontal } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { reachGoal } from "@/lib/metrika";
 import { preparePhoto, reportPhotoError } from "@/lib/photo";
 import { pickImageIntoInputHandler } from "@/lib/native";
+import {
+  FeedActionSheet,
+  FeedReportModal,
+  submitFeedReport,
+  useBlockedAuthors,
+} from "@/components/FeedModeration";
 
 // Лента сообщества (премодерируемая). Публичные данные — ТОЛЬКО из view
 // community_posts_public (не раскрывает user_ref/status, счётчик лайков —
@@ -63,9 +69,8 @@ export default function CommunityFeed({ initialItems }: { initialItems: Communit
   const [reportPost, setReportPost] = useState<CommunityPost | null>(null);
   const [reportReason, setReportReason] = useState("");
   const [isReporting, setIsReporting] = useState(false);
-  // «Скрыть автора» — локальный чёрный список по отображаемому имени (user_ref
-  // наружу не отдаётся). Живёт на устройстве, серверу не нужен.
-  const [blockedAuthors, setBlockedAuthors] = useState<string[]>([]);
+  // «Скрыть автора» — общий с витриной чёрный список (см. FeedModeration).
+  const { blockAuthor, filterBlocked } = useBlockedAuthors();
   // Публикация требует согласия с правилами.
   const [agree, setAgree] = useState(false);
 
@@ -74,13 +79,6 @@ export default function CommunityFeed({ initialItems }: { initialItems: Communit
       setUserId(data.user?.id ?? null);
       setAuthChecked(true);
     });
-  }, []);
-
-  useEffect(() => {
-    try {
-      const raw = JSON.parse(localStorage.getItem("sc_blocked_authors") || "[]");
-      if (Array.isArray(raw)) setBlockedAuthors(raw.filter((x) => typeof x === "string"));
-    } catch {}
   }, []);
 
   const loadPublic = useCallback(async () => {
@@ -230,43 +228,18 @@ export default function CommunityFeed({ initialItems }: { initialItems: Communit
   const submitReport = async () => {
     if (!reportPost || isReporting) return;
     setIsReporting(true);
-    try {
-      const { data: sess } = await supabase.auth.getSession();
-      const token = sess.session?.access_token;
-      const res = await fetch("/api/feed/report", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ postId: reportPost.id, reason: reportReason.trim() || null }),
-      });
-      if (!res.ok) throw new Error("report failed");
-      reachGoal("feed_post_report");
-      const hiddenId = reportPost.id;
-      setItems((prev) => prev.filter((p) => p.id !== hiddenId));
-      toast.success("Спасибо, жалоба отправлена на модерацию");
-      setReportPost(null);
-      setReportReason("");
-    } catch {
+    const hiddenId = reportPost.id;
+    const ok = await submitFeedReport({ postId: hiddenId }, reportReason);
+    setIsReporting(false);
+    if (!ok) {
       toast.error("Не удалось отправить жалобу");
-    } finally {
-      setIsReporting(false);
+      return;
     }
-  };
-
-  // Скрыть все публикации автора (локально, на этом устройстве).
-  const blockAuthor = (name: string | null) => {
-    const key = (name || "").trim().toLowerCase();
-    setMenuPostId(null);
-    if (!key) return;
-    const next = Array.from(new Set([...blockedAuthors, key]));
-    setBlockedAuthors(next);
-    try {
-      localStorage.setItem("sc_blocked_authors", JSON.stringify(next));
-    } catch {}
-    reachGoal("feed_author_block");
-    toast.success("Публикации этого автора скрыты");
+    reachGoal("feed_post_report");
+    setItems((prev) => prev.filter((p) => p.id !== hiddenId));
+    toast.success("Спасибо, жалоба отправлена на модерацию");
+    setReportPost(null);
+    setReportReason("");
   };
 
   const submitPost = async () => {
@@ -347,10 +320,7 @@ export default function CommunityFeed({ initialItems }: { initialItems: Communit
   const menuPost = menuPostId ? items.find((p) => p.id === menuPostId) ?? null : null;
 
   // Публичная лента за вычетом скрытых авторов (локальный блок-лист).
-  const visibleItems =
-    blockedAuthors.length === 0
-      ? items
-      : items.filter((p) => !blockedAuthors.includes((p.user_name || "").trim().toLowerCase()));
+  const visibleItems = filterBlocked(items);
 
   return (
     <section className="home-feed" style={{ paddingBottom: "var(--space-6)" }}>
@@ -559,116 +529,37 @@ export default function CommunityFeed({ initialItems }: { initialItems: Communit
         </div>
       )}
 
-      {/* Меню действий с публикацией — нижний лист, как у выбора фото.
-          Рендерится один на всю ленту и позиционируется от низа ЭКРАНА, поэтому
-          не зависит от того, первый это пост или последний, и не может быть
-          обрезан карточкой. Пункты — по 56px, крупные зоны тапа. */}
+      {/* Меню действий с публикацией и модалка жалобы — общие с витриной
+          «Приготовили сегодня» на Главной (components/FeedModeration).
+          Нижний лист позиционируется от низа ЭКРАНА, поэтому не зависит от
+          того, первый это пост или последний, и не может быть обрезан карточкой. */}
       {menuPost && (
-        <div
-          onClick={() => setMenuPostId(null)}
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 100000, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            role="menu"
-            style={{ background: "var(--color-surface)", width: "100%", maxWidth: "520px", borderTopLeftRadius: "var(--radius-md)", borderTopRightRadius: "var(--radius-md)", padding: "var(--space-3) var(--space-3) calc(env(safe-area-inset-bottom) + var(--space-3)) var(--space-3)" }}
-          >
-            <div style={{ padding: "var(--space-2) var(--space-2) var(--space-3) var(--space-2)", borderBottom: "1px solid var(--color-border)", marginBottom: "var(--space-2)" }}>
-              <div style={{ fontWeight: "var(--font-weight-semibold)", color: "var(--color-text)", fontSize: "var(--font-size-body)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {menuPost.recipe_title || "Блюдо"}
-              </div>
-              <div style={{ fontSize: "var(--font-size-caption)", color: "var(--color-text-secondary)", marginTop: "2px" }}>
-                {menuPost.user_name || "Гость"}
-              </div>
-            </div>
-
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => { setMenuPostId(null); setReportPost(menuPost); setReportReason(""); }}
-              style={{ width: "100%", minHeight: "56px", textAlign: "left", padding: "0 var(--space-2)", background: "none", border: "none", borderRadius: "var(--radius-sm)", color: "var(--color-text)", fontSize: "var(--font-size-body)", fontWeight: "var(--font-weight-medium)", cursor: "pointer", display: "flex", alignItems: "center", gap: "var(--space-3)" }}
-            >
-              <Flag size={20} color="var(--color-danger)" /> Пожаловаться
-            </button>
-
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => blockAuthor(menuPost.user_name)}
-              style={{ width: "100%", minHeight: "56px", textAlign: "left", padding: "0 var(--space-2)", background: "none", border: "none", borderRadius: "var(--radius-sm)", color: "var(--color-text)", fontSize: "var(--font-size-body)", fontWeight: "var(--font-weight-medium)", cursor: "pointer", display: "flex", alignItems: "center", gap: "var(--space-3)" }}
-            >
-              <EyeOff size={20} color="var(--color-text-secondary)" /> Скрыть автора
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setMenuPostId(null)}
-              style={{ width: "100%", minHeight: "56px", marginTop: "var(--space-2)", background: "var(--color-bg)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", color: "var(--color-text-secondary)", fontSize: "var(--font-size-body)", fontWeight: "var(--font-weight-semibold)", cursor: "pointer" }}
-            >
-              Отмена
-            </button>
-          </div>
-        </div>
+        <FeedActionSheet
+          title={menuPost.recipe_title || "Блюдо"}
+          authorName={menuPost.user_name || "Гость"}
+          onReport={() => {
+            setMenuPostId(null);
+            setReportPost(menuPost);
+            setReportReason("");
+          }}
+          onBlockAuthor={() => {
+            setMenuPostId(null);
+            blockAuthor(menuPost.user_name);
+          }}
+          onClose={() => setMenuPostId(null)}
+        />
       )}
 
-      {/* Модалка жалобы (App Store 1.2). Причина необязательна. */}
       {reportPost && (
-        <div
-          onClick={() => !isReporting && setReportPost(null)}
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)", zIndex: 100000, display: "flex", alignItems: "center", justifyContent: "center", padding: "var(--space-3)" }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{ background: "var(--color-surface)", width: "100%", maxWidth: "400px", borderRadius: "var(--radius-md)", padding: "var(--space-4)", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)" }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: "var(--space-2)" }}>
-              <Flag size={20} color="var(--color-danger)" />
-              <h3 style={{ margin: 0, color: "var(--color-text)", fontSize: "var(--font-size-heading)", fontWeight: "var(--font-weight-semibold)" }}>Пожаловаться</h3>
-            </div>
-            <p style={{ margin: "0 0 var(--space-3) 0", fontSize: "var(--font-size-caption)", color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
-              Расскажите, что не так с этой публикацией. Мы проверим её в течение суток.
-            </p>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-1)", marginBottom: "var(--space-3)" }}>
-              {["Спам", "Оскорбления", "Не еда", "Чужое фото", "Другое"].map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => setReportReason(r)}
-                  style={{ padding: "var(--space-1) var(--space-3)", borderRadius: "var(--radius-full)", border: "1px solid " + (reportReason === r ? "var(--color-accent)" : "var(--color-border)"), background: reportReason === r ? "var(--color-accent-subtle)" : "var(--color-bg)", color: reportReason === r ? "var(--color-accent)" : "var(--color-text-secondary)", fontSize: "var(--font-size-caption)", fontWeight: "var(--font-weight-semibold)", cursor: "pointer" }}
-                >
-                  {r}
-                </button>
-              ))}
-            </div>
-            <textarea
-              value={reportReason}
-              onChange={(e) => setReportReason(e.target.value.slice(0, 300))}
-              placeholder="Комментарий (необязательно)"
-              rows={2}
-              style={{ width: "100%", padding: "var(--space-3)", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--color-bg)", color: "var(--color-text)", fontSize: "var(--font-size-body)", resize: "vertical", marginBottom: "var(--space-3)" }}
-            />
-            <div style={{ display: "flex", gap: "var(--space-2)" }}>
-              <button
-                type="button"
-                onClick={() => setReportPost(null)}
-                disabled={isReporting}
-                style={{ flex: 1, padding: "var(--space-3)", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--color-bg)", color: "var(--color-text-secondary)", fontWeight: "var(--font-weight-semibold)", cursor: isReporting ? "default" : "pointer" }}
-              >
-                Отмена
-              </button>
-              <button
-                type="button"
-                onClick={submitReport}
-                disabled={isReporting}
-                style={{ flex: 1, padding: "var(--space-3)", borderRadius: "var(--radius-sm)", border: "none", background: "var(--color-danger)", color: "white", fontWeight: "var(--font-weight-semibold)", cursor: isReporting ? "default" : "pointer", opacity: isReporting ? 0.6 : 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "var(--space-1)" }}
-              >
-                {isReporting ? <Loader2 size={16} className="animate-spin" /> : null}
-                Отправить
-              </button>
-            </div>
-          </div>
-        </div>
+        <FeedReportModal
+          isSending={isReporting}
+          reason={reportReason}
+          onReasonChange={setReportReason}
+          onSubmit={submitReport}
+          onClose={() => setReportPost(null)}
+        />
       )}
+
     </section>
   );
 }

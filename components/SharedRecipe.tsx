@@ -15,6 +15,7 @@ import { formatTime, formatCookingTime, formatCalories, scaleAmount, cleanText }
 import { shareOrCopy } from "@/lib/share";
 import type { RecipeData } from "@/lib/types";
 import CookMode from "@/components/CookMode";
+import AiRecipeDisclaimer from "@/components/AiRecipeDisclaimer";
 import RecipeImage from "@/components/RecipeImage";
 import KuperBuyBlock from "@/components/KuperBuyBlock";
 
@@ -79,6 +80,11 @@ export default function SharedRecipe({ recipe }: { recipe: RecipeData }) {
             </div>
           )}
         </div>
+
+        {/* App Store 1.4.1 — та же строка, что в карточке рецепта (RecipeView).
+            Расшаренный рецепт — это тот же ИИ-текст, просто на своём маршруте;
+            предупреждение об аллергенах обязано быть и здесь. */}
+        <AiRecipeDisclaimer />
 
         <button type="button" onClick={share} className="recipe-share-btn">
           <Share2 size={18} /> Поделиться рецептом

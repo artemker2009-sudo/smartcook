@@ -1,12 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Heart } from "lucide-react";
+import { Heart, MoreHorizontal } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { reachGoal } from "@/lib/metrika";
 import { feedWindowStartISO, partitionFeedWindow } from "@/lib/feedWindow";
+import {
+  FeedActionSheet,
+  FeedReportModal,
+  submitFeedReport,
+  useBlockedAuthors,
+} from "@/components/FeedModeration";
 
 // Витрина «Приготовили сегодня» (лента v1). Данные — ТОЛЬКО из публичного view
 // feed_photos_public (не раскрывает user_ref, счётчик лайков — агрегат).
@@ -32,6 +38,14 @@ export default function HomeFeed({ initialItems }: { initialItems: FeedPhoto[] }
   const router = useRouter();
   const [items, setItems] = useState<FeedPhoto[]>(initialItems);
   const [userId, setUserId] = useState<string | null>(null);
+
+  // Пользовательская модерация витрины (App Store 1.2). Ровно то же меню, что
+  // и в Ленте сообщества: общие компоненты и общий чёрный список авторов.
+  const [menuPhotoId, setMenuPhotoId] = useState<string | null>(null);
+  const [reportPhoto, setReportPhoto] = useState<FeedPhoto | null>(null);
+  const [reportReason, setReportReason] = useState("");
+  const [isReporting, setIsReporting] = useState(false);
+  const { blockAuthor, filterBlocked } = useBlockedAuthors();
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null));
@@ -83,6 +97,25 @@ export default function HomeFeed({ initialItems }: { initialItems: FeedPhoto[] }
     }
   };
 
+  // Жалоба на фото витрины. Личность серверу не передаём — он берёт её из
+  // JWT/cookie. У пожаловавшегося фото сразу исчезает из его витрины.
+  const submitReport = async () => {
+    if (!reportPhoto || isReporting) return;
+    setIsReporting(true);
+    const hiddenId = reportPhoto.id;
+    const ok = await submitFeedReport({ photoId: hiddenId }, reportReason);
+    setIsReporting(false);
+    if (!ok) {
+      toast.error("Не удалось отправить жалобу");
+      return;
+    }
+    reachGoal("showcase_photo_report");
+    setItems((prev) => prev.filter((p) => p.id !== hiddenId));
+    toast.success("Спасибо, жалоба отправлена на модерацию");
+    setReportPhoto(null);
+    setReportReason("");
+  };
+
   // Открытие рецепта из витрины (тап по фото или кнопка «К рецепту»). Цель
   // Метрики нужна для решения о полноценной ленте — меряем интерес к фото даже
   // когда рецепта под ним нет (recipe_id === null → просто сигнал, без перехода).
@@ -93,7 +126,11 @@ export default function HomeFeed({ initialItems }: { initialItems: FeedPhoto[] }
 
   // Режим и набор фото по факту наполнения: «сегодня» либо фолбэк «на этой
   // неделе». Пустое окно → витрину не рендерим совсем (лучше ничего, чем врать).
-  const { mode, items: visibleItems } = partitionFeedWindow(items);
+  const { mode, items: windowItems } = partitionFeedWindow(items);
+  // Скрытые автором-блок-листом фото убираем ПОСЛЕ окна: иначе витрина могла бы
+  // молча переключиться в режим «на этой неделе» из-за локального скрытия.
+  const visibleItems = filterBlocked(windowItems);
+  const menuPhoto = menuPhotoId ? items.find((p) => p.id === menuPhotoId) ?? null : null;
   if (visibleItems.length === 0) return null;
 
   return (
@@ -111,6 +148,19 @@ export default function HomeFeed({ initialItems }: { initialItems: FeedPhoto[] }
               style={{ cursor: "pointer" }}
               onClick={() => openRecipe(item)}
             />
+            {/* «⋯» поверх фото, а не в строке автора: карточка витрины вдвое уже
+                поста ленты, и третий элемент в meta-строке выдавливал бы имя.
+                Зона тапа 44px, кружок-подложка — чтобы иконка читалась на любом
+                снимке. Само меню — общий нижний лист (см. FeedModeration). */}
+            <button
+              type="button"
+              className="feed-card-menu"
+              aria-label="Действия с публикацией"
+              aria-haspopup="menu"
+              onClick={() => setMenuPhotoId(item.id)}
+            >
+              <MoreHorizontal size={18} />
+            </button>
             <div className="feed-card-body">
               <div className="feed-card-title">{item.recipe_title || "Блюдо"}</div>
               <div className="feed-card-meta">
@@ -134,6 +184,34 @@ export default function HomeFeed({ initialItems }: { initialItems: FeedPhoto[] }
           </article>
         ))}
       </div>
+
+      {/* Меню действий и жалоба — те же компоненты, что и в Ленте сообщества. */}
+      {menuPhoto && (
+        <FeedActionSheet
+          title={menuPhoto.recipe_title || "Блюдо"}
+          authorName={menuPhoto.user_name || "Гость"}
+          onReport={() => {
+            setMenuPhotoId(null);
+            setReportPhoto(menuPhoto);
+            setReportReason("");
+          }}
+          onBlockAuthor={() => {
+            setMenuPhotoId(null);
+            blockAuthor(menuPhoto.user_name);
+          }}
+          onClose={() => setMenuPhotoId(null)}
+        />
+      )}
+
+      {reportPhoto && (
+        <FeedReportModal
+          isSending={isReporting}
+          reason={reportReason}
+          onReasonChange={setReportReason}
+          onSubmit={submitReport}
+          onClose={() => setReportPhoto(null)}
+        />
+      )}
     </section>
   );
 }

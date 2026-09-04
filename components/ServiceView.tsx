@@ -1,4 +1,5 @@
 "use client";
+import { pickImageIntoInputHandler } from "@/lib/native";
 
 import React from "react";
 import {
@@ -468,7 +469,11 @@ export default function ServiceView({
                     <div className="upload-actions">
                       <label
                         className="upload-action-btn upload-action-primary"
-                        onClick={(e) => e.stopPropagation()}
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          // В нативе открываем камеру напрямую, минуя <input>.
+                          if (await pickImageIntoInputHandler(handleFileChange, "camera")) e.preventDefault();
+                        }}
                       >
                         <Camera size={18} /> Снять фото
                         <input
@@ -481,7 +486,10 @@ export default function ServiceView({
                       </label>
                       <label
                         className="upload-action-btn upload-action-secondary"
-                        onClick={(e) => e.stopPropagation()}
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (await pickImageIntoInputHandler(handleFileChange, "photos")) e.preventDefault();
+                        }}
                       >
                         <ImageIcon size={18} /> Из галереи
                         <input

@@ -1,4 +1,5 @@
 "use client";
+import { pickImageIntoInputHandler } from "@/lib/native";
 
 import React from "react";
 import {
@@ -723,8 +724,10 @@ export default function RecipeView({
                   cursor: "pointer",
                   background: "var(--color-surface)",
                 }}
-                onClick={() => {
+                onClick={async () => {
                   setIsStandaloneUploadOpen(false);
+                  // В нативе — системный выбор камера/галерея.
+                  if (await pickImageIntoInputHandler(handleUserPhotoChange)) return;
                   const input = document.getElementById(
                     "user-photo-upload"
                   ) as HTMLInputElement | null;

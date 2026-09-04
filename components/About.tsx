@@ -1,4 +1,5 @@
 import React from 'react';
+import { isNativePlatform, openExternal } from "@/lib/native";
 import { Wallet, Zap, Leaf, Globe, Send, Rocket, Banknote, Smartphone, Plus } from 'lucide-react';
 
 export default function About() {
@@ -39,7 +40,7 @@ export default function About() {
         <div style={{background: 'linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-hover) 100%)', borderRadius: 'var(--radius-md)', padding: 'var(--space-4) var(--space-3)', textAlign: 'center', color: 'white', boxShadow: '0 10px 25px rgba(5, 150, 105, 0.4)', position: 'relative', overflow: 'hidden'}}>
           <h3 style={{margin: '0 0 var(--space-2) 0', fontSize: 'var(--font-size-heading)', fontWeight: 'var(--font-weight-semibold)'}}>Telegram канал проекта</h3>
           <p style={{opacity: 0.9, fontSize: 'var(--font-size-body)', marginBottom: 'var(--space-4)', lineHeight: 1.5}}>Следите за обновлениями, предлагайте идеи и общайтесь напрямую с разработчиком.</p>
-          <a href="https://t.me/smartcook2026" target="_blank" rel="noopener noreferrer" style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)', background: 'white', color: 'var(--color-accent-hover)', textDecoration: 'none', padding: 'var(--space-3) var(--space-4)', borderRadius: 'var(--radius-sm)', fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-body)', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', transition: 'transform 0.2s'}}> <Send size={20} /> Подписаться</a>
+          <a href="https://t.me/smartcook2026" target="_blank" rel="noopener noreferrer" onClick={(e) => { if (isNativePlatform()) { e.preventDefault(); void openExternal("https://t.me/smartcook2026"); } }} style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)', background: 'white', color: 'var(--color-accent-hover)', textDecoration: 'none', padding: 'var(--space-3) var(--space-4)', borderRadius: 'var(--radius-sm)', fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-body)', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', transition: 'transform 0.2s'}}> <Send size={20} /> Подписаться</a>
         </div>
       </div>
     </div>

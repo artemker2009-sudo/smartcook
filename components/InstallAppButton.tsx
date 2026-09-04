@@ -1,5 +1,7 @@
 "use client";
 
+import { useIsNative } from "@/lib/native";
+
 import { useEffect, useState } from "react";
 import { getDisplayMode } from "@/components/YandexMetrika";
 import { OPEN_INSTALL_EVENT } from "@/components/PWAInstall";
@@ -9,7 +11,7 @@ import { OPEN_INSTALL_EVENT } from "@/components/PWAInstall";
  * карточку, что и автопоказ, через OPEN_INSTALL_EVENT. В установленном PWA
  * (standalone) скрыта — устанавливать уже нечего.
  */
-export default function InstallAppButton() {
+function InstallAppButtonInner() {
   const [standalone, setStandalone] = useState(false);
 
   useEffect(() => {
@@ -39,4 +41,15 @@ export default function InstallAppButton() {
       📲 Установить приложение
     </button>
   );
+}
+
+// В нативной оболочке звать «установить приложение» бессмысленно — мы уже внутри
+// приложения. Обёртка вынесена отдельным компонентом намеренно: ранний return
+// внутри InstallAppButtonInner менял бы число вызванных хуков между первым рендером
+// (флаг ещё false) и следующим, а это ошибка React. Здесь хук ровно один и
+// вызывается всегда. В вебе флаг всегда false — поведение не меняется.
+export default function InstallAppButton() {
+  const isNative = useIsNative();
+  if (isNative) return null;
+  return <InstallAppButtonInner />;
 }

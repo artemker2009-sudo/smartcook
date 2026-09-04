@@ -7,6 +7,7 @@ import { Menu, X, Flame, Search, CheckCircle, Sparkles, User, Store, PartyPopper
 import type { AnalysisData, RecipeData, DBRecipe, DailyRecipeType, HolidayType, DBComment } from "@/lib/types";
 import { DEVELOPER_ID, scaleAmount, formatCooks, cleanText, formatTime, formatCalories, getCroppedImg } from "@/lib/utils";
 import { shareOrCopy } from "@/lib/share";
+import { shareNative } from "@/lib/native";
 import { reachGoal } from "@/lib/metrika";
 import { claimGuestPartiesToAccount } from "@/lib/claimParties";
 import { preparePhoto, decodeHeicIfNeeded, reportPhotoError, fetchWithTimeout } from "@/lib/photo";
@@ -654,7 +655,8 @@ export default function SearchApp() {
 
   const handleShareDaily = async () => { 
     if (!dailyRecipe) return; const recipeUrl = `${window.location.origin}/search?daily=true`; const fullText = `«${dailyRecipe.title}» 🍲\nПриготовлено с помощью SmartCook 👨‍🍳\n\nСмотри рецепт по ссылке:\n${recipeUrl}`;
-    try { if (navigator.share) await navigator.share({ title: dailyRecipe.title, text: fullText }); else { await navigator.clipboard.writeText(fullText); showToast("Ссылка скопирована в буфер обмена!", <Clipboard size={18} color="var(--color-accent)" />); } } catch (err) {} 
+    // Нативный share sheet имеет приоритет; в вебе shareNative вернёт false.
+    try { if (await shareNative({ title: dailyRecipe.title, text: fullText, url: recipeUrl, dialogTitle: "Рецепт дня" })) return; if (navigator.share) await navigator.share({ title: dailyRecipe.title, text: fullText }); else { await navigator.clipboard.writeText(fullText); showToast("Ссылка скопирована в буфер обмена!", <Clipboard size={18} color="var(--color-accent)" />); } } catch (err) {} 
   }; 
 
   const handleShareRecipe = async () => { 

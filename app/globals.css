@@ -2643,3 +2643,52 @@ a.news-card:hover { transform: translateY(-2px); }
   font-weight: var(--font-weight-semibold);
   cursor: pointer;
 }
+
+/* ===========================================================================
+   НАТИВНАЯ ОБОЛОЧКА (iOS, Capacitor).
+   Всё под классом .native-shell, который вешает components/NativeShell.tsx
+   ТОЛЬКО внутри приложения. В браузере этих правил не существует — веб-версия
+   не меняется ни на пиксель.
+
+   Здесь убираются последние признаки «это сайт в рамке»: резинка у краёв,
+   контекстное меню по долгому тапу и выделение текста жестом. Отступы под
+   чёлку и жестовую полосу приезжают сами: сайт уже написан на
+   env(safe-area-inset-*), а NativeShell дописывает viewport-fit=cover, после
+   чего эти значения перестают быть нулями.
+   =========================================================================== */
+
+/* Резинка/оттяжка при скролле за край — самый заметный «браузерный» жест. */
+.native-shell,
+.native-shell body {
+  overscroll-behavior: none;
+  overscroll-behavior-y: none;
+}
+
+/* Долгий тап по ссылке или картинке в WebView открывает системное меню
+   «Открыть в новой вкладке / Сохранить изображение» — внутри приложения это
+   выглядит инородно. Плюс убираем подсветку тапа. */
+.native-shell * {
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Выделение текста жестом отключаем везде, КРОМЕ полей ввода: там оно нужно
+   для правки (курсор, лупа, «Вставить»). */
+.native-shell body {
+  -webkit-user-select: none;
+  user-select: none;
+}
+.native-shell input,
+.native-shell textarea,
+.native-shell [contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Двойной тап по кнопке не должен зумить (зум и так запрещён вьюпортом —
+   это страховка на уровне жестов). */
+.native-shell button,
+.native-shell a,
+.native-shell [role="button"] {
+  touch-action: manipulation;
+}

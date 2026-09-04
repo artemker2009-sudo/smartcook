@@ -9,6 +9,7 @@ import PWAInstall from "@/components/PWAInstall";
 import InstallBanner from "@/components/InstallBanner";
 import TelegramWebViewBanner from "@/components/TelegramWebViewBanner";
 import Footer from "@/components/Footer";
+import NativeShell from "@/components/NativeShell";
 import TabBar from "@/components/TabBar";
 import ProfileEntry from "@/components/ProfileEntry";
 import OnboardingModal from "@/components/modals/OnboardingModal";
@@ -160,6 +161,8 @@ export default async function RootLayout({
   return (
     <html lang="ru">
       <body className={showTabBar ? "has-tabbar" : undefined}>
+        {/* Инициализация нативной оболочки. В вебе — no-op. */}
+        <NativeShell />
         {/* Оборачиваем Метрику в Suspense, чтобы Next.js не ругался при сборке */}
         <Suspense fallback={<></>}>
           <YandexMetrika />

@@ -1,5 +1,7 @@
 "use client";
 
+import { useIsNative } from "@/lib/native";
+
 import { useEffect, useState } from "react";
 import InstallPromptCard from "@/components/InstallPromptCard";
 import { reachGoal } from "@/lib/metrika";
@@ -24,7 +26,7 @@ const STANDALONE_FLAG = "sc_pwa_standalone_launched";
  *      установки.
  * 2) Рендер единственной карточки установки, открываемой по OPEN_INSTALL_EVENT.
  */
-export default function PWAInstall() {
+function PWAInstallInner() {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -50,4 +52,15 @@ export default function PWAInstall() {
   }, []);
 
   return <InstallPromptCard open={open} onClose={() => setOpen(false)} />;
+}
+
+// В нативной оболочке звать «установить приложение» бессмысленно — мы уже внутри
+// приложения. Обёртка вынесена отдельным компонентом намеренно: ранний return
+// внутри PWAInstallInner менял бы число вызванных хуков между первым рендером
+// (флаг ещё false) и следующим, а это ошибка React. Здесь хук ровно один и
+// вызывается всегда. В вебе флаг всегда false — поведение не меняется.
+export default function PWAInstall() {
+  const isNative = useIsNative();
+  if (isNative) return null;
+  return <PWAInstallInner />;
 }

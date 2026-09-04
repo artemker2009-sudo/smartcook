@@ -35,7 +35,7 @@ import BanquetAccountBanner from "@/components/BanquetAccountBanner";
 import BanquetViralCta from "@/components/BanquetViralCta";
 import { claimGuestPartiesToAccount } from "@/lib/claimParties";
 import { preparePhoto, reportPhotoError, isHeic } from "@/lib/photo";
-import { getNativePlatform, useIsNativeIOS } from "@/lib/native";
+import { getNativePlatform, useIsNativeIOS, shareNative, pickImageIntoInputHandler, isNativePlatform, openExternal } from "@/lib/native";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -1122,6 +1122,8 @@ export default function ClientRoom({
   const handleOpenTelegramChannel = () => {
     setHasOpenedTelegramChannel(true);
     void trackEvent("telegram_channel_opened");
+    // В нативе — системный браузер (openExternal), иначе обычная вкладка.
+    if (isNativePlatform()) { void openExternal(TELEGRAM_CHANNEL_URL); return; }
     window.open(TELEGRAM_CHANNEL_URL, "_blank", "noopener,noreferrer");
   };
 
@@ -1464,6 +1466,9 @@ export default function ClientRoom({
       text: `Присоединяйся к банкету «${currentParty.title}»`,
       url: window.location.href,
     };
+
+    // В нативной оболочке — системный share sheet (в вебе вернёт false).
+    if (await shareNative({ ...shareData, dialogTitle: "Позвать на банкет" })) return;
 
     if (navigator.share) {
       try {
@@ -1865,7 +1870,10 @@ export default function ClientRoom({
           />
           <button
             type="button"
-            onClick={() => chatAttachmentInputRef.current?.click()}
+            onClick={async () => {
+              if (await pickImageIntoInputHandler(sendChatPhoto)) return;
+              chatAttachmentInputRef.current?.click();
+            }}
             disabled={!currentUserId || isSendingMessage}
             className={`inline-flex h-12 w-10 shrink-0 items-center justify-center text-gray-400 transition-colors hover:text-gray-600 ${
               !currentUserId || isSendingMessage ? "cursor-not-allowed opacity-50" : ""

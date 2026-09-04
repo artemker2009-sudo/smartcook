@@ -1,5 +1,7 @@
 "use client";
 
+import { useIsNative } from "@/lib/native";
+
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { X, Smartphone, Share, Plus, Check } from "lucide-react";
@@ -74,7 +76,7 @@ function resolveAudience(): InstallPlatform | null {
   return detected;
 }
 
-export default function InstallBanner() {
+function InstallBannerInner() {
   const pathname = usePathname();
   // Непустое состояние = плашка показана. Ставится не в теле эффекта, а из
   // таймера/обработчика в момент показа — синхронный setState в эффекте дал бы
@@ -258,4 +260,15 @@ export default function InstallBanner() {
       )}
     </div>
   );
+}
+
+// В нативной оболочке звать «установить приложение» бессмысленно — мы уже внутри
+// приложения. Обёртка вынесена отдельным компонентом намеренно: ранний return
+// внутри InstallBannerInner менял бы число вызванных хуков между первым рендером
+// (флаг ещё false) и следующим, а это ошибка React. Здесь хук ровно один и
+// вызывается всегда. В вебе флаг всегда false — поведение не меняется.
+export default function InstallBanner() {
+  const isNative = useIsNative();
+  if (isNative) return null;
+  return <InstallBannerInner />;
 }

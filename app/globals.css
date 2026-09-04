@@ -1236,6 +1236,27 @@ body {
 .doc-body a { color: var(--color-accent-hover); text-decoration: underline; }
 .doc-body strong { color: var(--color-text); font-weight: var(--font-weight-semibold); }
 
+/* Дисклеймер «рецепт составлен ИИ» (App Store 1.4.1). Одна спокойная строка:
+   заметная, но не кричащая — это предупреждение, а не ошибка. */
+.ai-disclaimer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-3) 0;
+  font-size: var(--font-size-caption);
+  line-height: 1.4;
+  color: var(--color-text-muted);
+}
+.ai-disclaimer svg { flex-shrink: 0; }
+/* Экран готовки крупный (текст 22px) и по центру — 13px там читались бы как
+   мелкий шрифт в договоре. Отступ снимаем: у .cook-intro свой flex-gap. */
+.cook-intro .ai-disclaimer {
+  justify-content: center;
+  margin: 0;
+  font-size: 16px;
+  color: #6b7280;
+}
+
 /* АНИМАЦИИ */
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
@@ -1513,7 +1534,38 @@ a.news-card:hover { transform: translateY(-2px); }
   box-shadow: var(--shadow-card);
   display: flex;
   flex-direction: column;
+  /* Якорь для кнопки «⋯» поверх фото (модерация витрины, App Store 1.2). */
+  position: relative;
 }
+/* «⋯» — действия с публикацией витрины. Лежит поверх снимка в правом верхнем
+   углу: в узкой карточке 2-колоночной сетки для неё нет места в строке автора.
+   Полупрозрачная тёмная подложка + белая иконка читаются и на светлом, и на
+   тёмном фото. Зона тапа 44px — минимум по HIG. */
+.feed-card-menu {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-1);
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+}
+.feed-card-menu::before {
+  content: "";
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-full);
+  background: rgba(0, 0, 0, 0.38);
+  backdrop-filter: blur(2px);
+}
+.feed-card-menu svg { position: relative; }
 .feed-card-photo { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block; background: var(--color-bg-subtle); }
 
 /* Сгенерированная ИИ картинка блюда + плашка «Изображение: ИИ».

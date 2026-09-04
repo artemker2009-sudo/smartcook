@@ -21,12 +21,25 @@ type PartyMemberData = {
   user_name?: string | null;
 };
 
+// Форма ингредиента в JSON-колонке party_items.ingredients. Ровно та же, что у
+// MenuIngredient в app/party/[id]/ClientRoom.tsx — иначе результат экшена не
+// присваивается в состояние комнаты.
+type PartyItemIngredientData = {
+  name: string;
+  amount?: number | string | null;
+  unit?: string | null;
+};
+
 type PartyItemData = {
   id: string;
   party_id?: string;
   name: string;
   category?: string | null;
-  ingredients?: unknown;
+  // Было `unknown`, и из-за этого результат addPartyItemAction не присваивался
+  // в PartyItem[] на клиенте (две ошибки tsc, которые молча пропускал билд —
+  // у него ignoreBuildErrors). Колонка хранит либо массив ингредиентов, либо
+  // строку (старые записи), либо ничего — так и описываем.
+  ingredients?: PartyItemIngredientData[] | string | null;
   votes?: string[] | null;
   created_at?: string | null;
 };

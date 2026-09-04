@@ -104,6 +104,10 @@ export async function sendReportCard(input: {
   reason: string | null;
   reportsCount: number;
   hidden: boolean;
+  // Откуда жалоба: пост ленты сообщества (по умолчанию) или фото витрины
+  // «Приготовили сегодня» на Главной. Модератору важно понимать, в каком
+  // разделе искать — админка у них разная.
+  kind?: "post" | "photo";
 }): Promise<boolean> {
   const creds = credentials();
   if (!creds) {
@@ -111,14 +115,19 @@ export async function sendReportCard(input: {
     return false;
   }
 
+  const isPhoto = input.kind === "photo";
   const text =
-    `🚩 Жалоба на пост в ленте\n\n` +
+    (isPhoto
+      ? `🚩 Жалоба на фото витрины «Приготовили сегодня»\n\n`
+      : `🚩 Жалоба на пост в ленте\n\n`) +
     `Блюдо: ${plain(input.recipeTitle, 200)}\n` +
     `Автор: ${plain(input.userName, 100)}\n` +
     `Причина: ${plain(input.reason, 300)}\n` +
     `Всего жалоб: ${input.reportsCount}\n` +
     (input.hidden
-      ? `\n⛔️ Пост автоматически скрыт (порог жалоб достигнут). Проверьте в админке.`
+      ? isPhoto
+        ? `\n⛔️ Фото автоматически скрыто (порог жалоб достигнут). Проверьте в админке.`
+        : `\n⛔️ Пост автоматически скрыт (порог жалоб достигнут). Проверьте в админке.`
       : `\nПроверьте в админке и при необходимости скройте.`);
 
   try {

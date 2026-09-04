@@ -1,8 +1,16 @@
+"use client";
+
 import React from 'react';
-import { isNativePlatform, openExternal } from "@/lib/native";
+import { isNativePlatform, openExternal, useIsNative } from "@/lib/native";
 import { Wallet, Zap, Leaf, Globe, Send, Rocket, Banknote, Smartphone, Plus } from 'lucide-react';
 
 export default function About() {
+  // В нативной оболочке инструкция «установите как приложение» бессмысленна и
+  // прямо противоречит правилам магазина: пользователь УЖЕ установил
+  // приложение, а текст отправляет его в Safari/Chrome ставить PWA. Скрываем
+  // ровно так же, как InstallBanner. В вебе блок остаётся как был.
+  const isNative = useIsNative();
+
   return (
     <div className="card" style={{marginTop: 'var(--space-5)', padding: '0', overflow: 'hidden', border: 'none', boxShadow: '0 20px 60px -10px rgba(0,0,0,0.15)'}}>
       <div style={{background: 'linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-hover) 100%)', padding: 'var(--space-5) var(--space-4)', color: 'white', textAlign: 'center'}}>
@@ -23,6 +31,7 @@ export default function About() {
           <div style={{background: 'var(--color-bg)', padding: 'var(--space-3)', borderRadius: 'var(--radius-sm)', textAlign: 'center', border: '1px solid var(--color-border)'}}><div style={{background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', width: '40px', height: '40px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto var(--space-2) auto'}}><Globe size={20} /></div><div style={{fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-caption)', marginBottom: 'var(--space-1)', color: 'var(--color-text)'}}>Разнообразие</div><div style={{fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)'}}>Новые блюда</div></div>
         </div>
 
+        {!isNative && (
         <div style={{background: 'var(--color-bg)', borderRadius: 'var(--radius-md)', padding: 'var(--space-4) var(--space-3)', marginBottom: 'var(--space-5)', border: '1px solid var(--color-border)'}}>
           <h3 style={{margin: '0 0 var(--space-2) 0', fontSize: 'var(--font-size-heading)', fontWeight: 'var(--font-weight-semibold)', textAlign: 'center', color: 'var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)'}}><Smartphone size={20} /> Установите SmartCook как приложение</h3>
           <p style={{fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)', textAlign: 'center', marginBottom: 'var(--space-3)', lineHeight: 1.5}}>Быстрый доступ к рецептам в один клик. Не занимает память, не требует скачивания из App Store или Google Play!</p>
@@ -37,6 +46,7 @@ export default function About() {
             </div>
           </div>
         </div>
+        )}
         <div style={{background: 'linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-hover) 100%)', borderRadius: 'var(--radius-md)', padding: 'var(--space-4) var(--space-3)', textAlign: 'center', color: 'white', boxShadow: '0 10px 25px rgba(5, 150, 105, 0.4)', position: 'relative', overflow: 'hidden'}}>
           <h3 style={{margin: '0 0 var(--space-2) 0', fontSize: 'var(--font-size-heading)', fontWeight: 'var(--font-weight-semibold)'}}>Telegram канал проекта</h3>
           <p style={{opacity: 0.9, fontSize: 'var(--font-size-body)', marginBottom: 'var(--space-4)', lineHeight: 1.5}}>Следите за обновлениями, предлагайте идеи и общайтесь напрямую с разработчиком.</p>

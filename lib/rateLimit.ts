@@ -6,6 +6,38 @@ import { getVerifiedUserId } from "@/lib/auth";
 export const RATE_LIMIT_PER_HOUR = 10;
 export const RATE_LIMIT_PER_DAY = 30;
 
+// --- Исключение для проверяющих App Store -----------------------------------
+//
+// Проверяющий Apple прогоняет приложение вдоль и поперёк за один заход: фото,
+// поиск, перегенерации, банкет, список покупок. Обычные 10 генераций в час он
+// упирает за первые минуты, видит «Вы сгенерировали максимум за этот час» и
+// закрывает ревью как «функция не работает» (Guideline 2.1). Поэтому у
+// демо-аккаунта отдельный, заведомо достаточный лимит на сутки.
+//
+// Список аккаунтов — в переменной окружения, НЕ в коде: это операционная
+// настройка (аккаунт могут пересоздать между подачами), и в репозитории ей
+// делать нечего. Формат — user_id (uuid) через запятую:
+//
+//   AI_RATE_LIMIT_EXEMPT_USER_IDS=1b2c…,9f8e…
+//
+// Пусто/не задано → исключений нет вовсе и всё работает ровно как раньше.
+export const REVIEW_RATE_LIMIT_PER_DAY = 100;
+
+// Разбираем один раз на модуль: переменная за жизнь процесса не меняется.
+const EXEMPT_USER_IDS: ReadonlySet<string> = new Set(
+  (process.env.AI_RATE_LIMIT_EXEMPT_USER_IDS || "")
+    .split(",")
+    .map((id) => id.trim().toLowerCase())
+    .filter(Boolean),
+);
+
+// userId приходит ТОЛЬКО из getVerifiedUserId (подпись JWT проверена
+// Supabase). Ни имя пользователя, ни что-либо из тела запроса сюда не попадает
+// — иначе повышенный лимит выдавался бы по строке, которую клиент придумал сам.
+function isExemptUser(userId: string | null): boolean {
+  return !!userId && EXEMPT_USER_IDS.has(userId.toLowerCase());
+}
+
 const MINUTE_MS = 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -97,6 +129,35 @@ export async function checkAndConsumeAiRateLimit(
 ): Promise<RateLimitResult> {
   const ip = getClientIp(req);
   const userId = await getVerifiedUserId(req);
+
+  // Демо-аккаунт ревью: свой счётчик и свой префикс идентификатора, чтобы не
+  // смешиваться с обычным бюджетом. IP-лимит для него НЕ проверяем сознательно:
+  // проверяющие сидят за общим адресом, и 10 генераций в час на IP срубили бы
+  // повышенный лимит раньше, чем он успел бы пригодиться. Это единственный
+  // способ сделать исключение работающим, а не декоративным.
+  if (isExemptUser(userId)) {
+    const identifier = `review:user:${userId}`;
+    const limits = { perHour: REVIEW_RATE_LIMIT_PER_DAY, perDay: REVIEW_RATE_LIMIT_PER_DAY };
+    const reviewResult = await checkIdentifier(identifier, "user", limits);
+    if (!reviewResult.ok) {
+      logRateLimitHit({ route, ip, userId, scope: reviewResult.scope, window: reviewResult.window });
+      return reviewResult;
+    }
+
+    const { error: reviewErr } = await supabaseAdmin
+      .from("ai_rate_limit_events")
+      .insert([{ identifier, route }]);
+    if (reviewErr) console.error("[rateLimit] failed to record review event", reviewErr.message);
+
+    void supabaseAdmin
+      .from("ai_rate_limit_events")
+      .delete()
+      .eq("identifier", identifier)
+      .lt("created_at", new Date(Date.now() - DAY_MS - HOUR_MS).toISOString())
+      .then(() => {});
+
+    return { ok: true };
+  }
 
   const ipResult = await checkIdentifier(`ip:${ip}`, "ip");
   if (!ipResult.ok) {

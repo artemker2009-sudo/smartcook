@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Check, Copy, Loader2, Share2, ShoppingCart, Sparkles, Trash2, Users, WifiOff, X } from "lucide-react";
 
 import { KUPER_CPA_URL, KUPER_AD_LABEL } from "@/lib/constants";
+import { isNativePlatform, openExternal } from "@/lib/native";
 import { reachGoal } from "@/lib/metrika";
 import { copyText } from "@/lib/clipboard";
 import { supabase } from "@/lib/supabase";
@@ -676,7 +677,19 @@ export default function SharedShoppingListView({ listId, memberRef, initial, onB
               href={KUPER_CPA_URL}
               target="_blank"
               rel="noopener noreferrer sponsored"
-              onClick={handleKuper}
+              onClick={(e) => {
+                handleKuper();
+                // В нативной оболочке партнёрская ссылка уходит в СИСТЕМНЫЙ
+                // браузер, а не внутрь WebView: «браузер внутри приложения» —
+                // прямая претензия App Store 4.2, и точно так же уже сделано в
+                // KuperBuyBlock на экране рецепта. Цель метрики и копирование
+                // списка внутри handleKuper к этому моменту уже отработали.
+                // В вебе ветка не выполняется — обычная новая вкладка.
+                if (isNativePlatform()) {
+                  e.preventDefault();
+                  void openExternal(KUPER_CPA_URL);
+                }
+              }}
               style={{
                 display: "flex",
                 alignItems: "center",

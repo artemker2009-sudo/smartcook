@@ -573,6 +573,16 @@ export default function ClientRoom({
       if (lastAlert?.guestName === normalizedGuestName && now - lastAlert.shownAt < 3000) return;
       lastPaywallAlertToastRef.current = { guestName: normalizedGuestName, shownAt: now };
 
+      // Нативный iOS: гнать хозяина в Telegram за снятием лимита нельзя
+      // (App Store 3.1.1 — функциональность за внешним действием вне покупок в
+      // приложении). Сам факт «гость не смог войти» ему всё равно нужен, иначе
+      // человек молча остаётся за дверью, — поэтому в нативе показываем то же
+      // сообщение, но без CTA в канал. Веб и Android-TWA не меняются.
+      if (isNativeIOSShell) {
+        toast(`Гость ${normalizedGuestName} не может войти: достигнут лимит мест.`);
+        return;
+      }
+
       toast(`Гость ${normalizedGuestName} не может войти (лимит мест). Откройте доступ через канал!`, {
         action: {
           label: "Открыть",
@@ -580,7 +590,7 @@ export default function ClientRoom({
         },
       });
     },
-    [isHost],
+    [isHost, isNativeIOSShell],
   );
 
   const completeJoin = useCallback(
@@ -2700,7 +2710,10 @@ export default function ClientRoom({
         </div>
       )}
 
-      {showPaywall && (
+      {/* Модалка «подпишитесь на канал» — только веб и Android. В нативном iOS
+          гейта нет вовсе (App Store 3.1.1), поэтому окно не рендерится даже
+          если состояние каким-то путём окажется поднятым. */}
+      {showPaywall && !isNativeIOSShell && (
         <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 backdrop-blur-md transition-all sm:items-center sm:p-4">
           <div className="w-full animate-in slide-in-from-bottom-full rounded-t-[32px] border border-white/60 bg-white p-6 shadow-2xl duration-300 sm:max-w-md sm:rounded-[32px] sm:slide-in-from-bottom-0 sm:zoom-in-95">
             <div className="mb-5 rounded-[28px] border border-zinc-100 bg-gradient-to-b from-white via-zinc-50 to-white p-5 text-center shadow-sm">

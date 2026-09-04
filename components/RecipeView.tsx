@@ -24,6 +24,7 @@ import Button from "@/components/ui/Button";
 import CookMode from "@/components/CookMode";
 import RecipeImage from "@/components/RecipeImage";
 import KuperBuyBlock from "@/components/KuperBuyBlock";
+import AiRecipeDisclaimer from "@/components/AiRecipeDisclaimer";
 import { formatCookingTime } from "@/lib/utils";
 
 interface RecipeViewProps {
@@ -275,6 +276,10 @@ export default function RecipeView({
           </div>
         )}
       </div>
+
+      {/* App Store 1.4.1: предупреждение об аллергенах — до состава и до кнопки
+          «Готовим!», то есть до момента, когда человек решает готовить. */}
+      <AiRecipeDisclaimer />
 
       <button
         type="button"

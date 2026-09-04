@@ -92,7 +92,18 @@ export async function pickImageNative(source: PhotoSource = "prompt"): Promise<F
     const photo = await Camera.getPhoto({
       quality: 90,
       allowEditing: false,
-      resultType: CameraResultType.Uri,
+      // ВАЖНО: именно Base64, а не Uri.
+      //
+      // При resultType: Uri плагин отдаёт webPath вида capacitor://localhost/...
+      // Наша страница живёт на ДРУГОМ origin (сайт грузится по server.url), и
+      // fetch за таким адресом не проходит: другая схема плюс CSP connect-src
+      // 'self'. Фото молча не доезжало до обработчика. Base64 приходит прямо
+      // через мост Capacitor, никаких сетевых запросов не требуется.
+      resultType: CameraResultType.Base64,
+      // Ужимаем ещё в нативе: иначе через мост едет base64 полноразмерного
+      // снимка. Дальше файл всё равно проходит наш обычный pipeline lib/photo.ts.
+      width: 1920,
+      correctOrientation: true,
       // Экраны, где уже есть отдельные кнопки «Снять фото» / «Из галереи»,
       // просят конкретный источник — лишний системный экшен-шит не нужен.
       source:
@@ -107,14 +118,22 @@ export async function pickImageNative(source: PhotoSource = "prompt"): Promise<F
       promptLabelPicture: "Сделать снимок",
       promptLabelCancel: "Отмена",
     });
-    if (!photo?.webPath) return null;
-    const blob = await fetch(photo.webPath).then((r) => r.blob());
+
+    if (!photo?.base64String) return null;
     const format = photo.format || "jpeg";
-    return new File([blob], `photo_${Date.now()}.${format}`, {
-      type: blob.type || `image/${format}`,
-    });
-  } catch {
+    const mime = `image/${format === "jpg" ? "jpeg" : format}`;
+    // base64 → байты → File. atob хватает: строка приходит без data:-префикса.
+    const binary = atob(photo.base64String);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return new File([bytes], `photo_${Date.now()}.${format}`, { type: mime });
+  } catch (e) {
     // Пользователь нажал «Отмена» или отказал в доступе — это не ошибка.
+    // Сообщение всё же логируем: молчаливый сбой камеры мы уже проходили.
+    const err = e as { message?: string; code?: string };
+    if (err?.message && !/cancel/i.test(err.message)) {
+      console.error("[native camera]", err.code || "", err.message);
+    }
     return null;
   }
 }

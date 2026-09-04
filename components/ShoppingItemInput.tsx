@@ -1,5 +1,5 @@
 "use client";
-import { pickImageIntoInputHandler } from "@/lib/native";
+import { pickImageIntoInputHandler, isNativePlatform } from "@/lib/native";
 
 import { useRef, useState, type ChangeEvent } from "react";
 import { toast } from "sonner";
@@ -367,8 +367,12 @@ export default function ShoppingItemInput({ onAdd, busy = false, placeholder = "
             <div className="sl-sheet-title">Список по фото</div>
             <label
               className="sl-sheet-btn"
-              onClick={async (e) => {
-                if (await pickImageIntoInputHandler(handlePhotoFile, "camera")) { e.preventDefault(); setPhotoSheet(false); }
+              onClick={(e) => {
+                // preventDefault строго синхронно — см. комментарий в ServiceView.
+                if (!isNativePlatform()) return;
+                e.preventDefault();
+                setPhotoSheet(false);
+                void pickImageIntoInputHandler(handlePhotoFile, "camera");
               }}
             >
               <Camera size={20} /> Снять фото
@@ -382,8 +386,11 @@ export default function ShoppingItemInput({ onAdd, busy = false, placeholder = "
             </label>
             <label
               className="sl-sheet-btn"
-              onClick={async (e) => {
-                if (await pickImageIntoInputHandler(handlePhotoFile, "photos")) { e.preventDefault(); setPhotoSheet(false); }
+              onClick={(e) => {
+                if (!isNativePlatform()) return;
+                e.preventDefault();
+                setPhotoSheet(false);
+                void pickImageIntoInputHandler(handlePhotoFile, "photos");
               }}
             >
               <ImageIcon size={20} /> Из галереи

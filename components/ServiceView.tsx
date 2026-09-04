@@ -1,5 +1,5 @@
 "use client";
-import { pickImageIntoInputHandler } from "@/lib/native";
+import { pickImageIntoInputHandler, isNativePlatform } from "@/lib/native";
 
 import React from "react";
 import {
@@ -469,10 +469,14 @@ export default function ServiceView({
                     <div className="upload-actions">
                       <label
                         className="upload-action-btn upload-action-primary"
-                        onClick={async (e) => {
+                        onClick={(e) => {
                           e.stopPropagation();
-                          // В нативе открываем камеру напрямую, минуя <input>.
-                          if (await pickImageIntoInputHandler(handleFileChange, "camera")) e.preventDefault();
+                          // preventDefault обязан быть СИНХРОННЫМ: после await
+                          // событие уже обработано и <label> успевает открыть
+                          // системный пикер WebView поверх нативного.
+                          if (!isNativePlatform()) return;
+                          e.preventDefault();
+                          void pickImageIntoInputHandler(handleFileChange, "camera");
                         }}
                       >
                         <Camera size={18} /> Снять фото
@@ -486,9 +490,11 @@ export default function ServiceView({
                       </label>
                       <label
                         className="upload-action-btn upload-action-secondary"
-                        onClick={async (e) => {
+                        onClick={(e) => {
                           e.stopPropagation();
-                          if (await pickImageIntoInputHandler(handleFileChange, "photos")) e.preventDefault();
+                          if (!isNativePlatform()) return;
+                          e.preventDefault();
+                          void pickImageIntoInputHandler(handleFileChange, "photos");
                         }}
                       >
                         <ImageIcon size={18} /> Из галереи

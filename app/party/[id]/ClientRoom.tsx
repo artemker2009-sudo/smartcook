@@ -1923,7 +1923,7 @@ export default function ClientRoom({
 
   return (
     <div className="flex h-[100dvh] overflow-hidden flex-col bg-[#F5F5F7] text-black">
-      <header className="sticky top-0 z-40 shrink-0 border-b border-gray-100 bg-white/80 backdrop-blur-md">
+      <header className="party-room-header sticky top-0 z-40 shrink-0 border-b border-gray-100 bg-white/80 backdrop-blur-md">
         <div className="mx-auto max-w-3xl px-4 py-3">
           <div className="flex items-center justify-between gap-3">
             <button

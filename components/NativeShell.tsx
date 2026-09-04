@@ -23,13 +23,32 @@ export default function NativeShell() {
     root.classList.add("native-shell");
     if (isNativeIOS()) root.classList.add("native-ios");
 
-    const meta = document.querySelector('meta[name="viewport"]');
-    if (meta) {
+    // viewport-fit=cover нужно не просто выставить один раз, а УДЕРЖИВАТЬ.
+    //
+    // Next.js рендерит мета-вьюпорт из `export const viewport` и переписывает
+    // его при клиентской навигации — наша добавка при этом стиралась. Следствие
+    // было заметное: env(safe-area-inset-*) обнулялся, и на всех экранах, кроме
+    // первого загруженного, плавающие кнопки уезжали под часы и батарейку, а
+    // таб-бар — под жестовую полосу. Поэтому следим за head и возвращаем флаг.
+    const ensureViewportFit = () => {
+      const meta = document.querySelector('meta[name="viewport"]');
+      if (!meta) return;
       const content = meta.getAttribute("content") || "";
+      // Проверка перед записью обязательна: иначе setAttribute снова разбудит
+      // наблюдателя и получится бесконечный цикл.
       if (!content.includes("viewport-fit")) {
         meta.setAttribute("content", `${content}, viewport-fit=cover`);
       }
-    }
+    };
+    ensureViewportFit();
+
+    const observer = new MutationObserver(ensureViewportFit);
+    observer.observe(document.head, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["content"],
+    });
 
     void initStatusBar();
     // Сплэш убираем на следующем кадре — к этому моменту первый экран уже
@@ -38,7 +57,10 @@ export default function NativeShell() {
       void hideSplash();
     });
 
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(raf);
+    };
   }, []);
 
   return null;

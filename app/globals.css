@@ -1224,6 +1224,12 @@ body {
   font-weight: var(--font-weight-semibold);
   margin: var(--space-5) 0 var(--space-2) 0;
 }
+.doc-body h3 {
+  color: var(--color-text);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  margin: var(--space-4) 0 var(--space-1) 0;
+}
 .doc-body p { margin: 0 0 var(--space-3) 0; }
 .doc-body ul { margin: 0 0 var(--space-3) 0; padding-left: var(--space-4); }
 .doc-body li { margin-bottom: var(--space-1); }

@@ -1,6 +1,7 @@
 import React from 'react';
-import { Clock, Flame, Info, ExternalLink, ShoppingCart, Heart, Share2, Sparkles, Send, Salad, ChefHat } from 'lucide-react';
+import { Clock, Flame, Heart, Share2, Sparkles, Send, Salad, ChefHat } from 'lucide-react';
 import { splitIngredientList } from '@/lib/recipeValidation';
+import KuperBuyBlock from '@/components/KuperBuyBlock';
 import { formatCookingTime } from '@/lib/utils';
 
 export default function DailyRecipe(props: any) {
@@ -77,22 +78,18 @@ export default function DailyRecipe(props: any) {
               </button>
             </div>
 
-            {/* Ozon Fresh */}
-            {(() => {
-              const rawItemsToBuy = dailyRecipe.detailed_ingredients ? dailyRecipe.detailed_ingredients.map((ing: any) => ing.name) : (dailyRecipe.ingredients || []);
-              // Фолбэк AB: раскладываем возможный склеенный список на отдельные чипы.
-              const itemsToBuy = splitIngredientList(rawItemsToBuy);
-              if (itemsToBuy.length === 0) return null;
-              return (
-                <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: 'var(--space-4)', margin: '0 0 var(--space-4) 0' }}>
-                  <div style={{display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-3)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text)'}}> <ShoppingCart size={20} color="var(--color-accent)" /> Нужно купить: </div>
-                  <div style={{display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)', marginBottom: 'var(--space-3)'}}>
-                    {itemsToBuy.map((item: string, idx: number) => ( <a key={idx} href={`https://www.ozon.ru/search/?text=${encodeURIComponent(item)}&from_global=true`} target="_blank" rel="noopener noreferrer" style={{ background: 'var(--color-surface)', padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-full)', fontSize: 'var(--font-size-caption)', fontWeight: 'var(--font-weight-medium)', textDecoration: 'none', color: 'var(--color-text)', display: 'flex', alignItems: 'center', gap: 'var(--space-1)', border: '1px solid var(--color-border)', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', transition: 'transform 0.2s' }}> {item} <ExternalLink size={12} color="var(--color-text-muted)" /> </a> ))}
-                  </div>
-                  <div style={{fontSize: 'var(--font-size-caption)', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: 'var(--space-1)'}}> <Info size={14} /> Нажмите на ингредиент — быстрая доставка Ozon Fresh </div>
-                </div>
-              );
-            })()}
+            {/* Монетизация: заказ продуктов через Купер (CPA). Компонент сам
+                несёт обязательную маркировку рекламы. Раньше здесь был блок
+                другого магазина — без маркировки и вторым по счёту на экране
+                рецепта; удалён целиком. splitIngredientList — фолбэк: старые
+                записи могли сохранить весь список одной строкой. */}
+            <KuperBuyBlock
+              ingredients={splitIngredientList(
+                dailyRecipe.detailed_ingredients
+                  ? dailyRecipe.detailed_ingredients.map((ing: any) => ing.name)
+                  : dailyRecipe.ingredients || [],
+              )}
+            />
 
             <h4 style={{fontSize: 'var(--font-size-heading)', fontWeight: 'var(--font-weight-semibold)', margin: '0 0 var(--space-3) 0', color: 'var(--color-text)', display: 'flex', alignItems: 'center', gap: 'var(--space-2)'}}><Salad size={20} /> Ингредиенты:</h4>
             <div style={{display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', marginBottom: 'var(--space-5)'}}>

@@ -1,0 +1,9 @@
+/* SmartCook — permission prompts (English).
+   The base Info.plist keeps the same English wording as a fallback for
+   languages we do not ship; this file covers en explicitly. */
+
+"NSCameraUsageDescription" = "SmartCook uses the camera so you can photograph the groceries you have at home. The photo is sent for recognition and a recipe is suggested from what it finds.";
+
+"NSPhotoLibraryUsageDescription" = "SmartCook needs access to your photos so you can pick a picture of your groceries or a finished dish instead of taking a new one.";
+
+"NSPhotoLibraryAddUsageDescription" = "Needed only when you choose to save a dish photo to your library. SmartCook never writes there on its own.";

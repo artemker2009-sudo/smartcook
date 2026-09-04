@@ -20,7 +20,7 @@ export default async function SharedShoppingJoinPage({
   const { id } = await params;
   return (
     <>
-      <AppNavigation activeSection="shopping" />
+      <AppNavigation />
       <SharedShoppingJoin listId={id} />
     </>
   );

@@ -59,7 +59,7 @@ export default function HomeContent({
 
   return (
     <div className="container">
-      <AppNavigation activeSection="daily" />
+      <AppNavigation />
 
       <HeroLanding demoChips={demoChips} />
 

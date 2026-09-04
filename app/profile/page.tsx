@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default function ProfilePage() {
   return (
     <>
-      <AppNavigation activeSection="profile" />
+      <AppNavigation />
       <ProfileApp />
     </>
   );

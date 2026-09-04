@@ -39,7 +39,7 @@ export default async function FeedPage() {
   const items = await getFeed();
   return (
     <div className="container feed-container">
-      <AppNavigation activeSection="feed" />
+      <AppNavigation />
       <CommunityFeed initialItems={items} />
     </div>
   );

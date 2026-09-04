@@ -9,9 +9,6 @@ import {
   Heart,
   Flame,
   Clock,
-  ShoppingCart,
-  ExternalLink,
-  Info,
   Sparkles,
   Shuffle,
   ChevronRight,
@@ -27,7 +24,6 @@ import Button from "@/components/ui/Button";
 import CookMode from "@/components/CookMode";
 import RecipeImage from "@/components/RecipeImage";
 import KuperBuyBlock from "@/components/KuperBuyBlock";
-import { splitIngredientList } from "@/lib/recipeValidation";
 import { formatCookingTime } from "@/lib/utils";
 
 interface RecipeViewProps {
@@ -119,16 +115,6 @@ export default function RecipeView({
   }));
   const hasSteps =
     Array.isArray(recipe.steps) && recipe.steps.filter((s: string) => (s || "").trim()).length > 0;
-  const itemsToBuy = (() => {
-    const baseItems =
-      fromFeed && recipe.detailed_ingredients
-        ? recipe.detailed_ingredients.map((ing: any) => ing.name)
-        : recipe.missing_ingredients || [];
-    // Фолбэк AB: старые записи могли сохранить весь список одной строкой —
-    // раскладываем на отдельные позиции, иначе «Нужно купить» = один блоб-чип.
-    return splitIngredientList(baseItems);
-  })();
-
   const showSmartVariant =
     !fromFeed &&
     !isSharedView &&
@@ -400,84 +386,6 @@ export default function RecipeView({
             >
               +
             </button>
-          </div>
-        </div>
-      )}
-
-      {itemsToBuy.length > 0 && (
-        <div
-          style={{
-            background: "var(--color-surface)",
-            border: "1px solid var(--color-border)",
-            borderRadius: "var(--radius-md)",
-            padding: "var(--space-4)",
-            margin: "var(--space-4) 0",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "var(--space-2)",
-              marginBottom: "var(--space-3)",
-              fontWeight: "var(--font-weight-semibold)",
-              color: "var(--color-text)",
-            }}
-          >
-            <ShoppingCart size={20} color="var(--color-accent)" />{" "}
-            {searchMode === "text" || fromFeed || isSharedView
-              ? "Нужно купить:"
-              : "Нужно докупить:"}
-          </div>
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: "var(--space-2)",
-              marginBottom: "var(--space-3)",
-            }}
-          >
-            {itemsToBuy.map((item: string, idx: number) => (
-              <a
-                key={idx}
-                href={`https://www.ozon.ru/search/?text=${encodeURIComponent(
-                  item
-                )}&from_global=true`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  background: "var(--color-surface)",
-                  padding: "var(--space-2) var(--space-3)",
-                  borderRadius: "var(--radius-full)",
-                  fontSize: "var(--font-size-body)",
-                  fontWeight: "var(--font-weight-medium)",
-                  textDecoration: "none",
-                  color: "var(--color-text)",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "var(--space-1)",
-                  border: "1px solid var(--color-border)",
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-                  cursor: "pointer",
-                  transition: "all 0.2s",
-                }}
-              >
-                {item}{" "}
-                <ExternalLink size={12} color="var(--color-text-muted)" />
-              </a>
-            ))}
-          </div>
-          <div
-            style={{
-              fontSize: "var(--font-size-caption)",
-              color: "var(--color-text-muted)",
-              display: "flex",
-              alignItems: "center",
-              gap: "var(--space-1)",
-            }}
-          >
-            <Info size={14} /> Нажмите на ингредиент — быстрая доставка Ozon Fresh
-            до двери
           </div>
         </div>
       )}

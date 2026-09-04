@@ -2692,3 +2692,21 @@ a.news-card:hover { transform: translateY(-2px); }
 .native-shell [role="button"] {
   touch-action: manipulation;
 }
+
+/* Шапка комнаты банкета — единственный верхний блок в приложении, написанный
+   без env(safe-area-inset-top): комната полноэкранная, таб-бара и .container
+   у неё нет. В браузере это незаметно (там сверху и так адресная строка), а в
+   нативной оболочке кнопка «Назад» и «Позвать» оказывались под часами и
+   батарейкой. Правило только для .native-shell — веб не трогаем. */
+.native-shell .party-room-header {
+  padding-top: env(safe-area-inset-top);
+}
+
+/* «Мои банкеты» — единственная страница с плавающими кнопками, у которой
+   верхний отступ задан фиксированно (pt-20 = 80px), без env(safe-area-inset-top).
+   В браузере 80px спокойно перекрывают бургер (8px + 44px), а в нативной
+   оболочке бургер стоит на safe-area ниже и налезал на заголовок. Веб не
+   трогаем — правило только для .native-shell. */
+.native-shell .page-top-safe {
+  padding-top: calc(env(safe-area-inset-top) + 80px);
+}

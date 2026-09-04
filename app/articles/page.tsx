@@ -51,7 +51,7 @@ export default async function ArticlesPage() {
 
   return (
     <div className="container">
-      <AppNavigation activeSection="daily" />
+      <AppNavigation />
 
       <header style={{ margin: "var(--space-4) 0 var(--space-4)" }}>
         <h1

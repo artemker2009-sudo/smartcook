@@ -107,7 +107,7 @@ export default async function ArticlePage({
   if (!article) {
     return (
       <div className="container">
-        <AppNavigation activeSection="daily" />
+        <AppNavigation />
         <div className="card" style={{ marginTop: "var(--space-5)", textAlign: "center" }}>
           <h1 className="recipe-title" style={{ marginBottom: "var(--space-2)" }}>
             Заметка не найдена
@@ -125,7 +125,7 @@ export default async function ArticlePage({
 
   return (
     <div className="container">
-      <AppNavigation activeSection="daily" />
+      <AppNavigation />
 
       <article style={{ margin: "var(--space-3) 0 var(--space-5)" }}>
         <Link href="/articles" className="articles-all" style={{ marginBottom: "var(--space-3)" }}>

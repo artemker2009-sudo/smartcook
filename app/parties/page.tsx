@@ -251,7 +251,7 @@ export default function PartiesHubPage() {
 
   return (
     <main className="page-top-safe min-h-screen overflow-hidden bg-[#faf9f7] px-4 pb-8 pt-20 text-zinc-950 sm:px-6 sm:pt-24 lg:px-8">
-      <AppNavigation activeSection="parties" />
+      <AppNavigation />
       <div className="pointer-events-none fixed inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_top,rgba(5,150,105,0.06),transparent_62%)]" />
 
       <div className="relative mx-auto max-w-6xl">

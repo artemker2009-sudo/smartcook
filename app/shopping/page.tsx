@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 export default function ShoppingPage() {
   return (
     <>
-      <AppNavigation activeSection="shopping" />
+      <AppNavigation />
       <ShoppingApp />
     </>
   );

@@ -1,12 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { CheckCircle, Flame, Home, ImageIcon, Menu, PartyPopper, Search, ShoppingCart, X } from "lucide-react";
-
-type AppNavigationProps = {
-  activeSection?: "home" | "parties" | "service" | "profile" | "daily" | "about" | "feed" | "shopping";
-};
 
 // Вторичная навигация (хамбургер). Основные 3 раздела дублирует таб-бар;
 // здесь — лента, банкеты, рецепт дня и о проекте.
@@ -15,19 +12,39 @@ type AppNavigationProps = {
 // Личного кабинета здесь СОЗНАТЕЛЬНО НЕТ: вход в него один — аватарка справа
 // сверху (ProfileEntry в root-layout), она видна на каждом экране. Пункт в меню
 // был вторым входом в то же место: человек ищет кабинет, находит два пути и не
-// понимает, одно это или разное. Тип activeSection значение "profile" сохраняет —
-// страница /profile по-прежнему передаёт его, просто подсвечивать больше нечего.
+// понимает, одно это или разное.
+//
+// Активный пункт считается ПО МАРШРУТУ (usePathname), а не приходит пропом:
+// раньше каждая страница передавала activeSection руками, и Главная передавала
+// "daily" — на / подсвечивался «Рецепт дня». Проп убран, чтобы такую рассинхронизацию
+// нельзя было внести снова.
+//
+// match — pathname пункта; null означает «не подсвечивать никогда». У «Рецепта дня»
+// нет своего маршрута: он открывается как вид внутри /search (?daily=true), а этот
+// pathname уже принадлежит «Найти рецепт». Подсветку рецепта дня на самом экране
+// делает собственное меню SearchApp по своему activeView.
 const navItems = [
-  { id: "home", label: "Главная", href: "/", icon: Home },
-  { id: "service", label: "Найти рецепт", href: "/search", icon: Search },
-  { id: "shopping", label: "Покупки", href: "/shopping", icon: ShoppingCart },
-  { id: "feed", label: "Лента", href: "/feed", icon: ImageIcon },
-  { id: "parties", label: "Банкеты", href: "/parties", icon: PartyPopper },
-  { id: "daily", label: "Рецепт дня", href: "/search?daily=true", icon: Flame },
-  { id: "about", label: "О проекте", href: "/about", icon: CheckCircle },
+  { id: "home", label: "Главная", href: "/", match: "/", icon: Home },
+  { id: "service", label: "Найти рецепт", href: "/search", match: "/search", icon: Search },
+  { id: "shopping", label: "Покупки", href: "/shopping", match: "/shopping", icon: ShoppingCart },
+  { id: "feed", label: "Лента", href: "/feed", match: "/feed", icon: ImageIcon },
+  { id: "parties", label: "Банкеты", href: "/parties", match: "/parties", icon: PartyPopper },
+  { id: "daily", label: "Рецепт дня", href: "/search?daily=true", match: null, icon: Flame },
+  { id: "about", label: "О проекте", href: "/about", match: "/about", icon: CheckCircle },
 ] as const;
 
-export default function AppNavigation({ activeSection }: AppNavigationProps) {
+// Точное совпадение маршрута либо вложенный маршрут раздела (/shopping/join/<id>
+// — это всё ещё «Покупки»). Для «Главной» второе условие вырождается: match "/"
+// дал бы префикс "//", который не встречается, — то есть корень НЕ матчит всё
+// подряд. Префиксы разделов не пересекаются, поэтому активным всегда выходит
+// ровно один пункт (или ни одного — на /profile, /articles, /recipe/<id>).
+function isActiveRoute(pathname: string, match: string | null): boolean {
+  if (!match) return false;
+  return pathname === match || pathname.startsWith(match + "/");
+}
+
+export default function AppNavigation() {
+  const pathname = usePathname() || "/";
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   return (
@@ -72,7 +89,7 @@ export default function AppNavigation({ activeSection }: AppNavigationProps) {
 
             {navItems.map((item) => {
               const Icon = item.icon;
-              const isActive = activeSection === item.id;
+              const isActive = isActiveRoute(pathname, item.match);
 
               return (
                 <Link

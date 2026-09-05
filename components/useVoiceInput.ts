@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { reachGoal } from "@/lib/metrika";
 import { parseVoiceTranscript } from "@/lib/voiceParse";
-import { useIsNativeIOS } from "@/lib/native";
 
 // Минимальные типы Web Speech API — в стандартном lib.dom их нет для webkit-
 // префикса, а править расходы/логику нельзя. Описываем ровно то, что используем,
@@ -84,22 +83,14 @@ export function useVoiceInput(): VoiceInput {
   // Ленивый инициализатор: читает window один раз при первом рендере на клиенте.
   // На сервере (SSR) getRecognitionCtor() возвращает null без обращения к window,
   // поэтому гидрационного рассинхрона нет — эффект тут не нужен.
-  const [hasRecognitionApi] = useState(() => getRecognitionCtor() !== null);
-
-  // Нативный iOS: голосового ввода нет вовсе.
   //
-  // Web Speech API в WKWebView идёт через системное распознавание речи, а оно
-  // требует NSMicrophoneUsageDescription и NSSpeechRecognitionUsageDescription
-  // в Info.plist. Их там нет и не будет: микрофон приложению не нужен ни для
-  // чего другого, а заявлять разрешение ради одной необязательной кнопки —
-  // прямой повод для отказа (App Store 5.1.1: запрашивать только те данные,
-  // без которых функция не работает). Без ключа первый же тап по микрофону
-  // роняет приложение — не «кнопка не сработала», а падение.
-  //
-  // Веб и Android-TWA сюда не попадают (window.Capacitor там нет) — там всё
-  // как было: есть API → есть кнопка.
-  const isNativeIOSShell = useIsNativeIOS();
-  const supported = hasRecognitionApi && !isNativeIOSShell;
+  // Платформа роли не играет: есть API — есть кнопка. В нативной оболочке iOS
+  // Web Speech API тоже работает (проверено на iPhone, iOS 26.6: WKWebView даёт
+  // webkitSpeechRecognition, системный запрос доступа приходит, распознавание
+  // возвращает финальную фразу). Условие одно — ключи NSMicrophoneUsageDescription
+  // и NSSpeechRecognitionUsageDescription в ios/App/App/Info.plist; без них
+  // первый же тап роняет приложение, поэтому удалять их нельзя.
+  const [supported] = useState(() => getRecognitionCtor() !== null);
   const [status, setStatus] = useState<VoiceStatus>("idle");
   const [chips, setChips] = useState<string[]>([]);
   const [interim, setInterim] = useState("");

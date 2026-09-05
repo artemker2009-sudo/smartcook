@@ -7,3 +7,11 @@
 "NSPhotoLibraryUsageDescription" = "SmartCook needs access to your photos so you can pick a picture of your groceries or a finished dish instead of taking a new one.";
 
 "NSPhotoLibraryAddUsageDescription" = "Needed only when you choose to save a dish photo to your library. SmartCook never writes there on its own.";
+
+/* Voice input. Microphone and speech recognition are two SEPARATE system
+   prompts: iOS asks about recording audio and about handing that audio to the
+   recognition engine independently, so both keys are required. */
+
+"NSMicrophoneUsageDescription" = "SmartCook needs the microphone so you can dictate groceries into your shopping list and control the cooking steps by voice. It is on only while you are recording, and SmartCook keeps no audio.";
+
+"NSSpeechRecognitionUsageDescription" = "Your speech is turned into text by iOS so SmartCook can add the groceries you name to the list and understand cooking commands such as \"next step\". Only the recognized text is used.";

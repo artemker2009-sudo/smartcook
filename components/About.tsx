@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { isNativePlatform, openExternal, useIsNative } from "@/lib/native";
+import NativeDocsLinks from "@/components/NativeDocsLinks";
 import { Wallet, Zap, Leaf, Globe, Send, Rocket, Banknote, Smartphone, Plus } from 'lucide-react';
 
 export default function About() {
@@ -52,6 +53,10 @@ export default function About() {
           <p style={{opacity: 0.9, fontSize: 'var(--font-size-body)', marginBottom: 'var(--space-4)', lineHeight: 1.5}}>Следите за обновлениями, предлагайте идеи и общайтесь напрямую с разработчиком.</p>
           <a href="https://t.me/smartcook2026" target="_blank" rel="noopener noreferrer" onClick={(e) => { if (isNativePlatform()) { e.preventDefault(); void openExternal("https://t.me/smartcook2026"); } }} style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)', background: 'white', color: 'var(--color-accent-hover)', textDecoration: 'none', padding: 'var(--space-3) var(--space-4)', borderRadius: 'var(--radius-sm)', fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-body)', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', transition: 'transform 0.2s'}}> <Send size={20} /> Подписаться</a>
         </div>
+
+        {/* Вместо убранного футера: обязательные ссылки. Рендерится только в
+            нативной сборке — в вебе всё это есть в футере. */}
+        <NativeDocsLinks variant="block" />
       </div>
     </div>
   );

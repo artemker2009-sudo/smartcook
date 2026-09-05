@@ -1137,10 +1137,22 @@ body {
 }
 .menu-drawer {
   position: fixed; top: 0; right: 0; bottom: 0; width: 280px;
-  background: var(--color-surface); z-index: 100; padding: var(--space-5);
+  background: var(--color-surface); z-index: 100;
+  /* Панель начинается от самого верха экрана, поэтому её собственная шапка
+     («SmartCook» и крестик) заезжала под Dynamic Island / чёлку. Верхний
+     отступ = вырез + обычный padding. В браузере на десктопе и на телефонах
+     без выреза env(safe-area-inset-top) равен нулю, поэтому вид в вебе не
+     меняется. Тот же приём, что уже применён к .container и комнате банкета.
+     Правило одно на оба меню: и вторичная навигация (AppNavigation), и
+     меню внутри экрана поиска (SearchApp) используют .menu-drawer. */
+  padding: calc(env(safe-area-inset-top) + var(--space-5)) var(--space-5)
+           calc(env(safe-area-inset-bottom) + var(--space-5)) var(--space-5);
   box-shadow: -10px 0 50px rgba(0,0,0,0.2);
   transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   border-top-left-radius: var(--radius-md); border-bottom-left-radius: var(--radius-md);
+  /* Длинное меню на маленьком экране должно прокручиваться, а не обрезаться. */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .menu-drawer.open { transform: translateX(0); }
 .menu-overlay {
@@ -1314,70 +1326,123 @@ body {
 }
 
 /* === TOAST УВЕДОМЛЕНИЯ === */
-@keyframes sc-toast-in {
-  0% { opacity: 0; transform: translateY(-24px) scale(0.95); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
-}
+/* ==================== УВЕДОМЛЕНИЯ (тосты) ====================
+   Единственное место, где задан вид тостов. Рендерер один —
+   components/ui/AppToaster.tsx поверх sonner; собственная плашка .sc-toast,
+   жившая в SearchApp, удалена вместе со своим оформлением.
 
-.sc-toast {
-  position: fixed;
-  top: var(--space-3);
-  left: var(--space-3);
-  right: var(--space-3);
+   Селекторы — по data-атрибутам sonner, а не по её внутренним классам:
+   классы библиотека может переименовать в любой минорной версии, атрибуты
+   [data-sonner-toast] и [data-icon] — часть её публичного контракта. */
+
+/* Контейнер: снизу, над таб-баром, с учётом домашнего индикатора.
+   Дубль offset из AppToaster — страховка на случай, если sonner поменяет
+   имя своей внутренней переменной отступа. */
+[data-sonner-toaster][data-y-position="bottom"] {
+  bottom: calc(var(--tab-bar-h) + env(safe-area-inset-bottom) + 12px) !important;
+  /* Ширина: экран минус 32px, но не шире карточки контента.
+     margin-inline: auto центрирует контейнер при left/right = 0 — трогать
+     transform нельзя, на нём висит анимация появления самих карточек. */
+  width: calc(100vw - 32px) !important;
+  max-width: 420px !important;
+  margin-inline: auto !important;
   z-index: 100000;
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-md);
-  font-size: var(--font-size-caption);
+}
+
+/* Карточка: белая, радиус 16, мягкая тень. Никакой заливки по типу статуса —
+   статус несёт только иконка слева. */
+[data-sonner-toast] {
+  width: 100% !important;
+  background: var(--color-surface) !important;
+  color: var(--color-text) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 10px 30px -8px rgba(0, 0, 0, 0.18), 0 2px 8px rgba(0, 0, 0, 0.06) !important;
+  padding: 14px 16px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  font-size: 15px !important;
+  line-height: 1.35 !important;
   font-weight: var(--font-weight-medium);
-  line-height: 1.4;
-  color: #fff;
-  box-shadow:
-    0 12px 40px rgba(0, 0, 0, 0.25),
-    0 4px 12px rgba(0, 0, 0, 0.15),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  animation: sc-toast-in 0.35s cubic-bezier(0.21, 1.02, 0.73, 1) forwards;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
 }
 
-.sc-toast-success {
-  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-  border: 1px solid rgba(5, 150, 105, 0.35);
+/* Иконка по умолчанию для простых toast("...") без типа.
+   sonner не умеет дефолтную иконку (в ToastIcons только success/error/…,
+   а в ToastOptions поля icon нет вовсе), поэтому дорисовываем её здесь.
+
+   Значок НЕЙТРАЛЬНЫЙ (информация), а не галочка, и это не косметика:
+   простым toast(...) в коде сообщают и об удаче («Добавлено: 3 продукта»),
+   и о неудаче («Не удалось скопировать ссылку») — увидел своими глазами в
+   превью. Зелёная галочка на сообщении об ошибке прямо врёт. Цвет при этом
+   акцентный, как и требовалось.
+   :has() поддержан с Safari 15.4; на iOS 15.0–15.3 (наш минимум — 15.0)
+   правило просто не применится и тост останется без иконки. Ничего не
+   ломается, поэтому такой размен осознан. */
+[data-sonner-toast]:not(:has([data-icon]))::before {
+  content: "";
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%23059669' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 16v-4'/%3E%3Cpath d='M12 8h.01'/%3E%3C/svg%3E")
+    center / contain no-repeat;
 }
 
-.sc-toast-error {
-  background: linear-gradient(135deg, #7f1d1d 0%, #450a0a 100%);
-  border: 1px solid rgba(248, 113, 113, 0.3);
-}
-
-.sc-toast-icon {
-  display: flex;
+/* Иконка слева — цветная, не сжимается под длинным текстом. */
+[data-sonner-toast] [data-icon] {
+  display: flex !important;
   align-items: center;
   flex-shrink: 0;
+  margin: 0 !important;
 }
 
-.sc-toast-text {
+[data-sonner-toast] [data-content] {
   flex: 1;
   min-width: 0;
 }
 
-.sc-toast-close {
-  background: none;
-  border: none;
-  color: rgba(255, 255, 255, 0.5);
-  font-size: 20px;
-  cursor: pointer;
-  padding: 0 0 0 6px;
-  line-height: 1;
-  flex-shrink: 0;
-  transition: color 0.2s;
+[data-sonner-toast] [data-title] {
+  font-size: 15px;
+  line-height: 1.35;
+  color: var(--color-text);
 }
 
-.sc-toast-close:hover {
-  color: #fff;
+[data-sonner-toast] [data-description] {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin-top: 2px;
+}
+
+/* Крестик справа. sonner по умолчанию вешает его в левый верхний угол
+   абсолютом — возвращаем в поток справа и делаем зону тапа человеческой. */
+[data-sonner-toast] [data-close-button] {
+  position: static !important;
+  transform: none !important;
+  width: 28px !important;
+  height: 28px !important;
+  flex-shrink: 0;
+  order: 3;
+  border-radius: var(--radius-full) !important;
+  background: transparent !important;
+  border: none !important;
+  color: var(--color-text-muted) !important;
+  transition: background 0.15s, color 0.15s;
+}
+
+[data-sonner-toast] [data-close-button]:hover {
+  background: var(--color-bg-subtle) !important;
+  color: var(--color-text) !important;
+}
+
+/* Кнопка действия (toast с action, например «Открыть») — не должна
+   растягивать карточку и налезать на крестик. */
+[data-sonner-toast] [data-button] {
+  flex-shrink: 0;
+  order: 2;
+  background: var(--color-accent-subtle) !important;
+  color: var(--color-accent) !important;
+  border-radius: var(--radius-sm) !important;
+  font-weight: var(--font-weight-semibold);
 }
 
 /* ==================== ЭТАП 7: разделы + таб-бар ==================== */

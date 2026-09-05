@@ -289,7 +289,8 @@ export default function SharedShoppingListView({ listId, memberRef, initial, onB
       }
     }
     const ok = await copyText(url);
-    toast(ok ? "Ссылка скопирована — отправьте близким" : "Не удалось скопировать ссылку");
+    // Приглашение в общий список (/shopping/join/<id>) — не копия.
+    toast(ok ? "Ссылка скопирована. Список общий — галочки видны всем" : "Не удалось скопировать ссылку");
   };
 
   const handleCopy = async () => {

@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/react";
 import { headers } from "next/headers";
-import { Toaster } from "sonner";
 import "./globals.css";
 import YandexMetrika from "@/components/YandexMetrika"; // Импортируем компонент Метрики
 import PWAUpdater from "@/components/PWAUpdater";
@@ -13,6 +12,7 @@ import NativeShell from "@/components/NativeShell";
 import TabBar from "@/components/TabBar";
 import ProfileEntry from "@/components/ProfileEntry";
 import OnboardingModal from "@/components/modals/OnboardingModal";
+import AppToaster from "@/components/ui/AppToaster";
 import { Suspense } from "react"; // Импортируем Suspense для корректной работы
 
 // 1. Настройки внешнего вида (PWA, цвета, масштаб)
@@ -178,7 +178,9 @@ export default async function RootLayout({
         {!hideFooter && <Footer />}
         {!isAdminRoute && <OnboardingModal />}
 
-        <Toaster richColors position="top-center" />
+        {/* Единый рендерер всех уведомлений: снизу, над таб-баром, белая
+            карточка. Настройки — в components/ui/AppToaster. */}
+        <AppToaster />
         {/* Компонент аналитики Vercel */}
         <Analytics />
       </body>

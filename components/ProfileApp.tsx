@@ -53,6 +53,7 @@ import PreferencesModal from "@/components/modals/PreferencesModal";
 import EditProfileModal from "@/components/modals/EditProfileModal";
 import CropperModal from "@/components/modals/CropperModal";
 import DeleteAccountModal from "@/components/modals/DeleteAccountModal";
+import NativeDocsLinks from "@/components/NativeDocsLinks";
 
 type MyPost = {
   id: string;
@@ -562,6 +563,10 @@ export default function ProfileApp() {
           >
             <AlertTriangle size={14} /> Удалить аккаунт
           </button>
+
+          {/* Вместо убранного футера: те же обязательные ссылки одной строкой.
+              Только в нативной сборке — в вебе они в футере. */}
+          <NativeDocsLinks variant="inline" />
         </div>
       </div>
 

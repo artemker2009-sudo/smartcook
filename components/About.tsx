@@ -1,63 +1,256 @@
 "use client";
 
-import React from 'react';
+import React from "react";
+import Link from "next/link";
+import {
+  Camera,
+  Volume2,
+  ShoppingCart,
+  PartyPopper,
+  Send,
+  Mail,
+  Users,
+  KeyRound,
+  Sparkles,
+  ShieldCheck,
+} from "lucide-react";
 import { isNativePlatform, openExternal, useIsNative } from "@/lib/native";
+import { RUSTORE_URL, TELEGRAM_URL, SUPPORT_EMAIL, VK_URL } from "@/lib/constants";
 import NativeDocsLinks from "@/components/NativeDocsLinks";
-import { Wallet, Zap, Leaf, Globe, Send, Rocket, Banknote, Smartphone, Plus } from 'lucide-react';
+
+// «О проекте» — ОДНА страница на веб и приложение.
+//
+// Раньше их было две и они жили своей жизнью: /about с сухим текстом и эта
+// карточка «Кухонная революция», доступная только из меню внутри экрана поиска.
+// Теперь контент один: /about рендерит этот же компонент, а меню поиска
+// показывает его же. Правишь в одном месте — меняется везде.
+//
+// Чего здесь больше нет и не должно появиться: блока «Вы теряете 30.000₽» и
+// прочих цифр, которые никто не считал. Плитки «Zero Waste» и «Разнообразие»
+// убраны туда же — они ничего не сообщали.
+//
+// Мобильный экран — основной: одна колонка, крупные заголовки, воздух между
+// секциями. Разметка на классах .about-* (globals.css), а не на инлайновых
+// стилях, потому что нужны медиазапросы.
+
+type Feature = { icon: React.ReactNode; title: string; text: string };
+
+const FEATURES: Feature[] = [
+  {
+    icon: <Camera size={22} />,
+    title: "По фото",
+    text: "Снимите продукты — ИИ распознает их и предложит рецепты.",
+  },
+  {
+    icon: <Volume2 size={22} />,
+    title: "Готовим!",
+    text: "Читает шаги вслух — руки остаются свободными.",
+  },
+  {
+    icon: <ShoppingCart size={22} />,
+    title: "Покупки",
+    text: "Списки голосом, текстом и по фото. Общий список с семьёй.",
+  },
+  {
+    icon: <PartyPopper size={22} />,
+    title: "Банкеты",
+    text: "Меню на праздник за минуту, пожелания гостей — по ссылке.",
+  },
+];
+
+const PRINCIPLES: { icon: React.ReactNode; text: React.ReactNode }[] = [
+  {
+    icon: <KeyRound size={20} />,
+    text: (
+      <>
+        <strong>Без email и телефона</strong> — только имя и пароль.
+      </>
+    ),
+  },
+  {
+    icon: <Sparkles size={20} />,
+    text: (
+      <>
+        <strong>Рецепты составляет ИИ</strong> — проверяйте состав на аллергены.
+      </>
+    ),
+  },
+  {
+    icon: <ShieldCheck size={20} />,
+    text: (
+      <>
+        <strong>Никакого фейка</strong> — ни накрученных отзывов, ни выдуманных цифр.
+      </>
+    ),
+  },
+];
+
+// Внешняя ссылка: в нативной оболочке уходит в системный браузер, иначе
+// пользователь оказывается «в браузере внутри приложения» (App Store 4.2).
+function openExternalOnNative(e: React.MouseEvent, url: string) {
+  if (isNativePlatform()) {
+    e.preventDefault();
+    void openExternal(url);
+  }
+}
 
 export default function About() {
-  // В нативной оболочке инструкция «установите как приложение» бессмысленна и
-  // прямо противоречит правилам магазина: пользователь УЖЕ установил
-  // приложение, а текст отправляет его в Safari/Chrome ставить PWA. Скрываем
-  // ровно так же, как InstallBanner. В вебе блок остаётся как был.
+  // Блок «Скачать» в нативной сборке не рендерится ВООБЩЕ. Это не вкусовщина:
+  // App Store 2.3.10 запрещает упоминать другие магазины приложений, и ссылка
+  // на RuStore внутри iOS-сборки — готовый повод для отказа.
   const isNative = useIsNative();
 
   return (
-    <div className="card" style={{marginTop: 'var(--space-5)', padding: '0', overflow: 'hidden', border: 'none', boxShadow: '0 20px 60px -10px rgba(0,0,0,0.15)'}}>
-      <div style={{background: 'linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-hover) 100%)', padding: 'var(--space-5) var(--space-4)', color: 'white', textAlign: 'center'}}>
-        <Rocket size={50} style={{ display: 'block', margin: '0 auto var(--space-2) auto' }} />
-        <h1 style={{fontSize: 'var(--font-size-title)', fontWeight: 'var(--font-weight-semibold)', margin: '0 0 var(--space-2) 0', lineHeight: 1.1}}>Кухонная революция</h1>
-        <p style={{fontSize: 'var(--font-size-body)', opacity: 0.9, fontWeight: 'var(--font-weight-regular)', maxWidth: '400px', margin: '0 auto'}}>Мы превращаем ваше «нечего есть» в гастрономический шедевр.</p>
-      </div>
-      <div style={{padding: 'var(--space-4)'}}>
-        <div style={{background: 'var(--color-bg-subtle)', borderRadius: 'var(--radius-md)', padding: 'var(--space-4)', marginBottom: 'var(--space-5)', border: '1px solid var(--color-border)'}}>
-          <h3 style={{marginTop: 0, color: 'var(--color-text)', display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: 'var(--font-size-heading)', fontWeight: 'var(--font-weight-semibold)'}}><Banknote size={24} color="var(--color-accent)" /> Вы теряете 30.000₽</h3>
-          <p style={{marginBottom: 0, color: 'var(--color-text-secondary)', lineHeight: 1.5}}>Именно столько средняя семья выбрасывает в мусорку ежегодно в виде испорченных продуктов.</p>
-        </div>
-        <h3 style={{textAlign: 'center', fontSize: 'var(--font-size-heading)', fontWeight: 'var(--font-weight-semibold)', marginBottom: 'var(--space-3)', color: 'var(--color-text)'}}>Почему это работает?</h3>
-        <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)', marginBottom: 'var(--space-5)'}}>
-          <div style={{background: 'var(--color-bg)', padding: 'var(--space-3)', borderRadius: 'var(--radius-sm)', textAlign: 'center', border: '1px solid var(--color-border)'}}><div style={{background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', width: '40px', height: '40px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto var(--space-2) auto'}}><Wallet size={20} /></div><div style={{fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-caption)', marginBottom: 'var(--space-1)', color: 'var(--color-text)'}}>Экономия</div><div style={{fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)'}}>До 5000₽ в месяц</div></div>
-          <div style={{background: 'var(--color-bg)', padding: 'var(--space-3)', borderRadius: 'var(--radius-sm)', textAlign: 'center', border: '1px solid var(--color-border)'}}><div style={{background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', width: '40px', height: '40px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto var(--space-2) auto'}}><Zap size={20} /></div><div style={{fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-caption)', marginBottom: 'var(--space-1)', color: 'var(--color-text)'}}>Скорость</div><div style={{fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)'}}>Мгновенный рецепт</div></div>
-          <div style={{background: 'var(--color-bg)', padding: 'var(--space-3)', borderRadius: 'var(--radius-sm)', textAlign: 'center', border: '1px solid var(--color-border)'}}><div style={{background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', width: '40px', height: '40px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto var(--space-2) auto'}}><Leaf size={20} /></div><div style={{fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-caption)', marginBottom: 'var(--space-1)', color: 'var(--color-text)'}}>Zero Waste</div><div style={{fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)'}}>Спасаем еду</div></div>
-          <div style={{background: 'var(--color-bg)', padding: 'var(--space-3)', borderRadius: 'var(--radius-sm)', textAlign: 'center', border: '1px solid var(--color-border)'}}><div style={{background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', width: '40px', height: '40px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto var(--space-2) auto'}}><Globe size={20} /></div><div style={{fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-caption)', marginBottom: 'var(--space-1)', color: 'var(--color-text)'}}>Разнообразие</div><div style={{fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)'}}>Новые блюда</div></div>
-        </div>
+    <div className="about">
+      {/* 1. Заголовок */}
+      <header className="about-hero">
+        <h1 className="about-hero-title">Рецепты из того, что есть дома</h1>
+        <p className="about-hero-text">
+          SmartCook — для вечера, когда открываешь холодильник и не знаешь, что
+          приготовить. Сфотографируйте продукты — получите три варианта ужина.
+          Без покупки лишнего, без долгого выбора.
+        </p>
+      </header>
 
-        {!isNative && (
-        <div style={{background: 'var(--color-bg)', borderRadius: 'var(--radius-md)', padding: 'var(--space-4) var(--space-3)', marginBottom: 'var(--space-5)', border: '1px solid var(--color-border)'}}>
-          <h3 style={{margin: '0 0 var(--space-2) 0', fontSize: 'var(--font-size-heading)', fontWeight: 'var(--font-weight-semibold)', textAlign: 'center', color: 'var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)'}}><Smartphone size={20} /> Установите SmartCook как приложение</h3>
-          <p style={{fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)', textAlign: 'center', marginBottom: 'var(--space-3)', lineHeight: 1.5}}>Быстрый доступ к рецептам в один клик. Не занимает память, не требует скачивания из App Store или Google Play!</p>
-          <div style={{display: 'flex', flexDirection: 'column', gap: 'var(--space-3)'}}>
-            <div style={{background: 'var(--color-surface)', padding: 'var(--space-3)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)'}}>
-              <div style={{fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-body)', marginBottom: 'var(--space-2)', display: 'flex', alignItems: 'center', gap: 'var(--space-1)', color: 'var(--color-text)'}}><Smartphone size={18} /> Для iPhone (в Safari)</div>
-              <ol style={{margin: 0, paddingLeft: 'var(--space-4)', fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)', lineHeight: 1.6}}> <li>Нажмите иконку <strong>«Поделиться»</strong> (квадрат со стрелочкой вверх в самом низу экрана).</li> <li>Пролистайте меню вниз и выберите <strong>«На экран "Домой"»</strong> (со значком <Plus size={12} style={{ display: 'inline' }} />).</li> </ol>
+      {/* 2. Что умеет */}
+      <section className="about-section">
+        <h2 className="about-h2">Что умеет</h2>
+        <div className="about-cards">
+          {FEATURES.map((f) => (
+            <div key={f.title} className="about-card">
+              <span className="about-card-icon" aria-hidden>
+                {f.icon}
+              </span>
+              <div>
+                <div className="about-card-title">{f.title}</div>
+                <p className="about-card-text">{f.text}</p>
+              </div>
             </div>
-            <div style={{background: 'var(--color-surface)', padding: 'var(--space-3)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)'}}>
-              <div style={{fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-body)', marginBottom: 'var(--space-2)', display: 'flex', alignItems: 'center', gap: 'var(--space-1)', color: 'var(--color-text)'}}><Smartphone size={18} /> Для Android (в Chrome)</div>
-              <ol style={{margin: 0, paddingLeft: 'var(--space-4)', fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)', lineHeight: 1.6}}> <li>Нажмите на <strong>меню</strong> (три точки в правом верхнем углу экрана).</li> <li>Выберите пункт <strong>«Добавить на гл. экран»</strong> или <strong>«Установить приложение»</strong>.</li> </ol>
+          ))}
+        </div>
+      </section>
+
+      {/* 3. Кто делает */}
+      <section className="about-section">
+        <h2 className="about-h2">Кто делает</h2>
+        <div className="about-card about-card-plain">
+          <p className="about-author">
+            Меня зовут Артём Кернасовский, мне 17, учусь в 11 классе. SmartCook
+            делаю один: от идеи до кода. Проект представлял на конференциях
+            «Наука для жизни» и «Business skills», в МТПП. В интернете меня
+            знают как KERNAS.
+          </p>
+        </div>
+      </section>
+
+      {/* 4. Как мы работаем */}
+      <section className="about-section">
+        <h2 className="about-h2">Как мы работаем</h2>
+        <ul className="about-principles">
+          {PRINCIPLES.map((p, i) => (
+            <li key={i} className="about-principle">
+              <span className="about-principle-icon" aria-hidden>
+                {p.icon}
+              </span>
+              <span>{p.text}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {/* 5. Связь */}
+      <section className="about-section">
+        <h2 className="about-h2">Связь</h2>
+        <div className="about-links">
+          <a
+            className="about-link"
+            href={TELEGRAM_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => openExternalOnNative(e, TELEGRAM_URL)}
+          >
+            <span className="about-link-icon" aria-hidden>
+              <Send size={20} />
+            </span>
+            <span>
+              <span className="about-link-title">Telegram-канал</span>
+              <span className="about-link-sub">t.me/smartcook2026</span>
+            </span>
+          </a>
+
+          {/* mailto оставляем обычной ссылкой: WKWebView сам открывает почтовый
+              клиент, а Browser.open на mailto-схеме не сработает. */}
+          <a className="about-link" href={`mailto:${SUPPORT_EMAIL}`}>
+            <span className="about-link-icon" aria-hidden>
+              <Mail size={20} />
+            </span>
+            <span>
+              <span className="about-link-title">Почта</span>
+              <span className="about-link-sub">{SUPPORT_EMAIL}</span>
+            </span>
+          </a>
+
+          <a
+            className="about-link"
+            href={VK_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => openExternalOnNative(e, VK_URL)}
+          >
+            <span className="about-link-icon" aria-hidden>
+              <Users size={20} />
+            </span>
+            <span>
+              <span className="about-link-title">Сообщество ВКонтакте</span>
+              <span className="about-link-sub">vk.ru/smartcookpro</span>
+            </span>
+          </a>
+        </div>
+      </section>
+
+      {/* 6. Скачать — ТОЛЬКО в вебе (App Store 2.3.10) */}
+      {!isNative && (
+        <section className="about-section">
+          <h2 className="about-h2">Скачать</h2>
+          <div className="about-stores">
+            <a
+              className="about-store"
+              href={RUSTORE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <span className="about-store-mark" aria-hidden>
+                RS
+              </span>
+              <span>
+                <span className="about-store-title">RuStore</span>
+                <span className="about-store-sub">Android — установить</span>
+              </span>
+            </a>
+
+            {/* Место под бейдж App Store. Пока приложение на проверке — плашка
+                неактивна и ничего не обещает по срокам. */}
+            <div className="about-store about-store-soon" aria-disabled="true">
+              <span className="about-store-mark" aria-hidden>
+                iOS
+              </span>
+              <span>
+                <span className="about-store-title">App Store</span>
+                <span className="about-store-sub">iPhone — скоро</span>
+              </span>
             </div>
           </div>
-        </div>
-        )}
-        <div style={{background: 'linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-hover) 100%)', borderRadius: 'var(--radius-md)', padding: 'var(--space-4) var(--space-3)', textAlign: 'center', color: 'white', boxShadow: '0 10px 25px rgba(5, 150, 105, 0.4)', position: 'relative', overflow: 'hidden'}}>
-          <h3 style={{margin: '0 0 var(--space-2) 0', fontSize: 'var(--font-size-heading)', fontWeight: 'var(--font-weight-semibold)'}}>Telegram канал проекта</h3>
-          <p style={{opacity: 0.9, fontSize: 'var(--font-size-body)', marginBottom: 'var(--space-4)', lineHeight: 1.5}}>Следите за обновлениями, предлагайте идеи и общайтесь напрямую с разработчиком.</p>
-          <a href="https://t.me/smartcook2026" target="_blank" rel="noopener noreferrer" onClick={(e) => { if (isNativePlatform()) { e.preventDefault(); void openExternal("https://t.me/smartcook2026"); } }} style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)', background: 'white', color: 'var(--color-accent-hover)', textDecoration: 'none', padding: 'var(--space-3) var(--space-4)', borderRadius: 'var(--radius-sm)', fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-body)', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', transition: 'transform 0.2s'}}> <Send size={20} /> Подписаться</a>
-        </div>
+        </section>
+      )}
 
-        {/* Вместо убранного футера: обязательные ссылки. Рендерится только в
-            нативной сборке — в вебе всё это есть в футере. */}
-        <NativeDocsLinks variant="block" />
-      </div>
+      {/* 7. Документы */}
+      <NativeDocsLinks variant="block" always />
+
+      {/* Ссылка на поддержку — единственное, что не поместилось в блоки выше,
+          но нужно человеку с проблемой. */}
+      <p className="about-footnote">
+        Что-то не работает? Напишите нам через <Link href="/support">Поддержку</Link>.
+      </p>
     </div>
   );
 }

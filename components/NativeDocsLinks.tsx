@@ -82,8 +82,7 @@ export default function NativeDocsLinks({
         border: "1px solid var(--color-border)",
         borderRadius: "var(--radius-md)",
         padding: "var(--space-4) var(--space-3)",
-        // Та же отбивка, что у остальных разделов страницы «О проекте».
-        marginTop: "40px",
+        marginTop: "var(--space-5)",
         textAlign: "center",
       }}
     >

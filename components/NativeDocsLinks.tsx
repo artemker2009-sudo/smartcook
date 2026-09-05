@@ -32,13 +32,18 @@ const COPYRIGHT = "© SmartCook 2026";
 
 export default function NativeDocsLinks({
   variant = "block",
+  always = false,
 }: {
   /** "block" — отдельная группа с заголовком («О проекте»).
    *  "inline" — те же ссылки одной строкой (личный кабинет). */
   variant?: "block" | "inline";
+  /** Показывать и в вебе. Нужно странице «О проекте»: там «Документы» —
+   *  штатный блок страницы, а не замена футеру. В личном кабинете проп не
+   *  ставим: в вебе те же ссылки уже есть в футере, и дубль ни к чему. */
+  always?: boolean;
 }) {
   const isNative = useIsNative();
-  if (!isNative) return null;
+  if (!isNative && !always) return null;
 
   const linkStyle: React.CSSProperties = {
     color: "var(--color-text-secondary)",

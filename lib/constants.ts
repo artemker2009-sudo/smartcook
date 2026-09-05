@@ -1,3 +1,12 @@
+// --- Контакты проекта (блок «Связь» на странице «О проекте») -----------------
+// Держим здесь, а не по компонентам: до этого адрес Telegram-канала был вписан
+// строкой в двух местах (About и комната банкета), и они уже начинали
+// расходиться. Почта до сих пор жила только в тексте страницы поддержки.
+export const TELEGRAM_URL = "https://t.me/smartcook2026";
+export const SUPPORT_EMAIL = "smartcook.dev@inbox.ru";
+// utm_source=site — чтобы в статистике сообщества было видно переходы с сайта.
+export const VK_URL = "https://vk.ru/smartcookpro?utm_source=site";
+
 // Ссылка на страницу доната для кнопки "Поддержать проект".
 // Подставь сюда реальный адрес (Boosty/ЮMoney/Тинькофф и т.п.).
 export const DONATE_URL = "https://pay.cloudtips.ru/p/6f66d8e3";

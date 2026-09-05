@@ -1228,6 +1228,187 @@ body {
 }
 .site-footer nav a:hover { color: var(--color-accent); }
 
+/* ==================== СТРАНИЦА «О ПРОЕКТЕ» ====================
+   Одна вёрстка на веб и приложение (components/About.tsx).
+   Мобильный экран основной: одна колонка, крупные заголовки, много воздуха.
+   Вторая колонка появляется только с 560px, где для неё реально есть место. */
+
+.about {
+  max-width: 560px;
+  margin: 0 auto;
+  /* Сверху над страницей висят плавающие круглые кнопки (бургер и аватар,
+     фиксированные на 8..52px). Отступа .container им хватает буквально на 8px —
+     белые кружки почти касались зелёной шапки и выглядели случайными.
+     Добавляем воздух, чтобы они читались как отдельный слой над страницей. */
+  padding-top: var(--space-3);
+  padding-bottom: var(--space-6);
+}
+
+/* Шапка: фирменный зелёный (тот же #0E8A60, что на заставке и иконке) —
+   страница сразу читается как часть приложения, а не как чужой документ. */
+.about-hero {
+  background: linear-gradient(135deg, #0e8a60 0%, #0a6f4d 100%);
+  color: #fff;
+  border-radius: var(--radius-md);
+  padding: var(--space-6) var(--space-4);
+  margin-bottom: var(--space-6);
+  box-shadow: 0 18px 40px -18px rgba(14, 138, 96, 0.55);
+}
+.about-hero-title {
+  margin: 0 0 var(--space-3) 0;
+  font-size: 30px;
+  line-height: 1.15;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.02em;
+}
+.about-hero-text {
+  margin: 0;
+  font-size: var(--font-size-body);
+  line-height: 1.6;
+  opacity: 0.93;
+}
+
+.about-section { margin-bottom: var(--space-6); }
+
+.about-h2 {
+  margin: 0 0 var(--space-4) 0;
+  font-size: 22px;
+  line-height: 1.2;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  letter-spacing: -0.01em;
+}
+
+/* Карточки «Что умеет»: одна колонка на телефоне — у пунктов есть описание,
+   и в две колонки на 375px оно превращается в лесенку из двух слов. */
+.about-cards { display: grid; gap: var(--space-3); }
+.about-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-card);
+}
+.about-card-plain { display: block; }
+.about-card-icon {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent-subtle);
+  color: #0e8a60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.about-card-title {
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-body);
+  color: var(--color-text);
+  margin-bottom: 2px;
+}
+.about-card-text {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+.about-author {
+  margin: 0;
+  font-size: var(--font-size-body);
+  line-height: 1.65;
+  color: var(--color-text-secondary);
+}
+
+/* «Как мы работаем» — список, а не карточки: три коротких утверждения,
+   в карточках они выглядели бы важнее, чем есть. */
+.about-principles { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
+.about-principle {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  font-size: var(--font-size-body);
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+.about-principle-icon { flex-shrink: 0; color: #0e8a60; margin-top: 1px; }
+.about-principle strong { color: var(--color-text); font-weight: var(--font-weight-semibold); }
+
+/* Связь и магазины: одинаковые строки-плитки с зоной тапа во всю ширину. */
+.about-links, .about-stores { display: grid; gap: var(--space-2); }
+.about-link, .about-store {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 64px;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  color: var(--color-text);
+  transition: border-color 0.15s, transform 0.1s;
+}
+.about-link:hover, .about-store:hover { border-color: #0e8a60; }
+.about-link:active, .about-store:active { transform: translateY(1px); }
+.about-link-icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  background: var(--color-accent-subtle);
+  color: #0e8a60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.about-link-title, .about-store-title {
+  display: block;
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-body);
+}
+.about-link-sub, .about-store-sub {
+  display: block;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-secondary);
+  margin-top: 1px;
+  /* Длинная почта не должна распирать плитку на 375px. */
+  overflow-wrap: anywhere;
+}
+.about-store-mark {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-caption);
+}
+/* Заготовка под App Store: неактивна и ничего не обещает по срокам. */
+.about-store-soon { opacity: 0.55; cursor: default; }
+.about-store-soon:hover { border-color: var(--color-border); }
+
+.about-footnote {
+  margin: var(--space-5) 0 0 0;
+  text-align: center;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+}
+.about-footnote a { color: var(--color-accent-hover); }
+
+@media (min-width: 560px) {
+  .about-cards { grid-template-columns: 1fr 1fr; }
+  .about-hero { padding: var(--space-6) var(--space-5); }
+  .about-hero-title { font-size: 34px; }
+}
+
 /* --- СТАТИЧЕСКИЕ ДОКУМЕНТЫ (О сервисе, Политика, Соглашение) --- */
 .doc-body { color: var(--color-text-secondary); font-size: var(--font-size-body); line-height: 1.65; }
 .doc-body h2 {

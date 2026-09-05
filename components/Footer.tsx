@@ -1,7 +1,10 @@
+"use client";
+
 import Link from "next/link";
 import DonateButton from "@/components/DonateButton";
 import ReportError from "@/components/ReportError";
 import InstallAppButton from "@/components/InstallAppButton";
+import { useIsNative } from "@/lib/native";
 
 const footerLinkStyle: React.CSSProperties = {
   color: "var(--color-text-secondary)",
@@ -11,6 +14,18 @@ const footerLinkStyle: React.CSSProperties = {
 };
 
 export default function Footer() {
+  // В нативной оболочке футера нет НИ НА ОДНОМ экране. На телефоне он читался
+  // как хвост сайта: донат (запрещён правилами магазина вне IAP), кнопка
+  // «Установить приложение» (человек уже в приложении) и абзац, обращённый к
+  // поисковым ботам. Обязательные ссылки не потерялись — они переехали в
+  // «О проекте» и личный кабинет, см. components/NativeDocsLinks.
+  //
+  // Гейт стоит ЗДЕСЬ, а не в root-layout, сознательно: серверный gate по
+  // x-pathname уже однажды залип при клиентской навигации (таб-бар перекрывал
+  // экраны). Компонент решает про себя сам и переживает любую навигацию.
+  const isNative = useIsNative();
+  if (isNative) return null;
+
   return (
     <footer className="site-footer">
       {/* «Поддержать проект» — выше ссылок (решение директора, этап 9 Q). */}

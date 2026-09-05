@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef, ChangeEvent } from "react";
+import { useState, useEffect, ChangeEvent } from "react";
 import { supabase } from "@/lib/supabase";
 import { Menu, X, Flame, Search, CheckCircle, Sparkles, User, Store, PartyPopper, Settings, Code2, Clipboard } from "lucide-react";
+import { toast } from "sonner";
 
 import type { AnalysisData, RecipeData, DBRecipe, DailyRecipeType, HolidayType, DBComment } from "@/lib/types";
 import { DEVELOPER_ID, scaleAmount, formatCooks, cleanText, formatTime, formatCalories, getCroppedImg } from "@/lib/utils";
@@ -114,13 +115,24 @@ export default function SearchApp() {
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
 
 
-  const [toast, setToast] = useState<{ message: string; icon?: React.ReactNode; type?: 'success' | 'error' } | null>(null);
-  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
+  // Раньше здесь жил собственный тост: своё состояние, свой таймер и своя
+  // тёмная плашка .sc-toast сверху экрана. Теперь SearchApp пользуется общим
+  // рендерером (components/ui/AppToaster) наравне с остальным приложением —
+  // тосты в приложении выглядят одинаково и появляются в одном месте.
+  //
+  // Сигнатуру showToast намеренно оставили прежней: её зовут больше двадцати
+  // раз по этому файлу, и переписывать каждый вызов значило бы рисковать
+  // пропустить один. Иконка, если её передали, уезжает в тост как есть.
   const showToast = (message: string, icon?: React.ReactNode, type: 'success' | 'error' = 'success') => {
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    setToast({ message, icon, type });
-    toastTimerRef.current = setTimeout(() => setToast(null), 5000);
+    if (type === 'error') {
+      toast.error(message, icon ? { icon } : undefined);
+      return;
+    }
+    if (icon) {
+      toast(message, { icon });
+      return;
+    }
+    toast.success(message);
   };
 
   // Прикрепляем токен сессии к AI-запросам, чтобы бэкенд мог считать лимит
@@ -966,14 +978,6 @@ export default function SearchApp() {
       `}</style> 
 
       {/* TOAST УВЕДОМЛЕНИЯ */}
-      {toast && (
-        <div className={`sc-toast ${toast.type === 'error' ? 'sc-toast-error' : 'sc-toast-success'}`}>
-          {toast.icon && <span className="sc-toast-icon">{toast.icon}</span>}
-          <span className="sc-toast-text">{toast.message}</span>
-          <button className="sc-toast-close" onClick={() => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current); setToast(null); }}>&times;</button>
-        </div>
-      )}
-
       <FullScreenImage imageUrl={fullScreenImage} onClose={() => setFullScreenImage(null)} />
 
       <CropperModal

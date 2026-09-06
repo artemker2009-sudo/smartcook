@@ -33,10 +33,14 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>SmartCook uses the camera so you can photograph the groceries you have at home. The photo is sent for recognition and a recipe is suggested from what it finds.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>SmartCook needs the microphone so you can dictate groceries into your shopping list and control the cooking steps by voice. It is on only while you are recording, and SmartCook keeps no audio.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Needed only when you choose to save a dish photo to your library. SmartCook never writes there on its own.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>SmartCook needs access to your photos so you can pick a picture of your groceries or a finished dish instead of taking a new one.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Your speech is turned into text by iOS so SmartCook can add the groceries you name to the list and understand cooking commands such as “next step”. Only the recognized text is used.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

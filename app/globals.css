@@ -46,6 +46,13 @@
   --space-3: 16px;
   --space-4: 24px;
   --space-5: 32px;
+  /* --space-6 существовал только в вызовах var(), но не в объявлениях. CSS
+     отбрасывает ЦЕЛОЕ объявление с невалидной var()-ссылкой, поэтому четыре
+     места в коде молча теряли отступ: верхний padding гостевого профиля (там
+     невалидным становился весь calc()), нижние отступы профиля и ленты
+     сообщества, отбивка «опасной зоны». Объявляем токен — все четыре чинятся
+     сами, без правок в компонентах. */
+  --space-6: 48px;
 
   --shadow-card: 0 10px 40px -5px rgba(0,0,0,0.1);
 }
@@ -1234,13 +1241,17 @@ body {
    Вторая колонка появляется только с 560px, где для неё реально есть место. */
 
 .about {
-  max-width: 560px;
+  /* Не шире .container (500px) — иначе карточки визуально спорят с боковыми
+     полями страницы. */
+  max-width: 500px;
   margin: 0 auto;
-  /* Сверху над страницей висят плавающие круглые кнопки (бургер и аватар,
-     фиксированные на 8..52px). Отступа .container им хватает буквально на 8px —
-     белые кружки почти касались зелёной шапки и выглядели случайными.
-     Добавляем воздух, чтобы они читались как отдельный слой над страницей. */
-  padding-top: var(--space-3);
+  /* Верхний отступ = высота плавающих кнопок + 24px.
+     Кнопки (бургер и аватар) зафиксированы на top: 8px, высота 44px, то есть
+     занимают полосу 0..52px. Нужно 52 + 24 = 76px от верха экрана.
+     .container уже даёт env(safe-area-inset-top) + 60px, поэтому здесь
+     добавляем недостающие 16px — вырез экрана учтён один раз, а не дважды.
+     Кнопки не трогаем: они общие для всего сайта. */
+  padding-top: 16px;
   padding-bottom: var(--space-6);
 }
 
@@ -1250,28 +1261,41 @@ body {
   background: linear-gradient(135deg, #0e8a60 0%, #0a6f4d 100%);
   color: #fff;
   border-radius: var(--radius-md);
-  padding: var(--space-6) var(--space-4);
-  margin-bottom: var(--space-6);
+  /* Явные значения, а не токены: 28px сверху/снизу, 24px по бокам.
+     Высоту НЕ фиксируем и отрицательных margin не используем — блок растёт
+     под текст на любой ширине. */
+  padding: 28px 24px;
+  margin: 0;
   box-shadow: 0 18px 40px -18px rgba(14, 138, 96, 0.55);
+  /* Длинное слово (например адрес) не должно распирать карточку на 320px. */
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 .about-hero-title {
   margin: 0 0 var(--space-3) 0;
-  font-size: 30px;
-  line-height: 1.15;
+  font-size: 28px;
+  /* Не меньше 1.2, иначе на 320px строки слипаются и нижняя визуально
+     вылезает за скруглённый угол. */
+  line-height: 1.25;
   font-weight: var(--font-weight-semibold);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
+  overflow-wrap: break-word;
 }
 .about-hero-text {
   margin: 0;
   font-size: var(--font-size-body);
   line-height: 1.6;
   opacity: 0.93;
+  overflow-wrap: break-word;
 }
 
-.about-section { margin-bottom: var(--space-6); }
+/* Отбивка задаётся ОДНИМ правилом на секцию, а не парой margin-bottom у
+   предыдущего блока и margin-top у следующего: так они не складываются и не
+   схлопываются. 40px до заголовка, 16px от заголовка до содержимого. */
+.about-section { margin-top: 40px; }
 
 .about-h2 {
-  margin: 0 0 var(--space-4) 0;
+  margin: 0 0 16px 0;
   font-size: 22px;
   line-height: 1.2;
   font-weight: var(--font-weight-semibold);
@@ -1338,7 +1362,8 @@ body {
 .about-principle strong { color: var(--color-text); font-weight: var(--font-weight-semibold); }
 
 /* Связь и магазины: одинаковые строки-плитки с зоной тапа во всю ширину. */
-.about-links, .about-stores { display: grid; gap: var(--space-2); }
+/* 16px между карточками — как в «Что умеет» и «Как мы работаем». */
+.about-links, .about-stores { display: grid; gap: var(--space-3); }
 .about-link, .about-store {
   display: flex;
   align-items: center;
@@ -1405,8 +1430,8 @@ body {
 
 @media (min-width: 560px) {
   .about-cards { grid-template-columns: 1fr 1fr; }
-  .about-hero { padding: var(--space-6) var(--space-5); }
-  .about-hero-title { font-size: 34px; }
+  .about-hero { padding: 32px 28px; }
+  .about-hero-title { font-size: 32px; }
 }
 
 /* --- СТАТИЧЕСКИЕ ДОКУМЕНТЫ (О сервисе, Политика, Соглашение) --- */

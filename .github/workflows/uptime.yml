@@ -1,0 +1,163 @@
+# Внешний сторож доступности smart-cook.pro.
+#
+# Зачем он нужен при наличии сторожа на самом VPS: если ляжет сам VPS (или его
+# сеть), сторож на нём замолчит вместе с сайтом и никто ничего не узнает.
+# Этот воркфлоу работает у GitHub, вне нашей инфраструктуры, и служит именно
+# страховкой на такой случай. Штатные падения приложения ловит VPS-сторож —
+# он проверяет чаще (раз в 2 минуты против 15 здесь).
+#
+# НЕ НАКРУЧИВАЕТ АНАЛИТИКУ: только HEAD-запрос (curl -I), без единого GET на
+# страницу, без исполнения JS. Яндекс.Метрика и Vercel Analytics считают визиты
+# браузерным JS, поэтому такие проверки в них не попадают вовсе. User-Agent
+# помечен как монитор — чтобы проверки было видно в серверных логах и их можно
+# было отфильтровать.
+#
+# Секреты (Settings → Secrets and variables → Actions):
+#   TELEGRAM_BOT_TOKEN — токен того же бота, что делает премодерацию ленты
+#   TELEGRAM_CHAT_ID   — chat_id основателя
+# Имена намеренно совпадают с переменными окружения приложения в Vercel.
+
+name: uptime
+
+on:
+  schedule:
+    # Каждые 15 минут. Точное время запуска у GitHub плавающее (при нагрузке
+    # cron может опоздать на несколько минут) — для страховочной проверки это
+    # допустимо, точность даёт сторож на VPS.
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "Что проверять (для ручной проверки алерта подставьте заведомо неверный адрес)"
+        required: false
+        default: "https://smart-cook.pro/"
+
+permissions: {}
+
+concurrency:
+  # Проверки не должны наслаиваться друг на друга: если один запуск завис на
+  # таймаутах, следующий по расписанию ждёт, а не шлёт второй алерт о том же.
+  group: uptime
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: HEAD-проверка сайта
+        id: probe
+        env:
+          TARGET_URL: ${{ github.event.inputs.url || 'https://smart-cook.pro/' }}
+        run: |
+          set -uo pipefail
+
+          UA='SmartCook-Uptime/1.0 (monitor)'
+
+          probe() {
+            # -I  — HEAD, тело страницы не запрашиваем вовсе
+            # -o /dev/null -w '%{http_code}' — наружу отдаём только код ответа
+            local out=""
+            # Важно: при отказе соединения curl И печатает 000 через -w, И
+            # выходит с ненулевым кодом. Поэтому здесь `|| true`, а не
+            # `|| echo 000` — иначе на выходе склеивались два «000».
+            out="$(curl -s -I \
+              -A "$UA" \
+              --max-time 15 \
+              -o /dev/null \
+              -w '%{http_code}' \
+              "$TARGET_URL" 2>/dev/null || true)"
+            # Пусто бывает, когда curl упал раньше, чем дошёл до -w
+            [ -n "$out" ] || out="000"
+            echo "$out"
+          }
+
+          # 200 — обычный ответ. 308 — постоянный редирект (так nginx уводит www
+          # на apex); для проверки «сайт жив» этого достаточно, дальше по
+          # редиректу не идём, чтобы не делать лишний запрос.
+          ok() { [ "$1" = "200" ] || [ "$1" = "308" ]; }
+
+          CODE="$(probe)"
+          echo "Попытка 1: HTTP $CODE"
+
+          # Один неудачный ответ — ещё не авария: у раннеров GitHub бывают
+          # сетевые всплески. Повторяем один раз, и только двойная неудача
+          # считается падением. Та же логика, что на VPS (там 2 неудачи подряд).
+          if ! ok "$CODE"; then
+            sleep 20
+            CODE="$(probe)"
+            echo "Попытка 2: HTTP $CODE"
+          fi
+
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          if ok "$CODE"; then
+            echo "status=up" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=down" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Алерт в Telegram
+        if: steps.probe.outputs.status == 'down'
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          CODE: ${{ steps.probe.outputs.code }}
+          TARGET_URL: ${{ github.event.inputs.url || 'https://smart-cook.pro/' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -uo pipefail
+
+          if [ -z "${BOT_TOKEN:-}" ] || [ -z "${CHAT_ID:-}" ]; then
+            echo "::error::Секреты TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID не заданы в настройках репозитория"
+            exit 1
+          fi
+
+          # 000 означает, что ответа не было вообще (DNS/таймаут/отказ), любой
+          # другой код — сайт ответил, но не тем, чего мы ждём.
+          if [ "$CODE" = "000" ]; then
+            DETAIL="ответа нет (таймаут или отказ соединения)"
+          else
+            DETAIL="ответ HTTP $CODE"
+          fi
+
+          # Текст собираем printf-ом, а не многострочной переменной: строки
+          # такой переменной обязаны начинаться с нулевой колонки, и это ломает
+          # блочный скаляр YAML (наступил на это при написании файла).
+          TEXT="$(printf '%s\n' \
+            "⛔ Снаружи smart-cook.pro не отвечает (возможно, лёг VPS)" \
+            "" \
+            "Адрес: ${TARGET_URL}" \
+            "Проверка: ${DETAIL}" \
+            "Проверял: GitHub Actions, две попытки подряд" \
+            "Лог: ${RUN_URL}")"
+
+          # --data-urlencode, а не подстановка в URL: текст многострочный и с
+          # эмодзи. Токен уходит в путь запроса, поэтому -s и никакого -v —
+          # чтобы он не попал в публичный лог сборки.
+          HTTP="$(curl -s \
+            -o /tmp/tg.json \
+            -w '%{http_code}' \
+            --max-time 20 \
+            -X POST \
+            "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${CHAT_ID}" \
+            --data-urlencode "text=${TEXT}" \
+            --data-urlencode "disable_web_page_preview=true" || echo "000")"
+
+          if [ "$HTTP" != "200" ]; then
+            # Тело ответа Telegram токена не содержит — показать его безопасно
+            # и полезно (там причина: неверный chat_id, бот заблокирован и т.п.)
+            echo "::error::Telegram не принял сообщение, HTTP $HTTP"
+            cat /tmp/tg.json 2>/dev/null || true
+            exit 1
+          fi
+
+          echo "Алерт отправлен."
+
+      - name: Пометить запуск как упавший
+        # Красный запуск в списке Actions — чтобы падение было видно и в
+        # интерфейсе GitHub, а не только в Telegram.
+        if: steps.probe.outputs.status == 'down'
+        run: |
+          echo "::error::Сайт не ответил ожидаемым кодом (получено: ${{ steps.probe.outputs.code }})"
+          exit 1

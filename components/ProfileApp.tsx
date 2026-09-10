@@ -31,6 +31,7 @@ import {
   ImageIcon,
   Code2,
   AlertTriangle,
+  Lightbulb,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -54,6 +55,7 @@ import EditProfileModal from "@/components/modals/EditProfileModal";
 import CropperModal from "@/components/modals/CropperModal";
 import DeleteAccountModal from "@/components/modals/DeleteAccountModal";
 import NativeDocsLinks from "@/components/NativeDocsLinks";
+import SuggestSheet from "@/components/SuggestSheet";
 
 type MyPost = {
   id: string;
@@ -103,6 +105,9 @@ export default function ProfileApp() {
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isCropping, setIsCropping] = useState(false);
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+
+  // Шторка «Предложить идею» — та же, что у карточки на Главной.
+  const [isSuggestOpen, setIsSuggestOpen] = useState(false);
 
   // Удаление аккаунта (App Store 5.1.1(v)).
   const [isDeleteAccountOpen, setIsDeleteAccountOpen] = useState(false);
@@ -555,6 +560,28 @@ export default function ProfileApp() {
 
         {/* Опасная зона: удаление аккаунта (App Store 5.1.1(v)). Внизу, отдельно,
             неакцентная ссылка — не провоцирует случайный тап, но всегда доступна. */}
+        {/* Предложить идею — та же шторка, что и у карточки на Главной.
+            Стоит перед опасной зоной (удаление аккаунта) и после разделов
+            с содержимым: это обычный пункт кабинета, а не действие-риск. */}
+        <button
+          type="button"
+          className="card"
+          onClick={() => setIsSuggestOpen(true)}
+          style={{ width: "100%", padding: "var(--space-4)", marginBottom: "var(--space-3)", display: "flex", alignItems: "center", gap: "var(--space-3)", border: "none", textAlign: "left", cursor: "pointer" }}
+        >
+          <span aria-hidden style={{ flexShrink: 0, width: "40px", height: "40px", borderRadius: "var(--radius-sm)", display: "flex", alignItems: "center", justifyContent: "center", background: "#fef3c7", color: "#b45309" }}>
+            <Lightbulb size={20} />
+          </span>
+          <span style={{ minWidth: 0 }}>
+            <span style={{ display: "block", fontSize: "var(--font-size-body)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text)" }}>
+              Предложить идею
+            </span>
+            <span style={{ display: "block", fontSize: "var(--font-size-caption)", color: "var(--color-text-muted)", marginTop: "2px" }}>
+              Что добавить, а что убрать — читаю каждое сообщение
+            </span>
+          </span>
+        </button>
+
         <div style={{ marginTop: "var(--space-6)", paddingTop: "var(--space-4)", borderTop: "1px solid var(--color-border)", textAlign: "center" }}>
           <button
             type="button"
@@ -571,6 +598,8 @@ export default function ProfileApp() {
       </div>
 
       {/* Модалки */}
+      <SuggestSheet open={isSuggestOpen} onClose={() => setIsSuggestOpen(false)} />
+
       <PreferencesModal
         isOpen={isPreferencesOpen}
         onClose={() => setIsPreferencesOpen(false)}

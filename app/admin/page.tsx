@@ -142,7 +142,33 @@ type ImagesStatus = {
   maxBatch: number;
 };
 
-type TabId = "management" | "analytics" | "purchases" | "news" | "articles" | "tips" | "feed" | "images" | "warmup" | "requests" | "errors" | "reports";
+type TabId = "management" | "analytics" | "purchases" | "news" | "articles" | "tips" | "feed" | "images" | "warmup" | "requests" | "errors" | "reports" | "suggestions";
+
+// Предложения пользователей («что добавить, а что убрать»). Личность автора
+// сюда не приходит вовсе — только тип и хвост идентификатора (см. роут).
+type SuggestionStatus = "new" | "in_progress" | "done" | "rejected";
+type SuggestionItem = {
+  id: string;
+  createdAt: string;
+  kind: "add" | "remove" | "bug" | string;
+  text: string;
+  status: SuggestionStatus | string;
+  adminNote: string | null;
+  author: { kind: "user" | "guest"; short: string };
+};
+
+const SUGGESTION_STATUS_LABEL: Record<SuggestionStatus, string> = {
+  new: "Новое",
+  in_progress: "В работе",
+  done: "Сделано",
+  rejected: "Отклонено",
+};
+
+const SUGGESTION_KIND_BADGE: Record<string, { text: string; cls: string }> = {
+  add: { text: "Добавить", cls: "bg-emerald-100 text-emerald-700 ring-emerald-200" },
+  remove: { text: "Убрать", cls: "bg-zinc-100 text-zinc-600 ring-zinc-200" },
+  bug: { text: "🐞 Не работает", cls: "bg-red-100 text-red-700 ring-red-200" },
+};
 
 // Жалобы на посты ленты (вкладка «Жалобы»). Личность жалобщика сервер отдаёт
 // обезличенно: тип + последние 4 символа идентификатора.
@@ -177,6 +203,7 @@ const TABS = [
   { id: "requests" as TabId, label: "🔑 Заявки на доступ", hint: "Восстановление пароля" },
   { id: "errors" as TabId, label: "🐞 Ошибки", hint: "Баг-репорты пользователей" },
   { id: "reports" as TabId, label: "🚩 Жалобы", hint: "Жалобы на посты ленты" },
+  { id: "suggestions" as TabId, label: "💡 Предложения", hint: "Что добавить, а что убрать" },
 ];
 
 // Репорт со стенда разработки, а не от живого пользователя.
@@ -275,6 +302,16 @@ export default function AdminPage() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   // Жалобы на посты ленты (вкладка «Жалобы»). Грузятся лениво при открытии.
+  const [suggestions, setSuggestions] = useState<SuggestionItem[] | null>(null);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [suggestionsError, setSuggestionsError] = useState("");
+  const [suggestionsTableReady, setSuggestionsTableReady] = useState(true);
+  const [suggestionsFilter, setSuggestionsFilter] = useState<SuggestionStatus | "all">("all");
+  const [suggestionsNewCount, setSuggestionsNewCount] = useState(0);
+  const [actingSuggestionId, setActingSuggestionId] = useState<string | null>(null);
+  // Черновики заметок: заметка сохраняется по кнопке, а не на каждый символ.
+  const [suggestionNoteDrafts, setSuggestionNoteDrafts] = useState<Record<string, string>>({});
+
   const [reports, setReports] = useState<CommunityReport[] | null>(null);
   const [reportsLoading, setReportsLoading] = useState(false);
   const [reportsError, setReportsError] = useState("");
@@ -412,6 +449,13 @@ export default function AdminPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, activeTab]);
+
+  // Раздел «Предложения» грузим лениво и перезагружаем при смене фильтра.
+  useEffect(() => {
+    if (isAuthenticated && activeTab === "suggestions") {
+      void loadSuggestions(suggestionsFilter);
+    }
+  }, [isAuthenticated, activeTab, suggestionsFilter]);
 
   // Раздел «Жалобы» грузим лениво — при первом открытии вкладки.
   useEffect(() => {
@@ -587,6 +631,83 @@ export default function AdminPage() {
       console.error("Ошибка при обновлении репорта", error);
     } finally {
       setMarkingReportId(null);
+    }
+  };
+
+  // --- Вкладка «Предложения» ----------------------------------------------
+  // Фильтр по статусу уезжает на сервер (а не режется на клиенте): при
+  // нескольких сотнях записей выборка должна сужаться в БД, иначе лимит в 300
+  // строк съедается «Сделано» и новые предложения просто не доедут до экрана.
+  const loadSuggestions = async (filter: SuggestionStatus | "all") => {
+    setSuggestionsLoading(true);
+    setSuggestionsError("");
+    try {
+      const query = filter === "all" ? "" : `?status=${filter}`;
+      const response = await fetch(`/api/admin/suggestions${query}`, { cache: "no-store" });
+      if (response.status === 401) {
+        setIsAuthenticated(false);
+        return;
+      }
+      if (!response.ok) throw new Error("Не удалось загрузить предложения");
+      const data = await response.json();
+      setSuggestions(Array.isArray(data?.items) ? (data.items as SuggestionItem[]) : []);
+      setSuggestionsNewCount(typeof data?.newCount === "number" ? data.newCount : 0);
+      setSuggestionsTableReady(data?.tableReady !== false);
+    } catch (error) {
+      console.error("Ошибка при загрузке предложений", error);
+      setSuggestionsError("Не удалось загрузить предложения");
+      setSuggestions([]);
+    } finally {
+      setSuggestionsLoading(false);
+    }
+  };
+
+  const handleSuggestionPatch = async (
+    id: string,
+    patch: { status?: SuggestionStatus; adminNote?: string },
+  ) => {
+    setActingSuggestionId(id);
+    setSuggestionsError("");
+    try {
+      const response = await fetch("/api/admin/suggestions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, ...patch }),
+      });
+      if (response.status === 409) {
+        const data = await response.json().catch(() => null);
+        setSuggestionsError(data?.error || "Нужна миграция supabase_suggestions.sql");
+        return;
+      }
+      if (!response.ok) throw new Error("Не удалось обновить предложение");
+
+      setSuggestions((current) =>
+        (current ?? []).map((item) =>
+          item.id === id
+            ? {
+                ...item,
+                status: patch.status ?? item.status,
+                adminNote:
+                  patch.adminNote !== undefined ? patch.adminNote || null : item.adminNote,
+              }
+            : item,
+        ),
+      );
+      // Бейдж «новых» ведём здесь же: перезагружать список ради одной цифры
+      // незачем, а расхождение с фильтром «Новые» человек заметит сразу.
+      if (patch.status !== undefined) {
+        const before = suggestions?.find((item) => item.id === id)?.status;
+        if (before === "new" && patch.status !== "new") {
+          setSuggestionsNewCount((n) => Math.max(0, n - 1));
+        } else if (before !== "new" && patch.status === "new") {
+          setSuggestionsNewCount((n) => n + 1);
+        }
+      }
+    } catch (error) {
+      console.error("Ошибка при обновлении предложения", error);
+      setSuggestionsError("Не удалось обновить предложение");
+    } finally {
+      setActingSuggestionId(null);
     }
   };
 
@@ -1155,6 +1276,7 @@ export default function AdminPage() {
     feed: communityQueue.length,
     requests: newResetRequestsCount,
     errors: newErrorReportsCount,
+    suggestions: suggestionsNewCount,
   };
 
   if (isCheckingSession) {
@@ -2383,6 +2505,144 @@ export default function AdminPage() {
                     <p className="mt-4 whitespace-pre-wrap text-base font-medium text-zinc-950">
                       {report.message?.trim() || "Текст репорта отсутствует."}
                     </p>
+                  </article>
+                );
+              })}
+            </section>
+          ) : null}
+
+          {activeTab === "suggestions" ? (
+            <section className="space-y-4">
+              <div className="rounded-[2rem] border border-zinc-200 bg-white px-6 py-5 shadow-sm">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-400">Обратная связь</p>
+                <h3 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-950">Предложения пользователей</h3>
+                <p className="mt-2 text-sm text-zinc-500">
+                  Что добавить, что убрать и что не работает. Приходит с карточки на Главной
+                  и из личного кабинета, копия дублируется в Telegram. Личность автора не
+                  раскрывается — виден только тип (аккаунт/гость) и хвост идентификатора.
+                </p>
+              </div>
+
+              {!suggestionsTableReady ? (
+                <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                  Не прогнана миграция <span className="font-mono">supabase_suggestions.sql</span> —
+                  таблица предложений ещё не создана.
+                </p>
+              ) : null}
+
+              {suggestionsError ? (
+                <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                  {suggestionsError}
+                </p>
+              ) : null}
+
+              <div className="flex flex-wrap gap-2">
+                {([["all", "Все"], ["new", "Новые"], ["in_progress", "В работе"], ["done", "Сделано"], ["rejected", "Отклонённые"]] as const).map(
+                  ([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setSuggestionsFilter(value as SuggestionStatus | "all")}
+                      className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${
+                        suggestionsFilter === value
+                          ? "bg-black text-white"
+                          : "border border-zinc-200 text-zinc-700 hover:bg-zinc-50"
+                      }`}
+                    >
+                      {label}
+                      {value === "new" && suggestionsNewCount > 0 ? ` (${suggestionsNewCount})` : ""}
+                    </button>
+                  ),
+                )}
+              </div>
+
+              {suggestionsLoading ? (
+                <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-12 text-center text-sm text-zinc-500 shadow-sm">
+                  Загружаем предложения...
+                </div>
+              ) : null}
+
+              {!suggestionsLoading && suggestions !== null && suggestions.length === 0 ? (
+                <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-12 text-center text-sm text-zinc-500 shadow-sm">
+                  {suggestionsFilter === "all" ? "Предложений пока нет." : "В этом статусе пусто."}
+                </div>
+              ) : null}
+
+              {(suggestions ?? []).map((item) => {
+                const kindBadge = SUGGESTION_KIND_BADGE[item.kind] ?? {
+                  text: item.kind,
+                  cls: "bg-zinc-100 text-zinc-600 ring-zinc-200",
+                };
+                const isActing = actingSuggestionId === item.id;
+                const draft = suggestionNoteDrafts[item.id] ?? item.adminNote ?? "";
+                const noteChanged = draft.trim() !== (item.adminNote ?? "").trim();
+
+                return (
+                  <article
+                    key={item.id}
+                    className="rounded-[2rem] border border-zinc-200 bg-white px-6 py-5 shadow-sm"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ${kindBadge.cls}`}
+                      >
+                        {kindBadge.text}
+                      </span>
+                      <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600">
+                        {SUGGESTION_STATUS_LABEL[item.status as SuggestionStatus] ?? item.status}
+                      </span>
+                      <span className="text-xs text-zinc-400">
+                        {new Date(item.createdAt).toLocaleString("ru-RU")}
+                      </span>
+                      <span className="text-xs text-zinc-400">
+                        · {item.author.kind === "user" ? "аккаунт" : "гость"} …{item.author.short}
+                      </span>
+                    </div>
+
+                    <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-zinc-800">
+                      {item.text}
+                    </p>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {(["new", "in_progress", "done", "rejected"] as SuggestionStatus[]).map((status) => (
+                        <button
+                          key={status}
+                          type="button"
+                          disabled={isActing || item.status === status}
+                          onClick={() => void handleSuggestionPatch(item.id, { status })}
+                          className={`rounded-2xl px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed ${
+                            item.status === status
+                              ? "bg-zinc-100 text-zinc-400"
+                              : "border border-zinc-200 text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+                          }`}
+                        >
+                          {SUGGESTION_STATUS_LABEL[status]}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="mt-4">
+                      <label className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">
+                        Заметка
+                      </label>
+                      <textarea
+                        value={draft}
+                        rows={2}
+                        placeholder="Для себя: что решили, куда положили в план…"
+                        onChange={(e) =>
+                          setSuggestionNoteDrafts((current) => ({ ...current, [item.id]: e.target.value }))
+                        }
+                        className="mt-2 w-full rounded-2xl border border-zinc-200 px-4 py-3 text-sm text-zinc-800 outline-none focus:border-zinc-400"
+                      />
+                      <button
+                        type="button"
+                        disabled={isActing || !noteChanged}
+                        onClick={() => void handleSuggestionPatch(item.id, { adminNote: draft })}
+                        className="mt-2 rounded-2xl bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {isActing ? "Сохраняем..." : "Сохранить заметку"}
+                      </button>
+                    </div>
                   </article>
                 );
               })}

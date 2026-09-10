@@ -1,25 +1,20 @@
 "use client";
 
-import { useIsNative } from "@/lib/native";
-
-import { useEffect, useState } from "react";
-import { getDisplayMode } from "@/components/YandexMetrika";
 import { OPEN_INSTALL_EVENT } from "@/components/PWAInstall";
+import { useCanPromptInstall } from "@/lib/installEnv";
 
 /**
  * Постоянная точка входа «Установить приложение» (футер). Открывает ту же
- * карточку, что и автопоказ, через OPEN_INSTALL_EVENT. В установленном PWA
- * (standalone) скрыта — устанавливать уже нечего.
+ * карточку установки через OPEN_INSTALL_EVENT.
+ *
+ * Раньше видимость считалась через useState(false) + useEffect, и это давало
+ * ровно то мигание, ради которого затевалась правка: на кадре гидрации
+ * состояние «не standalone» означало «показать», поэтому в установленном
+ * приложении кнопка успевала мелькнуть в футере до первого эффекта. Теперь
+ * решает общий флаг, у которого дефолт обратный — молчать, пока среда не
+ * определена.
  */
 function InstallAppButtonInner() {
-  const [standalone, setStandalone] = useState(false);
-
-  useEffect(() => {
-    setStandalone(getDisplayMode() === "standalone");
-  }, []);
-
-  if (standalone) return null;
-
   return (
     <button
       type="button"
@@ -43,13 +38,10 @@ function InstallAppButtonInner() {
   );
 }
 
-// В нативной оболочке звать «установить приложение» бессмысленно — мы уже внутри
-// приложения. Обёртка вынесена отдельным компонентом намеренно: ранний return
-// внутри InstallAppButtonInner менял бы число вызванных хуков между первым рендером
-// (флаг ещё false) и следующим, а это ошибка React. Здесь хук ровно один и
-// вызывается всегда. В вебе флаг всегда false — поведение не меняется.
+// Кнопка видна только в обычном браузере: в нативной оболочке, в TWA из
+// RuStore и в установленном PWA устанавливать уже нечего.
 export default function InstallAppButton() {
-  const isNative = useIsNative();
-  if (isNative) return null;
+  const canPrompt = useCanPromptInstall();
+  if (!canPrompt) return null;
   return <InstallAppButtonInner />;
 }

@@ -14,7 +14,8 @@ import {
   Sparkles,
   ShieldCheck,
 } from "lucide-react";
-import { isNativePlatform, openExternal, useIsNative } from "@/lib/native";
+import { isNativePlatform, openExternal } from "@/lib/native";
+import { useCanPromptInstall } from "@/lib/installEnv";
 import { RUSTORE_URL, TELEGRAM_URL, SUPPORT_EMAIL, VK_URL } from "@/lib/constants";
 import NativeDocsLinks from "@/components/NativeDocsLinks";
 
@@ -95,10 +96,15 @@ function openExternalOnNative(e: React.MouseEvent, url: string) {
 }
 
 export default function About() {
-  // Блок «Скачать» в нативной сборке не рендерится ВООБЩЕ. Это не вкусовщина:
-  // App Store 2.3.10 запрещает упоминать другие магазины приложений, и ссылка
-  // на RuStore внутри iOS-сборки — готовый повод для отказа.
-  const isNative = useIsNative();
+  // Блок «Скачать» не рендерится ВООБЩЕ у тех, кто уже в приложении.
+  //
+  // Для нативной сборки это не вкусовщина: App Store 2.3.10 запрещает упоминать
+  // другие магазины приложений, и ссылка на RuStore внутри iOS-сборки — готовый
+  // повод для отказа. Раньше проверка стояла только на нативную оболочку и
+  // срабатывала лишь после гидрации, поэтому блок успевал мелькнуть кадром;
+  // общий флаг из lib/installEnv молчит с самого первого рендера и заодно
+  // убирает блок в TWA и в установленном PWA.
+  const canPrompt = useCanPromptInstall();
 
   return (
     <div className="about">
@@ -208,8 +214,8 @@ export default function About() {
         </div>
       </section>
 
-      {/* 6. Скачать — ТОЛЬКО в вебе (App Store 2.3.10) */}
-      {!isNative && (
+      {/* 6. Скачать — ТОЛЬКО в обычном браузере (App Store 2.3.10) */}
+      {canPrompt && (
         <section className="about-section">
           <h2 className="about-h2">Скачать</h2>
           <div className="about-stores">

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import DonateButton from "@/components/DonateButton";
 import ReportError from "@/components/ReportError";
 import InstallAppButton from "@/components/InstallAppButton";
@@ -24,14 +25,29 @@ export default function Footer() {
   // x-pathname уже однажды залип при клиентской навигации (таб-бар перекрывал
   // экраны). Компонент решает про себя сам и переживает любую навигацию.
   const isNative = useIsNative();
+
+  // На Главной «Поддержать проект» теперь стоит в карточке обратной связи
+  // («Что добавить, а что убрать?») — она последний блок страницы, и футерная
+  // копия оказывалась ровно под ней: две одинаковые кнопки в полутора экранах
+  // друг от друга. На всех остальных страницах футерная кнопка на месте.
+  //
+  // Проверка через usePathname (клиент), а НЕ через серверный gate по
+  // x-pathname: тот уже однажды залип при клиентской навигации и футер остался
+  // бы «как на прошлой странице». Хук пересчитывается на каждой навигации.
+  const pathname = usePathname();
+  const isHome = pathname === "/";
+
   if (isNative) return null;
 
   return (
     <footer className="site-footer">
-      {/* «Поддержать проект» — выше ссылок (решение директора, этап 9 Q). */}
-      <div style={{ marginBottom: "var(--space-3)" }}>
-        <DonateButton variant="footer" />
-      </div>
+      {/* «Поддержать проект» — выше ссылок (решение директора, этап 9 Q).
+          На Главной скрыта: там та же кнопка живёт в карточке обратной связи. */}
+      {!isHome && (
+        <div style={{ marginBottom: "var(--space-3)" }}>
+          <DonateButton variant="footer" />
+        </div>
+      )}
 
       <nav
         style={{

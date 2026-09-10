@@ -193,3 +193,59 @@ export async function editCardResult(
     console.error("[telegram] editMessageCaption: сетевая ошибка");
   }
 }
+
+// ---------------------------------------------------------------------------
+// Предложения пользователей («что добавить, а что убрать»)
+// ---------------------------------------------------------------------------
+
+/** Тип предложения — совпадает с чипами в шторке и с suggestions.kind. */
+export type SuggestionKind = "add" | "remove" | "bug";
+
+// Подпись типа в карточке. Баг помечен отдельно и намеренно ярче остальных:
+// среди идей он должен цепляться взглядом с первой строки, потому что чинить
+// надо сегодня, а обсуждать идею можно и на выходных.
+const SUGGESTION_LABEL: Record<SuggestionKind, string> = {
+  add: "Добавить",
+  remove: "Убрать",
+  bug: "🐞 Не работает",
+};
+
+// Уведомление основателю о новом предложении. Информационное, без кнопок:
+// разбор (статус, заметка) идёт во вкладке «Предложения» в админке.
+// Best-effort, как и остальные карточки: предложение уже лежит в БД и видно в
+// админке, поэтому недоступный Telegram не должен ронять запрос.
+// parse_mode не используем — текст человека уходит как обычный текст и
+// сломать разметку не может.
+export async function sendSuggestionCard(input: {
+  kind: SuggestionKind;
+  text: string;
+  fromAccount: boolean;
+}): Promise<boolean> {
+  const creds = credentials();
+  if (!creds) {
+    console.error("[telegram] TELEGRAM_BOT_TOKEN/CHAT_ID не заданы — предложение не отправлено");
+    return false;
+  }
+
+  const label = SUGGESTION_LABEL[input.kind] ?? SUGGESTION_LABEL.add;
+  const text =
+    `💡 Новое предложение [${label}]: ${plain(input.text, 500)}\n\n` +
+    `Автор: ${input.fromAccount ? "с аккаунтом" : "гость"}\n` +
+    `Разбор — во вкладке «Предложения» в админке.`;
+
+  try {
+    const res = await fetch(`${TELEGRAM_API}/bot${creds.token}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: creds.chatId, text }),
+    });
+    if (!res.ok) {
+      console.error("[telegram] sendMessage (suggestion) не удался, статус", res.status);
+      return false;
+    }
+    return true;
+  } catch {
+    console.error("[telegram] sendSuggestionCard: сетевая ошибка");
+    return false;
+  }
+}

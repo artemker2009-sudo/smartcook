@@ -8,6 +8,7 @@ import { reachGoal } from "@/lib/metrika";
 import HeroLanding from "@/components/HeroLanding";
 import ShoppingPromoBanner from "@/components/ShoppingPromoBanner";
 import ShoppingFeatureCard from "@/components/ShoppingFeatureCard";
+import SuggestCard from "@/components/SuggestCard";
 import HomeFeed, { type FeedPhoto } from "@/components/HomeFeed";
 import type { DemoChip } from "@/lib/demoChips";
 import AppNavigation from "@/components/AppNavigation";
@@ -143,6 +144,11 @@ export default function HomeContent({
         </span>
         <ArrowRight size={20} className="feed-entry-arrow" aria-hidden />
       </Link>
+
+      {/* Обратная связь — последний блок Главной, прямо перед футером. Стоит
+          после витрины и входа в ленту сознательно: просьба рассказать, чего
+          не хватает, уместна после того, как человек посмотрел, что уже есть. */}
+      <SuggestCard />
     </div>
   );
 }

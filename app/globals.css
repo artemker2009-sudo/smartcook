@@ -3047,3 +3047,183 @@ a.news-card:hover { transform: translateY(-2px); }
 .native-shell .page-top-safe {
   padding-top: calc(env(safe-area-inset-top) + 80px);
 }
+
+/* --- Предложения пользователей: карточка на Главной и шторка с формой --- */
+
+/* Карточка стоит последним блоком Главной, перед футером. Тон намеренно
+   спокойнее «Рецепта дня» и списка покупок: это не витрина функции, а просьба
+   поговорить, и кричать ей незачем. */
+.suggest-card {
+  margin: var(--space-5) 0 var(--space-4);
+  padding: var(--space-4) var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  text-align: center;
+}
+.suggest-card-icon {
+  width: 44px;
+  height: 44px;
+  margin: 0 auto var(--space-2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fef3c7;
+  color: #b45309;
+}
+.suggest-card-title {
+  margin: 0 0 var(--space-1);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+.suggest-card-sub {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-secondary);
+  line-height: 1.45;
+}
+/* Ряд из двух кнопок. wrap — потому что «Поддержать» может исчезнуть целиком
+   (нативный iOS), и на узком экране надписи не должны слипаться. */
+.suggest-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2) var(--space-3);
+}
+.suggest-card-cta {
+  width: auto;
+  margin-top: 0;
+  padding: var(--space-2) var(--space-5);
+}
+/* У .btn-donate-inline свой вертикальный margin для экрана рецепта — внутри
+   ряда он ломал бы выравнивание по центру. */
+.suggest-card-actions .btn-donate-inline { margin: 0; }
+
+/* Шторка. Базу (оверлей, подъём снизу, анимация) берём у .sl-sheet — та же
+   механика, что у меню списка покупок, свой оверлей заводить незачем. */
+.suggest-sheet {
+  position: relative;
+  padding: var(--space-4) var(--space-3) var(--space-3);
+  max-height: 88vh;
+  overflow-y: auto;
+}
+.suggest-close {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  background: var(--color-bg-subtle);
+  border: none;
+  border-radius: 50%;
+  padding: var(--space-2);
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  display: flex;
+}
+.suggest-title {
+  margin: 0 0 var(--space-1);
+  padding-right: var(--space-5);
+  font-size: var(--font-size-heading);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+.suggest-sub {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-secondary);
+  line-height: 1.45;
+}
+.suggest-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+.suggest-chip {
+  padding: var(--space-2) var(--space-3);
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+.suggest-chip-on {
+  border-color: var(--color-accent);
+  background: var(--color-accent-subtle);
+  color: var(--color-accent);
+}
+.suggest-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-subtle);
+  color: var(--color-text);
+  font-family: inherit;
+  /* 16px — иначе iOS Safari зумит страницу при фокусе в поле. */
+  font-size: 16px;
+  line-height: 1.45;
+  resize: vertical;
+}
+.suggest-textarea:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+.suggest-meta {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-1);
+}
+.suggest-counter {
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.suggest-counter-full { color: var(--color-accent); }
+.suggest-error {
+  margin: var(--space-2) 0 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-danger);
+  line-height: 1.4;
+}
+.suggest-send {
+  margin-top: var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+}
+.suggest-send:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Экран «Спасибо». */
+.suggest-done { text-align: center; padding: var(--space-3) 0 0; }
+.suggest-done-icon {
+  width: 52px;
+  height: 52px;
+  margin: 0 auto var(--space-3);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-accent-subtle);
+  color: var(--color-accent);
+}
+.suggest-done .suggest-title { padding-right: 0; }
+/* Просьба о поддержке намеренно тихая: строчкой ниже благодарности, без
+   кнопки и без акцентного фона — иначе она читается как плата за отправку. */
+.suggest-done-donate {
+  margin: var(--space-2) 0 var(--space-4);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+  line-height: 1.45;
+}
+.suggest-done-donate a {
+  color: var(--color-text-secondary);
+  text-decoration: underline;
+}

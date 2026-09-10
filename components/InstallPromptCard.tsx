@@ -1,11 +1,10 @@
 "use client";
 
-import { useIsNative } from "@/lib/native";
-
 import React, { useEffect, useState } from "react";
 import { X, Download, Share, Plus, Smartphone, MoreVertical } from "lucide-react";
 import { reachGoal } from "@/lib/metrika";
 import { RUSTORE_URL } from "@/lib/constants";
+import { useCanPromptInstall } from "@/lib/installEnv";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -149,13 +148,16 @@ function InstallPromptCardInner({ open, onClose }: InstallPromptCardProps) {
   );
 }
 
-// В нативной оболочке звать «установить приложение» бессмысленно — мы уже внутри
-// приложения. Обёртка вынесена отдельным компонентом намеренно: ранний return
-// внутри InstallPromptCardInner менял бы число вызванных хуков между первым рендером
-// (флаг ещё false) и следующим, а это ошибка React. Здесь хук ровно один и
-// вызывается всегда. В вебе флаг всегда false — поведение не меняется.
+// Тем, кто уже в приложении, карточка установки не нужна. Раньше здесь стояла
+// проверка только на нативную оболочку: в установленном PWA и в TWA карточку
+// не спасало ничего, кроме того, что кнопка в футере пряталась сама. Теперь
+// среда проверяется здесь же — карточку не открыть даже событием.
+//
+// Обёртка вынесена отдельным компонентом намеренно: ранний return внутри
+// InstallPromptCardInner менял бы число вызванных хуков между кадром гидрации
+// (среда ещё "unknown") и следующим, а это ошибка React.
 export default function InstallPromptCard(props: InstallPromptCardProps) {
-  const isNative = useIsNative();
-  if (isNative) return null;
+  const canPrompt = useCanPromptInstall();
+  if (!canPrompt) return null;
   return <InstallPromptCardInner {...props} />;
 }

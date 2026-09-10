@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { X, ExternalLink } from "lucide-react";
 import { reachGoal } from "@/lib/metrika";
 import { RUSTORE_URL } from "@/lib/constants";
-import { getDisplayMode } from "@/components/YandexMetrika";
+import { currentInstallEnv, canPromptInstall } from "@/lib/installEnv";
 
 // Показываем плашку не чаще одного раза за сессию вкладки.
 const SESSION_FLAG = "sc_tg_webview_banner_shown";
@@ -20,8 +20,8 @@ type Detect = { inApp: boolean; isAndroid: boolean };
  *    несёт стандартный маркер «; wv» (Android System WebView). Обычный Chrome,
  *    Chrome Custom Tabs и Samsung Internet этого токена НЕ имеют, поэтому «wv»
  *    надёжно отделяет «сайт открыт внутри приложения» от нормального браузера.
- *    Наш собственный TWA из RuStore тоже WebView, но он запускается в
- *    standalone и отсекается проверкой getDisplayMode() ниже.
+ *    Наш собственный TWA из RuStore тоже WebView, но он отсекается проверкой
+ *    среды (lib/installEnv) ниже.
  *
  * Чего по UA определить НЕЛЬЗЯ (честно — не покрываем):
  *  - iOS: встроенный браузер Telegram не добавляет в userAgent никакого своего
@@ -46,8 +46,8 @@ function detectInAppWebView(): Detect {
  * браузера Telegram: оттуда сайт легко потерять навсегда. Зовём открыть в
  * обычном браузере, а на Android — ещё и поставить приложение из RuStore.
  *
- * Правила показа: один раз за сессию, никогда в standalone (установленное
- * приложение / TWA), только в определимом in-app WebView. Плашка не блокирует
+ * Правила показа: один раз за сессию, никогда в установленном приложении
+ * (PWA / TWA / нативная оболочка), только в определимом in-app WebView. Плашка не блокирует
  * контент (без затемнения) и закрывается крестиком.
  */
 export default function TelegramWebViewBanner() {
@@ -55,8 +55,11 @@ export default function TelegramWebViewBanner() {
   const [isAndroid, setIsAndroid] = useState(false);
 
   useEffect(() => {
-    // В установленном приложении/TWA звать «в браузер» бессмысленно.
-    if (getDisplayMode() === "standalone") return;
+    // В установленном приложении (PWA, TWA из RuStore, нативная оболочка) звать
+    // «откройте в браузере» бессмысленно — человек уже не в чужом вебвью.
+    // Проверка идёт внутри useEffect, поэтому среда здесь уже определена и
+    // читать её достаточно разово, без хука.
+    if (!canPromptInstall(currentInstallEnv())) return;
 
     const { inApp, isAndroid } = detectInAppWebView();
     if (!inApp) return;

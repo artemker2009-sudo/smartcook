@@ -1,14 +1,12 @@
 "use client";
 
-import { useIsNative } from "@/lib/native";
-
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { X, Smartphone, Share, Plus, Check } from "lucide-react";
 
 import { reachGoal } from "@/lib/metrika";
 import { RUSTORE_URL } from "@/lib/constants";
-import { getDisplayMode } from "@/components/YandexMetrika";
+import { useCanPromptInstall } from "@/lib/installEnv";
 import {
   CLICK_DAYS,
   DISMISS_DAYS,
@@ -43,7 +41,8 @@ const SEEN_SCROLL_PX = 240; // прокрутка, после которой с�
  *  - Android в браузере → «Скачайте приложение SmartCook из RuStore» + кнопка;
  *  - iOS в браузере → «Добавьте SmartCook на экран» + инструкция в два шага;
  *  - десктоп → никогда: приложения для него нет, а iOS-инструкция бессмысленна;
- *  - уже в приложении (PWA/TWA, display-mode: standalone) → никогда.
+ *  - уже в приложении (PWA, TWA из RuStore, нативная оболочка) → никогда:
+ *    решает единый флаг useCanPromptInstall (lib/installEnv).
  *
  * ГДЕ И КОГДА (правило «не мешать в момент ценности»):
  *  - Главная — через {@link HOME_DELAY_MS} после загрузки, и только iOS: у
@@ -64,7 +63,8 @@ const SEEN_SCROLL_PX = 240; // прокрутка, после которой с�
  * клиент: на сервере нет ни userAgent, ни display-mode, ни localStorage.
  */
 function resolveAudience(): InstallPlatform | null {
-  if (getDisplayMode() === "standalone") return null; // уже в приложении — звать некуда
+  // Среду («мы вообще в браузере?») проверяет обёртка ниже — здесь остались
+  // только правила, специфичные для плашки: платформа, пауза, сессия.
   const detected = currentPlatform();
   if (detected === "other") return null; // десктоп: ставить нечего
   if (isSnoozedNow()) return null; // закрыл раньше — молчим
@@ -262,13 +262,16 @@ function InstallBannerInner() {
   );
 }
 
-// В нативной оболочке звать «установить приложение» бессмысленно — мы уже внутри
-// приложения. Обёртка вынесена отдельным компонентом намеренно: ранний return
-// внутри InstallBannerInner менял бы число вызванных хуков между первым рендером
-// (флаг ещё false) и следующим, а это ошибка React. Здесь хук ровно один и
-// вызывается всегда. В вебе флаг всегда false — поведение не меняется.
+// Тем, кто уже установил приложение, звать его установить бессмысленно: это
+// касается и нативной оболочки, и TWA из RuStore, и PWA с домашнего экрана.
+// Флаг один на все точки входа.
+//
+// Обёртка вынесена отдельным компонентом намеренно: ранний return внутри
+// InstallBannerInner менял бы число вызванных хуков между кадром гидрации
+// (среда ещё "unknown") и следующим, а это ошибка React. Здесь хук ровно один
+// и вызывается всегда.
 export default function InstallBanner() {
-  const isNative = useIsNative();
-  if (isNative) return null;
+  const canPrompt = useCanPromptInstall();
+  if (!canPrompt) return null;
   return <InstallBannerInner />;
 }

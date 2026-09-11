@@ -88,8 +88,29 @@ body {
 }
 .brand-sub { font-size: var(--font-size-body); color: var(--color-text-secondary); font-weight: var(--font-weight-regular); }
 
-/* --- HERO LANDING (первый экран, этап 4) --- */
-.hero-landing { margin-top: var(--space-4); margin-bottom: var(--space-4); }
+/* --- ПЕРВЫЙ ЭКРАН ГЛАВНОЙ (этап H11: одно обещание, одна кнопка) --- */
+/* Главная больше не рисует плавающий бургер, поэтому ей не нужен верхний
+   клиренс в 60px, которым .container уводит контент из-под кнопки меню: на
+   первом экране это была четверть высоты телефона впустую. */
+.container-home {
+  padding-top: calc(env(safe-area-inset-top) + var(--space-4));
+}
+/* Секция занимает ровно видимую часть экрана: высота окна минус вырезы,
+   фиксированный таб-бар и вертикальные отступы контейнера. Контент по центру —
+   обещание и кнопка целиком видны без скролла на iPhone SE и выше.
+   100vh оставлен запасным значением для браузеров без dvh. */
+.hero-screen {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+  min-height: calc(100vh - var(--tab-bar-h) - var(--space-4) - var(--space-3));
+  min-height: calc(
+    100dvh - var(--tab-bar-h) - env(safe-area-inset-top) - env(safe-area-inset-bottom)
+      - var(--space-4) - var(--space-3)
+  );
+  margin-bottom: var(--space-5);
+}
 .hero-brand {
   text-align: center;
   /* Название-вензель заметно крупнее (было caption/13px). clamp держит ширину
@@ -106,7 +127,9 @@ body {
 }
 .hero-headline {
   text-align: center;
-  font-size: var(--font-size-title);
+  /* Крупнее обычного заголовка (28px): на первом экране конкурентов у него
+     нет, а обещание должно читаться с вытянутой руки. */
+  font-size: clamp(30px, 8.5vw, 40px);
   font-weight: var(--font-weight-semibold);
   line-height: 1.25;
   letter-spacing: -0.5px;
@@ -121,7 +144,7 @@ body {
 }
 .hero-subhead {
   text-align: center;
-  font-size: var(--font-size-body);
+  font-size: 17px;
   color: var(--color-text-secondary);
   line-height: 1.5;
   margin: 0 auto var(--space-5) auto;
@@ -134,9 +157,11 @@ body {
   gap: var(--space-3);
 }
 .hero-cta {
-  min-height: 56px;
-  text-decoration: none;
+  /* Кнопка на всю ширину и крупнее стандартной: единственное действие экрана. */
+  min-height: 60px;
   width: 100%;
+  font-size: 17px;
+  text-decoration: none;
 }
 /* Тихая вторичная ссылка под главной CTA (H10): второй сценарий доступен, но не
    конкурирует за внимание с кнопкой фото. Тап-цель ≥44px по высоте. */
@@ -3307,4 +3332,182 @@ a.news-card:hover { transform: translateY(-2px); }
 .suggest-done-donate a {
   color: var(--color-text-secondary);
   text-decoration: underline;
+}
+
+/* --- «Как это работает» (этап H11) --- */
+/* Пришёл на смену ProcessAnimation: три шага статично, без движения на первом
+   касании страницы. Под ним живут демо-чипы (.demo-magic), переехавшие с
+   первого экрана. */
+.how-block { margin-bottom: var(--space-5); }
+.how-steps {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.how-step {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  text-align: center;
+}
+.how-step-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-full);
+  background: var(--color-accent-subtle);
+  color: var(--color-accent);
+}
+.how-step-label {
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  line-height: 1.3;
+}
+/* Стрелка между шагами: висит на уровне иконок, ширины колонок не ломает. */
+.how-step-arrow {
+  position: absolute;
+  top: 10px;
+  right: calc(var(--space-1) * -1);
+  transform: translateX(50%);
+  color: var(--color-text-muted);
+  font-size: 16px;
+  line-height: 1;
+}
+
+/* --- Компактный вход в «Покупки» (этап H11) --- */
+/* Высота карточки НЕ зависит от того, есть список или нет: превью позиций
+   приходит из localStorage только после гидрации, и прыгать макету нельзя. */
+.shopping-entry {
+  /* Сетка 3×2: иконка на обе строки, заголовок и «Открыть» в первой, позиции —
+     во второй во всю ширину. Высота от содержимого не зависит: обе строки есть
+     всегда (в пустом состоянии во второй — приглашение собрать список). */
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  grid-template-rows: auto auto;
+  column-gap: var(--space-3);
+  row-gap: 4px;
+  align-items: center;
+  min-height: 76px;
+  padding: var(--space-3);
+  margin-bottom: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  text-decoration: none;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.2s, transform 0.15s;
+}
+.shopping-entry:hover { border-color: var(--color-accent); }
+.shopping-entry:active { transform: translateY(1px); }
+.shopping-entry-icon {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent-subtle);
+  color: var(--color-accent);
+}
+.shopping-entry-title {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  /* В одну строку: перенос «Мой список / покупок» ломал сетку карточки. */
+  white-space: nowrap;
+}
+.shopping-entry-sub {
+  grid-column: 2 / span 2;
+  grid-row: 2;
+  min-width: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+  line-height: 1.35;
+  /* Позиции списка в одну строку с многоточием — карточка не растёт. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shopping-entry-action {
+  grid-column: 3;
+  grid-row: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-accent);
+}
+
+/* Плашка магазина внизу Главной (уехала с первого экрана) */
+.home-store-badge {
+  display: flex;
+  justify-content: center;
+  margin-bottom: var(--space-4);
+}
+
+/* --- Ссылки на разделы в личном кабинете (этап H11) --- */
+/* Банкеты и Лента ушли из таб-бара сюда: страницы живы, вход остался. */
+.profile-links { margin-bottom: var(--space-3); }
+.profile-link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  text-decoration: none;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+.profile-link:hover { border-color: var(--color-accent); }
+.profile-link-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+}
+.profile-link-body { flex: 1; min-width: 0; }
+.profile-link-title {
+  display: block;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+.profile-link-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+}
+.profile-link-arrow { flex-shrink: 0; color: var(--color-text-muted); }
+
+/* На десктопе таб-бар — верхняя шапка, а не нижний бар: растягивать первый
+   экран во всю высоту окна там не нужно (получалась пустая полоса). */
+@media (min-width: 1024px) {
+  .hero-screen { min-height: 0; padding: var(--space-6) 0; }
+  .container-home { padding-top: var(--space-4); }
 }

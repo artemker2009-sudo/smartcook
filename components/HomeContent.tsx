@@ -1,34 +1,43 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Flame, ImageIcon, Lightbulb } from "lucide-react";
-import { reachGoal } from "@/lib/metrika";
+import { Flame } from "lucide-react";
 import HeroLanding from "@/components/HeroLanding";
-import ShoppingPromoBanner from "@/components/ShoppingPromoBanner";
-import ShoppingFeatureCard from "@/components/ShoppingFeatureCard";
+import HowItWorks from "@/components/HowItWorks";
+import ShoppingEntryCard from "@/components/ShoppingEntryCard";
 import SuggestCard from "@/components/SuggestCard";
+import RuStoreBadge from "@/components/RuStoreBadge";
 import HomeFeed, { type FeedPhoto } from "@/components/HomeFeed";
 import type { DemoChip } from "@/lib/demoChips";
-import AppNavigation from "@/components/AppNavigation";
 import type { DailyRecipeType } from "@/lib/types";
 
-type HomeTip = { id: string; body: string; emoji_icon: string | null };
-
-// Клиентская оболочка Главной. Интерактив (редиректы диплинков, рецепт дня из
-// /api/daily) живёт здесь, а тяжёлый контент — заметки, совет и первые фото
-// витрины — приходит уже готовым пропом из серверного app/page.tsx (этап 10 W): он в HTML
-// сразу, без клиентского запроса после гидрации. Рецепт дня оставлен клиентским
-// (генерится через OpenAI с кэшом по дате — блокировать им SSR Главной нельзя),
-// у него свой скелет фиксированной высоты — без прыжка макета.
+// Клиентская оболочка Главной (H11 «одно обещание, одна кнопка»). Порядок
+// блоков сверху вниз:
+//   1. первый экран — обещание + одна кнопка (весь viewport телефона)
+//   2. «Как это работает» + демо-чипы H8
+//   3. компактный вход в список покупок
+//   4. рецепт дня
+//   5. витрина «Приготовили сегодня»
+//   6. «Что добавить, а что убрать?»
+//
+// Что снято с Главной в этом этапе (компоненты и роуты НЕ удалены, вернуть =
+// одна строка рендера): хамбургер AppNavigation (дублировал таб-бар и тащил на
+// Главную банкеты с лентой), ProcessAnimation, ShoppingPromoBanner,
+// ShoppingFeatureCard (заменён компактным ShoppingEntryCard), «Совет дня»
+// (вместе с SSR-запросом tips в app/page.tsx), ссылка «Смотреть все блюда в
+// ленте». Раньше отсюда же уехали «Кухонные заметки» (/articles) и «Новости».
+//
+// Тяжёлый контент (первые фото витрины, доступные демо-чипы) приходит готовым
+// пропом из серверного app/page.tsx — он в HTML сразу, без запроса после
+// гидрации. Рецепт дня остаётся клиентским (генерится через OpenAI с кэшом по
+// дате — блокировать им SSR Главной нельзя), у него скелет фиксированной
+// высоты — без прыжка макета.
 export default function HomeContent({
   feed,
-  tip,
   demoChips,
 }: {
   feed: FeedPhoto[];
-  tip: HomeTip | null;
   demoChips: DemoChip[];
 }) {
   const router = useRouter();
@@ -59,17 +68,14 @@ export default function HomeContent({
   }, []);
 
   return (
-    <div className="container">
-      <AppNavigation />
+    <div className="container container-home">
+      <HeroLanding />
 
-      <HeroLanding demoChips={demoChips} />
+      <HowItWorks demoChips={demoChips} />
 
-      {/* Плашка-новинка «Покупки»: один раз на устройство и только вернувшимся
-          (логика в lib/shoppingPromo). Стоит ПОД hero — первый экран H7 (бренд,
-          заголовок, одна CTA) не трогаем. Сам себя не рендерит, если не нужно. */}
-      <ShoppingPromoBanner />
+      <ShoppingEntryCard />
 
-      {/* Рецепт дня переезжает на Главную. Клик ведёт в полноэкранный вид на /search. */}
+      {/* Рецепт дня. Клик ведёт в полноэкранный вид на /search. */}
       <button
         type="button"
         className={`daily-teaser${daily ? " daily-teaser-in" : ""}`}
@@ -98,57 +104,21 @@ export default function HomeContent({
         </div>
       </button>
 
-      {/* Премиальная карточка «Умный список покупок» — сразу после «Рецепта дня».
-          Заметный градиентный блок с живым примером пользы. Тап ведёт в /shopping. */}
-      <ShoppingFeatureCard />
-
-      {/* Совет дня (Z-2): пассивная плитка рядом с «Рецептом дня», без кнопок.
-          Пусто (нет опубликованных советов) — не показываем вовсе. */}
-      {tip && (
-        <div className="tip-card">
-          <div className="tip-icon" aria-hidden>
-            {tip.emoji_icon ? <span className="tip-emoji">{tip.emoji_icon}</span> : <Lightbulb size={22} />}
-          </div>
-          <div className="tip-body">
-            <div className="tip-label">Совет дня</div>
-            <p className="tip-text">{tip.body}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Блок «Кухонные заметки» снят с Главной (полировка PR A) — заметки
-          остаются доступны на /articles (SEO/поисковики, канал №1), компонент
-          ArticlesBoard там не тронут. */}
-
-      {/* Витрина — последний блок Главной. Ниже стоял компактный блок «Новости
-          проекта»; он снят (админка и таблица news не тронуты, компонент
-          NewsBoard на месте — вернуть можно одной строкой). Собственный
-          margin-bottom у .home-feed сохраняет нижний отступ страницы. */}
+      {/* Витрина «Приготовили сегодня». Ссылка «Смотреть все блюда в ленте»
+          (home_feed_open) с Главной снята — вход в ленту остался в профиле. */}
       <HomeFeed initialItems={feed} />
 
-      {/* Вход в полную ленту сообщества. Постов пока мало — на Главной только
-          дневная витрина, а тут аккуратная ссылка на всю ленту (/feed).
-          Цель Метрики home_feed_open меряет интерес к переходу. */}
-      <Link
-        href="/feed"
-        className="feed-entry"
-        onClick={() => reachGoal("home_feed_open")}
-        aria-label="Смотреть все блюда в ленте"
-      >
-        <span className="feed-entry-icon" aria-hidden>
-          <ImageIcon size={22} />
-        </span>
-        <span className="feed-entry-text">
-          <span className="feed-entry-title">Смотреть все блюда в ленте</span>
-          <span className="feed-entry-sub">Фото блюд от сообщества</span>
-        </span>
-        <ArrowRight size={20} className="feed-entry-arrow" aria-hidden />
-      </Link>
-
-      {/* Обратная связь — последний блок Главной, прямо перед футером. Стоит
-          после витрины и входа в ленту сознательно: просьба рассказать, чего
-          не хватает, уместна после того, как человек посмотрел, что уже есть. */}
+      {/* Обратная связь — последний блок Главной, прямо перед футером: просьба
+          рассказать, чего не хватает, уместна после того, как человек
+          посмотрел, что уже есть. */}
       <SuggestCard />
+
+      {/* Плашка «Скачайте в RuStore» — только Android и только вне
+          установленного приложения (логика внутри компонента). Уехала сюда с
+          первого экрана: он теперь про одно обещание и одну кнопку. */}
+      <div className="home-store-badge">
+        <RuStoreBadge />
+      </div>
     </div>
   );
 }

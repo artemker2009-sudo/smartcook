@@ -15,9 +15,13 @@ export const metadata: Metadata = {
 // гидрации (тот же класс проблемы, что T) и появлялись с задержкой.
 // Интерактив и рецепт дня — в клиентском HomeContent.
 //
-// Кэш-ревалидация: советы меняются редко (админка) → 5 минут; витрина живее
-// (новые фото за день) → 60 сек. explicit columns (CLAUDE.md): без
+// Кэш-ревалидация: кэш блюд под демо-чипы меняется редко → 5 минут; витрина
+// живее (новые фото за день) → 60 сек. explicit columns (CLAUDE.md): без
 // session_id/user_ref/is_visible в пейлоаде.
+//
+// Блок «Совет дня» снят с Главной (этап H11) — вместе с ним ушёл и его
+// SSR-запрос к tips. Админка советов и таблица tips НЕ тронуты: вернуть блок =
+// вернуть getTip() и одну строку рендера в HomeContent.
 
 const SUPABASE_URL =
   process.env.NEXT_PUBLIC_SUPABASE_URL || "https://yjfqwwiqwoighjdlkodg.supabase.co";
@@ -66,24 +70,6 @@ async function getDemoChips(): Promise<DemoChip[]> {
   return filterAvailableChips(new Set(rows.map((r) => r.query_key)));
 }
 
-export type HomeTip = { id: string; body: string; emoji_icon: string | null };
-
-async function getTip(): Promise<HomeTip | null> {
-  // Явные колонки (без is_published в пейлоаде). RLS отдаёт только
-  // опубликованные. Стабильный порядок (published_at) → детерминированная
-  // ротация по дате: один и тот же совет весь день, разный по дням.
-  const tips = await sbFetch<HomeTip>(
-    "tips?select=id,body,emoji_icon&is_published=eq.true&order=published_at.asc,created_at.asc&limit=500",
-    300,
-  );
-  if (tips.length === 0) return null;
-  const now = new Date();
-  const dayOfYear = Math.floor(
-    (Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) - Date.UTC(now.getUTCFullYear(), 0, 0)) / 86400000,
-  );
-  return tips[dayOfYear % tips.length];
-}
-
 // JSON-LD Главной: WebSite (с кириллическим alternateName для брендовых
 // запросов «смарткук») + Organization. Помогает поисковику связать бренд
 // SmartCook / СмартКук с сайтом.
@@ -112,16 +98,14 @@ const JSON_LD = {
 };
 
 export default async function Home() {
-  const [feed, tip, demoChips] = await Promise.all([
-    getFeed(), getTip(), getDemoChips(),
-  ]);
+  const [feed, demoChips] = await Promise.all([getFeed(), getDemoChips()]);
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
       />
-      <HomeContent feed={feed} tip={tip} demoChips={demoChips} />
+      <HomeContent feed={feed} demoChips={demoChips} />
     </>
   );
 }

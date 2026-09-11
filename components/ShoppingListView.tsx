@@ -205,6 +205,9 @@ export default function ShoppingListView({
         }}
       >
         {it.name}
+        {/* Откуда позиция: подпись видна только у продуктов, добавленных с
+            экрана рецепта. Без неё через день непонятно, зачем это куплено. */}
+        {it.source && <span className="shopping-item-source">для «{it.source}»</span>}
       </button>
 
       <button

@@ -40,11 +40,35 @@ export type ShoppingDepartment = (typeof SHOPPING_DEPARTMENTS)[number];
 
 export const OTHER_DEPARTMENT: ShoppingDepartment = "Прочее";
 
+// Откуда позиция («Омлет с овощами») — подпись под названием в списке покупок.
+// Короче названия продукта: это сноска, а не вторая строка заголовка.
+export const MAX_ITEM_SOURCE_LENGTH = 60;
+
 export type ShoppingItem = {
   id: string;
   name: string;
   checked: boolean;
+  // Название рецепта, из которого продукт попал в список. Необязательное:
+  // у позиций, набранных руками, голосом или с фото, его нет и не должно быть.
+  source?: string;
 };
+
+/** Санитайз подписи «из какого рецепта». Пустая строка = подписи нет. */
+export function sanitizeItemSource(raw: unknown): string {
+  if (typeof raw !== "string") return "";
+  return raw
+    .replace(/[\x00-\x1F\x7F]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, MAX_ITEM_SOURCE_LENGTH)
+    .trim();
+}
+
+/** Позиция со подписью-источником, если он есть. Общий сборщик для нормализации. */
+export function withSource(item: ShoppingItem, rawSource: unknown): ShoppingItem {
+  const source = sanitizeItemSource(rawSource);
+  return source ? { ...item, source } : item;
+}
 
 export type ShoppingGroup = {
   department: ShoppingDepartment;
@@ -171,11 +195,18 @@ function newId(): string {
  * MAX_SHOPPING_ITEMS. Никаких сетевых вызовов — умная сортировка только по
  * явной кнопке.
  */
-export function addNames(items: ShoppingItem[], names: string[]): AddNamesResult {
+export function addNames(
+  items: ShoppingItem[],
+  names: string[],
+  opts?: { source?: string },
+): AddNamesResult {
   let next = items;
   let added = 0;
   let duplicate = 0;
   let limited = false;
+  // Подпись «откуда продукт» ставится ТОЛЬКО новым позициям: если «молоко» уже
+  // лежало в списке, оно остаётся тем, чем было, и не переподписывается рецептом.
+  const source = sanitizeItemSource(opts?.source);
 
   for (const raw of names) {
     const name = sanitizeShoppingName(raw);
@@ -188,7 +219,7 @@ export function addNames(items: ShoppingItem[], names: string[]): AddNamesResult
       limited = true;
       break;
     }
-    next = [...next, { id: newId(), name, checked: false }];
+    next = [...next, { id: newId(), name, checked: false, ...(source ? { source } : {}) }];
     added++;
   }
 
@@ -213,11 +244,16 @@ export function loadItems(): ShoppingItem[] {
       const name = sanitizeShoppingName((raw as { name?: unknown }).name);
       if (!name) continue;
       if (items.some((it) => sameName(it.name, name))) continue;
-      items.push({
-        id: typeof (raw as { id?: unknown }).id === "string" ? (raw as { id: string }).id : newId(),
-        name,
-        checked: Boolean((raw as { checked?: unknown }).checked),
-      });
+      items.push(
+        withSource(
+          {
+            id: typeof (raw as { id?: unknown }).id === "string" ? (raw as { id: string }).id : newId(),
+            name,
+            checked: Boolean((raw as { checked?: unknown }).checked),
+          },
+          (raw as { source?: unknown }).source,
+        ),
+      );
       if (items.length >= MAX_SHOPPING_ITEMS) break;
     }
     return items;

@@ -11,6 +11,7 @@ import {
   loadItems as loadLegacyItems,
   sameName,
   sanitizeShoppingName,
+  withSource,
   type AddNamesResult,
   type ShoppingItem,
   type SortCache,
@@ -94,11 +95,16 @@ function normalizeItems(raw: unknown): ShoppingItem[] {
     const name = sanitizeShoppingName((it as { name?: unknown }).name);
     if (!name) continue;
     if (items.some((x) => sameName(x.name, name))) continue;
-    items.push({
-      id: typeof (it as { id?: unknown }).id === "string" ? (it as { id: string }).id : newId(),
-      name,
-      checked: Boolean((it as { checked?: unknown }).checked),
-    });
+    items.push(
+      withSource(
+        {
+          id: typeof (it as { id?: unknown }).id === "string" ? (it as { id: string }).id : newId(),
+          name,
+          checked: Boolean((it as { checked?: unknown }).checked),
+        },
+        (it as { source?: unknown }).source,
+      ),
+    );
     if (items.length >= MAX_SHOPPING_ITEMS) break;
   }
   return items;
@@ -282,18 +288,32 @@ export function recordImportedShare(enc: string, listId: string): void {
 
 /**
  * Добавляет позиции в список по умолчанию (первый; если списков нет — создаёт
- * «Мои покупки»). Используется экраном рецепта («В список покупок»).
+ * новый). Используется экраном рецепта.
+ *
+ * opts.source — название рецепта: ставится подписью НОВЫМ позициям, чтобы в
+ * «Покупках» было видно, зачем куплено. Уже лежащие позиции не переподписываем.
+ * opts.fallbackListName — как назвать список, если у человека нет ни одного
+ * (иначе «Мои покупки», то же имя, что у миграции v1 → v2).
  */
-export function addNamesToDefaultList(names: string[]): { added: number; limited: boolean; listName: string } {
+export function addNamesToDefaultList(
+  names: string[],
+  opts?: { source?: string; fallbackListName?: string },
+): { added: number; duplicate: number; limited: boolean; listName: string; listId: string } {
   let lists = loadLists();
   let target = lists[0];
   if (!target) {
-    const created = createList(lists, MIGRATED_LIST_NAME);
+    const created = createList(lists, opts?.fallbackListName || MIGRATED_LIST_NAME);
     lists = created.lists;
     target = created.list;
   }
-  const result: AddNamesResult = addNames(target.items, names);
+  const result: AddNamesResult = addNames(target.items, names, { source: opts?.source });
   // Список изменился — старый кэш сортировки этого списка больше не валиден.
   setListItems(lists, target.id, result.items, null);
-  return { added: result.added, limited: result.limited, listName: target.name };
+  return {
+    added: result.added,
+    duplicate: result.duplicate,
+    limited: result.limited,
+    listName: target.name,
+    listId: target.id,
+  };
 }

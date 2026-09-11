@@ -3,6 +3,8 @@ import { addNames, parseNames, MAX_SHOPPING_ITEMS,
   signatureFromNames,
   listSignature,
   namesToBuyText,
+  sanitizeItemSource,
+  MAX_ITEM_SOURCE_LENGTH,
 } from "./shoppingList";
 
 describe("parseNames", () => {
@@ -93,6 +95,41 @@ describe("addNames после вставки списка", () => {
     const result = addNames([], parseNames(many));
     expect(result.items).toHaveLength(MAX_SHOPPING_ITEMS);
     expect(result.limited).toBe(true);
+  });
+});
+
+describe("addNames с подписью рецепта", () => {
+  it("подписывает новые позиции названием рецепта", () => {
+    const result = addNames([], ["яйца", "мука"], { source: "Омлет с овощами" });
+    expect(result.items.map((it) => it.source)).toEqual(["Омлет с овощами", "Омлет с овощами"]);
+  });
+
+  it("повторное добавление не плодит дублей и не переподписывает старое", () => {
+    const first = addNames([], ["молоко"], { source: "Блины" });
+    const second = addNames(first.items, ["молоко", "яйца"], { source: "Омлет" });
+    expect(second.items.map((it) => it.name)).toEqual(["молоко", "яйца"]);
+    expect(second.added).toBe(1);
+    expect(second.duplicate).toBe(1);
+    // «молоко» куплено ради блинов — оно не должно переехать в омлет.
+    expect(second.items[0].source).toBe("Блины");
+    expect(second.items[1].source).toBe("Омлет");
+  });
+
+  it("без source позиции остаются без подписи", () => {
+    const result = addNames([], ["хлеб"]);
+    expect(result.items[0].source).toBeUndefined();
+  });
+
+  it("пустой/мусорный source подписи не создаёт", () => {
+    expect(addNames([], ["хлеб"], { source: "   " }).items[0].source).toBeUndefined();
+  });
+});
+
+describe("sanitizeItemSource", () => {
+  it("режет длину и вычищает переводы строк", () => {
+    expect(sanitizeItemSource("Омлет\nс овощами")).toBe("Омлет с овощами");
+    expect(sanitizeItemSource("я".repeat(200))).toHaveLength(MAX_ITEM_SOURCE_LENGTH);
+    expect(sanitizeItemSource(42)).toBe("");
   });
 });
 

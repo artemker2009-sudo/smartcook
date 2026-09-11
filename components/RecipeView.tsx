@@ -24,6 +24,7 @@ import Button from "@/components/ui/Button";
 import CookMode from "@/components/CookMode";
 import RecipeImage from "@/components/RecipeImage";
 import KuperBuyBlock from "@/components/KuperBuyBlock";
+import RecipeMissingBlock from "@/components/RecipeMissingBlock";
 import AiRecipeDisclaimer from "@/components/AiRecipeDisclaimer";
 import { formatCookingTime } from "@/lib/utils";
 
@@ -408,6 +409,11 @@ export default function RecipeView({
               </div>
             ))}
           </div>
+          {/* Чего не хватает дома + своя кнопка в «Покупки». Строго ПЕРЕД
+              блоком Купера: сначала бесплатное действие приложения, потом
+              рекламное предложение, а не наоборот. */}
+          <RecipeMissingBlock missing={recipe.missing_ingredients} recipeTitle={recipe.title} />
+
           {/* Монетизация: заказ продуктов по рецепту через Купер (CPA). Только
               когда есть список ингредиентов — заказывать нечего без него. */}
           <KuperBuyBlock

@@ -1122,6 +1122,56 @@ body {
 }
 .ing-val { font-weight: var(--font-weight-semibold); color: var(--color-accent-hover); }
 
+/* --- «Чего не хватает» на экране рецепта ---
+   Своя, НЕ рекламная точка входа в «Покупки»: стоит перед блоком Купера и
+   оформлена нейтрально (без акцентной заливки), чтобы два блока подряд не
+   спорили друг с другом за внимание. */
+.missing-box {
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-md); padding: var(--space-4); margin: var(--space-4) 0;
+}
+.missing-title {
+  display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3);
+  font-weight: var(--font-weight-semibold); color: var(--color-text);
+}
+.missing-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }
+.missing-chip {
+  background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-full);
+  padding: var(--space-2) var(--space-3); font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium); color: var(--color-text);
+}
+.missing-btn {
+  display: flex; align-items: center; justify-content: center; gap: var(--space-2);
+  width: 100%; padding: var(--space-3) var(--space-4);
+  background: var(--color-accent); color: #fff; border: none; border-radius: var(--radius-sm);
+  font-size: var(--font-size-body); font-weight: var(--font-weight-semibold); cursor: pointer;
+  box-shadow: 0 6px 16px -6px rgba(5, 150, 105, 0.5);
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+.missing-btn:hover { background: var(--color-accent-hover); }
+/* Состояние «уже добавлено»: кнопка не исчезает, а превращается в выход в
+   «Покупки» — человек должен видеть, что действие сработало, и куда идти. */
+.missing-btn-done {
+  background: var(--color-accent-subtle); color: var(--color-accent);
+  border: 1px solid var(--color-accent); box-shadow: none;
+}
+.missing-btn-done:hover { background: var(--color-accent-subtle); }
+
+.missing-none {
+  display: flex; align-items: center; gap: var(--space-2);
+  margin: var(--space-4) 0; padding: var(--space-3) var(--space-4);
+  background: var(--color-bg-subtle); border-radius: var(--radius-sm);
+  color: var(--color-text-secondary); font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+}
+
+/* Подпись «для «Омлет с овощами»» под позицией списка покупок. */
+.shopping-item-source {
+  display: block; margin-top: 2px;
+  font-size: var(--font-size-caption); font-weight: var(--font-weight-regular);
+  color: var(--color-text-muted); text-decoration: none;
+}
+
 .step-row { display: flex; gap: var(--space-3); margin-bottom: var(--space-3); }
 .step-num {
   background: var(--color-accent); color: white; min-width: 38px; height: 38px;

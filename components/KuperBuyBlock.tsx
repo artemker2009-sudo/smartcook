@@ -27,7 +27,13 @@ import { addNamesToDefaultList } from "@/lib/shoppingLists";
  *
  * Цель Метрики ingredient_buy_click шлётся при тапе по чипу и по кнопке.
  */
-export default function KuperBuyBlock({ ingredients }: { ingredients: string[] }) {
+export default function KuperBuyBlock({
+  ingredients,
+  recipeTitle,
+}: {
+  ingredients: string[];
+  recipeTitle?: string;
+}) {
   const names = (ingredients || []).map((n) => (n || "").trim()).filter(Boolean);
   if (names.length === 0) return null;
 
@@ -54,7 +60,11 @@ export default function KuperBuyBlock({ ingredients }: { ingredients: string[] }
   // умолчанию (первый из мультисписков; если списков нет — создаётся «Мои
   // покупки»). Дедуп по названию. Список читает раздел /shopping.
   const handleAddToList = () => {
-    const result = addNamesToDefaultList(names);
+    // recipeTitle — только подпись «откуда продукт» в списке покупок. Текст,
+    // ссылка и пометка креатива Купера не меняются (ОРД), меняется лишь то,
+    // что человек увидит у себя в «Покупках»: без подписи через день непонятно,
+    // зачем это куплено — и именно на это пожаловались на приёмке.
+    const result = addNamesToDefaultList(names, { source: recipeTitle });
     reachGoal("shopping_item_added", { source: "recipe" });
     if (result.added > 0) {
       toast.success(`Добавлено в «${result.listName}»: ${result.added}`, {

@@ -16,6 +16,7 @@ import {
   type ShoppingItem,
   type SortCache,
 } from "./shoppingList";
+import { convertedLocalListIds, loadSharedPointers } from "./sharedShoppingList";
 
 // v2-хранилище. Старые ключи (v1) читаем только для одноразовой миграции.
 export const SHOPPING_LISTS_KEY = "smartcook_shopping_lists_v2";
@@ -300,7 +301,13 @@ export function addNamesToDefaultList(
   opts?: { source?: string; fallbackListName?: string },
 ): { added: number; duplicate: number; limited: boolean; listName: string; listId: string } {
   let lists = loadLists();
-  let target = lists[0];
+  // Списки, ставшие общими (семейными), в разделе «Покупки» СКРЫТЫ — вместо
+  // них показана карточка общего списка. Раньше первым в loadLists мог оказаться
+  // как раз такой список, и продукты с экрана рецепта уезжали туда, где человек
+  // их уже никогда не увидит: тост радостно рапортовал об успехе, а в «Покупках»
+  // не появлялось ничего. Берём первый ВИДИМЫЙ список.
+  const hidden = convertedLocalListIds(loadSharedPointers());
+  let target = lists.find((l) => !hidden.has(l.id));
   if (!target) {
     const created = createList(lists, opts?.fallbackListName || MIGRATED_LIST_NAME);
     lists = created.lists;

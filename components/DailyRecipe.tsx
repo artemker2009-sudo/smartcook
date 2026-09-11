@@ -2,6 +2,7 @@ import React from 'react';
 import { Clock, Flame, Heart, Share2, Sparkles, Send, Salad, ChefHat } from 'lucide-react';
 import { splitIngredientList } from '@/lib/recipeValidation';
 import KuperBuyBlock from '@/components/KuperBuyBlock';
+import RecipeMissingBlock from '@/components/RecipeMissingBlock';
 import { formatCookingTime } from '@/lib/utils';
 
 export default function DailyRecipe(props: any) {
@@ -83,12 +84,21 @@ export default function DailyRecipe(props: any) {
                 другого магазина — без маркировки и вторым по счёту на экране
                 рецепта; удалён целиком. splitIngredientList — фолбэк: старые
                 записи могли сохранить весь список одной строкой. */}
+            {/* Что нужно купить по рецепту дня: промпт /api/daily считает кухню
+                пустой и заполняет missing_ingredients целиком. known нет —
+                «всё есть дома» тут не появится. */}
+            <RecipeMissingBlock
+              modelMissing={dailyRecipe.missing_ingredients}
+              recipeTitle={dailyRecipe.title}
+            />
+
             <KuperBuyBlock
               ingredients={splitIngredientList(
                 dailyRecipe.detailed_ingredients
                   ? dailyRecipe.detailed_ingredients.map((ing: any) => ing.name)
                   : dailyRecipe.ingredients || [],
               )}
+              recipeTitle={dailyRecipe.title}
             />
 
             <h4 style={{fontSize: 'var(--font-size-heading)', fontWeight: 'var(--font-weight-semibold)', margin: '0 0 var(--space-3) 0', color: 'var(--color-text)', display: 'flex', alignItems: 'center', gap: 'var(--space-2)'}}><Salad size={20} /> Ингредиенты:</h4>

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Check, ListPlus, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
 import { reachGoal } from "@/lib/metrika";
-import { splitIngredientList } from "@/lib/recipeValidation";
+import { computeMissing } from "@/lib/missingProducts";
 import { addNamesToDefaultList } from "@/lib/shoppingLists";
 
 /**
@@ -16,6 +16,11 @@ import { addNamesToDefaultList } from "@/lib/shoppingLists";
  * была кнопка внутри рекламного блока Купера, причём она кладёт ВЕСЬ список
  * ингредиентов, а не недостающие. Этот блок — своя, не рекламная точка входа.
  *
+ * Недостающее СЧИТАЕТСЯ, а не берётся из ответа модели: в режиме «строго из
+ * этого» модель честно возвращает пустой список «докупить», и экран из-за
+ * этого писал «Всё есть дома» там, где дома не было половины рецепта
+ * (на проде — треть всех рецептов). Логика в lib/missingProducts.ts.
+ *
  * ВАЖНО: блок Купера трогать нельзя (его текст, ссылка и пометка
  * зарегистрированы как рекламный креатив, ОРД) — поэтому здесь всё своё.
  */
@@ -25,19 +30,25 @@ import { addNamesToDefaultList } from "@/lib/shoppingLists";
 const FALLBACK_LIST_NAME = "Мой список";
 
 export default function RecipeMissingBlock({
-  missing,
+  detailed,
+  known,
+  modelMissing,
   recipeTitle,
 }: {
-  missing?: string[] | string | null;
+  detailed?: { name?: string }[] | null;
+  /** Продукты, которые у человека есть: с фото или перечисленные руками. */
+  known?: string[] | null;
+  modelMissing?: string[] | string | null;
   recipeTitle?: string;
 }) {
-  // Старые записи иногда хранят весь список одной склеенной строкой — тот же
-  // фолбэк, что и при записи в БД (баг AB), иначе тут был бы один гигантский чип.
-  const names = splitIngredientList(missing);
+  const { items, comparable } = computeMissing({ detailed, known, modelMissing });
   const [added, setAdded] = useState(false);
 
-  // Всё нужное уже есть дома — это хорошая новость, а не пустое место.
-  if (names.length === 0) {
+  // Всё нужное уже есть дома — это хорошая новость, а не пустое место. Но
+  // говорим так ТОЛЬКО когда знаем, что у человека есть: у рецепта из истории
+  // или по ссылке сравнивать не с чем, и там мы молчим, а не выдумываем.
+  if (items.length === 0) {
+    if (!comparable) return null;
     return (
       <div className="missing-none">
         <Check size={18} /> Всё есть дома 👍
@@ -46,7 +57,7 @@ export default function RecipeMissingBlock({
   }
 
   const handleAdd = () => {
-    const result = addNamesToDefaultList(names, {
+    const result = addNamesToDefaultList(items, {
       source: recipeTitle,
       fallbackListName: FALLBACK_LIST_NAME,
     });
@@ -73,11 +84,12 @@ export default function RecipeMissingBlock({
   return (
     <div className="missing-box">
       <div className="missing-title">
-        <ShoppingCart size={20} color="var(--color-accent)" /> Чего не хватает
+        <ShoppingCart size={20} color="var(--color-accent)" />{" "}
+        {comparable ? "Чего не хватает" : "Что нужно купить"}
       </div>
 
       <div className="missing-chips">
-        {names.map((name, i) => (
+        {items.map((name, i) => (
           <span key={name + i} className="missing-chip">
             {name}
           </span>
@@ -90,7 +102,8 @@ export default function RecipeMissingBlock({
         </button>
       ) : (
         <button type="button" className="missing-btn" onClick={handleAdd}>
-          <ListPlus size={20} /> Чего не хватает → в Покупки
+          <ListPlus size={20} />{" "}
+          {comparable ? "Чего не хватает → в Покупки" : "Что нужно купить → в Покупки"}
         </button>
       )}
     </div>

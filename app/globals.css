@@ -1025,6 +1025,37 @@ body {
   border-color: var(--color-accent); background: var(--color-surface); box-shadow: 0 0 0 4px var(--color-accent-subtle);
 }
 
+/* --- Этапы ожидания объединённого вызова «фото → рецепт» ---
+   Вызов идёт 30–40 секунд, и всё это время человек должен видеть движение и
+   понимать, на чём мы сейчас. Пройденные этапы гаснут, текущий — акцентный. */
+.photo-stages {
+  display: flex; flex-direction: column; gap: var(--space-2);
+  background: var(--color-bg-subtle); border-radius: var(--radius-sm);
+  padding: var(--space-3) var(--space-4);
+  animation: fadeIn 0.3s ease;
+}
+.photo-stage-row {
+  display: flex; align-items: center; gap: var(--space-2);
+  font-size: var(--font-size-body); line-height: 1.4;
+  transition: color 0.3s ease, opacity 0.3s ease;
+}
+.photo-stage-done { color: var(--color-text-muted); opacity: 0.75; }
+.photo-stage-active { color: var(--color-accent); font-weight: var(--font-weight-semibold); }
+.photo-stage-todo { color: var(--color-text-muted); opacity: 0.45; }
+
+/* «Показать варианты с докупкой» — вторичное действие ПОСЛЕ результата,
+   бывший переключатель режимов. Тихая ссылка, а не третья кнопка подряд. */
+.photo-extended-link {
+  display: flex; align-items: center; justify-content: center; gap: var(--space-2);
+  width: 100%; margin-top: var(--space-3); padding: var(--space-2);
+  background: transparent; border: none; cursor: pointer;
+  color: var(--color-text-secondary); font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium); text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.photo-extended-link:hover:not(:disabled) { color: var(--color-accent); }
+.photo-extended-link:disabled { opacity: 0.5; cursor: not-allowed; }
+
 .upload-compact { text-align: center; animation: fadeIn 0.5s ease; }
 .preview-img {
   width: 100%; border-radius: var(--radius-md); box-shadow: 0 10px 25px rgba(0,0,0,0.15);

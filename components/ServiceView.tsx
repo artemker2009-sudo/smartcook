@@ -10,9 +10,10 @@ import {
   Search,
   RotateCcw,
   Settings,
-  Lock,
   ShoppingBag,
   Sparkles,
+  CheckCircle2,
+  Circle,
   ChevronRight,
   ChevronUp,
   ChevronDown,
@@ -29,8 +30,46 @@ import {
 import RecipeView from "@/components/RecipeView";
 import Button from "@/components/ui/Button";
 import { MAX_PRODUCT_LENGTH } from "@/lib/products";
+import { PHOTO_STAGE_LABELS, type PhotoStage } from "@/lib/photoStream";
 import { shareOrCopy } from "@/lib/share";
 import { formatCookingTime } from "@/lib/utils";
+
+// Порядок этапов ожидания. Совпадает с порядком ключей в схеме ответа модели
+// (app/api/photo-recipe/route.ts) — по нему же считается «пройден/текущий».
+const PHOTO_STAGE_ORDER: PhotoStage[] = ["look", "dishes", "recipe"];
+
+/**
+ * Этапы объединённого вызова. Ждать 30–40 секунд перед неподвижным экраном
+ * человек не готов — он должен видеть движение и понимать, на чём мы сейчас.
+ * Этапы настоящие: переключаются по тому, что уже пришло от модели
+ * (см. stageFromStream), а не по таймеру.
+ *
+ * Рисуется ДВАЖДЫ по месту действия: в карточке фото при первом распознавании
+ * и в карточке продуктов при пересчёте. Иначе при пересчёте индикатор остаётся
+ * далеко вверху, за краем экрана, и список выглядит просто зависшим.
+ */
+function PhotoStages({ stage, style }: { stage: PhotoStage; style?: React.CSSProperties }) {
+  const current = PHOTO_STAGE_ORDER.indexOf(stage);
+  return (
+    <div className="photo-stages" aria-live="polite" style={style}>
+      {PHOTO_STAGE_ORDER.map((s, i) => {
+        const state = i < current ? "done" : i === current ? "active" : "todo";
+        return (
+          <div key={s} className={`photo-stage-row photo-stage-${state}`}>
+            {state === "done" ? (
+              <CheckCircle2 size={18} />
+            ) : state === "active" ? (
+              <Loader2 className="animate-spin" size={18} />
+            ) : (
+              <Circle size={18} />
+            )}
+            {PHOTO_STAGE_LABELS[s]}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 interface ServiceViewProps {
   isHistoryView: boolean;
@@ -50,10 +89,17 @@ interface ServiceViewProps {
   triggerFileInput: () => void;
   handlePhotoAreaTap: () => void;
   cookingMode: "strict" | "extended";
-  setCookingMode: (mode: "strict" | "extended") => void;
   handleAnalyze: () => void;
   analyzing: boolean;
   isProcessing: boolean;
+  // Этап объединённого вызова «фото → рецепт» (null — ничего не считаем).
+  photoStage: PhotoStage | null;
+  // Открытие системного пикера из конкретной точки входа — только телеметрия.
+  onPickerOpen: (source: "camera" | "gallery" | "zone") => void;
+  // Пересчёт блюд и рецепта под отредактированный список продуктов.
+  onRecalcProducts: () => void;
+  // Пересчёт в режиме «могу докупить».
+  onShowExtended: () => void;
   textQuery: string;
   setTextQuery: (v: string) => void;
   handleTextSearch: (opts?: { cacheOnly?: boolean; queryOverride?: string }) => void;
@@ -130,10 +176,13 @@ export default function ServiceView({
   triggerFileInput,
   handlePhotoAreaTap,
   cookingMode,
-  setCookingMode,
   handleAnalyze,
   analyzing,
   isProcessing,
+  photoStage,
+  onPickerOpen,
+  onRecalcProducts,
+  onShowExtended,
   textQuery,
   setTextQuery,
   handleTextSearch,
@@ -208,6 +257,13 @@ export default function ServiceView({
   // Enter или кнопка. Запятая — разделитель («сметана, укроп» = два продукта).
   const [newProduct, setNewProduct] = React.useState("");
   const products: string[] = analysisResult?.ingredients ?? [];
+
+  // Карточка продуктов обслуживает два сценария: фото и текстовый запрос-
+  // перечисление. Новое поведение (правка не прячет блюда, пересчёт одним
+  // вызовом, ссылка «с докупкой») — только для фото-пути; текстовый работает
+  // ровно как раньше, через handleRegenerate.
+  const isPhotoFlow = searchMode === "photo";
+  const showDishes = !!analysisResult?.dishes?.length && (isPhotoFlow || !productsDirty);
 
   const submitNewProduct = (e: React.FormEvent) => {
     e.preventDefault();
@@ -471,6 +527,7 @@ export default function ServiceView({
                         className="upload-action-btn upload-action-primary"
                         onClick={(e) => {
                           e.stopPropagation();
+                          onPickerOpen("camera");
                           // preventDefault обязан быть СИНХРОННЫМ: после await
                           // событие уже обработано и <label> успевает открыть
                           // системный пикер WebView поверх нативного.
@@ -492,6 +549,7 @@ export default function ServiceView({
                         className="upload-action-btn upload-action-secondary"
                         onClick={(e) => {
                           e.stopPropagation();
+                          onPickerOpen("gallery");
                           if (!isNativePlatform()) return;
                           e.preventDefault();
                           void pickImageIntoInputHandler(handleFileChange, "photos");
@@ -533,41 +591,32 @@ export default function ServiceView({
                   </div>
                 )}
 
-                {file && (
-                  <div className="mode-toggle-container">
-                    <button
-                      className={`mode-btn ${
-                        cookingMode === "strict" ? "active" : ""
-                      }`}
-                      onClick={() => setCookingMode("strict")}
-                    >
-                      <Lock size={16} /> Строго из этого
-                    </button>
-                    <button
-                      className={`mode-btn ${
-                        cookingMode === "extended" ? "active" : ""
-                      }`}
-                      onClick={() => setCookingMode("extended")}
-                    >
-                      <ShoppingBag size={16} /> Могу докупить
-                    </button>
+                {/* Подготовка кадра (HEIC-декод, сжатие) — короткий шаг перед
+                    самим вызовом, поэтому отдельной строкой, без этапов. */}
+                {isProcessing && (
+                  <div className="photo-stage-row photo-stage-active" style={{ marginTop: "var(--space-4)" }}>
+                    <Loader2 className="animate-spin" size={18} />
+                    Обработка фото…
                   </div>
                 )}
 
-                <Button
-                  variant="primary"
-                  onClick={handleAnalyze}
-                  disabled={!file || analyzing || isProcessing}
-                  style={{ marginTop: "var(--space-4)" }}
-                >
-                  {isProcessing ? (
-                    <><Loader2 className="animate-spin" size={18} /> Обработка фото...</>
-                  ) : analyzing ? (
-                    <><Loader2 className="animate-spin" size={18} /> Изучаю продукты...</>
-                  ) : (
-                    <><Sparkles size={18} /> Найти рецепт</>
-                  )}
-                </Button>
+                {/* Первое распознавание — этапы здесь, под самим фото. При
+                    пересчёте они рисуются у списка продуктов, по месту действия. */}
+                {analyzing && photoStage && !analysisResult && (
+                  <PhotoStages stage={photoStage} style={{ marginTop: "var(--space-4)" }} />
+                )}
+
+                {/* Кнопки запуска здесь больше нет: распознавание стартует сразу
+                    после выбора фото. Остаётся только повтор после сбоя. */}
+                {file && !analyzing && !isProcessing && !analysisResult && (
+                  <Button
+                    variant="primary"
+                    onClick={handleAnalyze}
+                    style={{ marginTop: "var(--space-4)" }}
+                  >
+                    <Sparkles size={18} /> Попробовать ещё раз
+                  </Button>
+                )}
               </>
             ) : (
               <>
@@ -708,7 +757,7 @@ export default function ServiceView({
       )}
 
       {analysisResult && !isSharedView && !isHistoryView && !analysisResult.no_food && (
-        <div className="card">
+        <div className="card" id="photo-result">
           <h3 className="products-title">
             {analysisResult.manual ? "Ваши продукты" : "Я вижу продукты:"}
           </h3>
@@ -762,18 +811,45 @@ export default function ServiceView({
             </button>
           </form>
 
-          {/* Пока список правили — блюда из распознавания устарели: не показываем
-              их, а предлагаем подобрать рецепты под ИТОГОВЫЙ список (1 запрос). */}
-          {productsDirty || !analysisResult.dishes?.length ? (
+          {/* ФОТО-ПУТЬ: правка списка больше НЕ прячет блюда. Подсказка зовёт
+              убрать лишнее, а человек за послушание терял готовый результат и
+              получал лишний тап. Теперь блюда остаются на месте, а рядом
+              загорается «Пересчитать» — один вызов под ИТОГОВЫЙ список.
+              В текстовом пути всё как было (см. showDishes ниже). */}
+          {isPhotoFlow && productsDirty && !analyzing && (
+            <Button
+              onClick={onRecalcProducts}
+              disabled={loadingRecipe || products.length === 0}
+              style={{ marginBottom: "var(--space-4)" }}
+            >
+              <Sparkles size={20} /> Пересчитать под новый список
+            </Button>
+          )}
+
+          {/* Пересчёт идёт — этапы прямо здесь, а не в карточке фото за краем
+              экрана. Тот же индикатор, что и при первом распознавании. */}
+          {isPhotoFlow && analyzing && photoStage && (
+            <PhotoStages stage={photoStage} style={{ marginBottom: "var(--space-4)" }} />
+          )}
+
+          {!showDishes ? (
             /* Отступ сверху даёт margin-bottom формы — одинаковый и здесь, и
                перед списком блюд. Свой marginTop добавлял бы его вторым разом. */
-            <Button
-              onClick={handleRegenerate}
-              disabled={isRegenerating || loadingRecipe || products.length === 0}
-            >
-              <Sparkles size={20} />{" "}
-              {isRegenerating ? "Подбираю рецепты..." : "Подобрать рецепты"}
-            </Button>
+            isPhotoFlow ? (
+              !analyzing && (
+                <Button onClick={onRecalcProducts} disabled={loadingRecipe || products.length === 0}>
+                  <Sparkles size={20} /> Подобрать рецепты
+                </Button>
+              )
+            ) : (
+              <Button
+                onClick={handleRegenerate}
+                disabled={isRegenerating || loadingRecipe || products.length === 0}
+              >
+                <Sparkles size={20} />{" "}
+                {isRegenerating ? "Подбираю рецепты..." : "Подобрать рецепты"}
+              </Button>
+            )
           ) : (
             <>
               <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
@@ -810,6 +886,22 @@ export default function ServiceView({
                 <Sparkles size={20} color="var(--color-accent)" />{" "}
                 {isRegenerating ? "Включаю фантазию..." : "Хочу что-то необычное"}
               </Button>
+
+              {/* Бывший переключатель «Строго из этого / Могу докупить». До
+                  результата он был развилкой без контекста: человек ещё ничего
+                  не видел, а его уже просили выбрать стратегию. Здесь это
+                  одна ссылка поверх готового результата. Только фото-путь:
+                  у текстового поиска своего режима «докупить» нет. */}
+              {isPhotoFlow && cookingMode === "strict" && (
+                <button
+                  type="button"
+                  className="photo-extended-link"
+                  onClick={onShowExtended}
+                  disabled={analyzing || loadingRecipe}
+                >
+                  <ShoppingBag size={16} /> Показать варианты с докупкой
+                </button>
+              )}
             </>
           )}
         </div>

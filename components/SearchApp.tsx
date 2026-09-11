@@ -11,7 +11,8 @@ import { shareOrCopy } from "@/lib/share";
 import { shareNative } from "@/lib/native";
 import { reachGoal } from "@/lib/metrika";
 import { claimGuestPartiesToAccount } from "@/lib/claimParties";
-import { preparePhoto, decodeHeicIfNeeded, reportPhotoError, fetchWithTimeout } from "@/lib/photo";
+import { preparePhoto, decodeHeicIfNeeded, reportPhotoError, fetchStreamWithTimeout } from "@/lib/photo";
+import { splitStreamPayload, stageFromStream, type PhotoStage } from "@/lib/photoStream";
 import { FEATURE_RESTAURANT_GAME } from "@/lib/features";
 import { addProduct, MAX_PRODUCTS } from "@/lib/products";
 import { useAuthModal } from "@/components/modals/useAuthModal";
@@ -58,6 +59,13 @@ export default function SearchApp() {
   const [productsDirty, setProductsDirty] = useState(false);
   const [selectedDish, setSelectedDish] = useState<string | null>(null);
   const [recipe, setRecipe] = useState<RecipeData | null>(null);
+  // Этап объединённого вызова (/api/photo-recipe): «Смотрю, что есть…» →
+  // «Подбираю три ужина…» → «Пишу рецепт…». null — ничего не считаем.
+  const [photoStage, setPhotoStage] = useState<PhotoStage | null>(null);
+  // Уже сгенерированные рецепты текущего списка продуктов, ключ — название
+  // блюда. Повторный тап по блюду берёт рецепт отсюда и НЕ тратит ни вызов
+  // OpenAI, ни единицу лимита. Сбрасывается на каждом пересчёте/новом фото.
+  const [dishRecipes, setDishRecipes] = useState<Record<string, RecipeData>>({});
   
   const [feed, setFeed] = useState<DBRecipe[]>([]);
   const [userLevels, setUserLevels] = useState<Record<string, number>>({});
@@ -694,44 +702,174 @@ export default function SearchApp() {
       setPreview(URL.createObjectURL(files[0]));
       const finalFile = await preparePhoto(files[0], { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true }, "image.jpg");
       setFile(finalFile); setPreview(URL.createObjectURL(finalFile));
+      // Фото готово к отправке — точка, которой в воронке не было вовсе. Между
+      // cta_photo_click и распознаванием раньше не измерялось НИЧЕГО: сколько
+      // людей открыли пикер, сколько отменили, сколько дошли до готового кадра.
+      reachGoal('photo_file_ready');
+      // И сразу в работу: отдельный тап «Найти рецепт» был лишним шагом ровно в
+      // том месте, где человек уже сделал всё, что от него требовалось.
+      void runPhotoPipeline(finalFile);
     } catch (error) { void reportPhotoError("scan", files[0], error); showToast("Не удалось обработать фото", undefined, 'error'); setFile(null); } finally { setIsProcessing(false); }
-  }; 
+  };
 
   const triggerFileInput = () => document.getElementById('hidden-file-input')?.click();
 
-  // Тап по всей пунктирной зоне «Выберите фото» = «Из галереи» (тот же input).
-  // Метрика через общий reachGoal; double-open от кликов по кнопкам гасится
-  // stopPropagation на самих кнопках (см. ServiceView upload-zone).
-  const handlePhotoAreaTap = () => { reachGoal('photo_area_tap'); triggerFileInput(); };
+  // Открытие системного пикера — из трёх мест (камера, галерея, тап по зоне).
+  // Цель одна, источник — параметром: иначе не видно, какая из точек входа
+  // реально работает, а какая только мешает.
+  const handlePickerOpen = (source: 'camera' | 'gallery' | 'zone') => {
+    reachGoal('photo_picker_open', { source });
+  };
 
-  const handleAnalyze = async () => {
-    if (!file) return; setAnalyzing(true); setRecipe(null); setProductsDirty(false);
+  // Тап по всей пунктирной зоне «Выберите фото» = «Из галереи» (тот же input).
+  // photo_area_tap оставлен ради непрерывности старых отчётов.
+  const handlePhotoAreaTap = () => { reachGoal('photo_area_tap'); handlePickerOpen('zone'); triggerFileInput(); };
+
+  /**
+   * Весь фото-путь одним вызовом: продукты + три блюда + готовый рецепт первого.
+   *
+   * Раньше это стоило два запроса и две единицы лимита (/api/analyze, потом
+   * /api/recipe по тапу на блюдо) — и требовало от человека двух лишних
+   * действий. Теперь один /api/photo-recipe и одна единица.
+   *
+   * opts.ingredients — пересчёт по уже известному списку продуктов (правка
+   * чипов или «показать варианты с докупкой»): фото второй раз в модель не
+   * уходит. opts.mode — режим подбора, по умолчанию текущий cookingMode.
+   */
+  const runPhotoPipeline = async (
+    photo: File | null,
+    opts?: { ingredients?: string[]; mode?: 'strict' | 'extended'; reason?: string },
+  ) => {
+    const mode = opts?.mode ?? cookingMode;
+    const recalcProducts = opts?.ingredients;
+    if (!photo && (!recalcProducts || recalcProducts.length === 0)) return;
+
+    // Ничего не сбрасываем на старте: при сбое (сеть моргнула, лимит) человек
+    // должен остаться ровно там, где был — со своим рецептом, блюдами и
+    // невыполненной пометкой «список правили». Всё старое заменяем только
+    // после успешного разбора ответа.
+    setAnalyzing(true);
+    setPhotoStage('look');
+    reachGoal('photo_oneshot_start', { kind: recalcProducts ? 'recalc' : 'photo', mode });
+
     let httpStatus = 0;
     try {
-      const formData = new FormData(); formData.append("image", file); formData.append("mode", cookingMode); formData.append("allergies", allergies.join(', ')); formData.append("dislikes", dislikes.join(', '));
-      // fetchWithTimeout: 30с потолок; на таймауте бросает PhotoTimeoutError с
-      // шагом "analyze-timeout" (репорт ляжет с честным шагом).
-      const response = await fetchWithTimeout("/api/analyze", { method: "POST", headers: await getAuthHeaders(), body: formData }, "analyze-timeout");
+      const authHeaders = await getAuthHeaders();
+      let init: RequestInit;
+      if (recalcProducts) {
+        init = {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
+          body: JSON.stringify({ ingredients: recalcProducts, mode, allergies, dislikes, sessionId: userId }),
+        };
+      } else {
+        const formData = new FormData();
+        formData.append('image', photo as File);
+        formData.append('mode', mode);
+        formData.append('allergies', allergies.join(', '));
+        formData.append('dislikes', dislikes.join(', '));
+        if (userId) formData.append('sessionId', userId);
+        init = { method: 'POST', headers: authHeaders, body: formData };
+      }
+
+      // Этапы переключаются по факту приходящего текста, а не по таймеру:
+      // stageFromStream смотрит, какие ключи схемы уже появились в ответе.
+      const { response, body } = await fetchStreamWithTimeout(
+        '/api/photo-recipe',
+        init,
+        'photo-oneshot-timeout',
+        (accumulated) => setPhotoStage(stageFromStream(accumulated)),
+      );
       httpStatus = response.status;
-      const json = await response.json(); if (handleRateLimitedResponse(response, json)) return; if (json.error) throw new Error(json.error);
-      setAnalysisResult(json.data);
-      // На фото нет продуктов — честный ответ (карточка в ServiceView), частота важна.
-      if (json.data?.no_food) reachGoal("photo_no_food");
-      // Продукты распознаны — первая ПОЛОЖИТЕЛЬНАЯ точка фото-воронки. До этого
-      // с фото-пути в Метрику уходили только клики и неудачи (photo_no_food,
-      // photo_client_error), поэтому «сколько людей вообще доходят до списка
-      // продуктов» было не посчитать. Параметром отдаём число найденных
-      // продуктов: пустое распознавание и щедрое — разные истории.
-      else reachGoal("photo_analyze_success", { ingredients: json.data?.ingredients?.length ?? 0 });
+
+      if (!response.ok) {
+        // Ошибки приходят обычным JSON (429 лимита, 413 размера, 500).
+        let json: { error?: string } = {};
+        try { json = JSON.parse(body); } catch {}
+        if (handleRateLimitedResponse(response, json)) return;
+        throw new Error(json?.error || `Ошибка ${response.status}`);
+      }
+
+      const { modelText, meta } = splitStreamPayload(body);
+      if (meta?.error) throw new Error(meta.error);
+
+      const data = JSON.parse(modelText);
+      const ingredients: string[] = Array.isArray(data?.ingredients) ? data.ingredients : [];
+      const dishes: string[] = Array.isArray(data?.dishes) ? data.dishes : [];
+
+      // Ответ разобран — вот теперь можно заменять то, что было на экране.
+      setAnalysisResult({ ingredients, dishes, no_food: !!data?.no_food, uncertain: data?.uncertain });
+      setProductsDirty(false);
+      setSelectedDish(null);
+      setRecipe(null);
+      // Кэш рецептов привязан к конкретному списку продуктов: после пересчёта
+      // старые карточки уже не про то, что у человека на столе.
+      setDishRecipes({});
+
+      // На фото нет продуктов — честный ответ (карточка в ServiceView).
+      if (data?.no_food) { reachGoal('photo_no_food'); return; }
+
+      reachGoal('photo_analyze_success', { ingredients: ingredients.length });
+
+      const first = dishes[0];
+      if (data?.recipe && first) {
+        const ready: RecipeData = {
+          ...data.recipe,
+          id: meta?.recipeId ?? undefined,
+          is_favorite: false,
+          ingredients,
+        };
+        setSelectedDish(first);
+        setRecipe(ready);
+        // Тот же рецепт по тапу на блюдо №1 не должен стоить второго вызова.
+        setDishRecipes({ [first]: ready });
+        if (userId) fetchMyRecipes(userId);
+        handleRewardForRecipe();
+        onRecipeGenerated();
+        // Конец фото-воронки: человек сфотографировал продукты и ДЕРЖИТ рецепт.
+        // Цель осталась прежней — чтобы новый путь сравнивался со старым.
+        reachGoal('photo_recipe_success', { auto: 1 });
+      }
+
+      // Результат приезжает НИЖЕ зоны загрузки: без скролла человек досматривал
+      // пустой экран и уходил, так и не увидев ни продуктов, ни блюд.
+      setTimeout(() => {
+        document.getElementById('photo-result')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 120);
     } catch (err: any) {
-      // Раньше сбой /api/analyze тонул в одном тосте без телеметрии. Теперь —
-      // репорт photo_client_error с HTTP-статусом и шагом (#1).
-      void reportPhotoError("analyze", file, err, { marker: "photo_client_error", httpStatus: httpStatus || undefined });
-      // Та же неудача — целью, а не только строкой в error_reports: в Метрике
-      // она встаёт рядом с photo_analyze_success и даёт долю сбоев на шаге.
-      reachGoal("photo_analyze_error");
-      showToast("Ошибка: " + (err?.message || "не удалось обработать фото"), undefined, 'error');
-    } finally { setAnalyzing(false); }
+      void reportPhotoError(recalcProducts ? 'photo-recalc' : 'photo-oneshot', photo, err, {
+        marker: 'photo_client_error',
+        httpStatus: httpStatus || undefined,
+      });
+      reachGoal('photo_analyze_error');
+      showToast('Ошибка: ' + (err?.message || 'не удалось получить рецепт'), undefined, 'error');
+    } finally {
+      setAnalyzing(false);
+      setPhotoStage(null);
+    }
+  };
+
+  // Повтор после сбоя (кнопка «Попробовать ещё раз») — то же фото, новый вызов.
+  const handleAnalyze = () => { if (file) void runPhotoPipeline(file); };
+
+  // «Пересчитать» после правки продуктов и «Подобрать рецепты» на пустом списке,
+  // набранном руками. Один вызов, одна единица лимита.
+  const handleRecalcProducts = () => {
+    const products = analysisResult?.ingredients ?? [];
+    if (products.length === 0) return;
+    reachGoal('photo_recalc', { reason: 'products' });
+    void runPhotoPipeline(null, { ingredients: products });
+  };
+
+  // «Показать варианты с докупкой» — тот же пересчёт, но в режиме extended.
+  // Переключатель режимов убран с пути ДО результата: там он был развилкой
+  // без контекста, а здесь человек уже видит, что получилось.
+  const handleShowExtended = () => {
+    const products = analysisResult?.ingredients ?? [];
+    if (products.length === 0) return;
+    setCookingMode('extended');
+    reachGoal('photo_recalc', { reason: 'extended' });
+    void runPhotoPipeline(null, { ingredients: products, mode: 'extended' });
   };
 
   const handleRegenerate = async () => {
@@ -833,13 +971,30 @@ export default function SearchApp() {
     }
   };
 
-  const getRecipeFromPhoto = async (dishName: string) => { 
-    if (!analysisResult || !userId) return; setSelectedDish(dishName); setLoadingRecipe(true); setRecipe(null); setIsHistoryView(false); setFromFeed(false); setServings(1);  
-    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); 
-    try { 
+  const getRecipeFromPhoto = async (dishName: string) => {
+    if (!analysisResult || !userId) return;
+
+    // Уже сгенерированный рецепт этого блюда отдаём из памяти. Повторный тап —
+    // обычное дело («посмотреть второе, вернуться к первому»), и раньше каждый
+    // такой возврат стоил нового вызова OpenAI и единицы лимита.
+    const cached = searchMode === 'photo' ? dishRecipes[dishName] : undefined;
+    if (cached) {
+      setSelectedDish(dishName); setRecipe(cached); setIsHistoryView(false); setFromFeed(false); setServings(1);
+      reachGoal('photo_recipe_cached');
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+      return;
+    }
+    if (searchMode === 'photo') reachGoal('photo_dish_pick');
+
+    setSelectedDish(dishName); setLoadingRecipe(true); setRecipe(null); setIsHistoryView(false); setFromFeed(false); setServings(1);
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    try {
       const response = await fetch("/api/recipe", { method: "POST", headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) }, body: JSON.stringify({ dish: dishName, ingredients: analysisResult.ingredients, sessionId: userId, allergies, dislikes }) });
       const json = await response.json(); if (handleRateLimitedResponse(response, json)) return; if (json.error) throw new Error(json.error);
-      setRecipe({ ...json.recipe, id: json.recipe.id, is_favorite: false, ingredients: analysisResult.ingredients });
+      const generated: RecipeData = { ...json.recipe, id: json.recipe.id, is_favorite: false, ingredients: analysisResult.ingredients };
+      setRecipe(generated);
+      // В кэш — чтобы возврат к этому блюду был бесплатным.
+      if (searchMode === 'photo') setDishRecipes((prev) => ({ ...prev, [dishName]: generated }));
       if (userId) fetchMyRecipes(userId);
       handleRewardForRecipe();
       onRecipeGenerated();
@@ -1123,10 +1278,13 @@ export default function SearchApp() {
           triggerFileInput={triggerFileInput}
           handlePhotoAreaTap={handlePhotoAreaTap}
           cookingMode={cookingMode}
-          setCookingMode={setCookingMode}
           handleAnalyze={handleAnalyze}
           analyzing={analyzing}
           isProcessing={isProcessing}
+          photoStage={photoStage}
+          onPickerOpen={handlePickerOpen}
+          onRecalcProducts={handleRecalcProducts}
+          onShowExtended={handleShowExtended}
           textQuery={textQuery}
           setTextQuery={setTextQuery}
           handleTextSearch={handleTextSearch}

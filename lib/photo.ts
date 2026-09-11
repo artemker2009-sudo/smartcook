@@ -49,6 +49,58 @@ export async function fetchWithTimeout(
   }
 }
 
+// Потолок ожидания объединённого вызова «фото → продукты → блюда → рецепт»
+// (/api/photo-recipe). Он заметно длиннее обычного шага: модель пишет и список
+// продуктов, и полную техкарту, это честные 30–40 секунд. Значение обязано
+// оставаться МЕНЬШЕ серверного maxDuration роута (60с) — иначе платформа рвёт
+// соединение раньше нашего AbortController, и вместо честного
+// "photo-oneshot-timeout" в телеметрию уходит невнятная сетевая ошибка.
+export const PHOTO_ONESHOT_TIMEOUT_MS = 55_000;
+
+/**
+ * fetch стримящего ответа с жёстким таймаутом на ВЕСЬ приём, а не только на
+ * заголовки. Обычный fetchWithTimeout здесь не годится: он снимает таймер, как
+ * только пришли заголовки, — а у стрима самое долгое начинается после них.
+ *
+ * onProgress зовётся на каждом куске с НАКОПЛЕННЫМ текстом: по нему клиент
+ * переключает этапы ожидания. Ошибочные ответы (429/413/500) стримом не
+ * приходят — их тело читается целиком и отдаётся вызывающему как есть.
+ */
+export async function fetchStreamWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutStage: string,
+  onProgress?: (accumulated: string) => void,
+  ms: number = PHOTO_ONESHOT_TIMEOUT_MS,
+): Promise<{ response: Response; body: string }> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    const response = await fetch(url, { ...init, signal: controller.signal });
+    // Не 2xx или браузер без потокового тела — читаем целиком, без этапов.
+    if (!response.ok || !response.body) {
+      return { response, body: await response.text() };
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let accumulated = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      accumulated += decoder.decode(value, { stream: true });
+      onProgress?.(accumulated);
+    }
+    accumulated += decoder.decode();
+    return { response, body: accumulated };
+  } catch (err) {
+    if (controller.signal.aborted) throw new PhotoTimeoutError(timeoutStage);
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export type CompressionOptions = {
   maxSizeMB: number;
   maxWidthOrHeight: number;

@@ -10,7 +10,6 @@ import TelegramWebViewBanner from "@/components/TelegramWebViewBanner";
 import Footer from "@/components/Footer";
 import NativeShell from "@/components/NativeShell";
 import TabBar from "@/components/TabBar";
-import ProfileEntry from "@/components/ProfileEntry";
 import OnboardingModal from "@/components/modals/OnboardingModal";
 import AppToaster from "@/components/ui/AppToaster";
 import { Suspense } from "react"; // Импортируем Suspense для корректной работы
@@ -172,8 +171,10 @@ export default async function RootLayout({
         <InstallBanner />
         <TelegramWebViewBanner />
 
+        {/* Вход в личный кабинет — пункт «Профиль» в таб-баре (этап H11).
+            Аватарка-вход ProfileEntry отсюда убрана: два входа в одно место
+            на каждом экране. Компонент остался в репозитории. */}
         <TabBar />
-        <ProfileEntry />
         {children}
         {!hideFooter && <Footer />}
         {!isAdminRoute && <OnboardingModal />}

@@ -77,9 +77,11 @@ export default function Footer() {
         SmartCook · СмартКук © 2026
       </div>
 
+      {/* 12px, а не 10px: Главная стала короче, и этот абзац занял 40% её
+          текста — Lighthouse (legible text) считал страницу нечитаемой. */}
       <p
         style={{
-          fontSize: "10px",
+          fontSize: "12px",
           lineHeight: 1.4,
           color: "var(--color-text-muted)",
           opacity: 0.7,

@@ -2,21 +2,24 @@
 
 import { Camera } from "lucide-react";
 import { useRouter } from "next/navigation";
-import ProcessAnimation from "@/components/ProcessAnimation";
-import RuStoreBadge from "@/components/RuStoreBadge";
 import { reachGoal } from "@/lib/metrika";
-import type { DemoChip } from "@/lib/demoChips";
 
 /**
- * Первый экран Главной (H7/H10): заголовок про боль пользователя, ОДНА крупная
- * CTA «Сфотографировать продукты» под палец, под ней тихая текстовая ссылка
- * «или найти рецепт по названию» — второй сценарий не конкурирует за внимание с
- * основным. Разделы — реальные роуты, поэтому переходы навигационные: фото →
- * /search с фокусом на зоне загрузки (?focus=photo), текстовый поиск →
- * /search?focus=text (фокус на поле ввода). Банкеты убраны с первого экрана —
- * остаются в таб-баре. Никакой логики распознавания тут нет.
+ * Первый экран Главной (H11 «одно обещание, одна кнопка»). Занимает весь
+ * viewport телефона: бренд, обещание, подзаголовок, ОДНА крупная кнопка на всю
+ * ширину и под ней тихая текстовая ссылка на текстовый ввод. Больше на первом
+ * экране нет ничего — ни анимации, ни витрин, ни второй кнопки: 51% визитов
+ * приходят сюда и половина уходит за 30 секунд, поэтому внимание не делим.
+ *
+ * Что отсюда уехало ниже по странице (не удалено): демо-чипы H8 — под блок
+ * «Как это работает»; плашка RuStore — к последним блокам. Анимация процесса
+ * (ProcessAnimation) снята с Главной совсем, компонент остался в репозитории.
+ *
+ * Переходы навигационные, разделы — реальные роуты: фото → /search?focus=photo
+ * (фокус на зоне загрузки), текст → /search?focus=text (фокус на поле ввода).
+ * Никакой логики распознавания тут нет.
  */
-export default function HeroLanding({ demoChips = [] }: { demoChips?: DemoChip[] }) {
+export default function HeroLanding() {
   const router = useRouter();
 
   const handlePhotoClick = () => {
@@ -26,68 +29,29 @@ export default function HeroLanding({ demoChips = [] }: { demoChips?: DemoChip[]
   };
 
   const handleTextClick = () => {
-    // Вход в текстовый поиск = переход на экран поиска → шлём nav_search
-    // (та же цель, что и у таб-бара), сохраняя воронку целой.
+    // cta_text_click — новая цель именно этой ссылки (меряем, сколько людей
+    // выбирают текст вместо фото). nav_search шлём следом и НЕ переименовываем:
+    // это та же цель, что у таб-бара, на ней собрана воронка входа в поиск.
+    reachGoal("cta_text_click");
     reachGoal("nav_search");
     router.push("/search?focus=text");
   };
 
-  // H8 «магия без фото»: тап по демо-чипу → цель demo_chip_click (с параметром,
-  // какой чип) + переход в поиск с ?demo=<ключ блюда>. Дальше SearchApp делает
-  // строго кэш-запрос (0 расхода OpenAI), воронка считается text_search_*.
-  const handleDemoChip = (chip: DemoChip) => {
-    reachGoal("demo_chip_click", { chip: chip.key });
-    router.push(`/search?demo=${encodeURIComponent(chip.key)}`);
-  };
-
   return (
-    <section className="hero-landing">
+    <section className="hero-screen">
       <div className="hero-brand">SmartCook</div>
-      <h1 className="hero-headline">
-        Не знаете, <span className="hero-mark">что приготовить</span> из того,
-        что есть дома?
-      </h1>
+      <h1 className="hero-headline">Ужин из того, что есть</h1>
       <p className="hero-subhead">
-        Сфотографируйте продукты — и получите 3 варианта ужина за минуту.
+        Сфотографируйте продукты — три рецепта за минуту. Телефон читает вслух,
+        пока руки в муке.
       </p>
 
-      <div className="hero-cta-group">
-        <button type="button" className="btn-primary hero-cta" onClick={handlePhotoClick}>
-          <Camera size={20} /> Сфотографировать продукты
-        </button>
-        <button type="button" className="hero-textlink" onClick={handleTextClick}>
-          или найти рецепт по названию
-        </button>
-        {/* Вторичная плашка «Скачайте в RuStore» — только Android и только вне
-            установленного приложения. Логика показа внутри компонента. */}
-        <RuStoreBadge />
-      </div>
-
-      {/* H8 «магия без фото»: рабочее демо. Показываем ТОЛЬКО если сервер отдал
-          прогретые в кэше чипы (иначе блок не рендерим). Тап → мгновенный рецепт
-          из кэша, без камеры и регистрации. */}
-      {demoChips.length > 0 && (
-        <div className="demo-magic">
-          <p className="demo-magic-caption">
-            Или нажмите на продукты — покажем, что из них приготовить
-          </p>
-          <div className="demo-chip-row">
-            {demoChips.map((chip) => (
-              <button
-                key={chip.key}
-                type="button"
-                className="demo-chip"
-                onClick={() => handleDemoChip(chip)}
-              >
-                <span className="demo-chip-emoji" aria-hidden>{chip.emoji}</span>
-                {chip.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <ProcessAnimation />
+      <button type="button" className="btn-primary hero-cta" onClick={handlePhotoClick}>
+        <Camera size={22} /> Сфотографировать холодильник
+      </button>
+      <button type="button" className="hero-textlink" onClick={handleTextClick}>
+        или напишите, что есть
+      </button>
     </section>
   );
 }

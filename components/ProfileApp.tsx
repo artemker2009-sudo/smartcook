@@ -9,6 +9,7 @@
 // EditProfileModal, CropperModal, AuthModal) — общие с остальным приложением.
 
 import { useState, useEffect, useCallback, ChangeEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Area } from "react-easy-crop";
 import type { User } from "@supabase/supabase-js";
@@ -32,6 +33,7 @@ import {
   Code2,
   AlertTriangle,
   Lightbulb,
+  PartyPopper,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -77,6 +79,47 @@ function formatJoined(createdAt?: string): string | null {
   const d = new Date(createdAt);
   if (Number.isNaN(d.getTime())) return null;
   return `В приложении с ${MONTHS_GENITIVE[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+// Разделы, снятые с таб-бара (этап H11): за месяц у банкетов ноль кликов, у
+// ленты ноль публикаций — в основной навигации они занимали место, но не
+// работали. Сами страницы /parties и /feed не тронуты, вход в них остался
+// здесь. Показываем и гостю: банкеты у анонима живут на устройстве, ленту он
+// тоже читает — кабинет теперь единственный вход в оба раздела.
+function ProfileSectionLinks() {
+  return (
+    <div className="profile-links">
+      <Link
+        href="/parties"
+        className="profile-link"
+        onClick={() => reachGoal("nav_parties")}
+      >
+        <span className="profile-link-icon" aria-hidden style={{ background: "#fce7f3", color: "#be185d" }}>
+          <PartyPopper size={20} />
+        </span>
+        <span className="profile-link-body">
+          <span className="profile-link-title">Банкеты</span>
+          <span className="profile-link-sub">Меню на компанию и список закупки</span>
+        </span>
+        <ChevronRight size={18} className="profile-link-arrow" aria-hidden />
+      </Link>
+
+      <Link
+        href="/feed"
+        className="profile-link"
+        onClick={() => reachGoal("home_feed_open")}
+      >
+        <span className="profile-link-icon" aria-hidden style={{ background: "var(--color-accent-subtle)", color: "var(--color-accent)" }}>
+          <ImageIcon size={20} />
+        </span>
+        <span className="profile-link-body">
+          <span className="profile-link-title">Лента сообщества</span>
+          <span className="profile-link-sub">Фото блюд от других поваров</span>
+        </span>
+        <ChevronRight size={18} className="profile-link-arrow" aria-hidden />
+      </Link>
+    </div>
+  );
 }
 
 export default function ProfileApp() {
@@ -416,6 +459,10 @@ export default function ProfileApp() {
           >
             У меня уже есть аккаунт
           </button>
+
+          <div style={{ marginTop: "var(--space-6)", textAlign: "left" }}>
+            <ProfileSectionLinks />
+          </div>
         </div>
 
         <AuthModal {...authModalProps} />
@@ -557,6 +604,8 @@ export default function ProfileApp() {
             )}
           </div>
         )}
+
+        <ProfileSectionLinks />
 
         {/* Опасная зона: удаление аккаунта (App Store 5.1.1(v)). Внизу, отдельно,
             неакцентная ссылка — не провоцирует случайный тап, но всегда доступна. */}

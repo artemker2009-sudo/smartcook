@@ -3,20 +3,35 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
-import { Home, Search, ShoppingCart } from "lucide-react";
+import { Camera, Home, ShoppingCart, User } from "lucide-react";
 import { reachGoal } from "@/lib/metrika";
 
-// Основная навигация по трём разделам. Мобайл — фиксированный таб-бар снизу
-// (safe-area для PWA/iOS), десктоп — те же три пункта в верхней шапке (через
-// CSS). Переходы — next/link (реальная смена маршрута → авто-хит Метрики из
+// Основная навигация по четырём разделам. Мобайл — фиксированный таб-бар снизу
+// (safe-area для PWA/iOS), десктоп — те же пункты в верхней шапке (через CSS).
+// Переходы — next/link (реальная смена маршрута → авто-хит Метрики из
 // YandexMetrika по usePathname). onClick дополнительно шлёт цель nav_*.
-// Порядок: Покупки — Главная — Поиск. «Поиск» справа — самое частое действие в
-// зоне большого пальца. Подписи в таб-баре — одно короткое слово (iOS-стиль),
-// чтобы не переносились на узких экранах; в контенте раздел зовётся «Найти
-// рецепт» (хамбургер-меню, заголовки) — это не трогаем. Лендинг по умолчанию не
-// меняется — заход на Главную (/). «Банкеты» переехали в гамбургер-меню; прямые
-// ссылки /parties и /party/<id> работают как раньше.
+//
+// Порядок (этап H11): Главная — По фото — Покупки — Профиль. «По фото» ведёт в
+// тот же /search с фокусом на зоне загрузки, что и главная кнопка Главной, и
+// шлёт СТАРУЮ цель nav_search: на ней собрана воронка входа в поиск, переименование
+// разорвало бы месячные ряды. «Профиль» — новый пункт и новая цель nav_profile;
+// он заменил аватарку-вход в root-layout (ProfileEntry), чтобы вход в кабинет
+// был ровно один.
+//
+// Подписи — одно короткое слово (iOS-стиль), чтобы не переносились на узких
+// экранах; в контенте раздел зовётся «Найти рецепт» — это не трогаем.
+// «Банкеты» и «Лента» в таб-баре не живут: за месяц ноль кликов и ноль
+// публикаций. Ссылки на них остались в личном кабинете, прямые /parties,
+// /party/<id> и /feed работают как раньше.
 const TABS = [
+  { href: "/", label: "Главная", icon: Home, goal: "nav_home", isActive: (p: string) => p === "/" },
+  {
+    href: "/search?focus=photo",
+    label: "По фото",
+    icon: Camera,
+    goal: "nav_search",
+    isActive: (p: string) => p.startsWith("/search"),
+  },
   {
     href: "/shopping",
     label: "Покупки",
@@ -24,8 +39,13 @@ const TABS = [
     goal: "nav_shopping",
     isActive: (p: string) => p.startsWith("/shopping"),
   },
-  { href: "/", label: "Главная", icon: Home, goal: "nav_home", isActive: (p: string) => p === "/" },
-  { href: "/search", label: "Поиск", icon: Search, goal: "nav_search", isActive: (p: string) => p.startsWith("/search") },
+  {
+    href: "/profile",
+    label: "Профиль",
+    icon: User,
+    goal: "nav_profile",
+    isActive: (p: string) => p.startsWith("/profile"),
+  },
 ] as const;
 
 export default function TabBar() {

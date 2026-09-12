@@ -37,10 +37,14 @@ export default function HowItWorks({ demoChips = [] }: { demoChips?: DemoChip[] 
 
   return (
     <section className="how-block">
-      <ProcessAnimation />
+      {/* Анимация и подписи — один блок в тонкой рамке. Демо-чипы ниже
+          сознательно ОСТАЮТСЯ за рамкой: это отдельное предложение
+          «попробовать без фото», а не часть объяснения сценария. */}
+      <div className="how-card">
+        <ProcessAnimation />
 
-      <ol className="how-steps">
-        {STEPS.map((step, i) => {
+        <ol className="how-steps">
+          {STEPS.map((step, i) => {
           const Icon = step.icon;
           return (
             <li key={step.label} className={`how-step how-step-${i + 1}`}>
@@ -56,7 +60,8 @@ export default function HowItWorks({ demoChips = [] }: { demoChips?: DemoChip[] 
             </li>
           );
         })}
-      </ol>
+        </ol>
+      </div>
 
       {demoChips.length > 0 && (
         <div className="demo-magic">

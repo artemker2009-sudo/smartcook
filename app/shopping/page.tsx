@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 
-import AppNavigation from "@/components/AppNavigation";
 import ShoppingApp from "@/components/ShoppingApp";
 
 export const metadata: Metadata = {
@@ -13,7 +12,6 @@ export const metadata: Metadata = {
 export default function ShoppingPage() {
   return (
     <>
-      <AppNavigation />
       <ShoppingApp />
     </>
   );

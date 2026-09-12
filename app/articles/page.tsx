@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { BookOpen } from "lucide-react";
-import AppNavigation from "@/components/AppNavigation";
 import ArticlesBoard from "@/components/ArticlesBoard";
 import { type Article, ARTICLE_COLUMNS } from "@/lib/articles";
 
@@ -51,8 +50,6 @@ export default async function ArticlesPage() {
 
   return (
     <div className="container">
-      <AppNavigation />
-
       <header style={{ margin: "var(--space-4) 0 var(--space-4)" }}>
         <h1
           className="section-title"

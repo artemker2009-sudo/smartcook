@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import AppNavigation from "@/components/AppNavigation";
 import ProfileApp from "@/components/ProfileApp";
 
 // Личный кабинет. Персональная страница — не индексируем (за ней всё равно
@@ -12,7 +11,6 @@ export const metadata: Metadata = {
 export default function ProfilePage() {
   return (
     <>
-      <AppNavigation />
       <ProfileApp />
     </>
   );

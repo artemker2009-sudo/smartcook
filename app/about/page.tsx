@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import AppNavigation from "@/components/AppNavigation";
 import About from "@/components/About";
 
 // «О проекте» — теперь ОДНА страница на веб и приложение.
@@ -29,7 +28,6 @@ export const metadata: Metadata = {
 export default function AboutPage() {
   return (
     <>
-      <AppNavigation />
       <main className="container">
         <About />
       </main>

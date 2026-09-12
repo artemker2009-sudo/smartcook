@@ -1,5 +1,4 @@
 import React from "react";
-import AppNavigation from "@/components/AppNavigation";
 
 interface DocPageProps {
   title: string;
@@ -9,13 +8,12 @@ interface DocPageProps {
 
 /**
  * Простой контейнер для статических документов (О сервисе, Политика, Соглашение).
- * Шапка-меню — общая (AppNavigation), футер добавляется в layout автоматически.
+ * Навигация — общий таб-бар из layout, футер добавляется туда же автоматически.
  * Всё на токенах: тёплый фон страницы, карточная типографика через .doc-body.
  */
 export default function DocPage({ title, updated, children }: DocPageProps) {
   return (
     <>
-      <AppNavigation />
       <main className="container" style={{ paddingBottom: "var(--space-5)" }}>
         <h1
           style={{

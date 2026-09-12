@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import AppNavigation from "@/components/AppNavigation";
 import CommunityFeed, { type CommunityPost } from "@/components/CommunityFeed";
 
 export const metadata: Metadata = {
@@ -39,7 +38,6 @@ export default async function FeedPage() {
   const items = await getFeed();
   return (
     <div className="container feed-container">
-      <AppNavigation />
       <CommunityFeed initialItems={items} />
     </div>
   );

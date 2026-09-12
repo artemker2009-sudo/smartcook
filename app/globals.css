@@ -138,27 +138,26 @@ body {
      шапки появлялась светлая горизонтальная граница поперёк экрана. */
   overflow-x: clip;
 }
-/* Внутренность шапки повторяет ширину контейнера: на широком экране логотип
-   стоит по кромке контента, а не убегает в левый край окна. */
+/* Внутренность шапки повторяет ширину контейнера, логотип стоит по центру —
+   на одной оси с заголовком и кнопкой. */
 .hero-header-inner {
   position: relative;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  gap: 8px;
+  justify-content: center;
+  gap: 9px;
   width: 100%;
   max-width: calc(500px - var(--space-3) * 2);
-  text-align: left;
 }
 /* Световое пятно под логотипом — то же, что под заголовком, только маленькое:
    белое радиальное свечение, сходящее на нет к краям. */
 .hero-header-inner::before {
   content: "";
   position: absolute;
-  left: 27.5%;
+  left: 50%;
   top: 50%;
-  width: 122%;
-  height: 260%;
+  width: 92%;
+  height: 280%;
   transform: translate(-50%, -50%);
   background: radial-gradient(
     ellipse at center,
@@ -176,8 +175,9 @@ body {
 .hero-header-word {
   font-family: "Manrope", -apple-system, BlinkMacSystemFont, sans-serif;
   font-weight: 800;
-  /* Кегль прежний, буквы плотнее — Manrope набирается компактнее Unbounded. */
-  font-size: 17px;
+  /* Чуть крупнее подзаголовка: логотип по центру, и мелкий кегль в этой позиции
+     выглядел случайным. Буквы плотнее — letter-spacing ниже. */
+  font-size: 20px;
   line-height: 1.15;
   letter-spacing: -0.02em;
   color: #1a1a1a;

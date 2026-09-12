@@ -1,8 +1,8 @@
 import { ChefHat } from "lucide-react";
 
 /**
- * Шапка Главной: логотип поверх фотографии продуктов, по левому краю на одной
- * вертикали с остальным контентом.
+ * Шапка Главной: логотип по центру поверх фотографии продуктов — на одной оси
+ * с заголовком, подзаголовком и кнопкой.
  *
  * Своей полосы у шапки НЕТ — любая заливка во всю ширину давала
  * горизонтальную границу поперёк первого экрана. Читаемость держит маленькое
@@ -18,7 +18,7 @@ export default function BrandLogo() {
   return (
     <header className="hero-header">
       <div className="hero-header-inner">
-        <ChefHat className="hero-header-mark" size={22} strokeWidth={2.2} aria-hidden />
+        <ChefHat className="hero-header-mark" size={25} strokeWidth={2.2} aria-hidden />
         <span className="hero-header-word">SmartCook</span>
       </div>
     </header>

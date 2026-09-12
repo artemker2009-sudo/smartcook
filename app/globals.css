@@ -1435,6 +1435,12 @@ body {
   font-weight: var(--font-weight-semibold); color: var(--color-text);
 }
 .missing-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }
+/* «Уже есть у вас: лук, морковь» — то, что вычли из рецепта. Серым и мельче
+   чипов: это пояснение к счётчику «Не хватает 3 из 7», а не список покупок. */
+.missing-have {
+  margin: calc(-1 * var(--space-1)) 0 var(--space-3) 0;
+  font-size: var(--font-size-caption); color: var(--color-text-muted); line-height: 1.4;
+}
 .missing-chip {
   background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-full);
   padding: var(--space-2) var(--space-3); font-size: var(--font-size-body);
@@ -1533,6 +1539,27 @@ body {
   transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 .chat-input:focus { border-color: var(--color-accent); background: var(--color-surface); box-shadow: 0 0 0 4px var(--color-accent-subtle); }
+/* Поле ввода как в мессенджере: текст на всю ширину блока, кнопка отправки
+   ВНУТРИ поля справа. Раньше кнопка стояла рядом отдельным столбцом — поле
+   оказывалось уже блока и правый отступ не совпадал с левым. */
+.chat-field { position: relative; width: 100%; }
+/* Место под кнопку справа: круг 34 + зазоры. */
+.chat-field .chat-input { padding-right: 46px; }
+/* Плейсхолдер держим В ОДНУ строку: поле высотой 44px обрезает вторую, и
+   «Чем заменить сметану?» превращалось в «Чем заменить». На узком экране
+   (в карточке рецепта поле ~240px) строка помещается только так. */
+.chat-field .chat-input::placeholder {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 15px;
+}
+.chat-send {
+  position: absolute; right: 6px; bottom: 5px;
+  width: 34px; height: 34px; padding: 0; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: none; border-radius: 50%; color: #fff;
+  background: var(--color-accent); cursor: pointer;
+  transition: background 0.2s ease;
+}
+.chat-send:disabled { background: var(--color-border); cursor: default; }
 
 /* --- МЕНЮ ---
    Стили плавающего хамбургера и выезжающей панели (.menu-btn/.menu-drawer/

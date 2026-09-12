@@ -101,12 +101,12 @@ export default function SharedRecipe({ recipe }: { recipe: RecipeData }) {
                 </div>
               ))}
             </div>
-            {/* «Что нужно купить»: недостающее + кнопка в «Покупки» и кнопка
-                Купера (CPA) — один блок. known здесь нет (рецепт пришёл по
-                ссылке, что у читателя дома — неизвестно), поэтому блок
-                опирается на missing_ingredients и молчит, если их нет:
-                выдумывать «всё есть дома» нельзя. */}
+            {/* «Что нужно купить» + кнопка Купера (CPA). known здесь нет
+                (рецепт пришёл по ссылке, что у читателя дома — неизвестно):
+                случай (б), в списке весь рецепт минус кладовка, без счётчика
+                и без «всё есть дома» — выдумывать это нельзя. */}
             <RecipeMissingBlock
+              detailed={recipe.detailed_ingredients}
               modelMissing={recipe.missing_ingredients}
               recipeTitle={recipe.title}
             />

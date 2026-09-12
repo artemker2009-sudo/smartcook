@@ -25,15 +25,25 @@ import { addNamesToDefaultList } from "@/lib/shoppingLists";
  * (на проде — треть всех рецептов). Логика в lib/missingProducts.ts, она же
  * выкидывает кладовку (соль, вода, масло) — за ней никого не гоняем в магазин.
  *
+ * ТРИ СОСТОЯНИЯ блока, и они зависят от того, знаем ли мы продукты человека:
+ * - знаем и чего-то не хватает → «Не хватает N из M» + чипы + серой строкой
+ *   «Уже есть у вас: лук, морковь» — человек видит, что вычли не наугад;
+ * - знаем и всё сошлось → «Всё есть дома 👍», без кнопок и без рекламы;
+ * - не знаем (рецепт по названию, из истории, по ссылке, рецепт дня) →
+ *   «Что нужно купить» БЕЗ счётчика и без строки «уже есть»: в списке весь
+ *   рецепт минус кладовка, и сравнивать его не с чем.
+ *
  * ВАЖНО (ОРД / закон о рекламе) — рекламная часть здесь только одна, кнопка
  * «Заказать в Купере»:
  * - KUPER_CPA_URL менять НЕЛЬЗЯ — в ней трекинг партнёрки и erid (маркировка);
  * - KUPER_AD_COPY («Нужно купить: закажите продукты…») дословно зарегистрирован
  *   как креатив — текст не менять;
  * - KUPER_AD_LABEL обязателен и стоит сразу под кнопкой Купера.
- * Нет недостающего — нет и кнопки, а значит нет ни креатива, ни маркировки:
- * реклама без предложения не нужна. Чипы при этом НЕ рекламные (раньше тап по
- * чипу уводил на Купер) — это просто список продуктов.
+ * Кнопка и маркировка идут ВМЕСТЕ и показываются всегда, когда список
+ * непустой, — в том числе на рецепте по названию, где раньше блока не было
+ * вовсе и placement пропадал. Пустой список — ни кнопки, ни креатива, ни
+ * маркировки: реклама без предложения не нужна. Чипы при этом НЕ рекламные
+ * (раньше тап по чипу уводил на Купер) — это просто список продуктов.
  *
  * Цели Метрики оставлены как были, чтобы не рвать ряды:
  * recipe_missing_add — своя кнопка, ingredient_buy_click — кнопка Купера.
@@ -42,6 +52,12 @@ import { addNamesToDefaultList } from "@/lib/shoppingLists";
 // Имя списка, который создаём человеку без единого списка. Молча, без вопросов:
 // на экране рецепта диалог «как назвать список» — лишний шаг ни о чём.
 const FALLBACK_LIST_NAME = "Мой список";
+
+// «Лук» с фото и «лук» из рецепта — одно слово; в бегущей строке «Уже есть у
+// вас: …» заглавные посреди перечисления читаются как опечатка.
+function lower(name: string): string {
+  return name.charAt(0).toLowerCase() + name.slice(1);
+}
 
 export default function RecipeMissingBlock({
   detailed,
@@ -55,7 +71,7 @@ export default function RecipeMissingBlock({
   modelMissing?: string[] | string | null;
   recipeTitle?: string;
 }) {
-  const { items, comparable } = computeMissing({ detailed, known, modelMissing });
+  const { items, have, total, comparable } = computeMissing({ detailed, known, modelMissing });
   const [added, setAdded] = useState(false);
 
   // Всё нужное уже есть дома — это хорошая новость, а не пустое место. Но
@@ -115,7 +131,8 @@ export default function RecipeMissingBlock({
   return (
     <div className="missing-box">
       <div className="missing-title">
-        <ShoppingCart size={20} color="var(--color-accent)" /> Что нужно купить
+        <ShoppingCart size={20} color="var(--color-accent)" />{" "}
+        {comparable ? `Не хватает ${items.length} из ${total}` : "Что нужно купить"}
       </div>
 
       <div className="missing-chips">
@@ -125,6 +142,12 @@ export default function RecipeMissingBlock({
           </span>
         ))}
       </div>
+
+      {/* Что вычли. Без этой строки счётчик «3 из 7» выглядит как ошибка:
+          человек не видит, куда делись остальные четыре. */}
+      {have.length > 0 && (
+        <p className="missing-have">Уже есть у вас: {have.map(lower).join(", ")}</p>
+      )}
 
       {added ? (
         <button type="button" className="missing-btn missing-btn-done" onClick={openShopping}>

@@ -37,6 +37,13 @@ interface RecipeViewProps {
   handleShareRecipe: () => void;
   toggleFavorite: (e: any, id: number, isFavorite?: boolean) => void;
   analysisResult: any;
+  /**
+   * Что у человека есть дома. Не выводим из analysisResult прямо здесь:
+   * продукты приходят и оттуда (фото, перечисление, текстовый список), и от
+   * демо-чипа главной, у которого своего экрана продуктов нет. Пусто —
+   * случай (б): покупаем весь рецепт, счётчика и «всё есть дома» не будет.
+   */
+  knownProducts?: string[] | null;
   searchMode: "photo" | "text";
   handleSmartVariant: () => void;
   loadingRecipe: boolean;
@@ -76,6 +83,7 @@ export default function RecipeView({
   handleShareRecipe,
   toggleFavorite,
   analysisResult,
+  knownProducts,
   searchMode,
   handleSmartVariant,
   loadingRecipe,
@@ -411,12 +419,12 @@ export default function RecipeView({
           {/* «Что нужно купить»: недостающее + кнопка в «Покупки» и кнопка
               Купера (CPA, монетизация) — один блок вместо двух, стоявших
               подряд. Сначала бесплатное действие приложения, потом рекламное.
-              known — реальный список продуктов человека (фото или
-              перечисление). Именно он делает «Всё есть дома» правдой, а не
-              догадкой. */}
+              known — реальный список продуктов человека (фото, перечисление,
+              демо-чип). Именно он делает «Всё есть дома» и счётчик «N из M»
+              правдой, а не догадкой; без него в списке весь рецепт. */}
           <RecipeMissingBlock
             detailed={recipe.detailed_ingredients}
-            known={analysisResult?.ingredients}
+            known={knownProducts}
             modelMissing={recipe.missing_ingredients}
             recipeTitle={recipe.title}
           />
@@ -492,17 +500,13 @@ export default function RecipeView({
           >
             <Sparkles size={16} /> Ваш вопрос:
           </div>
-          <div
-            style={{
-              display: "flex",
-              gap: "var(--space-2)",
-              alignItems: "flex-end",
-              width: "100%",
-            }}
-          >
+          {/* Поле на всю ширину блока, кнопка отправки внутри него справа —
+              как в мессенджерах. Размеры и состояния кнопки живут в CSS
+              (.chat-field/.chat-send), здесь только разметка. */}
+          <div className="chat-field">
             <textarea
               value={question}
-              placeholder="Чем заменить фету?"
+              placeholder="Чем заменить сметану?"
               onChange={(e) => {
                 setQuestion(e.target.value);
                 e.target.style.height = "44px";
@@ -514,8 +518,6 @@ export default function RecipeView({
               disabled={asking}
               className="chat-input"
               style={{
-                flex: 1,
-                width: "100%",
                 background: asking ? "var(--color-bg-subtle)" : "var(--color-bg)",
                 resize: "none",
                 overflowY: "hidden",
@@ -524,29 +526,17 @@ export default function RecipeView({
                 maxHeight: "120px",
                 lineHeight: "18px",
                 fontFamily: "inherit",
+                display: "block",
               }}
             />
             <button
+              type="button"
+              className="chat-send"
+              aria-label="Отправить вопрос"
               onClick={handleAskChef}
               disabled={asking || !question.trim()}
-              style={{
-                flexShrink: 0,
-                padding: 0,
-                width: "44px",
-                height: "44px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: "50%",
-                background:
-                  asking || !question.trim() ? "var(--color-border)" : "var(--color-accent)",
-                color: "white",
-                border: "none",
-                cursor:
-                  asking || !question.trim() ? "default" : "pointer",
-              }}
             >
-              <Send size={18} style={{ marginLeft: "-2px" }} />
+              <Send size={16} style={{ marginLeft: "-1px" }} />
             </button>
           </div>
         </div>

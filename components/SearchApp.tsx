@@ -10,6 +10,7 @@ import { DEVELOPER_ID, scaleAmount, formatCooks, cleanText, formatTime, formatCa
 import { shareOrCopy } from "@/lib/share";
 import { shareNative } from "@/lib/native";
 import { reachGoal } from "@/lib/metrika";
+import { demoChipProducts } from "@/lib/demoChips";
 import { claimGuestPartiesToAccount } from "@/lib/claimParties";
 import { preparePhoto, decodeHeicIfNeeded, reportPhotoError, fetchStreamWithTimeout } from "@/lib/photo";
 import { splitStreamPayload, stageFromStream, type PhotoStage } from "@/lib/photoStream";
@@ -71,6 +72,11 @@ export default function SearchApp() {
   const [userId, setUserId] = useState<string | null>(null);
   // H8: отложенный демо-запрос с главной (?demo=). Ждёт готовности userId.
   const [pendingDemo, setPendingDemo] = useState<string | null>(null);
+  // Продукты демо-чипа: рецепт приходит готовым из кэша (тип B), продуктов в
+  // ответе нет, а человек, тапнув «Курица + гречка», сказал, что они у него
+  // есть. Живёт отдельно от analysisResult, потому что analysisResult рисует
+  // экран «я вижу продукты → выберите блюдо», а тут рецепт открывается сразу.
+  const [demoProducts, setDemoProducts] = useState<string[] | null>(null);
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const [filterMode, setFilterMode] = useState<'all' | 'favorites'>('all');
   const [question, setQuestion] = useState("");
@@ -694,7 +700,7 @@ export default function SearchApp() {
 
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => { 
     const files = e.target.files; if (!files || files.length === 0) return;
-    setAnalysisResult(null); setRecipe(null); setSelectedDish(null); setQuestion(""); setAnswer(null); setIsProcessing(true); setIsHistoryView(false); setFromFeed(false); setServings(1);
+    setAnalysisResult(null); setDemoProducts(null); setRecipe(null); setSelectedDish(null); setQuestion(""); setAnswer(null); setIsProcessing(true); setIsHistoryView(false); setFromFeed(false); setServings(1);
     try {
       // createObjectURL внутри try: на редких битых Blob он бросает — раньше это
       // падало молча ДО try и оставляло превью/состояние в полупути (#4).
@@ -1040,6 +1046,9 @@ export default function SearchApp() {
   const handleTextSearch = async (opts?: { cacheOnly?: boolean; queryOverride?: string }) => {
     const q = (opts?.queryOverride ?? textQuery).trim();
     if (!q || !userId) return; setLoadingRecipe(true); setRecipe(null); setAnalysisResult(null); setSelectedDish(null); setIsHistoryView(false); setFromFeed(false); setServings(1);
+    // Продукты чипа ставим только для самого чипа; обычный текстовый поиск
+    // («борщ») продуктов человека не знает — там случай (б).
+    setDemoProducts(opts?.cacheOnly === true ? demoChipProducts(q) : null);
     try {
       const response = await fetch("/api/search-recipe", { method: "POST", headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) }, body: JSON.stringify({ query: q, sessionId: userId, allergies, dislikes, cacheOnly: opts?.cacheOnly === true }) });
       const json = await response.json(); if (handleRateLimitedResponse(response, json)) return; if (!response.ok) throw new Error(json.error || "Ошибка поиска");
@@ -1080,7 +1089,7 @@ export default function SearchApp() {
   }; 
 
   const loadFromHistory = (item: DBRecipe, source: 'photos' | 'history' | 'profile_history' | 'profile_favorites' = 'history') => { 
-    setAnalysisResult(null); setQuestion(""); setAnswer(null); setServings(1);  
+    setAnalysisResult(null); setDemoProducts(null); setQuestion(""); setAnswer(null); setServings(1);  
     setRecipe({ id: item.id, is_favorite: item.is_favorite, title: item.title, description: item.description, time: item.time, cooking_time_minutes: item.cooking_time_minutes, calories: item.calories, image_url: item.image_url, steps: item.steps || [], missing_ingredients: item.missing_ingredients || [], ingredients: item.ingredients || [], detailed_ingredients: item.detailed_ingredients || [], estimated_cost: item.estimated_cost, budget_tier: item.budget_tier });
     setFromFeed(source === 'history' ? false : source); setIsHistoryView(source === 'history' || source === 'profile_history' || source === 'profile_favorites'); setIsSharedView(false);  
     window.scrollTo({ top: 0, behavior: 'smooth' }); setActiveView('service');  
@@ -1090,7 +1099,7 @@ export default function SearchApp() {
     try { 
       const { data, error } = await supabase.from('recipes').select('*').eq('id', id).single(); 
       if (data && !error) { 
-        setAnalysisResult(null); setQuestion(""); setAnswer(null); setServings(1);  
+        setAnalysisResult(null); setDemoProducts(null); setQuestion(""); setAnswer(null); setServings(1);  
         setRecipe({ id: data.id, is_favorite: data.is_favorite, title: data.title, description: data.description, time: data.time, cooking_time_minutes: data.cooking_time_minutes, calories: data.calories, image_url: data.image_url, steps: data.steps || [], missing_ingredients: data.missing_ingredients || [], ingredients: data.ingredients || [], detailed_ingredients: data.detailed_ingredients || [], estimated_cost: data.estimated_cost, budget_tier: data.budget_tier });
         setActiveView('service'); setFromFeed(source); setIsHistoryView(false); setIsSharedView(source === false);  
         window.scrollTo({ top: 0, behavior: 'smooth' }); 
@@ -1253,11 +1262,12 @@ export default function SearchApp() {
           handleTextSearch={handleTextSearch}
           loadingRecipe={loadingRecipe}
           analysisResult={analysisResult}
+          knownProducts={analysisResult?.ingredients ?? demoProducts}
           productsDirty={productsDirty}
           onAddProduct={handleAddProduct}
           onRemoveProduct={handleRemoveProduct}
           onNoFoodManualEntry={handleNoFoodManualEntry}
-          onNoFoodSwitchToText={() => { setSearchMode('text'); setAnalysisResult(null); setFile(null); setPreview(null); }}
+          onNoFoodSwitchToText={() => { setSearchMode('text'); setAnalysisResult(null); setDemoProducts(null); setFile(null); setPreview(null); }}
           getRecipeFromPhoto={getRecipeFromPhoto}
           selectedDish={selectedDish}
           handleRegenerate={handleRegenerate}

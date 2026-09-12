@@ -77,12 +77,14 @@ export default function DailyRecipe(props: any) {
               </button>
             </div>
 
-            {/* «Что нужно купить» по рецепту дня: недостающее + кнопка в
-                «Покупки» и кнопка Купера (CPA, блок сам несёт обязательную
-                маркировку рекламы) — один блок вместо двух. Промпт /api/daily
-                считает кухню пустой и заполняет missing_ingredients целиком.
-                known нет — «всё есть дома» тут не появится. */}
+            {/* «Что нужно купить» по рецепту дня: кнопка в «Покупки» и кнопка
+                Купера (CPA, блок сам несёт обязательную маркировку рекламы).
+                known нет — значит это случай (б): в списке ВЕСЬ рецепт минус
+                кладовка, счётчика и «всё есть дома» тут не будет.
+                detailed обязателен: без него блок скатится на подсказку модели
+                и покажет часть рецепта вместо всего. */}
             <RecipeMissingBlock
+              detailed={dailyRecipe.detailed_ingredients}
               modelMissing={dailyRecipe.missing_ingredients}
               recipeTitle={dailyRecipe.title}
             />
@@ -124,10 +126,12 @@ export default function DailyRecipe(props: any) {
                 <div style={{fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-body)', color: 'var(--color-text-secondary)', paddingLeft: 'var(--space-1)', display: 'flex', alignItems: 'center', gap: 'var(--space-1)'}}>
                   <Sparkles size={16} /> Ваш вопрос:
                 </div>
-                <div style={{display: 'flex', gap: 'var(--space-2)', alignItems: 'flex-end', width: '100%'}}>
+                {/* Поле на всю ширину блока, кнопка отправки внутри него
+                    справа — то же, что на экране рецепта (.chat-field). */}
+                <div className="chat-field">
                   <textarea
                     value={question}
-                    placeholder="Чем заменить фету?"
+                    placeholder="Чем заменить сметану?"
                     onChange={(e) => {
                       setQuestion(e.target.value);
                       e.target.style.height = '44px';
@@ -136,10 +140,10 @@ export default function DailyRecipe(props: any) {
                     rows={1}
                     disabled={asking}
                     className="chat-input"
-                    style={{flex: 1, width: '100%', background: asking ? 'var(--color-bg-subtle)' : 'var(--color-bg)', resize: 'none', overflowY: 'hidden', height: '44px', minHeight: '44px', maxHeight: '120px', lineHeight: '18px', fontFamily: 'inherit'}}
+                    style={{background: asking ? 'var(--color-bg-subtle)' : 'var(--color-bg)', resize: 'none', overflowY: 'hidden', height: '44px', minHeight: '44px', maxHeight: '120px', lineHeight: '18px', fontFamily: 'inherit', display: 'block'}}
                   />
-                  <button onClick={handleAskChef} disabled={asking || !question.trim()} style={{flexShrink: 0, padding: 0, width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: (asking || !question.trim()) ? 'var(--color-border)' : 'var(--color-accent)', color: 'white', border: 'none', cursor: (asking || !question.trim()) ? 'default' : 'pointer'}}>
-                    <Send size={18} style={{marginLeft: '-2px'}} />
+                  <button type="button" className="chat-send" aria-label="Отправить вопрос" onClick={handleAskChef} disabled={asking || !question.trim()}>
+                    <Send size={16} style={{marginLeft: '-1px'}} />
                   </button>
                 </div>
               </div>

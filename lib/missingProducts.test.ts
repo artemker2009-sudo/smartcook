@@ -41,7 +41,7 @@ describe("isPantryStaple", () => {
   });
 });
 
-describe("computeMissing", () => {
+describe("computeMissing — есть продукты человека (случай а)", () => {
   it("считает недостающее сам, даже когда модель прислала пустой список", () => {
     // Реальный случай из прода (#1778): фото картошки и яйца, режим «строго
     // из этого», missing_ingredients = [] — а сметаны на фото не было.
@@ -54,6 +54,24 @@ describe("computeMissing", () => {
     expect(result.comparable).toBe(true);
   });
 
+  it("отдаёт «уже есть» словами человека и знаменатель для «N из M»", () => {
+    const result = computeMissing({
+      detailed: [
+        { name: "Фарш говяжий (400 г)" },
+        { name: "Лук репчатый (1 шт., 80 г)" },
+        { name: "Морковь (1 шт., 100 г)" },
+        { name: "Соль" },
+      ],
+      known: ["лук", "морковь"],
+      modelMissing: [],
+    });
+    expect(result.items).toEqual(["Фарш говяжий (400 г)"]);
+    // Именно «лук», а не «Лук репчатый (1 шт., 80 г)»: человек должен узнать
+    // свои продукты. Соль в счёт не идёт — кладовка.
+    expect(result.have).toEqual(["лук", "морковь"]);
+    expect(result.total).toBe(3);
+  });
+
   it("«всё есть дома» только когда реально всё есть", () => {
     const result = computeMissing({
       detailed: [{ name: "Яйцо куриное" }, { name: "Соль" }, { name: "Масло растительное" }],
@@ -62,27 +80,6 @@ describe("computeMissing", () => {
     });
     expect(result.items).toEqual([]);
     expect(result.comparable).toBe(true);
-  });
-
-  it("без списка продуктов НЕ делает вид, что всё есть", () => {
-    // История, ссылка, поиск по названию блюда: сравнивать не с чем.
-    const result = computeMissing({
-      detailed: [{ name: "Свекла" }, { name: "Капуста" }],
-      known: [],
-      modelMissing: [],
-    });
-    expect(result.comparable).toBe(false);
-    expect(result.items).toEqual([]);
-  });
-
-  it("без списка продуктов берёт подсказку модели", () => {
-    const result = computeMissing({
-      detailed: [{ name: "Свекла" }],
-      known: null,
-      modelMissing: ["Свекла", "Капуста белокочанная", "Соль"],
-    });
-    expect(result.items).toEqual(["Свекла", "Капуста белокочанная"]);
-    expect(result.comparable).toBe(false);
   });
 
   it("не просит купить то, что человек уже назвал, даже если модель просит", () => {
@@ -101,6 +98,45 @@ describe("computeMissing", () => {
       modelMissing: ["сметана"],
     });
     expect(result.items).toHaveLength(1);
+  });
+});
+
+describe("computeMissing — продуктов человека нет (случай б)", () => {
+  it("покупаем ВЕСЬ рецепт минус кладовка", () => {
+    // «Ёжики» из поиска по названию: сравнивать не с чем, значит в магазин
+    // идём за всем, кроме соли, перца и масла.
+    const result = computeMissing({
+      detailed: [
+        { name: "Фарш" }, { name: "Рис" }, { name: "Лук" }, { name: "Морковь" },
+        { name: "Картофель" }, { name: "Зелень" },
+        { name: "Соль" }, { name: "Перец черный молотый" }, { name: "Масло растительное" },
+      ],
+      known: [],
+      modelMissing: [],
+    });
+    expect(result.items).toEqual(["Фарш", "Рис", "Лук", "Морковь", "Картофель", "Зелень"]);
+    expect(result.comparable).toBe(false);
+    expect(result.have).toEqual([]);
+  });
+
+  it("подсказку модели игнорирует: она отвечает не на тот вопрос", () => {
+    // Раньше здесь показывалась одна свёкла из всего борща.
+    const result = computeMissing({
+      detailed: [{ name: "Свекла" }, { name: "Капуста" }, { name: "Говядина" }],
+      known: null,
+      modelMissing: ["Свекла"],
+    });
+    expect(result.items).toEqual(["Свекла", "Капуста", "Говядина"]);
+  });
+
+  it("без ингредиентов рецепта откатывается на подсказку модели", () => {
+    // Старые записи рецепта дня: техкарты нет, но пустой блок хуже неполного.
+    const result = computeMissing({
+      detailed: [],
+      known: [],
+      modelMissing: ["Свекла", "Капуста белокочанная", "Соль"],
+    });
+    expect(result.items).toEqual(["Свекла", "Капуста белокочанная"]);
   });
 
   it("склеенный одной строкой список старых записей раскладывается", () => {

@@ -87,10 +87,11 @@ body {
 .container {
   max-width: 500px;
   margin: 0 auto;
-  /* Верхний отступ клирит плавающую кнопку-бургер (fixed, ~8px+44px) и уводит
-     контент из-под статус-бара в PWA-standalone (safe-area-inset-top). Раньше
-     бургер налипал на первую карточку («Рецепт дня»). Задача U. */
-  padding: calc(env(safe-area-inset-top) + 60px) var(--space-3) var(--space-3);
+  /* Верхний отступ уводит контент из-под статус-бара в PWA-standalone
+     (safe-area-inset-top). Раньше к вырезу прибавлялось 60px под плавающую
+     кнопку-бургер (fixed, 8px+44px); бургер убран как дубль таб-бара, и эти
+     60px стали пустой полосой над заголовком каждой внутренней страницы. */
+  padding: calc(env(safe-area-inset-top) + var(--space-3)) var(--space-3) var(--space-3);
   min-height: 100vh;
   position: relative;
 }
@@ -1420,10 +1421,11 @@ body {
 }
 .ing-val { font-weight: var(--font-weight-semibold); color: var(--color-accent-hover); }
 
-/* --- «Чего не хватает» на экране рецепта ---
-   Своя, НЕ рекламная точка входа в «Покупки»: стоит перед блоком Купера и
-   оформлена нейтрально (без акцентной заливки), чтобы два блока подряд не
-   спорили друг с другом за внимание. */
+/* --- «Что нужно купить» на экране рецепта ---
+   ОДИН блок вместо двух (свой «Чего не хватает» + рекламный «Нужно купить»):
+   один список недостающих продуктов и два действия над ним — своё («В список
+   покупок», акцентная заливка) и рекламное («Заказать в Купере», контур).
+   Иерархия кнопок намеренная: сначала бесплатное действие приложения. */
 .missing-box {
   background: var(--color-surface); border: 1px solid var(--color-border);
   border-radius: var(--radius-md); padding: var(--space-4); margin: var(--space-4) 0;
@@ -1454,6 +1456,24 @@ body {
   border: 1px solid var(--color-accent); box-shadow: none;
 }
 .missing-btn-done:hover { background: var(--color-accent-subtle); }
+/* Вторичная кнопка блока — «Заказать в Купере»: тот же размер и место, но
+   контур вместо заливки, чтобы не спорить с основным действием. */
+.missing-btn-secondary {
+  background: var(--color-surface); color: var(--color-accent);
+  border: 1px solid var(--color-accent); box-shadow: none; text-decoration: none;
+}
+.missing-btn-secondary:hover { background: var(--color-accent-subtle); }
+/* Зарегистрированный текст креатива Купера — над его кнопкой. */
+.missing-ad-copy {
+  margin: var(--space-3) 0 var(--space-2) 0;
+  font-size: var(--font-size-body); color: var(--color-text-secondary); line-height: 1.5;
+}
+/* Обязательная маркировка рекламы (erid в ссылке) — сразу под кнопкой Купера:
+   мелко, серым, но видимо. */
+.missing-ad-label {
+  margin-top: var(--space-2);
+  font-size: var(--font-size-caption); color: var(--color-text-muted); line-height: 1.4;
+}
 
 .missing-none {
   display: flex; align-items: center; gap: var(--space-2);
@@ -1514,43 +1534,10 @@ body {
 }
 .chat-input:focus { border-color: var(--color-accent); background: var(--color-surface); box-shadow: 0 0 0 4px var(--color-accent-subtle); }
 
-/* --- МЕНЮ --- */
-.menu-btn {
-  position: absolute; top: var(--space-3); right: var(--space-3);
-  background: var(--color-surface); border: none; padding: var(--space-2);
-  border-radius: var(--radius-sm); box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-  cursor: pointer; z-index: 60;
-}
-.menu-drawer {
-  position: fixed; top: 0; right: 0; bottom: 0; width: 280px;
-  background: var(--color-surface); z-index: 100;
-  /* Панель начинается от самого верха экрана, поэтому её собственная шапка
-     («SmartCook» и крестик) заезжала под Dynamic Island / чёлку. Верхний
-     отступ = вырез + обычный padding. В браузере на десктопе и на телефонах
-     без выреза env(safe-area-inset-top) равен нулю, поэтому вид в вебе не
-     меняется. Тот же приём, что уже применён к .container и комнате банкета.
-     Правило одно на оба меню: и вторичная навигация (AppNavigation), и
-     меню внутри экрана поиска (SearchApp) используют .menu-drawer. */
-  padding: calc(env(safe-area-inset-top) + var(--space-5)) var(--space-5)
-           calc(env(safe-area-inset-bottom) + var(--space-5)) var(--space-5);
-  box-shadow: -10px 0 50px rgba(0,0,0,0.2);
-  transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  border-top-left-radius: var(--radius-md); border-bottom-left-radius: var(--radius-md);
-  /* Длинное меню на маленьком экране должно прокручиваться, а не обрезаться. */
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-}
-.menu-drawer.open { transform: translateX(0); }
-.menu-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 90;
-  backdrop-filter: blur(5px);
-}
-.menu-link {
-  display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3);
-  font-size: var(--font-size-body); font-weight: var(--font-weight-medium); cursor: pointer;
-  border-radius: var(--radius-sm); margin-bottom: var(--space-2); color: var(--color-text-secondary); transition: background 0.2s;
-}
-.menu-link:hover { background: var(--color-bg-subtle); color: var(--color-accent); }
+/* --- МЕНЮ ---
+   Стили плавающего хамбургера и выезжающей панели (.menu-btn/.menu-drawer/
+   .menu-overlay/.menu-link) удалены вместе с самим меню: оно дублировало
+   таб-бар. Навигация теперь только таб-бар + личный кабинет. */
 
 /* --- РЕЦЕПТ ДНЯ (тизер на главной) --- */
 .daily-teaser {
@@ -3436,13 +3423,13 @@ a.news-card:hover { transform: translateY(-2px); }
   padding-top: env(safe-area-inset-top);
 }
 
-/* «Мои банкеты» — единственная страница с плавающими кнопками, у которой
-   верхний отступ задан фиксированно (pt-20 = 80px), без env(safe-area-inset-top).
-   В браузере 80px спокойно перекрывают бургер (8px + 44px), а в нативной
-   оболочке бургер стоит на safe-area ниже и налезал на заголовок. Веб не
-   трогаем — правило только для .native-shell. */
+/* «Мои банкеты» — единственная страница с верхним отступом в утилитах Tailwind
+   (pt-20/pt-24), без env(safe-area-inset-top): в нативной оболочке заголовок
+   уезжал под часы и батарейку. Правило только для .native-shell — веб не
+   трогаем. Слагаемое под бургер (80px) ушло вместе с самим бургером; здесь
+   остаётся только вырез плюс обычный отступ страницы (pt-8 = 2rem). */
 .native-shell .page-top-safe {
-  padding-top: calc(env(safe-area-inset-top) + 80px);
+  padding-top: calc(env(safe-area-inset-top) + 2rem);
 }
 
 /* --- Предложения пользователей: карточка на Главной и шторка с формой --- */

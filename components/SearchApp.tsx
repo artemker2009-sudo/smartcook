@@ -2,7 +2,7 @@
 
 import { useState, useEffect, ChangeEvent } from "react";
 import { supabase } from "@/lib/supabase";
-import { Menu, X, Flame, Search, CheckCircle, Sparkles, User, Store, PartyPopper, Settings, Code2, Clipboard } from "lucide-react";
+import { Sparkles, Code2, Clipboard } from "lucide-react";
 import { toast } from "sonner";
 
 import type { AnalysisData, RecipeData, DBRecipe, DailyRecipeType, HolidayType, DBComment } from "@/lib/types";
@@ -32,7 +32,6 @@ import PreferencesModal from "@/components/modals/PreferencesModal";
 
 export default function SearchApp() {
   const [activeView, setActiveView] = useState<'service' | 'about' | 'daily' | 'feed' | 'profile' | 'game'>('service');
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const [dailyRecipe, setDailyRecipe] = useState<DailyRecipeType | null>(null);
   const [dailyError, setDailyError] = useState(false);
@@ -1113,7 +1112,7 @@ export default function SearchApp() {
   };
 
   const switchView = (view: 'service' | 'about' | 'daily' | 'feed' | 'profile' | 'game') => {
-    setActiveView(view); setIsMenuOpen(false);
+    setActiveView(view);
     if (typeof window !== 'undefined') window.history.replaceState({}, '', '/search');
   };
 
@@ -1180,48 +1179,12 @@ export default function SearchApp() {
         onLogin={() => { setIsPreferencesModalOpen(false); setIsAuthModalOpen(true); }}
       />
        
-      {/* КНОПКА МЕНЮ */}
-      <button className="menu-btn" onClick={() => setIsMenuOpen(true)} style={{ position: 'fixed', top: 'calc(env(safe-area-inset-top) + var(--space-2))', left: 'var(--space-3)', zIndex: 50, background: 'var(--color-surface)', borderRadius: '50%', width: '44px', height: '44px', padding: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', border: 'none', cursor: 'pointer' }}>
-        <Menu size={24} color="var(--color-text)" />
-      </button>
-
-      {/* МЕНЮ */}
-      {isMenuOpen && (
-        <>
-          <div className="menu-overlay" onClick={() => setIsMenuOpen(false)} style={{zIndex: 99}} />
-          <div className={`menu-drawer ${isMenuOpen ? 'open' : ''}`} style={{ left: 0, right: 'auto', transform: isMenuOpen ? 'translateX(0)' : 'translateX(-100%)', zIndex: 100, borderTopRightRadius: 'var(--radius-md)', borderBottomRightRadius: 'var(--radius-md)', borderTopLeftRadius: '0', borderBottomLeftRadius: '0' }}>
-            <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-5)'}}>
-               <span style={{fontSize: 'var(--font-size-heading)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-accent)'}}>SmartCook</span>
-               <X size={24} color="var(--color-text-secondary)" onClick={() => setIsMenuOpen(false)} style={{cursor: 'pointer'}} />
-            </div>
-
-            <div className="menu-link" onClick={() => { setProfileView('main'); switchView('profile'); }} style={{ background: activeView === 'profile' ? 'var(--color-accent-subtle)' : 'transparent', color: activeView === 'profile' ? 'var(--color-accent)' : 'var(--color-text-secondary)', fontWeight: activeView === 'profile' ? 'var(--font-weight-semibold)' : 'var(--font-weight-medium)' }}>
-               <User size={22} style={{flexShrink: 0}}/> Личный кабинет
-            </div>
-            <div className="menu-link" onClick={() => switchView('service')} style={{ background: activeView === 'service' ? 'var(--color-accent-subtle)' : 'transparent', color: activeView === 'service' ? 'var(--color-accent)' : 'var(--color-text-secondary)', fontWeight: activeView === 'service' ? 'var(--font-weight-semibold)' : 'var(--font-weight-medium)' }}>
-               <Search size={22} style={{flexShrink: 0}}/> Найти рецепт
-            </div>
-            <a className="menu-link" href="/" style={{ background: 'transparent', color: 'var(--color-text-secondary)', fontWeight: 'var(--font-weight-medium)', textDecoration: 'none' }}>
-               <Flame size={22} style={{flexShrink: 0}}/> Главная
-            </a>
-            <a className="menu-link" href="/parties" style={{ background: 'transparent', color: 'var(--color-text-secondary)', fontWeight: 'var(--font-weight-medium)', textDecoration: 'none' }}>
-               <PartyPopper size={22} style={{flexShrink: 0}}/> Банкеты
-            </a>
-            {FEATURE_RESTAURANT_GAME && (
-            <div className="menu-link" onClick={() => switchView('game')} style={{ background: activeView === 'game' ? 'var(--color-accent-subtle)' : 'transparent', color: activeView === 'game' ? 'var(--color-accent)' : 'var(--color-text-secondary)', fontWeight: activeView === 'game' ? 'var(--font-weight-semibold)' : 'var(--font-weight-medium)' }}>
-               <Store size={22} style={{flexShrink: 0}}/> Мой ресторан
-            </div>
-            )}
-            <div className="menu-link" onClick={() => switchView('daily')} style={{ background: activeView === 'daily' ? 'var(--color-accent-subtle)' : 'transparent', color: activeView === 'daily' ? 'var(--color-accent)' : 'var(--color-text-secondary)', fontWeight: activeView === 'daily' ? 'var(--font-weight-semibold)' : 'var(--font-weight-medium)' }}>
-               <Flame size={22} style={{flexShrink: 0}}/> Рецепт дня
-            </div>
-
-            <div className="menu-link" style={{ marginTop: 'var(--space-2)', background: activeView === 'about' ? 'var(--color-accent-subtle)' : 'transparent', color: activeView === 'about' ? 'var(--color-accent)' : 'var(--color-text-secondary)', fontWeight: activeView === 'about' ? 'var(--font-weight-semibold)' : 'var(--font-weight-medium)' }} onClick={() => switchView('about')}>
-               <CheckCircle size={22} style={{flexShrink: 0}}/> О проекте
-            </div>
-          </div>
-        </>
-      )}
+      {/* Плавающего хамбургера здесь больше нет: он дублировал таб-бар (этап
+          H11 снял его с Главной, теперь — со всех экранов вместе с компонентом
+          AppNavigation). Куда вели его пункты: Главная и Личный кабинет — в
+          таб-баре, Банкеты — в кабинете, Рецепт дня — с Главной
+          (/search?daily=true), О проекте — в футере. Виды 'about' и 'profile'
+          внутри /search остались legacy-вью: у обоих есть свои маршруты. */}
 
       {/* === ВНЕШНИЕ КОМПОНЕНТЫ === */}
       {activeView === 'profile' && (

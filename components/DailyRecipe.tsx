@@ -1,7 +1,5 @@
 import React from 'react';
 import { Clock, Flame, Heart, Share2, Sparkles, Send, Salad, ChefHat } from 'lucide-react';
-import { splitIngredientList } from '@/lib/recipeValidation';
-import KuperBuyBlock from '@/components/KuperBuyBlock';
 import RecipeMissingBlock from '@/components/RecipeMissingBlock';
 import { formatCookingTime } from '@/lib/utils';
 
@@ -79,25 +77,13 @@ export default function DailyRecipe(props: any) {
               </button>
             </div>
 
-            {/* Монетизация: заказ продуктов через Купер (CPA). Компонент сам
-                несёт обязательную маркировку рекламы. Раньше здесь был блок
-                другого магазина — без маркировки и вторым по счёту на экране
-                рецепта; удалён целиком. splitIngredientList — фолбэк: старые
-                записи могли сохранить весь список одной строкой. */}
-            {/* Что нужно купить по рецепту дня: промпт /api/daily считает кухню
-                пустой и заполняет missing_ingredients целиком. known нет —
-                «всё есть дома» тут не появится. */}
+            {/* «Что нужно купить» по рецепту дня: недостающее + кнопка в
+                «Покупки» и кнопка Купера (CPA, блок сам несёт обязательную
+                маркировку рекламы) — один блок вместо двух. Промпт /api/daily
+                считает кухню пустой и заполняет missing_ingredients целиком.
+                known нет — «всё есть дома» тут не появится. */}
             <RecipeMissingBlock
               modelMissing={dailyRecipe.missing_ingredients}
-              recipeTitle={dailyRecipe.title}
-            />
-
-            <KuperBuyBlock
-              ingredients={splitIngredientList(
-                dailyRecipe.detailed_ingredients
-                  ? dailyRecipe.detailed_ingredients.map((ing: any) => ing.name)
-                  : dailyRecipe.ingredients || [],
-              )}
               recipeTitle={dailyRecipe.title}
             />
 

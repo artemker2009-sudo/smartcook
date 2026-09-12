@@ -17,7 +17,6 @@ import type { RecipeData } from "@/lib/types";
 import CookMode from "@/components/CookMode";
 import AiRecipeDisclaimer from "@/components/AiRecipeDisclaimer";
 import RecipeImage from "@/components/RecipeImage";
-import KuperBuyBlock from "@/components/KuperBuyBlock";
 import RecipeMissingBlock from "@/components/RecipeMissingBlock";
 
 /**
@@ -102,17 +101,15 @@ export default function SharedRecipe({ recipe }: { recipe: RecipeData }) {
                 </div>
               ))}
             </div>
-            {/* Что нужно купить по этому рецепту + своя кнопка в «Покупки».
-                known здесь нет (рецепт пришёл по ссылке, что у читателя дома —
-                неизвестно), поэтому блок опирается на missing_ingredients и
-                молчит, если их нет: выдумывать «всё есть дома» нельзя. */}
+            {/* «Что нужно купить»: недостающее + кнопка в «Покупки» и кнопка
+                Купера (CPA) — один блок. known здесь нет (рецепт пришёл по
+                ссылке, что у читателя дома — неизвестно), поэтому блок
+                опирается на missing_ingredients и молчит, если их нет:
+                выдумывать «всё есть дома» нельзя. */}
             <RecipeMissingBlock
               modelMissing={recipe.missing_ingredients}
               recipeTitle={recipe.title}
             />
-
-            {/* Монетизация: заказ продуктов по рецепту через Купер (CPA). */}
-            <KuperBuyBlock ingredients={detailed.map((ing) => ing.name)} recipeTitle={recipe.title} />
           </>
         )}
 

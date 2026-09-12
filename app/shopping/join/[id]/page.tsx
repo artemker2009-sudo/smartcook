@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 
-import AppNavigation from "@/components/AppNavigation";
 import SharedShoppingJoin from "@/components/SharedShoppingJoin";
 
 // Экран приглашения в общий список. Содержимое списка тут не рендерится и в
@@ -20,7 +19,6 @@ export default async function SharedShoppingJoinPage({
   const { id } = await params;
   return (
     <>
-      <AppNavigation />
       <SharedShoppingJoin listId={id} />
     </>
   );

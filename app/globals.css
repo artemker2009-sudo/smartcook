@@ -129,7 +129,7 @@ body {
   margin-left: calc(50% - 50vw);
   display: flex;
   justify-content: center;
-  padding: calc(var(--safe-top) + 14px) var(--space-3) 10px;
+  padding: calc(var(--safe-top) + 26px) var(--space-3) 12px;
   margin-bottom: var(--space-4);
   background: none;
   /* Свечение под логотипом шире экрана — режем по кромке окна, чтобы не
@@ -190,11 +190,15 @@ body {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
+  /* Во всю ширину окна: поля по бокам давали две вертикальные границы вдоль
+     всего экрана — ровно то, чего на первом экране быть не должно. Скруглены
+     только нижние углы (верх уходит под строку состояния, там углов не видно). */
   width: 100vw;
   top: 0;
   height: 40vh;
   height: 40svh;
   max-height: 360px;
+  border-radius: 0 0 32px 32px;
   z-index: -1;
   overflow: hidden;
   pointer-events: none;
@@ -217,8 +221,10 @@ body {
     rgba(250, 249, 247, 0.22) 0%,
     rgba(250, 249, 247, 0.22) 62%,
     rgba(250, 249, 247, 0.45) 78%,
-    rgba(250, 249, 247, 0.86) 90%,
-    var(--color-bg) 100%
+    rgba(250, 249, 247, 0.8) 92%,
+    /* Не доводим до цвета фона вплотную: у самой кромки остаётся чуть-чуть
+       снимка, иначе скругления углов просто не видно. */
+    rgba(250, 249, 247, 0.88) 100%
   );
 }
 

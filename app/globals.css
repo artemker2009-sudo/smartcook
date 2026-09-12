@@ -3613,7 +3613,8 @@ html.sh-kb-open .tab-bar { visibility: hidden; }
    правого края поля при каждом наборе символа. */
 .sh-field-input { scrollbar-width: none; }
 .sh-field-input::-webkit-scrollbar { display: none; }
-/* Микрофон и камера — одной группой справа, каждая в круглой подложке 36px.
+/* Микрофон и камера — одной группой справа, каждая в круге 40px с заметной
+   рамкой: на тонкой подложке без рамки кнопки терялись на фоне поля.
    Голые серые иконки без подложки не читались как кнопки, а два отдельных
    элемента с разными отступами выглядели случайно брошенными в поле. Группа
    стоит по центру поля по вертикали; отступ от правого края даёт padding
@@ -3627,13 +3628,13 @@ html.sh-kb-open .tab-bar { visibility: hidden; }
 }
 .sh-field-icon {
   flex-shrink: 0;
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: none;
+  border: 1.5px solid #c4c4ca;
   border-radius: var(--radius-full);
   background: var(--color-bg-subtle);
   color: var(--color-text-secondary);
@@ -3645,8 +3646,11 @@ html.sh-kb-open .tab-bar { visibility: hidden; }
 /* Кнопка отправки появляется на месте иконок, когда в поле что-то есть. */
 .sh-field-send {
   flex-shrink: 0;
-  width: 44px;
-  height: 44px;
+  /* По центру поля по вертикали, как и группа иконок: прижатая к низу
+     кнопка 44px не влезала в поле и сидела ниже середины. */
+  align-self: center;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;

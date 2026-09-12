@@ -31,6 +31,11 @@ const RAW_PHOTO_MAX_BYTES = 15 * 1024 * 1024;
 // половина экрана.
 const MAX_INPUT_HEIGHT = 96;
 
+// Подсказку «через запятую или с новой строки» человек видит, пока не добавит
+// первый продукт. Дальше он уже знает, как это работает, а строка над полем
+// только отъедает высоту над клавиатурой.
+const HINT_SEEN_KEY = "smartcook_shopping_hint_seen_v1";
+
 type Props = {
   /** Готовые названия из любого источника. Родитель решает, куда их девать. */
   onAdd: (names: string[]) => void;
@@ -44,6 +49,27 @@ export default function AddBar({ onAdd, busy = false }: Props) {
   // полем висел абзац в пять строк — прочитанный один раз, он потом просто
   // занимал ~150px на каждом экране.
   const [focused, setFocused] = useState(false);
+  // По умолчанию «уже видел»: до чтения localStorage подсказка не мигает.
+  const [hintSeen, setHintSeen] = useState(true);
+  useEffect(() => {
+    const init = () => {
+      try {
+        setHintSeen(localStorage.getItem(HINT_SEEN_KEY) === "1");
+      } catch {
+        setHintSeen(false);
+      }
+    };
+    init();
+  }, []);
+  const markHintSeen = () => {
+    if (hintSeen) return;
+    setHintSeen(true);
+    try {
+      localStorage.setItem(HINT_SEEN_KEY, "1");
+    } catch {
+      // Приватный режим — подсказка просто покажется ещё раз.
+    }
+  };
 
   // Поле ввода — textarea, а не input: однострочный input по спецификации
   // ВЫРЕЗАЕТ переводы строк из вставленного текста, и список из заметок
@@ -183,7 +209,10 @@ export default function AddBar({ onAdd, busy = false }: Props) {
     const names = parseNames(input);
     setInput("");
     resetHeight();
-    if (names.length > 0) onAdd(names);
+    if (names.length > 0) {
+      onAdd(names);
+      markHintSeen();
+    }
   };
 
   // Голосовой ввод: браузерный Web Speech API (никакого сервера/OpenAI). Если
@@ -301,6 +330,7 @@ export default function AddBar({ onAdd, busy = false }: Props) {
     if (names.length === 0) return;
     reachGoal(fromPhoto ? "shopping_photo_added" : "shopping_voice_added", { count: names.length });
     onAdd(names);
+    markHintSeen();
   };
 
   const hasText = input.trim().length > 0;
@@ -380,7 +410,7 @@ export default function AddBar({ onAdd, busy = false }: Props) {
           </div>
         )}
 
-        {focused && (
+        {focused && !hintSeen && (
           <p className="sh-bar-hint">
             Через запятую или с новой строки — сразу несколько продуктов.
           </p>
@@ -429,6 +459,12 @@ export default function AddBar({ onAdd, busy = false }: Props) {
           {hasText ? (
             <button
               type="button"
+              // Кнопка НЕ забирает фокус у поля. Иначе первое нажатие на iOS
+              // уходило в blur: клавиатура закрывалась, панель съезжала вниз,
+              // и сам тап приходился уже мимо кнопки — добавлялось только со
+              // второго раза. Заодно поле остаётся в фокусе для следующего
+              // продукта.
+              onPointerDown={(e) => e.preventDefault()}
               onClick={handleAdd}
               disabled={busy}
               className="sh-field-send"

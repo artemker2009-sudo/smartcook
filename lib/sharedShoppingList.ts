@@ -344,6 +344,25 @@ export async function joinSharedList(
   return (await res.json()) as SharedSnapshot;
 }
 
+/**
+ * Переименовать общий список. Имя живёт в БД, поэтому это запрос на сервер, а
+ * не правка localStorage: новое имя увидят все участники (сервер шлёт пинг в
+ * тот же Broadcast-канал, что и при правке позиций).
+ */
+export async function renameSharedList(
+  listId: string,
+  memberRef: string,
+  name: string,
+): Promise<{ id: string; name: string }> {
+  const res = await fetch(`/api/shopping/shared/${listId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ memberRef, name }),
+  });
+  if (!res.ok) await parseError(res, "Не удалось переименовать список");
+  return (await res.json()) as { id: string; name: string };
+}
+
 export async function addSharedItems(
   listId: string,
   memberRef: string,

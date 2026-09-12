@@ -2,7 +2,7 @@
 
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import Link from "next/link";
-import { MoreHorizontal, Trash2, Users } from "lucide-react";
+import { MoreHorizontal, Pin, Trash2, Users } from "lucide-react";
 
 import { markOpenedFromHub } from "@/lib/shoppingActive";
 
@@ -16,6 +16,8 @@ export type HubEntry = {
   updatedLabel: string;
   /** Счётчик «куплено/всего». null — неизвестен (общий список ещё не открывали). */
   counts: { total: number; done: number } | null;
+  /** Закреплён — стоит в хабе первым, со значком. */
+  pinned: boolean;
 };
 
 type Props = {
@@ -87,19 +89,18 @@ export default function HubRow({ entry, onDelete }: Props) {
 
   return (
     <div className="sh-hub-row">
-      {/* Кнопка живёт ПОД строкой и открывается из-под неё. Она в DOM всегда,
-          поэтому доступна с клавиатуры и скринридеру — даже когда свайпа не
-          было (для этого же на карточке есть «⋯»). */}
-      <button
-        type="button"
-        className="sh-hub-del"
-        onClick={onDelete}
-        tabIndex={open ? 0 : -1}
-        aria-hidden={!open}
-      >
-        <Trash2 size={20} />
-        Удалить
-      </button>
+      {/* Кнопка живёт ПОД строкой и открывается из-под неё — только пока
+          строка отодвинута. В покое её в DOM нет: абсолютный блок
+          позиционируется по padding-box карточки, а строка поверх лежит в
+          content-box, то есть на пиксель уже, — и по правому краю каждой
+          карточки просвечивала красная полоска. Для клавиатуры и скринридера
+          удаление доступно через «⋯» рядом. */}
+      {offset > 0 && (
+        <button type="button" className="sh-hub-del" onClick={onDelete} tabIndex={open ? 0 : -1}>
+          <Trash2 size={20} />
+          Удалить
+        </button>
+      )}
 
       <div
         className="sh-hub-slide"
@@ -127,6 +128,7 @@ export default function HubRow({ entry, onDelete }: Props) {
         >
           <span className="sh-hub-text">
             <span className="sh-hub-title">
+              {entry.pinned && <Pin size={15} aria-label="закреплён" className="sh-hub-pin" />}
               {entry.kind === "shared" && <Users size={17} aria-label="общий список" />}
               {entry.label}
             </span>

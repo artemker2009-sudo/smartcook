@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { toast } from "sonner";
-import { Copy, Pencil, Send, Trash2, Users } from "lucide-react";
+import { Copy, Pencil, Pin, PinOff, Send, Share2, Trash2, Users } from "lucide-react";
 
 import { copyText } from "@/lib/clipboard";
 import { reachGoal } from "@/lib/metrika";
@@ -16,11 +16,11 @@ import {
   type ShoppingItem,
   type SortCache,
 } from "@/lib/shoppingList";
-import type { ShoppingListRecord } from "@/lib/shoppingLists";
+import { listDisplayName, type ShoppingListRecord } from "@/lib/shoppingLists";
 import ListScreen from "@/components/shopping/ListScreen";
 import PartnerFooter from "@/components/shopping/PartnerFooter";
 import { useSortToggle } from "@/components/shopping/useSortToggle";
-import type { RowItem } from "@/components/shopping/types";
+import type { MenuAction, RowItem } from "@/components/shopping/types";
 
 function pluralizeProduct(n: number): string {
   const mod10 = n % 10;
@@ -41,15 +41,9 @@ type Props = {
   onDelete: () => void;
   onShareCopy: () => void;
   onMakeShared: () => void;
-};
-
-/** Пункт меню «⋯». Собирается хозяином списка, рисуется общим нижним листом. */
-export type MenuAction = {
-  key: string;
-  label: string;
-  icon: React.ReactNode;
-  danger?: boolean;
-  onSelect: () => void;
+  /** Список закреплён в хабе — стоит там первым. */
+  pinned: boolean;
+  onTogglePin: () => void;
 };
 
 /**
@@ -70,6 +64,8 @@ export default function LocalList({
   onDelete,
   onShareCopy,
   onMakeShared,
+  pinned,
+  onTogglePin,
 }: Props) {
   const items = list.items;
   const sig = useMemo(() => listSignature(items), [items]);
@@ -134,22 +130,44 @@ export default function LocalList({
     toast(ok ? "Список скопирован" : "Не удалось скопировать");
   };
 
-  // Два способа отдать список ведут к ПРОТИВОПОЛОЖНЫМ результатам: «Позвать в
-  // общий список» — живой синхронный список, «Отправить копию» — снимок в
-  // ссылке, у получателя свой список. Поэтому у них разные глаголы, разные
-  // иконки и живой вариант стоит первым.
+  // Меню верхнего уровня — ровно четыре пункта. «Поделиться» уводит во
+  // вложенный лист, потому что отдать список можно ДВУМЯ способами с
+  // противоположными результатами: «Позвать в общий список» — живой синхронный
+  // список, «Отправить копию» — снимок в ссылке, у получателя свой список.
+  // Раньше они стояли рядом в одном меню, и человек, которому нужно «чтобы
+  // дочь отмечала», выбирал мёртвую копию. Теперь у них разные глаголы, разные
+  // иконки, живой вариант первый, и оба объяснены подписью.
   const openMenu = () =>
     onOpenMenu([
-      { key: "shared", label: "Позвать в общий список", icon: <Users size={20} />, onSelect: onMakeShared },
-      { key: "copy-link", label: "Отправить копию", icon: <Send size={20} />, onSelect: onShareCopy },
-      { key: "copy-text", label: "Скопировать текстом", icon: <Copy size={20} />, onSelect: () => void handleCopy() },
+      {
+        key: "pin",
+        label: pinned ? "Открепить" : "Закрепить",
+        icon: pinned ? <PinOff size={20} /> : <Pin size={20} />,
+        onSelect: onTogglePin,
+      },
       { key: "rename", label: "Переименовать", icon: <Pencil size={20} />, onSelect: onRename },
+      {
+        key: "share",
+        label: "Поделиться",
+        icon: <Share2 size={20} />,
+        next: {
+          title: "Поделиться списком",
+          actions: [
+            { key: "shared", label: "Позвать в общий список", icon: <Users size={20} />, onSelect: onMakeShared },
+            { key: "copy-link", label: "Отправить копию", icon: <Send size={20} />, onSelect: onShareCopy },
+            { key: "copy-text", label: "Скопировать текстом", icon: <Copy size={20} />, onSelect: () => void handleCopy() },
+          ],
+        },
+      },
       { key: "delete", label: "Удалить список", icon: <Trash2 size={20} />, danger: true, onSelect: onDelete },
     ]);
 
   return (
     <ListScreen
-      title={list.name}
+      // Короткое имя, как в хабе: у легаси-списков «Покупки, 9 сентября» слово
+      // «Покупки» в шапке дублировало бы название раздела. Переименование
+      // работает с полным именем из хранилища.
+      title={listDisplayName(list.name)}
       onRename={onRename}
       items={rows}
       sort={sort}

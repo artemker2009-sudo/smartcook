@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { ArrowDown, Loader2, RefreshCw } from "lucide-react";
+import { ArrowDown, ArrowUpDown, Check, Loader2 } from "lucide-react";
 
+import { splitQuantity } from "@/lib/shoppingQuantity";
 import AddBar from "@/components/shopping/AddBar";
 import CheckedGroup from "@/components/shopping/CheckedGroup";
 import ItemRow from "@/components/shopping/ItemRow";
@@ -62,6 +63,10 @@ export default function ListScreen({
 }: Props) {
   // Купленное свёрнуто по умолчанию: в магазине нужно то, что ЕЩЁ не взяли.
   const [doneOpen, setDoneOpen] = useState(false);
+  // Позиция, которую собираются удалить. Крестик — это НЕ «куплено»: купленное
+  // отмечают чекбоксом и его можно вернуть, а удаление необратимо, поэтому оно
+  // спрашивает.
+  const [removeTarget, setRemoveTarget] = useState<RowItem | null>(null);
 
   const pending = useMemo(() => items.filter((it) => !it.checked), [items]);
   const checked = useMemo(() => items.filter((it) => it.checked), [items]);
@@ -96,13 +101,64 @@ export default function ListScreen({
       const prev = i > 0 ? rows[i - 1] : null;
       const grouped = Boolean(it.noteGroup) && prev?.noteGroup === it.noteGroup;
       return (
-        <ItemRow key={it.id} item={it} onToggle={onToggle} onRemove={onRemove} showNote={!grouped} />
+        <ItemRow
+          key={it.id}
+          item={it}
+          onToggle={onToggle}
+          onRemove={() => setRemoveTarget(it)}
+          showNote={!grouped}
+        />
       );
     });
 
   return (
     <>
-      <ListHeader title={title} subtitle={subtitle} onRename={onRename} sort={sort} onMenu={onMenu} />
+      <ListHeader title={title} subtitle={subtitle} onRename={onRename} onMenu={onMenu} />
+
+      {/* Раскладка по отделам — чипом с ТЕКСТОМ под заголовком, а не иконкой
+          рядом с ним. Иконка-кружок ничего не объясняла, и функцию просто не
+          находили. Чип честно говорит и что будет, и что уже сделано.
+
+          Про стоимость: раскладку считает модель на сервере. Кэш совпал с
+          текущим набором позиций — переключение мгновенное и без сети; не
+          совпал — уходит запрос, и это видно («Раскладываю…» со спиннером). */}
+      {items.length > 0 && (
+        <button
+          type="button"
+          className={sort.grouped && sort.state === "ready" ? "sh-sort sh-sort-on" : "sh-sort"}
+          // Раскладка устарела — нажатие ПЕРЕСЧИТЫВАЕТ её, а не выключает
+          // режим: человек хочет увидеть отделы для нового набора позиций, и
+          // выключить их ему предлагать незачем.
+          onClick={
+            sort.busy
+              ? undefined
+              : sort.grouped && sort.state === "stale"
+                ? sort.onRecompute
+                : sort.onToggle
+          }
+          disabled={sort.busy}
+          aria-pressed={sort.grouped}
+        >
+          {sort.busy ? (
+            <>
+              <Loader2 size={16} className="animate-spin" aria-hidden /> Раскладываю…
+            </>
+          ) : sort.grouped && sort.state === "ready" ? (
+            <>
+              <Check size={16} aria-hidden /> По отделам
+              <span className="sh-sort-off">· вернуть порядок</span>
+            </>
+          ) : sort.grouped && sort.state === "stale" ? (
+            <>
+              <ArrowUpDown size={16} aria-hidden /> Список изменился — обновить отделы
+            </>
+          ) : (
+            <>
+              <ArrowUpDown size={16} aria-hidden /> Разложить по отделам
+            </>
+          )}
+        </button>
+      )}
 
       {banner}
 
@@ -130,29 +186,11 @@ export default function ListScreen({
               </section>
             ))
           ) : (
-            <>
-              {/* Раскладка считается на сервере: нажатие на иконку в шапке
-                  уходит в запрос, если кэш не совпал с текущим набором. Пока
-                  идёт — строка ровно там, где вот-вот появится первый отдел. */}
-              {sort.grouped && sort.busy && (
-                <div className="sh-group-title sh-group-title-busy">
-                  <Loader2 size={14} className="animate-spin" aria-hidden /> Раскладываю…
-                </div>
-              )}
-              {/* Режим «по отделам» включён, а раскладки для ЭТОГО списка нет:
-                  либо её не считали (перешли на другой список), либо позиции
-                  менялись после расчёта. Показываем список в порядке добавления
-                  (новые позиции в старых группах не числятся и иначе просто не
-                  отрисовались бы) и даём посчитать — явным нажатием, потому что
-                  это вызов модели. */}
-              {sort.grouped && !sort.busy && sort.state !== "ready" && (
-                <button type="button" className="sh-group-title sh-group-stale" onClick={sort.onRecompute}>
-                  <RefreshCw size={14} aria-hidden />{" "}
-                  {sort.state === "stale" ? "Список изменился — обновить отделы" : "Разложить по отделам"}
-                </button>
-              )}
-              <ul className="sh-list">{renderRows(pending)}</ul>
-            </>
+            // Режим «по отделам» включён, а раскладки для ЭТОГО списка ещё
+            // нет (считается прямо сейчас или устарела) — показываем в порядке
+            // добавления. Что происходит и что нажать, говорит чип над
+            // списком; дублировать это строкой внутри списка незачем.
+            <ul className="sh-list">{renderRows(pending)}</ul>
           )}
 
           <CheckedGroup
@@ -160,7 +198,10 @@ export default function ListScreen({
             open={doneOpen}
             onOpenChange={setDoneOpen}
             onToggle={onToggle}
-            onRemove={onRemove}
+            onRemove={(id) => {
+              const it = checked.find((x) => x.id === id);
+              if (it) setRemoveTarget(it);
+            }}
             onClear={onClearChecked}
           />
 
@@ -169,6 +210,41 @@ export default function ListScreen({
       )}
 
       <AddBar onAdd={onAddNames} busy={busy} />
+
+      {/* Удаление позиции. Отменить его нельзя, а крестик стоит в каждой
+          строке в двух сантиметрах от чекбокса — без вопроса продукт исчезал
+          от промаха пальцем. */}
+      {removeTarget && (
+        <div className="sl-overlay sl-overlay-center" onClick={() => setRemoveTarget(null)}>
+          <div className="sl-modal" onClick={(e) => e.stopPropagation()}>
+            <h2 className="sl-modal-title" style={{ marginBottom: "var(--space-2)" }}>
+              {/* Спрашиваем про НАЗВАНИЕ, без количества: в строке списка
+                  человек видит «Куриные бёдра» и «1 кг» по отдельности, и в
+                  вопросе «Удалить «Куриные бёдра 1 кг»?» количество только
+                  удлиняет заголовок. */}
+              Удалить «{splitQuantity(removeTarget.name).label}»?
+            </h2>
+            <p style={{ margin: "0 0 var(--space-4) 0", color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
+              Продукт пропадёт из списка. Чтобы отметить его купленным, поставьте галочку слева.
+            </p>
+            <div style={{ display: "flex", gap: "var(--space-2)" }}>
+              <button type="button" className="sl-modal-secondary" onClick={() => setRemoveTarget(null)}>
+                Отмена
+              </button>
+              <button
+                type="button"
+                className="sl-modal-danger"
+                onClick={() => {
+                  onRemove(removeTarget.id);
+                  setRemoveTarget(null);
+                }}
+              >
+                Удалить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

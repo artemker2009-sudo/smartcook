@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Copy, LogOut, Share2, Users, WifiOff, X } from "lucide-react";
+import { Copy, LogOut, Pencil, Pin, PinOff, Share2, Users, WifiOff, X } from "lucide-react";
 
 import { copyText } from "@/lib/clipboard";
 import { reachGoal } from "@/lib/metrika";
 import { supabase } from "@/lib/supabase";
 import { MAX_SHOPPING_ITEMS, itemsToText, signatureFromNames } from "@/lib/shoppingList";
+import { listDisplayName } from "@/lib/shoppingLists";
 import {
   addSharedItems,
   clearSharedChecked,
@@ -27,8 +28,7 @@ import { sharedListChannelName } from "@/lib/sharedShoppingBroadcast";
 import ListScreen from "@/components/shopping/ListScreen";
 import PartnerFooter from "@/components/shopping/PartnerFooter";
 import { useSortToggle } from "@/components/shopping/useSortToggle";
-import type { MenuAction } from "@/components/shopping/LocalList";
-import type { RowItem } from "@/components/shopping/types";
+import type { MenuAction, RowItem } from "@/components/shopping/types";
 
 // Общий (семейный) список поверх того же экрана, что и локальный.
 //
@@ -68,6 +68,11 @@ type Props = {
   onOpenMenu: (menu: MenuAction[]) => void;
   /** Убрать список с этого устройства (подтверждение спрашивает хозяин). */
   onForget: () => void;
+  /** Переименовать — через сервер: имя в БД и видно всем участникам. */
+  onRename: () => void;
+  /** Список закреплён в хабе. Закрепление ЛОКАЛЬНОЕ, на этом устройстве. */
+  pinned: boolean;
+  onTogglePin: () => void;
 };
 
 export default function SharedList({
@@ -78,6 +83,9 @@ export default function SharedList({
   onGroupedChange,
   onOpenMenu,
   onForget,
+  onRename,
+  pinned,
+  onTogglePin,
 }: Props) {
   const [name, setName] = useState(initial.name);
   const [items, setItems] = useState<SharedItem[]>(initial.items);
@@ -320,26 +328,39 @@ export default function SharedList({
     toast(ok ? "Список скопирован" : "Не удалось скопировать");
   };
 
-  // Переименования общего списка пока нет: для него нужен серверный роут (имя
-  // живёт в БД и видно всем участникам). Поэтому и тап по названию тут ничего
-  // не делает — см. ListHeader, он не рисует «мёртвую» кнопку.
+  // Те же четыре пункта, что у локального списка. Разница — в последнем:
+  // общий список нельзя удалить у всех, его можно только убрать у СЕБЯ, и
+  // называться это должно так, как и работает.
   const openMenu = () =>
     onOpenMenu([
-      { key: "invite", label: "Позвать в список", icon: <Share2 size={20} />, onSelect: () => void handleShare() },
       {
-        key: "members",
-        label: "Кто в списке",
-        icon: <Users size={20} />,
-        onSelect: () => setShowMembers(true),
+        key: "pin",
+        label: pinned ? "Открепить" : "Закрепить",
+        icon: pinned ? <PinOff size={20} /> : <Pin size={20} />,
+        onSelect: onTogglePin,
       },
-      { key: "copy-text", label: "Скопировать текстом", icon: <Copy size={20} />, onSelect: () => void handleCopy() },
+      { key: "rename", label: "Переименовать", icon: <Pencil size={20} />, onSelect: onRename },
+      {
+        key: "share",
+        label: "Поделиться",
+        icon: <Share2 size={20} />,
+        next: {
+          title: "Поделиться списком",
+          actions: [
+            { key: "invite", label: "Позвать в список", icon: <Users size={20} />, onSelect: () => void handleShare() },
+            { key: "members", label: "Кто в списке", icon: <Users size={20} />, onSelect: () => setShowMembers(true) },
+            { key: "copy-text", label: "Скопировать текстом", icon: <Copy size={20} />, onSelect: () => void handleCopy() },
+          ],
+        },
+      },
       { key: "forget", label: "Убрать у себя", icon: <LogOut size={20} />, danger: true, onSelect: onForget },
     ]);
 
   return (
     <>
       <ListScreen
-        title={name}
+        title={listDisplayName(name)}
+        onRename={onRename}
         subtitle={
           <button type="button" className="sh-head-members" onClick={() => setShowMembers(true)}>
             <Users size={15} aria-hidden /> {membersLabel(members)}

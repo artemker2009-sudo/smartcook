@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2, X } from "lucide-react";
+import { ArrowLeft, ChevronRight, Loader2, X } from "lucide-react";
 
 import { reachGoal } from "@/lib/metrika";
 import { copyText } from "@/lib/clipboard";
@@ -24,6 +24,7 @@ import {
   openedFromHub,
   saveGroupedMode,
 } from "@/lib/shoppingActive";
+import { isPinned, togglePinned, unpin } from "@/lib/shoppingPinned";
 import { buildShareUrl, canShareByLink } from "@/lib/shoppingShare";
 import {
   createSharedList,
@@ -33,12 +34,15 @@ import {
   loadSharedPointers,
   newMemberRef,
   rememberSharedList,
+  renameSharedList,
   saveMemberIdentity,
+  updatePointerName,
   type SharedListPointer,
   type SharedSnapshot,
 } from "@/lib/sharedShoppingList";
-import LocalList, { type MenuAction } from "@/components/shopping/LocalList";
+import LocalList from "@/components/shopping/LocalList";
 import SharedList from "@/components/shopping/SharedList";
+import type { MenuAction } from "@/components/shopping/types";
 
 /**
  * Экран одного списка по адресу /shopping/<id>.
@@ -65,7 +69,12 @@ export default function ShoppingListRoute({ listId }: { listId: string }) {
   const [sharedLoading, setSharedLoading] = useState(false);
 
   const [grouped, setGrouped] = useState(false);
+  // Меню «⋯»: стек листов. Второй уровень нужен «Поделиться» — см. MenuAction.next.
   const [menu, setMenu] = useState<MenuAction[] | null>(null);
+  const [menuTitle, setMenuTitle] = useState<string | null>(null);
+  const [pinned, setPinned] = useState(false);
+  // Переименование общего списка идёт на сервер и может не долететь.
+  const [renameBusy, setRenameBusy] = useState(false);
 
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameValue, setRenameValue] = useState("");
@@ -104,6 +113,7 @@ export default function ShoppingListRoute({ listId }: { listId: string }) {
   useEffect(() => {
     const init = () => {
       setGrouped(loadGroupedMode());
+      setPinned(isPinned(listId));
       const p = loadSharedPointers().find((x) => x.id === listId) ?? null;
       setPointer(p);
       setLists(loadLists());
@@ -127,16 +137,56 @@ export default function ShoppingListRoute({ listId }: { listId: string }) {
 
   // --- Локальный список -------------------------------------------------------
 
-  const confirmRename = () => {
-    if (!local) return;
-    setLists(renameList(lists, local.id, renameValue));
-    setRenameOpen(false);
+  const confirmRename = async () => {
+    const name = renameValue.trim();
+    if (!name) {
+      toast("Впишите название списка");
+      return;
+    }
+    if (local) {
+      setLists(renameList(lists, local.id, name));
+      setRenameOpen(false);
+      return;
+    }
+    // Общий список: имя лежит в БД, значит это запрос на сервер. Локально
+    // ничего не меняем до ответа — иначе при неудаче на экране осталось бы
+    // имя, которого нет ни у кого из участников.
+    if (!pointer || !shared) return;
+    setRenameBusy(true);
+    try {
+      const result = await renameSharedList(pointer.id, shared.memberRef, name);
+      updatePointerName(pointer.id, result.name);
+      setPointer({ ...pointer, name: result.name });
+      setShared({ ...shared, snapshot: { ...shared.snapshot, name: result.name } });
+      setRenameOpen(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Не удалось переименовать список");
+    } finally {
+      setRenameBusy(false);
+    }
+  };
+
+  const handleTogglePin = () => {
+    setPinned(togglePinned(listId));
+  };
+
+  const closeMenu = () => {
+    setMenu(null);
+    setMenuTitle(null);
+  };
+
+  // Хозяин списка отдаёт только верхний уровень; заголовка у него нет — имя
+  // списка и так стоит в шапке прямо над листом.
+  const openMenu = (actions: MenuAction[]) => {
+    setMenuTitle(null);
+    setMenu(actions);
   };
 
   const confirmDelete = () => {
     if (!local) return;
     setDeleteOpen(false);
     deleteList(lists, local.id);
+    unpin(local.id);
     // Возвращаться в удалённый список нельзя — replace, а не push. Хаб сам
     // заведёт первый список, если этот был последним.
     router.replace("/shopping");
@@ -237,6 +287,7 @@ export default function ShoppingListRoute({ listId }: { listId: string }) {
   const confirmForget = () => {
     if (!pointer) return;
     forgetSharedList(pointer.id);
+    unpin(pointer.id);
     setForgetOpen(false);
     toast("Список убран с этого устройства");
     router.replace("/shopping");
@@ -292,32 +343,42 @@ export default function ShoppingListRoute({ listId }: { listId: string }) {
   const modals = (
     <>
       {/* Меню «⋯». Пункты пришли от хозяина списка: у локального и общего они
-          разные, а лист один. */}
+          разные, а лист один. Пункт с `next` не закрывает лист, а показывает
+          вложенный — так «Поделиться» умещается в меню из четырёх пунктов, не
+          сваливая в одну кучу живой общий список и снимок в ссылке. */}
       {menu && (
-        <div className="sl-overlay" onClick={() => setMenu(null)}>
+        <div className="sl-overlay" onClick={closeMenu}>
           <div className="sl-sheet" onClick={(e) => e.stopPropagation()}>
+            {menuTitle && <div className="sl-sheet-title">{menuTitle}</div>}
             {menu.map((action) => (
               <button
                 key={action.key}
                 type="button"
                 className={action.danger ? "sl-sheet-btn sl-sheet-danger" : "sl-sheet-btn"}
                 onClick={() => {
-                  setMenu(null);
-                  action.onSelect();
+                  if (action.next) {
+                    setMenuTitle(action.next.title);
+                    setMenu(action.next.actions);
+                    return;
+                  }
+                  closeMenu();
+                  action.onSelect?.();
                 }}
               >
                 {action.icon} {action.label}
+                {action.next && <ChevronRight size={18} className="sl-sheet-chevron" aria-hidden />}
               </button>
             ))}
-            <button type="button" className="sl-sheet-cancel" onClick={() => setMenu(null)}>
+            <button type="button" className="sl-sheet-cancel" onClick={closeMenu}>
               Отмена
             </button>
           </div>
         </div>
       )}
 
-      {/* Переименование */}
-      {renameOpen && local && (
+      {/* Переименование. Локальное имя правится в localStorage, имя общего
+          списка уходит на сервер и возвращается всем участникам. */}
+      {renameOpen && (local || pointer) && (
         <div className="sl-overlay sl-overlay-center" onClick={() => setRenameOpen(false)}>
           <div className="sl-modal" onClick={(e) => e.stopPropagation()}>
             <div className="sl-modal-head">
@@ -331,14 +392,21 @@ export default function ShoppingListRoute({ listId }: { listId: string }) {
               value={renameValue}
               onChange={(e) => setRenameValue(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") confirmRename();
+                if (e.key === "Enter") void confirmRename();
               }}
               placeholder="Например, Пятёрочка"
               aria-label="Название списка"
               className="sl-modal-input"
+              disabled={renameBusy}
             />
-            <button type="button" className="sl-modal-primary" onClick={confirmRename}>
-              Сохранить
+            <button
+              type="button"
+              className="sl-modal-primary"
+              onClick={() => void confirmRename()}
+              disabled={renameBusy || !renameValue.trim()}
+              style={{ opacity: renameBusy || !renameValue.trim() ? 0.5 : 1 }}
+            >
+              {renameBusy ? "Сохраняю…" : "Сохранить"}
             </button>
           </div>
         </div>
@@ -512,8 +580,14 @@ export default function ShoppingListRoute({ listId }: { listId: string }) {
             initial={shared.snapshot}
             grouped={grouped}
             onGroupedChange={changeGrouped}
-            onOpenMenu={setMenu}
+            onOpenMenu={openMenu}
             onForget={() => setForgetOpen(true)}
+            onRename={() => {
+              setRenameValue(shared.snapshot.name);
+              setRenameOpen(true);
+            }}
+            pinned={pinned}
+            onTogglePin={handleTogglePin}
           />
           {modals}
         </main>
@@ -557,11 +631,13 @@ export default function ShoppingListRoute({ listId }: { listId: string }) {
           onGroupedChange={changeGrouped}
           onItemsChange={(items: ShoppingItem[]) => setLists(setListItems(lists, local.id, items))}
           onSortChange={(sort: SortCache | null) => setLists(setListSort(lists, local.id, sort))}
-          onOpenMenu={setMenu}
+          onOpenMenu={openMenu}
           onRename={() => {
             setRenameValue(local.name);
             setRenameOpen(true);
           }}
+          pinned={pinned}
+          onTogglePin={handleTogglePin}
           onDelete={() => setDeleteOpen(true)}
           onShareCopy={() => void handleShareCopy()}
           onMakeShared={() => {

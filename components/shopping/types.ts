@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import type { ShoppingGroup } from "@/lib/shoppingList";
 
 /**
@@ -52,4 +54,21 @@ export type ListScreenSort = {
    * а не автоматика: это вызов модели, и он должен быть по нажатию.
    */
   onRecompute: () => void;
+};
+
+/**
+ * Пункт меню «⋯». Собирается хозяином списка (у локального и общего они
+ * разные), рисуется общим нижним листом.
+ *
+ * `next` — вложенный лист. Нужен «Поделиться»: у списка ДВА разных способа его
+ * отдать (живой общий список против снимка в ссылке), и путать их нельзя, но и
+ * в меню верхнего уровня им места нет — там ровно четыре пункта.
+ */
+export type MenuAction = {
+  key: string;
+  label: string;
+  icon: ReactNode;
+  danger?: boolean;
+  onSelect?: () => void;
+  next?: { title: string; actions: MenuAction[] };
 };

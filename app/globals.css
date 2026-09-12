@@ -3126,6 +3126,9 @@ a.news-card:hover { transform: translateY(-2px); }
   text-overflow: ellipsis;
 }
 .sh-hub-title svg { flex-shrink: 0; color: var(--color-accent); }
+/* Кнопка-скрепка: закреплённый список и так стоит первым, значок лишь
+   объясняет, ПОЧЕМУ он первый. Поэтому он приглушён, а не акцентный. */
+.sh-hub-pin { color: var(--color-text-muted) !important; }
 .sh-hub-meta {
   display: block;
   margin-top: 3px;
@@ -3248,6 +3251,38 @@ a.news-card:hover { transform: translateY(-2px); }
   color: var(--color-accent);
 }
 .sh-head-icon:disabled { opacity: 0.6; cursor: wait; }
+
+/* Раскладка по отделам — чип С ТЕКСТОМ под заголовком, прижатый влево.
+   До этого функция жила в иконке-кружке справа от заголовка, и её просто не
+   находили: кружок не говорил ни что будет, ни что уже сделано. */
+.sh-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  margin: 0 0 var(--space-3);
+  padding: 0 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  font: inherit;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.sh-sort svg { flex-shrink: 0; }
+.sh-sort-on {
+  border-color: var(--color-accent);
+  background: var(--color-accent-subtle);
+  color: var(--color-accent);
+  font-weight: var(--font-weight-semibold);
+}
+/* «· вернуть порядок» — подпись внутри чипа: сам чип и есть выключатель, и
+   человек должен видеть, что будет по нажатию, а не догадываться. */
+.sh-sort-off { font-weight: var(--font-weight-regular); opacity: 0.75; }
+.sh-sort:disabled { cursor: wait; }
 
 /* Отделы магазина — заголовками внутри списка, а не отдельным режимом. */
 .sh-group { margin-bottom: var(--space-3); }
@@ -3497,32 +3532,66 @@ a.news-card:hover { transform: translateY(-2px); }
 .sh-partner-label { font-size: var(--font-size-caption); line-height: 1.4; color: var(--color-text-muted); }
 
 /* --- Панель добавления: прижата к низу, над таб-баром ---
-   Главное действие раздела обязано быть под рукой в любом месте списка.
+   Один контейнер во всю ширину с мягкой тенью вверх, внутри — одно поле, а
+   иконки микрофона и камеры живут ВНУТРИ поля. Раньше это были три отдельных
+   кружка в воздухе: поле и рядом два круга, которые читались как чужие кнопки
+   поверх экрана. Образец — строка ввода в мессенджере.
+
    --sh-kb-inset поднимает панель над экранной клавиатурой на iOS, где она не
-   сжимает вёрстку, а наезжает сверху (см. AddBar). */
+   сжимает вёрстку, а наезжает сверху (см. AddBar). transition — чтобы панель
+   переезжала один раз и плавно, а не скакала. */
 .sh-bar {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: calc(var(--tab-bar-total) + var(--sh-kb-inset, 0px));
+  /* max(), а НЕ сумма: без клавиатуры панель стоит на таб-баре, с клавиатурой
+     — на её верхней кромке. Сумма оставляла между панелью и клавиатурой
+     полосу в высоту таб-бара — а он в этот момент и так скрыт клавиатурой, и
+     панель просто висела в воздухе. */
+  bottom: max(var(--tab-bar-total), var(--sh-kb-inset, 0px));
   z-index: 50;
   max-width: 500px;
   margin: 0 auto;
-  padding: var(--space-2) var(--space-3);
-  background: color-mix(in srgb, var(--color-surface) 96%, transparent);
-  backdrop-filter: saturate(180%) blur(12px);
-  -webkit-backdrop-filter: saturate(180%) blur(12px);
-  border-top: 1px solid var(--color-border);
+  padding: var(--space-2) var(--space-3) 10px;
+  background: var(--color-surface);
+  /* Углы только верхние: панель стоит вплотную на таб-баре, и нижние всё
+     равно не видны — а скруглять их значило бы оставить под панелью щель. */
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -8px 24px -8px rgba(0, 0, 0, 0.12);
+  transition: bottom 0.2s ease;
 }
-.sh-bar-row { display: flex; align-items: flex-end; gap: var(--space-2); }
-.sh-bar-input {
-  flex: 1;
-  min-width: 0;
-  min-height: 48px;
-  padding: 11px var(--space-3);
+@media (prefers-reduced-motion: reduce) {
+  .sh-bar { transition: none; }
+}
+/* Само поле: рамка одна на всё — и на текст, и на иконки внутри. */
+.sh-field {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+  min-height: 52px;
+  padding: 4px 8px 4px 12px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  background: var(--color-surface);
+  background: var(--color-bg);
+}
+.sh-field:focus-within { border-color: var(--color-accent); }
+/* «+» слева — метка действия, а не кнопка: добавляет Enter или кнопка справа.
+   Кликов не ловит, поэтому и pointer-events выключены. */
+.sh-field-plus {
+  flex-shrink: 0;
+  margin-bottom: 13px;
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+.sh-field-input {
+  flex: 1;
+  min-width: 0;
+  /* Поле растёт под вставленный список, но не выше: это нижняя панель, а не
+     половина экрана (потолок совпадает с MAX_INPUT_HEIGHT в AddBar). */
+  max-height: 96px;
+  padding: 13px 0;
+  border: none;
+  background: transparent;
   color: var(--color-text);
   font-family: inherit;
   /* Не меньше 16px: на iOS более мелкое поле заставляет Safari зумить
@@ -3532,24 +3601,47 @@ a.news-card:hover { transform: translateY(-2px); }
   resize: none;
   overflow-y: auto;
 }
-.sh-bar-btn {
+.sh-field-input:focus { outline: none; }
+/* Полосу прокрутки в поле не показываем: в две-три строки она всё равно не
+   нужна, а системная «плавающая» полоса macOS/iOS вспыхивала серым штрихом у
+   правого края поля при каждом наборе символа. */
+.sh-field-input { scrollbar-width: none; }
+.sh-field-input::-webkit-scrollbar { display: none; }
+/* Микрофон и камера — серые 24px внутри поля. */
+.sh-field-icon {
   flex-shrink: 0;
-  width: 48px;
-  height: 48px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--color-border);
+  border: none;
   border-radius: var(--radius-full);
-  background: var(--color-surface);
-  color: var(--color-text-secondary);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.sh-field-icon:disabled { opacity: 0.6; }
+.sh-field-icon-rec { color: var(--color-danger); }
+/* Кнопка отправки появляется на месте иконок, когда в поле что-то есть. */
+.sh-field-send {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--color-accent);
+  color: #fff;
   cursor: pointer;
 }
-.sh-bar-btn:disabled { opacity: 0.6; }
-.sh-bar-btn-primary { border-color: var(--color-accent); background: var(--color-accent); color: #fff; }
-.sh-bar-btn-rec { border-color: var(--color-accent); background: var(--color-accent); color: #fff; }
+.sh-field-send:disabled { opacity: 0.6; }
 .sh-bar-hint {
   margin: 0 0 var(--space-2);
+  padding: 0 var(--space-1);
   font-size: var(--font-size-caption);
   color: var(--color-text-muted);
 }
@@ -3570,6 +3662,7 @@ a.news-card:hover { transform: translateY(-2px); }
   color: var(--color-text-secondary);
 }
 .sh-bar-pending { display: block; max-height: 45vh; overflow-y: auto; }
+
 /* Место под панель. Отступ ставится ВСЕМУ документу, а не блоку внутри
    main: под main живёт ещё и футер сайта, и распорка внутри раздела его от
    панели не спасала — нижняя строка футера уезжала под неё. Класс на <body>
@@ -3639,6 +3732,8 @@ body.has-addbar { padding-bottom: calc(var(--tab-bar-total) + 72px); }
 }
 .sl-sheet-btn:hover { background: var(--color-bg-subtle); }
 .sl-sheet-danger { color: var(--color-danger); }
+/* Пункт с вложенным листом («Поделиться») — со стрелкой справа. */
+.sl-sheet-chevron { margin-left: auto; color: var(--color-text-muted); }
 .sl-sheet-cancel {
   width: 100%;
   margin-top: var(--space-2);

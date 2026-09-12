@@ -28,6 +28,7 @@ import {
   type SharedListPointer,
 } from "@/lib/sharedShoppingList";
 import HubRow, { type HubEntry } from "@/components/shopping/HubRow";
+import { loadPinned, unpin } from "@/lib/shoppingPinned";
 
 /**
  * Хаб раздела «Покупки»: заголовок, «+ Новый список» и сами списки строками.
@@ -47,6 +48,7 @@ export default function ShoppingApp() {
   const [lists, setLists] = useState<ShoppingListRecord[]>([]);
   const [pointers, setPointers] = useState<SharedListPointer[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
   // Что удаляем: локальный список удаляется насовсем, общий — только с этого
   // устройства. Разные последствия — разные тексты подтверждения.
   const [deleteTarget, setDeleteTarget] = useState<
@@ -104,6 +106,7 @@ export default function ShoppingApp() {
 
       setLists(initialLists);
       setPointers(initialPointers);
+      setPinnedIds(loadPinned());
       setLoaded(true);
       reachGoal("shopping_list_open");
     };
@@ -113,6 +116,7 @@ export default function ShoppingApp() {
     const onStorage = () => {
       setLists(loadLists());
       setPointers(loadSharedPointers());
+      setPinnedIds(loadPinned());
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
@@ -136,6 +140,7 @@ export default function ShoppingApp() {
           label: listDisplayName(l.name),
           updatedLabel: formatUpdatedAt(at),
           counts: { total, done },
+          pinned: pinnedIds.has(l.id),
           at,
         };
       });
@@ -149,13 +154,24 @@ export default function ShoppingApp() {
         // Счётчик может быть неизвестен: позиции на сервере, и до первого
         // открытия списка их количество мы не знаем.
         counts: p.counts ?? null,
+        pinned: pinnedIds.has(p.id),
         at,
       };
     });
+    // Сначала закреплённые, внутри каждой группы — по свежести правок.
+    // Закрепление локальное (lib/shoppingPinned), в том числе у общего списка:
+    // это порядок на ЭТОМ телефоне, а не свойство списка для всех участников.
     return [...local, ...shared]
-      .sort((a, b) => b.at - a.at)
-      .map(({ id, kind, label, updatedLabel, counts }) => ({ id, kind, label, updatedLabel, counts }));
-  }, [lists, pointers, hidden]);
+      .sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.at - a.at)
+      .map(({ id, kind, label, updatedLabel, counts, pinned }) => ({
+        id,
+        kind,
+        label,
+        updatedLabel,
+        counts,
+        pinned,
+      }));
+  }, [lists, pointers, hidden, pinnedIds]);
 
   const handleCreate = () => {
     const { lists: next, list } = createList(lists);
@@ -170,12 +186,16 @@ export default function ShoppingApp() {
     if (!deleteTarget) return;
     if (deleteTarget.kind === "local") {
       const next = deleteList(lists, deleteTarget.list.id);
+      unpin(deleteTarget.list.id);
+      setPinnedIds(loadPinned());
       // Не осталось ни одного списка — заводим первый заново: пустого хаба не
       // бывает.
       const empty = next.filter((l) => !hidden.has(l.id)).length === 0 && pointers.length === 0;
       setLists(empty ? createList(next).lists : next);
     } else {
       setPointers(forgetSharedList(deleteTarget.pointer.id));
+      unpin(deleteTarget.pointer.id);
+      setPinnedIds(loadPinned());
       toast("Список убран с этого устройства");
     }
     setDeleteTarget(null);

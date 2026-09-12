@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { toast } from "sonner";
-import { Camera, Image as ImageIcon, Loader2, Mic, Plus, Square, X } from "lucide-react";
+import { ArrowUp, Camera, Image as ImageIcon, Loader2, Mic, Plus, Square, X } from "lucide-react";
 
 import { isNativePlatform, pickImageIntoInputHandler } from "@/lib/native";
 import { reachGoal } from "@/lib/metrika";
@@ -66,7 +66,13 @@ export default function AddBar({ onAdd, busy = false }: Props) {
   // Панель прижата к низу через position: fixed. На iOS клавиатура НЕ уменьшает
   // layout viewport — она просто наезжает сверху, и панель вместе с полем
   // оказывается под ней: человек печатает вслепую. Поднимаем панель на высоту
-  // клавиатуры, считая её как разницу между окном и видимой частью.
+  // клавиатуры — разницу между окном и видимой частью.
+  //
+  // Слушаем ТОЛЬКО resize, то есть само появление и исчезновение клавиатуры.
+  // Первая версия слушала ещё и visualViewport «scroll» — и панель дёргалась на
+  // каждый пиксель прокрутки страницы с открытой клавиатурой, потому что
+  // offsetTop меняется постоянно. Отсюда же transition в CSS: панель переезжает
+  // один раз и плавно, а не скачет.
   //
   // Там, где клавиатура сама сжимает вёрстку (Android Chrome), разница выходит
   // нулевой и ничего не происходит — отдельной ветки по платформе не нужно.
@@ -75,14 +81,14 @@ export default function AddBar({ onAdd, busy = false }: Props) {
     if (!vv) return;
     const apply = () => {
       const inset = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
-      document.documentElement.style.setProperty("--sh-kb-inset", `${Math.round(inset)}px`);
+      // Мелочь до 80px — это не клавиатура, а панель браузера или округление.
+      // Реагировать на неё значит гонять панель туда-обратно без причины.
+      document.documentElement.style.setProperty("--sh-kb-inset", inset > 80 ? `${Math.round(inset)}px` : "0px");
     };
     apply();
     vv.addEventListener("resize", apply);
-    vv.addEventListener("scroll", apply);
     return () => {
       vv.removeEventListener("resize", apply);
-      vv.removeEventListener("scroll", apply);
       document.documentElement.style.removeProperty("--sh-kb-inset");
     };
   }, []);
@@ -295,7 +301,12 @@ export default function AddBar({ onAdd, busy = false }: Props) {
           </p>
         )}
 
-        <div className="sh-bar-row">
+        {/* Одно поле на всю ширину, иконки внутри него — как строка ввода в
+            мессенджере. Раньше это были три отдельных кружка в воздухе: поле и
+            рядом два круга, которые читались как чужие кнопки поверх экрана. */}
+        <div className="sh-field">
+          <Plus size={22} className="sh-field-plus" aria-hidden />
+
           <textarea
             ref={inputRef}
             value={input}
@@ -312,30 +323,30 @@ export default function AddBar({ onAdd, busy = false }: Props) {
                 handleAdd();
               }
             }}
-            // Подсказка про запятую переехала в placeholder: прежние пять строк
-            // объяснений под полем человек читал один раз, а место они занимали
-            // всегда.
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
+            // Подсказка про запятую переехала в строку над полем и видна только
+            // пока поле в работе: прежние пять строк объяснений под полем
+            // человек читал один раз, а место они занимали всегда.
             placeholder="Добавить продукт"
             aria-label="Добавить продукт"
             enterKeyHint="done"
-            className="sh-bar-input"
+            className="sh-field-input"
           />
 
           {/* Пока поле пустое — голос и фото. Как только в поле что-то есть,
-              обе иконки уступают место одной зелёной кнопке: на 375px три
-              контрола рядом с полем не оставляют места самому полю, а главное
-              действие должно быть очевидным. */}
+              обе иконки уступают место кнопке отправки: на 375px три контрола
+              не оставляют места самому полю, а главное действие должно быть
+              очевидным. */}
           {hasText ? (
             <button
               type="button"
               onClick={handleAdd}
               disabled={busy}
-              className="sh-bar-btn sh-bar-btn-primary"
+              className="sh-field-send"
               aria-label="Добавить в список"
             >
-              <Plus size={24} strokeWidth={2.6} />
+              <ArrowUp size={22} strokeWidth={2.6} />
             </button>
           ) : (
             <>
@@ -346,11 +357,9 @@ export default function AddBar({ onAdd, busy = false }: Props) {
                   type="button"
                   onClick={startVoice}
                   aria-label={voice.status === "listening" ? "Остановить запись" : "Сказать, что купить"}
-                  className={
-                    voice.status === "listening" ? "sh-bar-btn sh-bar-btn-rec" : "sh-bar-btn"
-                  }
+                  className={voice.status === "listening" ? "sh-field-icon sh-field-icon-rec" : "sh-field-icon"}
                 >
-                  {voice.status === "listening" ? <Square size={20} fill="currentColor" /> : <Mic size={22} />}
+                  {voice.status === "listening" ? <Square size={20} fill="currentColor" /> : <Mic size={24} />}
                 </button>
               )}
 
@@ -359,9 +368,9 @@ export default function AddBar({ onAdd, busy = false }: Props) {
                 onClick={openPhotoSheet}
                 disabled={photoBusy}
                 aria-label="Распознать список по фото"
-                className="sh-bar-btn"
+                className="sh-field-icon"
               >
-                {photoBusy ? <Loader2 size={22} className="animate-spin" /> : <Camera size={22} />}
+                {photoBusy ? <Loader2 size={24} className="animate-spin" /> : <Camera size={24} />}
               </button>
             </>
           )}

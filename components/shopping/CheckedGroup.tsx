@@ -52,9 +52,21 @@ export default function CheckedGroup({
       {open && (
         <>
           <ul className="sh-list">
-            {items.map((it) => (
-              <ItemRow key={it.id} item={it} onToggle={onToggle} onRemove={onRemove} />
-            ))}
+            {items.map((it, i) => {
+              // Подпись рецепта — один раз на группу подряд идущих позиций, как
+              // и в основном списке (см. ListScreen.renderRows).
+              const prev = i > 0 ? items[i - 1] : null;
+              const grouped = Boolean(it.noteGroup) && prev?.noteGroup === it.noteGroup;
+              return (
+                <ItemRow
+                  key={it.id}
+                  item={it}
+                  onToggle={onToggle}
+                  onRemove={onRemove}
+                  showNote={!grouped}
+                />
+              );
+            })}
           </ul>
           <button type="button" className="sh-done-clear" onClick={onClear}>
             <Trash2 size={18} /> Очистить купленное

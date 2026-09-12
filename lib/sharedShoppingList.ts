@@ -40,6 +40,15 @@ export type SharedListPointer = {
    * открытие списка их обновит. Никаких данных, кроме двух чисел, тут нет.
    */
   counts?: { total: number; done: number };
+  /**
+   * Когда общий список меняли последний раз (epoch ms из snapshot.updatedAt).
+   *
+   * Хаб сортирует все списки по свежести в одном ряду, и общему списку тоже
+   * нужна эта дата. Сам список живёт на сервере, поэтому дату запоминаем при
+   * каждом открытии — как и counts. Нет её (список ещё не открывали) —
+   * сортируемся по joinedAt.
+   */
+  updatedAt?: number;
 };
 
 export type SharedItem = {
@@ -176,6 +185,9 @@ function normalizePointer(raw: unknown): SharedListPointer | null {
     joinedAt: typeof o.joinedAt === "number" && Number.isFinite(o.joinedAt) ? o.joinedAt : Date.now(),
     ...(typeof o.fromLocalId === "string" && o.fromLocalId ? { fromLocalId: o.fromLocalId } : {}),
     ...normalizeCounts(o.counts),
+    ...(typeof o.updatedAt === "number" && Number.isFinite(o.updatedAt) && o.updatedAt > 0
+      ? { updatedAt: o.updatedAt }
+      : {}),
   };
 }
 
@@ -251,13 +263,28 @@ export function updatePointerName(listId: string, name: string): void {
 }
 
 /**
- * Запоминает счётчик общего списка, чтобы чип-переключатель показывал «3/12»
- * ещё до открытия списка. Зовётся там же, где применяется снимок.
+ * Запоминает счётчик и дату правки общего списка, чтобы карточка в хабе
+ * показывала «3/12» и «обновлён сегодня 17:10» ещё до открытия списка — как у
+ * локальных. Зовётся там же, где применяется снимок.
  */
-export function updatePointerCounts(listId: string, counts: { total: number; done: number }): void {
+export function updatePointerMeta(
+  listId: string,
+  meta: { counts: { total: number; done: number }; updatedAt?: number },
+): void {
   const pointers = loadSharedPointers();
-  const next = pointers.map((p) => (p.id === listId ? { ...p, counts } : p));
+  const next = pointers.map((p) =>
+    p.id === listId
+      ? { ...p, counts: meta.counts, ...(meta.updatedAt ? { updatedAt: meta.updatedAt } : {}) }
+      : p,
+  );
   savePointers(next);
+}
+
+/** snapshot.updatedAt (ISO-строка с сервера) → epoch ms. Мусор → undefined. */
+export function parseSnapshotUpdatedAt(raw: string | null | undefined): number | undefined {
+  if (!raw) return undefined;
+  const at = Date.parse(raw);
+  return Number.isFinite(at) ? at : undefined;
 }
 
 // --- Сеть -------------------------------------------------------------------

@@ -17,7 +17,6 @@ import {
   type SortCache,
 } from "./shoppingList";
 import { convertedLocalListIds, loadSharedPointers } from "./sharedShoppingList";
-import { saveActiveListId } from "./shoppingActive";
 
 // v2-хранилище. Старые ключи (v1) читаем только для одноразовой миграции.
 export const SHOPPING_LISTS_KEY = "smartcook_shopping_lists_v2";
@@ -42,6 +41,16 @@ export type ShoppingListRecord = {
   id: string;
   name: string;
   createdAt: number; // epoch ms
+  /**
+   * Когда список меняли последний раз (позиции, отметки, имя). Нужен хабу: он
+   * сортирует списки по свежести и подписывает карточку «обновлён сегодня
+   * 17:10» — по дате СОЗДАНИЯ это была бы неправда, список живёт неделями.
+   *
+   * Необязательный: у записей, заведённых до этого поля, его просто нет —
+   * тогда берём createdAt (см. listUpdatedAt). Переписывать хранилище ради
+   * одного поля не нужно, оно появится при первой же правке списка.
+   */
+  updatedAt?: number;
   items: ShoppingItem[];
   sort?: SortCache | null;
 };
@@ -65,38 +74,74 @@ export function formatListDate(createdAt: number): string {
 }
 
 /**
- * Имя по умолчанию для нового списка: «Мой список», затем «Список 2»,
- * «Список 3»… Номер берётся первый свободный, а не по количеству списков:
- * иначе после удаления среднего списка два новых получили бы одно имя.
+ * Имя по умолчанию для нового списка: «Список 1», «Список 2», «Список 3»…
+ *
+ * Ни слова «Покупки» (так называется весь раздел — в таб-баре и заголовке
+ * хаба), ни даты в имени: дата у списка и так есть, она стоит подписью
+ * «обновлён сегодня 17:10» и живёт своей жизнью, а в имени сразу устаревала.
+ *
+ * Номер — первый свободный, а не по количеству списков: иначе после удаления
+ * среднего списка два новых получили бы одно имя.
  *
  * Без аргумента (так зовёт серверный роут общего списка как резервное имя)
- * отдаёт «Мой список».
+ * отдаёт «Список 1».
  */
 export function defaultListName(lists: ShoppingListRecord[] = []): string {
   const taken = new Set(lists.map((l) => l.name.trim().toLowerCase()));
-  if (!taken.has(MIGRATED_LIST_NAME.toLowerCase())) return MIGRATED_LIST_NAME;
-  for (let n = 2; n < 100; n++) {
+  for (let n = 1; n < 1000; n++) {
     const candidate = `Список ${n}`;
     if (!taken.has(candidate.toLowerCase())) return candidate;
   }
-  // Сотня списков с занятыми именами — сценарий из области фантастики, но
+  // Тысяча списков с занятыми именами — сценарий из области фантастики, но
   // возвращать undefined нельзя: имя обязано быть.
   return `Список ${RU_DAY_MONTH.format(new Date())}`;
 }
 
 /**
- * Короткая подпись списка для чипа-переключателя.
+ * Имя списка для показа: в карточке хаба и в шапке самого списка.
  *
  * Обычное имя показываем целиком. Исключение — легаси-имена по умолчанию
- * («Покупки, 11 сентября», «Мои покупки»): слово «Покупки» у всех таких
- * списков одинаковое, различает их только дата, поэтому в чипе остаётся она.
- * Данные при этом не переписываем: в шапке и при «поделиться» имя по-прежнему
- * полное.
+ * («Покупки, 11 сентября», «Мои покупки, 1 мая»): слово «Покупки» у всех таких
+ * списков одинаковое, различает их только дата, поэтому от имени остаётся она.
+ * Данные при этом НЕ переписываем — в хранилище, при переименовании и при
+ * «поделиться» имя по-прежнему полное.
  */
-export function listChipLabel(name: string): string {
+export function listDisplayName(name: string): string {
   const { title, subtitle } = splitListTitle(name);
   if (subtitle && /^(покупки|мои покупки)$/i.test(title)) return subtitle;
   return name;
+}
+
+/** Когда список меняли последний раз. У старых записей поля нет — берём создание. */
+export function listUpdatedAt(list: Pick<ShoppingListRecord, "createdAt" | "updatedAt">): number {
+  return typeof list.updatedAt === "number" && Number.isFinite(list.updatedAt)
+    ? list.updatedAt
+    : list.createdAt;
+}
+
+const RU_TIME = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" });
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Подпись под названием в хабе: «обновлён сегодня 17:10», «обновлён вчера
+ * 09:30», «обновлён 6 августа».
+ *
+ * Время показываем только у сегодняшних и вчерашних правок: у списка,
+ * тронутого месяц назад, минуты не значат ничего, а место занимают.
+ */
+export function formatUpdatedAt(at: number, now: Date = new Date()): string {
+  const date = new Date(at);
+  if (Number.isNaN(date.getTime())) return "";
+  const midnight = new Date(now);
+  midnight.setHours(0, 0, 0, 0);
+  const startOfToday = midnight.getTime();
+  try {
+    if (at >= startOfToday) return `обновлён сегодня ${RU_TIME.format(date)}`;
+    if (at >= startOfToday - DAY_MS) return `обновлён вчера ${RU_TIME.format(date)}`;
+    return `обновлён ${RU_DAY_MONTH.format(date)}`;
+  } catch {
+    return "";
+  }
 }
 
 /**
@@ -168,10 +213,12 @@ function normalizeList(raw: unknown): ShoppingListRecord | null {
   const name = sanitizeListName((raw as { name?: unknown }).name, MIGRATED_LIST_NAME);
   const createdAtRaw = (raw as { createdAt?: unknown }).createdAt;
   const createdAt = typeof createdAtRaw === "number" && Number.isFinite(createdAtRaw) ? createdAtRaw : Date.now();
+  const updatedAtRaw = (raw as { updatedAt?: unknown }).updatedAt;
   return {
     id,
     name,
     createdAt,
+    ...(typeof updatedAtRaw === "number" && Number.isFinite(updatedAtRaw) ? { updatedAt: updatedAtRaw } : {}),
     items: normalizeItems((raw as { items?: unknown }).items),
     sort: normalizeSort((raw as { sort?: unknown }).sort),
   };
@@ -213,10 +260,12 @@ export function loadLists(): ShoppingListRecord[] {
     legacySort = null;
   }
 
+  const migratedAt = Date.now();
   const migrated: ShoppingListRecord = {
     id: newId(),
     name: MIGRATED_LIST_NAME,
-    createdAt: Date.now(),
+    createdAt: migratedAt,
+    updatedAt: migratedAt,
     items: legacyItems,
     sort: legacySort,
   };
@@ -238,10 +287,12 @@ export function saveLists(lists: ShoppingListRecord[]): void {
 // --- CRUD (иммутабельно: возвращают новый массив и сразу его сохраняют) ---
 
 export function createList(lists: ShoppingListRecord[], name?: string): { lists: ShoppingListRecord[]; list: ShoppingListRecord } {
+  const now = Date.now();
   const list: ShoppingListRecord = {
     id: newId(),
     name: sanitizeListName(name, defaultListName(lists)),
-    createdAt: Date.now(),
+    createdAt: now,
+    updatedAt: now,
     items: [],
     sort: null,
   };
@@ -251,7 +302,9 @@ export function createList(lists: ShoppingListRecord[], name?: string): { lists:
 }
 
 export function renameList(lists: ShoppingListRecord[], id: string, name: string): ShoppingListRecord[] {
-  const next = lists.map((l) => (l.id === id ? { ...l, name: sanitizeListName(name, l.name) } : l));
+  const next = lists.map((l) =>
+    l.id === id ? { ...l, name: sanitizeListName(name, l.name), updatedAt: Date.now() } : l,
+  );
   saveLists(next);
   return next;
 }
@@ -270,12 +323,17 @@ export function setListItems(
   sort?: SortCache | null,
 ): ShoppingListRecord[] {
   const next = lists.map((l) =>
-    l.id === id ? { ...l, items, ...(sort !== undefined ? { sort } : {}) } : l,
+    l.id === id ? { ...l, items, updatedAt: Date.now(), ...(sort !== undefined ? { sort } : {}) } : l,
   );
   saveLists(next);
   return next;
 }
 
+/**
+ * Кэш раскладки по отделам. updatedAt тут НЕ двигаем: раскладка — производная
+ * от позиций, а не правка списка. Иначе список всплывал бы в хабе наверх с
+ * подписью «обновлён сейчас» от одного нажатия на иконку просмотра.
+ */
 export function setListSort(lists: ShoppingListRecord[], id: string, sort: SortCache | null): ShoppingListRecord[] {
   const next = lists.map((l) => (l.id === id ? { ...l, sort } : l));
   saveLists(next);
@@ -359,11 +417,9 @@ export function addNamesToDefaultList(
   const result: AddNamesResult = addNames(target.items, names, { source: opts?.source });
   // Список изменился — старый кэш сортировки этого списка больше не валиден.
   setListItems(lists, target.id, result.items, null);
-  // Раздел «Покупки» одноэкранный и открывает ПОСЛЕДНИЙ активный список.
-  // Без этой строки продукты с экрана рецепта уезжали в первый видимый
-  // список, а раздел открывался на том, где человек был до этого, — и
-  // добавленного он там не находил.
-  saveActiveListId(target.id);
+  // listId наружу — обязателен: экран рецепта уводит человека сразу в ЭТОТ
+  // список (/shopping/<id>), а не в хаб. Иначе после «Добавлено в «Список 2»»
+  // приходилось искать, куда именно всё уехало.
   return {
     added: result.added,
     duplicate: result.duplicate,

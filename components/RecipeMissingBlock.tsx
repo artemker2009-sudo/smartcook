@@ -73,6 +73,9 @@ export default function RecipeMissingBlock({
 }) {
   const { items, have, total, comparable } = computeMissing({ detailed, known, modelMissing });
   const [added, setAdded] = useState(false);
+  // Куда именно уехали продукты. Открываем ТОТ список, а не хаб: после
+  // «Добавлено в «Список 2»» человеку иначе приходилось искать его глазами.
+  const [addedListId, setAddedListId] = useState<string | null>(null);
 
   // Всё нужное уже есть дома — это хорошая новость, а не пустое место. Но
   // говорим так ТОЛЬКО когда знаем, что у человека есть: у рецепта из истории
@@ -99,6 +102,7 @@ export default function RecipeMissingBlock({
 
     reachGoal("recipe_missing_add", { count: result.added });
     setAdded(true);
+    setAddedListId(result.listId);
     toast.success(
       result.added > 0
         ? `Добавлено в «${result.listName}»: ${result.added}`
@@ -108,7 +112,7 @@ export default function RecipeMissingBlock({
 
   const openShopping = () => {
     reachGoal("recipe_missing_open_shopping");
-    window.location.href = "/shopping";
+    window.location.href = addedListId ? `/shopping/${addedListId}` : "/shopping";
   };
 
   // Кнопка Купера. Купер не принимает готовый список позиций по ссылке, поэтому

@@ -12,9 +12,10 @@ import {
   addSharedItems,
   clearSharedChecked,
   fetchSharedList,
+  parseSnapshotUpdatedAt,
   patchSharedItem,
   sortSharedList,
-  updatePointerCounts,
+  updatePointerMeta,
   updatePointerName,
   type SharedItem,
   type SharedMember,
@@ -67,18 +68,6 @@ type Props = {
   onOpenMenu: (menu: MenuAction[]) => void;
   /** Убрать список с этого устройства (подтверждение спрашивает хозяин). */
   onForget: () => void;
-  /**
-   * Счётчик из свежего снимка — чтобы чип-переключатель пересчитывался, пока
-   * список открыт. В localStorage мы его пишем сами (updatePointerCounts), но
-   * состояние чипов живёт у хозяина, и без этого вызова цифры на чипе стояли
-   * на месте, пока человек вычёркивал позиции.
-   *
-   * id передаём аргументом, а не замыканием на стороне хозяина: функция должна
-   * быть СТАБИЛЬНОЙ между рендерами. Инлайновая стрелка меняла бы applySnapshot
-   * → refetch → и эффект офлайн-очереди перезапускался бы на каждый рендер,
-   * дёргая flushPending вхолостую.
-   */
-  onCounts: (id: string, counts: { total: number; done: number }) => void;
 };
 
 export default function SharedList({
@@ -89,7 +78,6 @@ export default function SharedList({
   onGroupedChange,
   onOpenMenu,
   onForget,
-  onCounts,
 }: Props) {
   const [name, setName] = useState(initial.name);
   const [items, setItems] = useState<SharedItem[]>(initial.items);
@@ -117,16 +105,18 @@ export default function SharedList({
       setMembers(snap.members);
       setSortCache(snap.sort ?? null);
       updatePointerName(listId, snap.name);
-      // Чип-переключатель показывает «3/12» ещё до открытия списка — значит
-      // счётчик надо запомнить, пока список открыт.
-      const counts = {
-        total: snap.items.length,
-        done: snap.items.filter((it) => it.checked).length,
-      };
-      updatePointerCounts(listId, counts);
-      onCounts(listId, counts);
+      // Карточка в хабе показывает «5/12» и «обновлён сегодня 17:10» ещё до
+      // открытия списка — значит эти два числа надо запомнить, пока список
+      // открыт: позиции-то лежат на сервере.
+      updatePointerMeta(listId, {
+        counts: {
+          total: snap.items.length,
+          done: snap.items.filter((it) => it.checked).length,
+        },
+        updatedAt: parseSnapshotUpdatedAt(snap.updatedAt),
+      });
     },
-    [listId, onCounts],
+    [listId],
   );
 
   const refetch = useCallback(async () => {

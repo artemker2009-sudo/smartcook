@@ -18,6 +18,7 @@ import CookMode from "@/components/CookMode";
 import AiRecipeDisclaimer from "@/components/AiRecipeDisclaimer";
 import RecipeImage from "@/components/RecipeImage";
 import RecipeMissingBlock from "@/components/RecipeMissingBlock";
+import { SHOW_COOKED_PHOTO_BLOCK } from "@/lib/features";
 
 /**
  * Лёгкий read-only просмотр расшаренного рецепта. Рендерится на выделенном
@@ -163,9 +164,14 @@ export default function SharedRecipe({ recipe }: { recipe: RecipeData }) {
           onClose={() => setCooking(false)}
           // Гость на /recipe/[id]: публикация фото требует аккаунта — ведём в
           // приложение к готовому флоу «Приготовили? Покажите» (тот же вход).
-          onCookedPhoto={() => {
-            window.location.href = "/search?focus=photo";
-          }}
+          // Флаг выключен — флоу спрятан, кнопки на финале нет.
+          onCookedPhoto={
+            SHOW_COOKED_PHOTO_BLOCK
+              ? () => {
+                  window.location.href = "/search?focus=photo";
+                }
+              : undefined
+          }
         />
       )}
     </div>

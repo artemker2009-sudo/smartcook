@@ -105,6 +105,8 @@ interface ServiceViewProps {
   handleTextSearch: (opts?: { cacheOnly?: boolean; queryOverride?: string }) => void;
   loadingRecipe: boolean;
   analysisResult: any;
+  /** Продукты человека для блока «Что нужно купить»: фото/перечисление или демо-чип. */
+  knownProducts: string[] | null;
   productsDirty: boolean;
   onAddProduct: (raw: string) => boolean;
   onRemoveProduct: (index: number) => void;
@@ -188,6 +190,7 @@ export default function ServiceView({
   handleTextSearch,
   loadingRecipe,
   analysisResult,
+  knownProducts,
   productsDirty,
   onAddProduct,
   onRemoveProduct,
@@ -918,6 +921,7 @@ export default function ServiceView({
           handleShareRecipe={handleShareRecipe}
           toggleFavorite={toggleFavorite}
           analysisResult={analysisResult}
+          knownProducts={knownProducts}
           searchMode={searchMode}
           handleSmartVariant={handleSmartVariant}
           loadingRecipe={loadingRecipe}

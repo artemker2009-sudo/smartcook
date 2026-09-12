@@ -145,7 +145,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 9px;
+  gap: 11px;
   width: 100%;
   max-width: calc(500px - var(--space-3) * 2);
 }
@@ -175,19 +175,18 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 11px;
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
   background: #0e8a60;
-  color: #ffffff;
-  box-shadow: 0 4px 12px rgba(14, 138, 96, 0.28);
+  box-shadow: 0 5px 14px rgba(14, 138, 96, 0.3);
 }
 .hero-header-word {
   font-family: "Manrope", -apple-system, BlinkMacSystemFont, sans-serif;
   font-weight: 800;
-  /* Чуть крупнее подзаголовка: логотип по центру, и мелкий кегль в этой позиции
-     выглядел случайным. Буквы плотнее — letter-spacing ниже. */
-  font-size: 20px;
+  /* Крупно: это бренд, его должно быть видно с первого взгляда. Буквы плотнее —
+     letter-spacing ниже. */
+  font-size: 25px;
   line-height: 1.15;
   letter-spacing: -0.02em;
   color: #1a1a1a;

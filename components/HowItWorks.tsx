@@ -2,13 +2,15 @@
 
 import { Camera, ListChecks, Volume2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import ProcessAnimation from "@/components/ProcessAnimation";
 import { reachGoal } from "@/lib/metrika";
 import type { DemoChip } from "@/lib/demoChips";
 
-// Три шага сценария одной строкой. Статичный блок без анимации: объясняет, что
-// произойдёт после нажатия кнопки на первом экране, и ничего не требует от
-// человека. Пришёл на смену ProcessAnimation (та крутилась на первом экране и
-// тянула внимание на себя).
+// Три шага сценария. Над подписями крутится ProcessAnimation: сцена «фото
+// холодильника» → «три блюда» → «читаю вслух». Подпись активного шага
+// подсвечивается ТЕМ ЖЕ циклом (класс how-step-N и @keyframes howStepN в
+// globals.css той же длины, что и сцены) — никакого JS для синхронизации не
+// нужно, а значит нечему разъезжаться.
 const STEPS = [
   { icon: Camera, label: "Сфотографируйте" },
   { icon: ListChecks, label: "Выберите из трёх" },
@@ -35,11 +37,13 @@ export default function HowItWorks({ demoChips = [] }: { demoChips?: DemoChip[] 
 
   return (
     <section className="how-block">
+      <ProcessAnimation />
+
       <ol className="how-steps">
         {STEPS.map((step, i) => {
           const Icon = step.icon;
           return (
-            <li key={step.label} className="how-step">
+            <li key={step.label} className={`how-step how-step-${i + 1}`}>
               <span className="how-step-icon" aria-hidden>
                 <Icon size={22} />
               </span>

@@ -101,6 +101,18 @@ export default async function Home() {
   const [feed, demoChips] = await Promise.all([getFeed(), getDemoChips()]);
   return (
     <>
+      {/* Преднагрузка фотографии первого экрана — это LCP-кадр Главной.
+          Ставится здесь, в серверном компоненте: React поднимает link в <head>
+          первого же ответа, и браузер начинает качать снимок, не дожидаясь
+          разбора разметки. type обязателен — по нему браузер без поддержки
+          AVIF пропускает преднагрузку и берёт WebP из <picture>. */}
+      <link
+        rel="preload"
+        as="image"
+        type="image/avif"
+        href="/hero/fresh-produce.avif"
+        fetchPriority="high"
+      />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}

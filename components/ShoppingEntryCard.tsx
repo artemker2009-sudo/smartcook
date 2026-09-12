@@ -19,7 +19,7 @@ function shortName(name: string): string {
     : name;
 }
 
-type Preview = { name: string; items: string[]; left: number };
+type Preview = { id: string; name: string; items: string[]; left: number };
 
 /**
  * Компактный вход в «Покупки» на Главной. Пришёл на смену крупной градиентной
@@ -50,6 +50,7 @@ export default function ShoppingEntryCard() {
       const source = pending.length > 0 ? pending : list.items;
       const { total, done } = listProgress(list);
       setPreview({
+        id: list.id,
         name: list.name,
         items: source.slice(-PREVIEW_LIMIT).reverse().map((it) => shortName(it.name)),
         left: total - done,
@@ -67,7 +68,10 @@ export default function ShoppingEntryCard() {
 
   return (
     <Link
-      href="/shopping"
+      // Ведём прямо в тот список, позиции которого показаны в превью: раздел
+      // теперь «хаб → список», и лишний шаг через хаб здесь не нужен. Превью
+      // ещё нет (первый кадр до гидрации, пустой раздел) — открываем хаб.
+      href={preview ? `/shopping/${preview.id}` : "/shopping"}
       className="shopping-entry"
       onClick={() => reachGoal("shopping_feature_open")}
       aria-label="Открыть список покупок"

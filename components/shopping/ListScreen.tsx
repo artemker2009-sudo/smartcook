@@ -86,6 +86,20 @@ export default function ListScreen({
       .filter((group) => group.items.length > 0);
   }, [sort.grouped, sort.groups, byName]);
 
+  // Подпись «для «Гречка с курицей»» — один раз на группу подряд идущих
+  // позиций одного рецепта, а не под каждой строкой. Соседство считается в том
+  // порядке, в котором строки РИСУЮТСЯ: внутри отдела своя нумерация, и первая
+  // позиция рецепта в каждом отделе снова получает подпись — иначе в разделе
+  // «Молочное» стояла бы позиция рецепта без всякого объяснения.
+  const renderRows = (rows: RowItem[]) =>
+    rows.map((it, i) => {
+      const prev = i > 0 ? rows[i - 1] : null;
+      const grouped = Boolean(it.noteGroup) && prev?.noteGroup === it.noteGroup;
+      return (
+        <ItemRow key={it.id} item={it} onToggle={onToggle} onRemove={onRemove} showNote={!grouped} />
+      );
+    });
+
   return (
     <>
       <ListHeader title={title} subtitle={subtitle} onRename={onRename} sort={sort} onMenu={onMenu} />
@@ -112,11 +126,7 @@ export default function ListScreen({
             groups.map((group) => (
               <section key={group.department} className="sh-group">
                 <h2 className="sh-group-title">{group.department}</h2>
-                <ul className="sh-list">
-                  {group.items.map((it) => (
-                    <ItemRow key={it.id} item={it} onToggle={onToggle} onRemove={onRemove} />
-                  ))}
-                </ul>
+                <ul className="sh-list">{renderRows(group.items)}</ul>
               </section>
             ))
           ) : (
@@ -141,11 +151,7 @@ export default function ListScreen({
                   {sort.state === "stale" ? "Список изменился — обновить отделы" : "Разложить по отделам"}
                 </button>
               )}
-              <ul className="sh-list">
-                {pending.map((it) => (
-                  <ItemRow key={it.id} item={it} onToggle={onToggle} onRemove={onRemove} />
-                ))}
-              </ul>
+              <ul className="sh-list">{renderRows(pending)}</ul>
             </>
           )}
 

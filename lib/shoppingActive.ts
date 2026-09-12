@@ -1,43 +1,55 @@
-// Что открыто в разделе «Покупки»: активный список и режим просмотра.
+// Настройка просмотра списка покупок.
 //
-// Раздел стал ОДНОЭКРАННЫМ (эталон — Bring!): всегда открыт один список, а
-// остальные переключаются чипами сверху. Значит «какой именно открыт» — это
-// состояние, которое обязано переживать уход в другой раздел и закрытие
-// приложения, иначе человек каждый раз возвращается не туда, где был.
-//
-// Два новых ключа localStorage, никакой БД и никаких миграций: и списки, и
-// указатели общих списков лежат там же, рядом (lib/shoppingLists.ts,
-// lib/sharedShoppingList.ts).
+// Раньше здесь лежал ещё и «активный список»: раздел был одноэкранным, и надо
+// было помнить, какой список открыт. Теперь это делает АДРЕС — /shopping/<id>,
+// — а значит и «назад» в браузере, в PWA и в нативной оболочке работает сам,
+// без нашего участия. Ключ активного списка убран вместе с лентой чипов.
 
-const ACTIVE_KEY = "smartcook_shopping_active_v1";
 const GROUPED_KEY = "smartcook_shopping_grouped_v1";
+// Пометка «в список пришли из хаба» — на одну вкладку/сессию.
+const FROM_HUB_KEY = "smartcook_shopping_from_hub";
 
 /**
- * id последнего открытого списка — локального или общего (они из разных
- * хранилищ, но id не пересекаются: uuid против uuid).
+ * Ставится, когда человек открывает список из хаба, и нужна ровно для одного:
+ * понять, чем должна быть ссылка «← Покупки» в шапке списка — шагом НАЗАД по
+ * истории или обычным переходом.
  *
- * null означает «ничего не запомнили» — вызывающий сам выбирает первый
- * доступный список. Проверять, что список ещё существует, тоже его дело:
- * список могли удалить, а общий — убрать с устройства.
+ * Без этой развилки любой из вариантов ломается:
+ *   • всегда push — история растёт (хаб → список → хаб → …), и системная
+ *     кнопка «назад» в TWA/Capacitor начинает возвращать в список вместо
+ *     выхода из раздела;
+ *   • всегда history.back() — человек, пришедший по прямой ссылке на список
+ *     (закладка, холодный старт приложения), улетает из приложения совсем.
+ *
+ * sessionStorage, а не localStorage: это про текущий сеанс навигации, а не про
+ * настройку. Перезагрузка страницы списка пометку не портит — хаб всё равно
+ * остаётся позади в истории.
  */
-export function loadActiveListId(): string | null {
-  if (typeof window === "undefined") return null;
+export function markOpenedFromHub(): void {
+  if (typeof window === "undefined") return;
   try {
-    const raw = localStorage.getItem(ACTIVE_KEY);
-    return raw && raw.length <= 128 ? raw : null;
+    sessionStorage.setItem(FROM_HUB_KEY, "1");
   } catch {
-    return null;
+    // Приватный режим: ссылка «← Покупки» просто сделает обычный переход.
   }
 }
 
-export function saveActiveListId(id: string | null): void {
+/** Хаб стоит позади в истории — «назад» вернёт туда, куда нужно. */
+export function openedFromHub(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return sessionStorage.getItem(FROM_HUB_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function clearOpenedFromHub(): void {
   if (typeof window === "undefined") return;
   try {
-    if (id) localStorage.setItem(ACTIVE_KEY, id);
-    else localStorage.removeItem(ACTIVE_KEY);
+    sessionStorage.removeItem(FROM_HUB_KEY);
   } catch {
-    // Приватный режим / переполнение: раздел продолжит работать, просто
-    // откроется на первом списке.
+    // см. markOpenedFromHub
   }
 }
 
@@ -60,6 +72,7 @@ export function saveGroupedMode(grouped: boolean): void {
   try {
     localStorage.setItem(GROUPED_KEY, grouped ? "1" : "0");
   } catch {
-    // См. saveActiveListId.
+    // Приватный режим / переполнение: раздел продолжит работать, просто
+    // режим не запомнится до следующего запуска.
   }
 }

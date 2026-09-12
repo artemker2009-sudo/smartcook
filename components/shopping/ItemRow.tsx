@@ -9,6 +9,11 @@ type Props = {
   item: RowItem;
   onToggle: (id: string) => void;
   onRemove: (id: string) => void;
+  /**
+   * Рисовать ли подпись под названием. Решает список: у группы позиций из
+   * одного рецепта подпись стоит только у первой строки (см. RowItem.noteGroup).
+   */
+  showNote?: boolean;
 };
 
 /**
@@ -24,7 +29,7 @@ type Props = {
  * при видимом кружке 28px: раньше кружок был 30px и ровно столько же составляла
  * зона попадания.
  */
-export default function ItemRow({ item, onToggle, onRemove }: Props) {
+export default function ItemRow({ item, onToggle, onRemove, showNote = true }: Props) {
   const { label, qty } = splitQuantity(item.name);
 
   return (
@@ -47,7 +52,7 @@ export default function ItemRow({ item, onToggle, onRemove }: Props) {
               протягивается сквозь потомков, и подпись «купил(а) …» тоже
               оказывалась перечёркнутой — она не выполненный пункт. */}
           <span className="sh-row-name">{label}</span>
-          {item.note && <span className="sh-row-note">{item.note}</span>}
+          {showNote && item.note && <span className="sh-row-note">{item.note}</span>}
         </span>
         {/* Количество отделено только при ПОКАЗЕ (splitQuantity). Разбор не
             уверен — тут пусто, а название осталось целиком. */}

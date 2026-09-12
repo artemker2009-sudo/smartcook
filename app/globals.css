@@ -3044,58 +3044,149 @@ a.news-card:hover { transform: translateY(-2px); }
    списка занимала ~150px и повторяла одно и то же пятью способами, а четыре
    списка уже не влезали в 812px экрана телефона. */
 
-/* Лента списков. Прилипает к верху: переключиться на другой список нужно из
-   любого места длинного списка. Отрицательные поля с обратным padding —
-   чтобы лента прокручивалась от края до края, а чипы не липли к рамке. */
-.sh-chips {
-  position: sticky;
-  /* Не к самому краю: в PWA/Capacitor под вырезом лента уезжала бы под
-     статус-бар. В браузере --safe-top = 0, и поведение то же, что было. */
-  top: var(--safe-top);
-  z-index: 20;
+/* --- Хаб: заголовок, «+ Новый список», списки строками --- */
+.sh-hub-head {
   display: flex;
   align-items: center;
-  gap: 6px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-  margin: 0 calc(-1 * var(--space-3)) var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  background: var(--color-bg);
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
 }
-.sh-chips::-webkit-scrollbar { display: none; }
-.sh-chip {
-  flex-shrink: 0;
+.sh-hub-new {
   display: flex;
   align-items: center;
-  gap: 6px;
-  min-height: 40px;
-  /* Тесновато по горизонтали намеренно: чем компактнее чип, тем больше списков
-     видно без прокрутки. Вертикальные 40px при этом не трогаем — попадать
-     пальцем нужно с первого раза. */
-  padding: 0 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-full);
-  background: var(--color-surface);
-  color: var(--color-text-secondary);
+  justify-content: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 52px;
+  margin-bottom: var(--space-4);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent);
+  color: #fff;
   font: inherit;
-  font-size: var(--font-size-body);
-  font-weight: var(--font-weight-medium);
-  white-space: nowrap;
+  font-size: var(--font-size-heading);
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
+}
+.sh-hub-list { display: flex; flex-direction: column; gap: var(--space-2); }
+
+/* Одна строка = один список, ~72px. Прежняя плитка занимала ~150px и несла
+   имя, дату, «14 позиций», полосу прогресса и «куплено 5 из 14» — пять
+   способов сказать одно и то же; четыре списка не влезали в экран. */
+.sh-hub-row {
+  position: relative;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  /* Кнопка «Удалить» лежит ПОД строкой и выезжает из-под неё — обрезаем по
+     радиусу карточки, иначе её красный угол торчит наружу.
+     Рамка и радиус живут ЗДЕСЬ, а не на .sh-hub-slide: у вложенной скруглённой
+     рамки радиус на пиксель не совпадал с обрезкой, и по краю карточки
+     просвечивала красная полоска кнопки. */
+  overflow: hidden;
+}
+.sh-hub-slide {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  background: var(--color-surface);
+  /* Палец тащит строку сразу, а отпускание доводит её анимацией. Во время
+     самого жеста transition не мешает: transform ставится каждый кадр. */
+  transition: transform 0.18s ease;
+  /* Горизонтальный свайп — наш, вертикальная прокрутка — браузера. Без этого
+     Safari отдавал жест то нам, то себе. */
+  touch-action: pan-y;
+}
+.sh-hub-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 72px;
+  padding: var(--space-2) var(--space-3);
+  text-decoration: none;
+  color: inherit;
   -webkit-tap-highlight-color: transparent;
 }
-.sh-chip-active {
-  background: var(--color-accent-subtle);
-  border-color: var(--color-accent);
-  color: var(--color-accent);
+.sh-hub-text { flex: 1; min-width: 0; }
+.sh-hub-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-heading);
   font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  /* Длинное имя обрезаем многоточием: строка обязана остаться одной строкой,
+     иначе карточки в хабе разной высоты и список читается рвано. */
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
-/* Длинное имя не растягивает ленту: чип отдаёт хвост многоточию. */
-.sh-chip-label { max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
-.sh-chip-count { font-size: 12px; color: var(--color-text-muted); }
-.sh-chip-active .sh-chip-count { color: var(--color-accent); }
-.sh-chip-add { padding: 0; width: 44px; justify-content: center; color: var(--color-accent); }
+.sh-hub-title svg { flex-shrink: 0; color: var(--color-accent); }
+.sh-hub-meta {
+  display: block;
+  margin-top: 3px;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+}
+.sh-hub-count {
+  flex-shrink: 0;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.sh-hub-menu {
+  flex-shrink: 0;
+  width: 48px;
+  border: none;
+  border-left: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.sh-hub-menu:hover { background: var(--color-bg-subtle); color: var(--color-text); }
+/* Удаление свайпом влево. Кнопка стоит на месте, а строка съезжает с неё. */
+.sh-hub-del {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 88px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: none;
+  background: var(--color-danger);
+  color: #fff;
+  font: inherit;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+}
+
+/* Назад в хаб. Стрелка со словом, а не одна иконка: для аудитории 35–65
+   «куда именно назад» должно быть написано. */
+.sh-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  margin-left: -4px;
+  padding: 0 4px;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  text-decoration: none;
+}
 
 /* Шапка активного списка */
 .sh-head {
@@ -3490,13 +3581,9 @@ body.has-addbar { padding-bottom: calc(var(--tab-bar-total) + 72px); }
 }
 
 /* На десктопе таб-бар уезжает наверх (см. .tab-bar выше) — панели больше не
-   над чем висеть, она встаёт на дно экрана. Лента списков, наоборот, должна
-   прилипать НЕ к краю, а под таб-бар: при top: 0 она уезжала под него (у бара
-   z-index 60) и на прокрутке просто исчезала. 60px — та же высота, что
-   .has-tabbar резервирует сверху. */
+   над чем висеть, она встаёт на дно экрана. */
 @media (min-width: 1024px) {
   .sh-bar { bottom: var(--sh-kb-inset, 0px); }
-  .sh-chips { top: 60px; }
 }
 
 /* --- Оверлеи, нижний лист (меню списка), модалки --- */

@@ -17,7 +17,6 @@ import {
   saveMemberIdentity,
   type SharedPreview,
 } from "@/lib/sharedShoppingList";
-import { saveActiveListId } from "@/lib/shoppingActive";
 
 // Экран приглашения: что человек видит, перейдя по ссылке.
 //
@@ -47,12 +46,12 @@ export default function SharedShoppingJoin({ listId }: Props) {
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Открыть список в разделе «Покупки». replace, а не push: экран приглашения
-  // отработал, и возвращаться на него кнопкой «назад» человеку незачем.
+  // Открыть сам список. replace, а не push: экран приглашения отработал, и
+  // возвращаться на него кнопкой «назад» человеку незачем — «назад» из списка
+  // должен вести в хаб.
   const openInSection = useCallback(
     (id: string) => {
-      saveActiveListId(id);
-      router.replace("/shopping");
+      router.replace(`/shopping/${id}`);
     },
     [router],
   );

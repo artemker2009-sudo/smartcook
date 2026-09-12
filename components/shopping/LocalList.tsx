@@ -98,9 +98,18 @@ export default function LocalList({
   });
 
   // Подпись «для «Борщ»» — только у продуктов, приехавших с экрана рецепта.
-  // Без неё через день непонятно, зачем это куплено.
+  // Без неё через день непонятно, зачем это куплено. noteGroup склеивает
+  // позиции ОДНОГО рецепта: подпись рисуется у первой из них, остальные идут
+  // подряд без повторов (см. ListScreen.renderRows).
   const rows: RowItem[] = useMemo(
-    () => items.map((it) => ({ id: it.id, name: it.name, checked: it.checked, note: it.source ? `для «${it.source}»` : null })),
+    () =>
+      items.map((it) => ({
+        id: it.id,
+        name: it.name,
+        checked: it.checked,
+        note: it.source ? `для «${it.source}»` : null,
+        noteGroup: it.source ?? null,
+      })),
     [items],
   );
 

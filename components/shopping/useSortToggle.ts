@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import type { ShoppingGroup } from "@/lib/shoppingList";
+import { placeNames, uncoveredNames } from "@/lib/shoppingDepartments";
 import type { ListScreenSort, SortState } from "@/components/shopping/types";
 
 type Options = {
-  /** Подпись текущего набора позиций (listSignature / signatureFromNames). */
-  sig: string;
+  /** Названия всех позиций списка, включая купленные. */
+  names: string[];
   /** Раскладка, которая уже есть: локальная из localStorage или общая из БД. */
   cache: { sig: string; groups: ShoppingGroup[] } | null;
   /** Человек смотрит по отделам. Хранится у хозяина (переживает переключение списков). */
@@ -31,16 +32,24 @@ type Options = {
  *     отдела;
  *   • выключение — всегда мгновенно и бесплатно.
  *
- * Сами по себе, без нажатия, раскладки НЕ пересчитываем: иначе каждое
- * добавление продукта тратило бы вызов модели, и лимит на роуте пришлось бы
- * ослаблять.
+ * Целиком раскладку заново НЕ пересчитываем: новые позиции дописывает в неё
+ * useAutoPlace — по словарю, а модель спрашивает только про незнакомое.
+ *
+ * «Готово» — это когда в раскладке есть КАЖДАЯ позиция, а не совпадение
+ * подписи. Удалили продукт или очистили купленное — раскладка по-прежнему
+ * верна для оставшегося, и рассыпать список ради этого незачем.
  */
-export function useSortToggle({ sig, cache, grouped, setGrouped, run, empty }: Options): ListScreenSort {
+export function useSortToggle({ names, cache, grouped, setGrouped, run, empty }: Options): ListScreenSort {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const state: SortState = cache ? (cache.sig === sig ? "ready" : "stale") : "none";
-  const groups = state === "ready" ? cache!.groups : null;
+  const state: SortState = cache ? (uncoveredNames(cache.groups, names).length === 0 ? "ready" : "stale") : "none";
+  // Удалённое из раскладки выбрасываем: иначе «Скопировать текстом» принёс бы
+  // позиции, которых в списке уже нет.
+  const groups = useMemo(
+    () => (state === "ready" && cache ? placeNames(cache.groups, [], names) : null),
+    [state, cache, names],
+  );
 
   const compute = async () => {
     if (busy || empty) return;
@@ -65,7 +74,10 @@ export function useSortToggle({ sig, cache, grouped, setGrouped, run, empty }: O
     }
     if (empty) return;
     setGrouped(true);
-    if (state !== "ready") void compute();
+    // Раскладка есть, но в ней не хватает новых позиций — модель заново НЕ
+    // зовём: их допишет useAutoPlace (словарь, а незнакомое — отдельным
+    // маленьким запросом). Считаем с нуля, только когда раскладки нет вовсе.
+    if (state === "none") void compute();
   };
 
   return {

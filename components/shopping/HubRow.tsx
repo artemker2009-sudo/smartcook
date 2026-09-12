@@ -22,6 +22,9 @@ export type HubEntry = {
 
 type Props = {
   entry: HubEntry;
+  /** «⋯» — меню карточки: закрепить, переименовать, поделиться, удалить. */
+  onMenu: () => void;
+  /** Свайп влево → «Удалить» (подтверждение спрашивает хаб). */
   onDelete: () => void;
 };
 
@@ -46,7 +49,7 @@ const DIRECTION_SLOP = 10;
  * человек, который о нём не знает, никогда его не найдёт, поэтому «⋯» на месте
  * и остаётся главным способом.
  */
-export default function HubRow({ entry, onDelete }: Props) {
+export default function HubRow({ entry, onMenu, onDelete }: Props) {
   // Насколько строка утащена влево (px). 0 — на месте.
   const [offset, setOffset] = useState(0);
   const start = useRef<{ x: number; y: number } | null>(null);
@@ -144,8 +147,9 @@ export default function HubRow({ entry, onDelete }: Props) {
         <button
           type="button"
           className="sh-hub-menu"
-          onClick={() => onDelete()}
-          aria-label={`Удалить список «${entry.label}»`}
+          onClick={onMenu}
+          aria-label={`Меню списка «${entry.label}»`}
+          aria-haspopup="menu"
         >
           <MoreHorizontal size={20} />
         </button>

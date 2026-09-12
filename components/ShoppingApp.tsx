@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, ShoppingCart } from "lucide-react";
+import { Copy, LogOut, Pencil, Pin, PinOff, Plus, Send, ShoppingCart, Trash2, Users } from "lucide-react";
 
 import { reachGoal } from "@/lib/metrika";
 import { addNames } from "@/lib/shoppingList";
@@ -17,18 +17,37 @@ import {
   listUpdatedAt,
   loadLists,
   recordImportedShare,
+  renameList,
   setListItems,
   type ShoppingListRecord,
 } from "@/lib/shoppingLists";
 import { decodeSharedList, SHARE_PARAM } from "@/lib/shoppingShare";
 import {
   convertedLocalListIds,
+  fetchSharedList,
   forgetSharedList,
   loadSharedPointers,
+  renameSharedList,
+  updatePointerName,
   type SharedListPointer,
+  type SharedSnapshot,
 } from "@/lib/sharedShoppingList";
 import HubRow, { type HubEntry } from "@/components/shopping/HubRow";
-import { loadPinned, unpin } from "@/lib/shoppingPinned";
+import {
+  DeleteListModal,
+  InviteModal,
+  MakeSharedModal,
+  MembersModal,
+  RenameListModal,
+  ShareTooBigModal,
+} from "@/components/shopping/ListModals";
+import MenuSheet from "@/components/shopping/MenuSheet";
+import { copyItemsAsText, shareInviteLink, shareListCopy } from "@/components/shopping/shareActions";
+import type { MenuAction } from "@/components/shopping/types";
+import { loadPinned, togglePinned, unpin } from "@/lib/shoppingPinned";
+
+/** Список, над которым открыто окно: локальный или общий. */
+type Target = { kind: "local"; list: ShoppingListRecord } | { kind: "shared"; pointer: SharedListPointer };
 
 /**
  * Хаб раздела «Покупки»: заголовок, «+ Новый список» и сами списки строками.
@@ -42,6 +61,10 @@ import { loadPinned, unpin } from "@/lib/shoppingPinned";
  * Локальные и общие списки — одним рядом, без секций «Мои / Общие», по свежести
  * правок. Раньше секции стояли отдельно, и общий список на телефоне оказывался
  * за краем экрана.
+ *
+ * Меню «⋯» — на каждой карточке: закрепить, переименовать, поделиться, удалить.
+ * Раньше «⋯» в хабе только удалял, а закрепление жило внутри списка — то есть
+ * порядок в хабе приходилось менять, уйдя из хаба.
  */
 export default function ShoppingApp() {
   const router = useRouter();
@@ -49,11 +72,21 @@ export default function ShoppingApp() {
   const [pointers, setPointers] = useState<SharedListPointer[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
+
+  const [menu, setMenu] = useState<MenuAction[] | null>(null);
   // Что удаляем: локальный список удаляется насовсем, общий — только с этого
   // устройства. Разные последствия — разные тексты подтверждения.
-  const [deleteTarget, setDeleteTarget] = useState<
-    { kind: "local"; list: ShoppingListRecord } | { kind: "shared"; pointer: SharedListPointer } | null
-  >(null);
+  const [deleteTarget, setDeleteTarget] = useState<Target | null>(null);
+  const [renameTarget, setRenameTarget] = useState<Target | null>(null);
+  const [renameBusy, setRenameBusy] = useState(false);
+  const [makeSharedFor, setMakeSharedFor] = useState<ShoppingListRecord | null>(null);
+  const [inviteFor, setInviteFor] = useState<{ id: string; name: string } | null>(null);
+  const [shareBigFor, setShareBigFor] = useState<ShoppingListRecord | null>(null);
+  const [membersFor, setMembersFor] = useState<{ pointer: SharedListPointer; snapshot: SharedSnapshot } | null>(null);
+  // Снимки общих списков, подгруженные при открытии меню карточки. Позиции
+  // общего списка лежат на сервере, а «Скопировать текстом» обязан уложиться в
+  // жест тапа: после сетевого ожидания iOS буфер обмена уже не даёт.
+  const [snapshots, setSnapshots] = useState<Record<string, SharedSnapshot>>({});
 
   useEffect(() => {
     // Инициализация вынесена в функцию: localStorage/URL читаются только на
@@ -173,6 +206,15 @@ export default function ShoppingApp() {
       }));
   }, [lists, pointers, hidden, pinnedIds]);
 
+  const targetOf = (entry: HubEntry): Target | null => {
+    if (entry.kind === "local") {
+      const list = lists.find((l) => l.id === entry.id);
+      return list ? { kind: "local", list } : null;
+    }
+    const pointer = pointers.find((p) => p.id === entry.id);
+    return pointer ? { kind: "shared", pointer } : null;
+  };
+
   const handleCreate = () => {
     const { lists: next, list } = createList(lists);
     setLists(next);
@@ -201,6 +243,140 @@ export default function ShoppingApp() {
     setDeleteTarget(null);
   };
 
+  const confirmRename = async (name: string) => {
+    if (!renameTarget) return;
+    if (renameTarget.kind === "local") {
+      setLists(renameList(lists, renameTarget.list.id, name));
+      setRenameTarget(null);
+      return;
+    }
+    // Имя общего списка лежит в БД и видно всем участникам — запрос на сервер.
+    const { pointer } = renameTarget;
+    setRenameBusy(true);
+    try {
+      const result = await renameSharedList(pointer.id, pointer.memberRef, name);
+      updatePointerName(pointer.id, result.name);
+      setPointers(loadSharedPointers());
+      setRenameTarget(null);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Не удалось переименовать список");
+    } finally {
+      setRenameBusy(false);
+    }
+  };
+
+  /** Снимок общего списка: из подгруженного или с сервера. */
+  const loadSnapshot = async (pointer: SharedListPointer): Promise<SharedSnapshot | null> => {
+    const cached = snapshots[pointer.id];
+    if (cached) return cached;
+    try {
+      const snap = await fetchSharedList(pointer.id, pointer.memberRef);
+      if (!snap.joined) return null;
+      setSnapshots((prev) => ({ ...prev, [pointer.id]: snap }));
+      return snap;
+    } catch {
+      return null;
+    }
+  };
+
+  // Порядок: частое и безопасное сверху, под большим пальцем; удаление —
+  // последним и отделено чертой (её рисует MenuSheet перед опасным пунктом).
+  const openMenu = (entry: HubEntry) => {
+    const target = targetOf(entry);
+    if (!target) return;
+    if (target.kind === "shared") void loadSnapshot(target.pointer);
+
+    const shareActions: MenuAction[] =
+      target.kind === "local"
+        ? [
+            {
+              key: "shared",
+              label: "Позвать в общий список",
+              icon: <Users size={20} />,
+              onSelect: () => setMakeSharedFor(target.list),
+            },
+            {
+              key: "copy-link",
+              label: "Отправить копию",
+              icon: <Send size={20} />,
+              onSelect: async () => {
+                const names = target.list.items.map((it) => it.name);
+                if ((await shareListCopy(target.list.name, names)) === "too-big") setShareBigFor(target.list);
+              },
+            },
+            {
+              key: "copy-text",
+              label: "Скопировать текстом",
+              icon: <Copy size={20} />,
+              onSelect: () => void copyItemsAsText(target.list.items),
+            },
+          ]
+        : [
+            {
+              key: "invite",
+              label: "Позвать в список",
+              icon: <Users size={20} />,
+              onSelect: () => void shareInviteLink(target.pointer.id, target.pointer.name),
+            },
+            {
+              key: "members",
+              label: "Кто в списке",
+              icon: <Users size={20} />,
+              onSelect: async () => {
+                const snapshot = await loadSnapshot(target.pointer);
+                if (snapshot) setMembersFor({ pointer: target.pointer, snapshot });
+                else toast.error("Не удалось загрузить список");
+              },
+            },
+            {
+              key: "copy-text",
+              label: "Скопировать текстом",
+              icon: <Copy size={20} />,
+              onSelect: async () => {
+                const snapshot = await loadSnapshot(target.pointer);
+                if (snapshot) void copyItemsAsText(snapshot.items);
+                else toast.error("Не удалось загрузить список");
+              },
+            },
+          ];
+
+    setMenu([
+      {
+        key: "pin",
+        label: entry.pinned ? "Открепить" : "Закрепить",
+        icon: entry.pinned ? <PinOff size={20} /> : <Pin size={20} />,
+        onSelect: () => {
+          togglePinned(entry.id);
+          setPinnedIds(loadPinned());
+        },
+      },
+      { key: "rename", label: "Переименовать", icon: <Pencil size={20} />, onSelect: () => setRenameTarget(target) },
+      {
+        key: "share",
+        label: "Поделиться",
+        icon: <Users size={20} />,
+        next: { title: `Поделиться: ${entry.label}`, actions: shareActions },
+      },
+      target.kind === "local"
+        ? {
+            key: "delete",
+            label: "Удалить список",
+            icon: <Trash2 size={20} />,
+            danger: true,
+            onSelect: () => setDeleteTarget(target),
+          }
+        : {
+            // Общий список нельзя удалить у всех — только убрать у себя, и
+            // называться пункт обязан так, как работает.
+            key: "forget",
+            label: "Убрать у себя",
+            icon: <LogOut size={20} />,
+            danger: true,
+            onSelect: () => setDeleteTarget(target),
+          },
+    ]);
+  };
+
   if (!loaded) {
     return <main className="container" style={{ minHeight: "60vh" }} />;
   }
@@ -220,52 +396,63 @@ export default function ShoppingApp() {
           <HubRow
             key={entry.id}
             entry={entry}
+            onMenu={() => openMenu(entry)}
             onDelete={() => {
-              if (entry.kind === "local") {
-                const list = lists.find((l) => l.id === entry.id);
-                if (list) setDeleteTarget({ kind: "local", list });
-                return;
-              }
-              const pointer = pointers.find((p) => p.id === entry.id);
-              if (pointer) setDeleteTarget({ kind: "shared", pointer });
+              const target = targetOf(entry);
+              if (target) setDeleteTarget(target);
             }}
           />
         ))}
       </div>
 
-      {/* Удаление. У локального списка и у общего последствия РАЗНЫЕ, и текст
-          обязан это говорить: свой список исчезает насовсем, общий остаётся у
-          остальных участников и возвращается по той же ссылке. */}
+      {menu && <MenuSheet actions={menu} onClose={() => setMenu(null)} />}
+
       {deleteTarget && (
-        <div className="sl-overlay sl-overlay-center" onClick={() => setDeleteTarget(null)}>
-          <div className="sl-modal" onClick={(e) => e.stopPropagation()}>
-            {deleteTarget.kind === "local" ? (
-              <>
-                <h2 className="sl-modal-title" style={{ marginBottom: "var(--space-2)" }}>Удалить список?</h2>
-                <p style={{ margin: "0 0 var(--space-4) 0", color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
-                  «{listDisplayName(deleteTarget.list.name)}» и все его позиции будут удалены. Это
-                  действие нельзя отменить.
-                </p>
-              </>
-            ) : (
-              <>
-                <h2 className="sl-modal-title" style={{ marginBottom: "var(--space-2)" }}>Убрать список у себя?</h2>
-                <p style={{ margin: "0 0 var(--space-4) 0", color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
-                  «{listDisplayName(deleteTarget.pointer.name)}» исчезнет с этого устройства. У
-                  остальных участников он останется, и вы сможете вернуться по той же ссылке.
-                </p>
-              </>
-            )}
-            <div style={{ display: "flex", gap: "var(--space-2)" }}>
-              <button type="button" className="sl-modal-secondary" onClick={() => setDeleteTarget(null)}>
-                Отмена
-              </button>
-              <button type="button" className="sl-modal-danger" onClick={confirmDelete}>
-                {deleteTarget.kind === "local" ? "Удалить" : "Убрать"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <DeleteListModal
+          kind={deleteTarget.kind}
+          name={deleteTarget.kind === "local" ? deleteTarget.list.name : deleteTarget.pointer.name}
+          onConfirm={confirmDelete}
+          onClose={() => setDeleteTarget(null)}
+        />
+      )}
+
+      {renameTarget && (
+        <RenameListModal
+          initialName={renameTarget.kind === "local" ? renameTarget.list.name : renameTarget.pointer.name}
+          busy={renameBusy}
+          onSave={(name) => void confirmRename(name)}
+          onClose={() => setRenameTarget(null)}
+        />
+      )}
+
+      {makeSharedFor && (
+        <MakeSharedModal
+          list={makeSharedFor}
+          onClose={() => setMakeSharedFor(null)}
+          onCreated={(created) => {
+            setMakeSharedFor(null);
+            // Локальный оригинал спрячется сам (convertedLocalListIds), на его
+            // месте встанет общий — со значком «людей».
+            setPointers(loadSharedPointers());
+            setInviteFor(created);
+          }}
+        />
+      )}
+
+      {inviteFor && <InviteModal id={inviteFor.id} name={inviteFor.name} onClose={() => setInviteFor(null)} />}
+
+      {shareBigFor && (
+        <ShareTooBigModal name={shareBigFor.name} items={shareBigFor.items} onClose={() => setShareBigFor(null)} />
+      )}
+
+      {membersFor && (
+        <MembersModal
+          members={membersFor.snapshot.members}
+          ownerRef={membersFor.snapshot.ownerRef}
+          memberRef={membersFor.pointer.memberRef}
+          onInvite={() => void shareInviteLink(membersFor.pointer.id, membersFor.pointer.name)}
+          onClose={() => setMembersFor(null)}
+        />
       )}
     </main>
   );

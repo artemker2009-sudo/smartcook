@@ -418,6 +418,31 @@ export async function sortSharedList(
   };
 }
 
+/**
+ * Дописать в раскладку общего списка новые позиции, не пересчитывая остальные.
+ *
+ * known — то, что клиент уже нашёл в словаре (сервер проверит отделы и
+ * названия). Незнакомое сервер сначала поищет в базовом словаре сам и только
+ * потом спросит модель — под тем же лимитом, что и полная раскладка.
+ */
+export async function extendSharedSort(
+  listId: string,
+  memberRef: string,
+  known: { name: string; department: string }[],
+): Promise<SharedSort> {
+  const res = await fetch(`/api/shopping/shared/${listId}/sort`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ memberRef, mode: "extend", placements: known }),
+  });
+  if (!res.ok) await parseError(res, "Не удалось разложить по отделам");
+  const data = (await res.json()) as { sig?: string; groups?: unknown };
+  return {
+    sig: typeof data.sig === "string" ? data.sig : "",
+    groups: Array.isArray(data.groups) ? (data.groups as ShoppingGroup[]) : [],
+  };
+}
+
 export async function clearSharedChecked(listId: string, memberRef: string): Promise<number> {
   const res = await fetch(
     `/api/shopping/shared/${listId}/items?memberRef=${encodeURIComponent(memberRef)}`,

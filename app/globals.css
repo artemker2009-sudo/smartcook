@@ -1947,6 +1947,24 @@ body {
   margin-inline: auto !important;
   z-index: 100000;
 }
+/* В разделе «Покупки» над таб-баром стоит ещё и панель добавления (.sh-bar) —
+   тост приземлялся ровно под неё, и «Добавлено: 5 продуктов» человек не видел.
+   Класс has-addbar вешает сам раздел.
+
+   Число подобрано замером в превью, а не прикидкой: контейнер sonner — это
+   нулевой по высоте якорь, и карточка рисуется НИЖЕ его линии на свою
+   собственную высоту. То есть отступ приходится задавать с запасом на высоту
+   карточки (~58px) плюс высоту панели вместе с подсказкой про запятую (~112px):
+   подсказка видна, пока поле в фокусе, а именно в этот момент и прилетает
+   «Добавлено: N». */
+body.has-addbar [data-sonner-toaster][data-y-position="bottom"] {
+  bottom: calc(var(--tab-bar-total) + 178px) !important;
+}
+@media (min-width: 1024px) {
+  body.has-addbar [data-sonner-toaster][data-y-position="bottom"] {
+    bottom: 178px !important;
+  }
+}
 
 /* Карточка: белая, радиус 16, мягкая тень. Никакой заливки по типу статуса —
    статус несёт только иконка слева. */
@@ -3021,85 +3039,465 @@ a.news-card:hover { transform: translateY(-2px); }
   font-weight: var(--font-weight-semibold);
 }
 
-/* --- Карточки списков (хаб /shopping) --- */
-.sl-card {
-  display: flex;
-  align-items: stretch;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-card);
-  overflow: hidden;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-.sl-card:hover { transform: translateY(-3px); box-shadow: 0 16px 44px -10px rgba(0, 0, 0, 0.14); }
-.sl-card-main {
-  flex: 1;
-  min-width: 0;
+/* --- Раздел «Покупки»: один экран, лента чипов, строка позиции ---
+   Пришло на смену карточкам хаба (.sl-card / .sl-progress, удалены): карточка
+   списка занимала ~150px и повторяла одно и то же пятью способами, а четыре
+   списка уже не влезали в 812px экрана телефона. */
+
+/* Лента списков. Прилипает к верху: переключиться на другой список нужно из
+   любого места длинного списка. Отрицательные поля с обратным padding —
+   чтобы лента прокручивалась от края до края, а чипы не липли к рамке. */
+.sh-chips {
+  position: sticky;
+  /* Не к самому краю: в PWA/Capacitor под вырезом лента уезжала бы под
+     статус-бар. В браузере --safe-top = 0, и поведение то же, что было. */
+  top: var(--safe-top);
+  z-index: 20;
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3);
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  text-align: left;
-  font: inherit;
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  margin: 0 calc(-1 * var(--space-3)) var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg);
 }
-.sl-card-icon {
+.sh-chips::-webkit-scrollbar { display: none; }
+.sh-chip {
   flex-shrink: 0;
-  width: 44px;
-  height: 44px;
-  border-radius: var(--radius-sm);
-  background: var(--color-accent-subtle);
-  color: var(--color-accent);
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  /* Тесновато по горизонтали намеренно: чем компактнее чип, тем больше списков
+     видно без прокрутки. Вертикальные 40px при этом не трогаем — попадать
+     пальцем нужно с первого раза. */
+  padding: 0 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
-.sl-card-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.sl-card-title {
-  font-size: var(--font-size-heading);
+.sh-chip-active {
+  background: var(--color-accent-subtle);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
   font-weight: var(--font-weight-semibold);
+}
+/* Длинное имя не растягивает ленту: чип отдаёт хвост многоточию. */
+.sh-chip-label { max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
+.sh-chip-count { font-size: 12px; color: var(--color-text-muted); }
+.sh-chip-active .sh-chip-count { color: var(--color-accent); }
+.sh-chip-add { padding: 0; width: 44px; justify-content: center; color: var(--color-accent); }
+
+/* Шапка активного списка */
+.sh-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-2);
+}
+.sh-head-text { flex: 1; min-width: 0; }
+.sh-head-title {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 2px 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 24px;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.2;
   color: var(--color-text);
-  /* Не обрезаем многоточием: длинное имя переносится на две строки. Дата из
-     имени по умолчанию на карточку не попадает — она уже есть в подписи. */
+  text-align: left;
+  cursor: pointer;
   overflow-wrap: anywhere;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
 }
-.sl-card-meta { font-size: var(--font-size-caption); color: var(--color-text-muted); }
-.sl-progress-track {
-  margin-top: 3px;
-  height: 6px;
+.sh-head-title-static { cursor: default; }
+.sh-head-members {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+.sh-head-icon {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-full);
-  background: var(--color-bg-subtle);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+.sh-head-icon-on {
+  border-color: var(--color-accent);
+  background: var(--color-accent-subtle);
+  color: var(--color-accent);
+}
+.sh-head-icon:disabled { opacity: 0.6; cursor: wait; }
+
+/* Отделы магазина — заголовками внутри списка, а не отдельным режимом. */
+.sh-group { margin-bottom: var(--space-3); }
+.sh-group-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 var(--space-2) var(--space-1);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-accent);
+}
+.sh-group-title-busy { color: var(--color-text-secondary); }
+.sh-group-stale {
+  width: auto;
+  padding: var(--space-2) 0;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: var(--font-size-body);
+}
+
+/* Строка позиции: тап по всей строке отмечает, крестик удаляет. */
+.sh-list {
+  list-style: none;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
   overflow: hidden;
 }
-.sl-progress-fill {
-  display: block;
-  height: 100%;
-  border-radius: var(--radius-full);
-  background: var(--color-accent);
-  transition: width 0.35s ease;
-}
-.sl-card-progress { font-size: var(--font-size-caption); color: var(--color-text-secondary); font-weight: var(--font-weight-medium); }
-.sl-card-arrow { flex-shrink: 0; color: var(--color-text-muted); align-self: center; }
-.sl-card-menu {
-  flex-shrink: 0;
-  width: 48px;
+.sh-row { display: flex; align-items: stretch; border-bottom: 1px solid var(--color-border); }
+.sh-row:last-child { border-bottom: none; }
+.sh-row-main {
+  flex: 1;
+  /* minWidth: 0 обязателен — без него флекс-элемент не даёт тексту
+     переноситься и позиция уезжает за край экрана телефона. */
+  min-width: 0;
+  /* Длинное название переносится на несколько строк — чекбокс и количество
+     прижаты к верху, а не к середине трёхстрочной позиции. */
+  align-items: flex-start;
+  display: flex;
+  gap: var(--space-3);
+  /* Не меньше 48px даже у самой короткой позиции: ЦА 35–65, попадать пальцем
+     нужно с первого раза. */
+  min-height: 52px;
+  padding: var(--space-3);
   border: none;
-  border-left: 1px solid var(--color-border);
   background: transparent;
-  color: var(--color-text-muted);
+  font: inherit;
+  text-align: left;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.sh-check {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  margin-top: 1px;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
   display: flex;
   align-items: center;
   justify-content: center;
 }
-.sl-card-menu:hover { background: var(--color-bg-subtle); color: var(--color-text); }
+.sh-row-done .sh-check { border-color: var(--color-accent); background: var(--color-accent); }
+.sh-row-text { flex: 1; min-width: 0; }
+.sh-row-name {
+  display: block;
+  font-size: var(--font-size-heading);
+  line-height: 1.35;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+/* Черта — на самом названии, а не на строке: в CSS text-decoration
+   протягивается сквозь потомков, и подпись «купил(а) …» тоже оказывалась
+   перечёркнутой, хотя она пояснение, а не выполненный пункт. */
+.sh-row-done .sh-row-name { text-decoration: line-through; color: var(--color-text-muted); }
+.sh-row-note {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--font-size-caption);
+  line-height: 1.3;
+  color: var(--color-text-muted);
+}
+.sh-row-qty {
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin-top: 3px;
+  font-size: var(--font-size-body);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+.sh-row-done .sh-row-qty { text-decoration: line-through; }
+.sh-row-x {
+  flex-shrink: 0;
+  width: 44px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+/* Купленное — свёрнутой группой внизу. */
+.sh-done { margin-bottom: var(--space-3); }
+.sh-done-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 52px;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  font: inherit;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+.sh-done-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 52px;
+  margin-top: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  font: inherit;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+/* Пустой список: две строки и стрелка к полю ввода. */
+.sh-empty { padding: var(--space-5) var(--space-3); text-align: center; }
+.sh-empty-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-heading);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+.sh-empty-hint {
+  margin: 0;
+  font-size: var(--font-size-body);
+  line-height: 1.4;
+  color: var(--color-text-secondary);
+}
+/* Стрелка вниз — к панели ввода, она прижата к низу экрана. */
+.sh-empty-arrow { display: block; margin: var(--space-3) auto 0; color: var(--color-text-muted); }
+
+.sh-error {
+  margin-bottom: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-danger-subtle);
+  color: var(--color-danger);
+  font-size: var(--font-size-body);
+}
+/* Офлайн у общего списка: спокойное объяснение, а не ошибка. */
+.sh-offline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body);
+  line-height: 1.4;
+}
+/* Общий список не открылся: причина и выход, а не вечный спиннер. */
+.sh-failed {
+  margin: var(--space-4) 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  text-align: center;
+}
+.sh-failed-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-heading);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+.sh-failed-text {
+  margin: 0 0 var(--space-4);
+  font-size: var(--font-size-body);
+  line-height: 1.4;
+  color: var(--color-text-secondary);
+}
+.sh-failed-link {
+  width: 100%;
+  min-height: 48px;
+  margin-top: var(--space-2);
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: var(--font-size-body);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+.sh-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-5) 0;
+  color: var(--color-text-secondary);
+}
+
+/* Партнёрский блок — под купленным. Текст и дисклеймер (данные ОРД) не
+   менялись, поменялось только место. */
+.sh-partner { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-3); }
+.sh-partner-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 52px;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--color-accent);
+  color: #fff;
+  font-size: var(--font-size-heading);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+}
+.sh-partner-label { font-size: var(--font-size-caption); line-height: 1.4; color: var(--color-text-muted); }
+
+/* --- Панель добавления: прижата к низу, над таб-баром ---
+   Главное действие раздела обязано быть под рукой в любом месте списка.
+   --sh-kb-inset поднимает панель над экранной клавиатурой на iOS, где она не
+   сжимает вёрстку, а наезжает сверху (см. AddBar). */
+.sh-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--tab-bar-total) + var(--sh-kb-inset, 0px));
+  z-index: 50;
+  max-width: 500px;
+  margin: 0 auto;
+  padding: var(--space-2) var(--space-3);
+  background: color-mix(in srgb, var(--color-surface) 96%, transparent);
+  backdrop-filter: saturate(180%) blur(12px);
+  -webkit-backdrop-filter: saturate(180%) blur(12px);
+  border-top: 1px solid var(--color-border);
+}
+.sh-bar-row { display: flex; align-items: flex-end; gap: var(--space-2); }
+.sh-bar-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  padding: 11px var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  /* Не меньше 16px: на iOS более мелкое поле заставляет Safari зумить
+     страницу при фокусе, и экран уезжает. */
+  font-size: 18px;
+  line-height: 1.3;
+  resize: none;
+  overflow-y: auto;
+}
+.sh-bar-btn {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+.sh-bar-btn:disabled { opacity: 0.6; }
+.sh-bar-btn-primary { border-color: var(--color-accent); background: var(--color-accent); color: #fff; }
+.sh-bar-btn-rec { border-color: var(--color-accent); background: var(--color-accent); color: #fff; }
+.sh-bar-hint {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+}
+/* Статус фото, «Слушаю…» и чипы на подтверждение — над полем, в той же
+   панели: человек, нажавший микрофон, смотрит на низ экрана. */
+.sh-bar-status,
+.sh-bar-pending {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-subtle);
+  font-size: var(--font-size-body);
+  line-height: 1.4;
+  color: var(--color-text-secondary);
+}
+.sh-bar-pending { display: block; max-height: 45vh; overflow-y: auto; }
+/* Место под панель. Отступ ставится ВСЕМУ документу, а не блоку внутри
+   main: под main живёт ещё и футер сайта, и распорка внутри раздела его от
+   панели не спасала — нижняя строка футера уезжала под неё. Класс на <body>
+   вешает сам раздел, ровно как таб-бар вешает has-tabbar. */
+body.has-addbar { padding-bottom: calc(var(--tab-bar-total) + 72px); }
+@media (min-width: 1024px) {
+  /* На десктопе таб-бар уехал наверх: под панелью только её собственная высота. */
+  body.has-addbar { padding-bottom: 72px; }
+}
+
+/* На десктопе таб-бар уезжает наверх (см. .tab-bar выше) — панели больше не
+   над чем висеть, она встаёт на дно экрана. Лента списков, наоборот, должна
+   прилипать НЕ к краю, а под таб-бар: при top: 0 она уезжала под него (у бара
+   z-index 60) и на прокрутке просто исчезала. 60px — та же высота, что
+   .has-tabbar резервирует сверху. */
+@media (min-width: 1024px) {
+  .sh-bar { bottom: var(--sh-kb-inset, 0px); }
+  .sh-chips { top: 60px; }
+}
 
 /* --- Оверлеи, нижний лист (меню списка), модалки --- */
 .sl-overlay {

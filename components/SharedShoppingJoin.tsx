@@ -16,9 +16,8 @@ import {
   rememberSharedList,
   saveMemberIdentity,
   type SharedPreview,
-  type SharedSnapshot,
 } from "@/lib/sharedShoppingList";
-import SharedShoppingListView from "@/components/SharedShoppingListView";
+import { saveActiveListId } from "@/lib/shoppingActive";
 
 // Экран приглашения: что человек видит, перейдя по ссылке.
 //
@@ -43,11 +42,20 @@ export default function SharedShoppingJoin({ listId }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [preview, setPreview] = useState<SharedPreview | null>(null);
-  const [snapshot, setSnapshot] = useState<SharedSnapshot | null>(null);
   const [memberRef, setMemberRef] = useState<string>("");
   const [nameValue, setNameValue] = useState("");
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Открыть список в разделе «Покупки». replace, а не push: экран приглашения
+  // отработал, и возвращаться на него кнопкой «назад» человеку незачем.
+  const openInSection = useCallback(
+    (id: string) => {
+      saveActiveListId(id);
+      router.replace("/shopping");
+    },
+    [router],
+  );
 
   const load = useCallback(async () => {
     // Помечаем сеанс как «начатый с приглашения» — до любой загрузки, чтобы
@@ -66,7 +74,6 @@ export default function SharedShoppingJoin({ listId }: Props) {
 
       const result = await fetchSharedList(listId, identity?.memberRef ?? null);
       if (result.joined) {
-        setSnapshot(result);
         rememberSharedList({
           id: result.id,
           name: result.name,
@@ -74,15 +81,21 @@ export default function SharedShoppingJoin({ listId }: Props) {
           role: result.ownerRef === ref ? "owner" : "member",
           joinedAt: Date.now(),
         });
-      } else {
-        setPreview(result);
+        // Уже участник — показывать экран приглашения незачем. Сам список
+        // живёт в разделе «Покупки»: он одноэкранный, и открывает ровно тот
+        // список, который назвали активным. Своей копии экрана списка здесь
+        // больше нет — она была третьим местом, где то же самое рисовалось
+        // заново.
+        openInSection(listId);
+        return;
       }
+      setPreview(result);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Не удалось открыть список");
     } finally {
       setLoading(false);
     }
-  }, [listId]);
+  }, [listId, openInSection]);
 
   useEffect(() => {
     void load();
@@ -106,26 +119,14 @@ export default function SharedShoppingJoin({ listId }: Props) {
         joinedAt: Date.now(),
       });
       reachGoal("shopping_shared_joined");
-      setSnapshot(snap);
+      openInSection(snap.id);
+      return;
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Не удалось вступить в список");
     } finally {
       setJoining(false);
     }
   };
-
-  if (snapshot) {
-    return (
-      <main className="container">
-        <SharedShoppingListView
-          listId={listId}
-          memberRef={memberRef}
-          initial={snapshot}
-          onBack={() => router.push("/shopping")}
-        />
-      </main>
-    );
-  }
 
   if (loading) {
     return (

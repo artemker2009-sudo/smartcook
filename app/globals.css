@@ -106,91 +106,102 @@ body {
 .brand-sub { font-size: var(--font-size-body); color: var(--color-text-secondary); font-weight: var(--font-weight-regular); }
 
 /* --- ПЕРВЫЙ ЭКРАН ГЛАВНОЙ (этап H11: одно обещание, одна кнопка) --- */
-/* Главная не рисует плавающий бургер, поэтому ей не нужен верхний клиренс в
-   60px, которым .container уводит контент из-под кнопки меню. */
-.container-home {
-  padding-top: calc(env(safe-area-inset-top) + var(--space-2));
-}
-/* Контент прижат к ВЕРХУ (≈12% высоты экрана), а не отцентрован по вертикали:
-   ниже ссылки в тот же экран должен входить блок «Как это работает». Высоту
-   секции не фиксируем — иначе на высоких экранах между ссылкой и шагами
-   возвращается та самая пустота. svh, а не vh: на мобильных Safari динамическая
-   адресная строка иначе двигает отступ при скролле. */
+/* Верхнего отступа у Главной нет совсем: первое, что идёт в разметке, — шапка
+   с логотипом, и она сама отступает от выреза на var(--safe-top). */
+.container-home { padding-top: 0; }
+/* Контент прижат к ВЕРХУ, а не отцентрован: ниже ссылки в тот же экран должен
+   входить блок «Как это работает» с анимацией. Высоту секции не фиксируем —
+   иначе на высоких экранах между ссылкой и шагами возвращается пустота. */
 .hero-screen {
   position: relative;
   display: flex;
   flex-direction: column;
   text-align: center;
-  padding-top: 12vh;
-  padding-top: 12svh;
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-3);
 }
 
-/* Фотография продуктов во всю ширину окна: секция живёт внутри .container
-   (max-width 500px), поэтому слой вырывается из него на 100vw. Высота в svh —
-   ровно верхняя часть первого экрана; ниже вуаль доходит до цвета фона и
-   картинка кончается там же, где начинается кнопка. */
+/* Шапка: логотип во всю ширину окна поверх фотографии. Не плашка — полоса от
+   края до края, полупрозрачная с размытием, содержимое по левому краю с тем же
+   отступом, что и остальной контент. Секция живёт внутри .container
+   (max-width 500px), поэтому полоса вырывается из него на всю ширину окна. */
+.hero-header {
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  display: flex;
+  justify-content: center;
+  /* Сверху — вырез телефона: в PWA и Capacitor шапка уходит под строку
+     состояния, но текст в неё не залезает. */
+  padding: calc(var(--safe-top) + 9px) var(--space-3) 9px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: saturate(150%) blur(14px);
+  -webkit-backdrop-filter: saturate(150%) blur(14px);
+  margin-bottom: var(--space-5);
+}
+/* Внутренность шапки повторяет ширину контейнера: на широком экране логотип
+   стоит по кромке контента, а не убегает в левый край окна. */
+.hero-header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 9px;
+  width: 100%;
+  max-width: calc(500px - var(--space-3) * 2);
+  text-align: left;
+}
+.hero-header-mark {
+  flex-shrink: 0;
+  color: #0e8a60;
+}
+.hero-header-word {
+  font-family: "Unbounded", -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 700;
+  /* Примерно как подзаголовок (17px) — шапка читается, а не теряется. */
+  font-size: 17px;
+  line-height: 1.15;
+  letter-spacing: -0.2px;
+  color: #1a1a1a;
+}
+
+/* Фотография продуктов во всю ширину окна. Начинается от самого верха страницы
+   (в PWA — из-под строки состояния, для этого viewport-fit=cover) и кончается
+   там, где начинается кнопка. */
 .hero-photo {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
   width: 100vw;
-  top: calc(-1 * (env(safe-area-inset-top) + var(--space-2)));
-  height: 52vh;
-  height: 52svh;
-  max-height: 460px;
+  top: 0;
+  height: 40vh;
+  height: 40svh;
+  max-height: 360px;
   z-index: -1;
   overflow: hidden;
   pointer-events: none;
 }
 .hero-photo-img {
   object-fit: cover;
-  /* Кадр смещён вверх: внизу снимка фон светлее и «пустее», а он и так уходит
-     под вуаль. */
-  object-position: 50% 28%;
+  object-position: 50% 30%;
 }
-/* Вуаль. Сверху почти прозрачная (снимок виден), к низу — цвет фона страницы:
-   заголовок и подзаголовок читаются, кнопка стоит уже на чистом фоне.
-   Значения подобраны под проверку контраста WCAG AA (см. HeroLanding.tsx). */
+/* Вуаль. Симметричная: снимок проявляется из фона страницы сверху и уходит в
+   него снизу — обрезанной кромки нет ни сверху, ни снизу. Профиль не ровный, а
+   подогнан под текст: плотнее там, где лежат заголовок и подзаголовок, тоньше
+   в просветах (под шапкой и вокруг кнопки — кнопка непрозрачная, ей вуаль не
+   нужна). Числа проверены замером контраста: заголовок 6.4:1, подзаголовок
+   6.0:1 в худшей точке (см. HeroLanding.tsx). */
 .hero-photo::after {
   content: "";
   position: absolute;
   inset: 0;
   background: linear-gradient(
     180deg,
-    rgba(250, 249, 247, 0.34) 0%,
-    rgba(250, 249, 247, 0.58) 26%,
-    rgba(250, 249, 247, 0.84) 52%,
-    rgba(250, 249, 247, 0.98) 78%,
+    rgba(250, 249, 247, 0.88) 0%,
+    rgba(250, 249, 247, 0.45) 14%,
+    rgba(250, 249, 247, 0.7) 26%,
+    rgba(250, 249, 247, 0.86) 50%,
+    rgba(250, 249, 247, 0.6) 68%,
+    rgba(250, 249, 247, 0.9) 84%,
     var(--color-bg) 100%
   );
-}
-
-/* Логотип: шапка шефа + слово в Unbounded. Компактный — это опознавательный
-   знак, а не заголовок.
-   Плашка не для красоты: фирменный зелёный прямо поверх снимка давал контраст
-   1.47 (тёмная зелень брюссельской капусты под буквами). На непрозрачной
-   подложке — 4.35 при кегле 19px/700, то есть «крупный текст» по WCAG, порог 3.0. */
-.brand-logo {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  align-self: center;
-  padding: 7px 14px 7px 12px;
-  border-radius: var(--radius-full);
-  background: var(--color-surface);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.07);
-  color: #0e8a60;
-  margin-bottom: var(--space-4);
-}
-.brand-logo-mark { flex-shrink: 0; }
-.brand-logo-word {
-  font-family: "Unbounded", -apple-system, BlinkMacSystemFont, sans-serif;
-  font-weight: 700;
-  font-size: 19px;
-  line-height: 1;
-  letter-spacing: -0.2px;
 }
 
 .hero-headline {
@@ -390,23 +401,27 @@ body {
 }
 
 /* --- CSS-АНИМАЦИЯ ПРОЦЕССА (фото → распознавание → рецепт) --- */
+/* --- АНИМАЦИЯ СЦЕНАРИЯ (блок «Как это работает») --- */
+/* Один общий цикл на 9 секунд: три сцены по три секунды. Высота сцены
+   ФИКСИРОВАНА — соседний контент не двигается, CLS остаётся нулевым.
+   Базовое состояние (и оно же единственное при prefers-reduced-motion) —
+   первая сцена целиком: карточка продуктов со всеми чипами. */
 .process-stage {
   position: relative;
-  height: 210px;               /* фиксируем высоту → нет layout shift */
-  margin-top: var(--space-5);
-  pointer-events: none;        /* декоративная сцена никогда не перехватывает тапы */
+  height: 132px;
+  margin-bottom: var(--space-3);
+  pointer-events: none;
 }
-/* Один мягкий статичный радиальный «свет» за карточкой анимации (зелёный ≤8%) */
+/* Мягкий зелёный свет за сценой — один статичный радиальный градиент. */
 .process-stage::before {
   content: "";
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 320px;
-  height: 320px;
+  width: 260px;
+  height: 260px;
   transform: translate(-50%, -50%);
-  background: radial-gradient(circle, rgba(5, 150, 105, 0.08) 0%, rgba(5, 150, 105, 0) 70%);
-  z-index: 0;
+  background: radial-gradient(circle, rgba(5, 150, 105, 0.09) 0%, rgba(5, 150, 105, 0) 70%);
 }
 .proc-scene {
   position: absolute;
@@ -415,140 +430,256 @@ body {
   align-items: center;
   justify-content: center;
 }
-/* Базовое состояние = статичный финальный кадр (для prefers-reduced-motion) */
-.proc-photo { opacity: 0; }
-.proc-recipe { opacity: 1; }
-.proc-chip { opacity: 0; }
+.proc-scene-a { opacity: 1; }
+.proc-scene-b, .proc-scene-c { opacity: 0; }
 
-.proc-photo-card {
+/* --- Сцена 1: фото холодильника + чипы распознавания --- */
+.proc-fridge {
   position: relative;
-  width: 210px;
-  height: 176px;
-  background: var(--color-bg-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 168px;
+  height: 104px;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
-.proc-photo-grid {
+.proc-fridge-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-3);
-  color: var(--color-text-secondary);
+  gap: 8px;
 }
-.proc-photo-grid span {
-  width: 44px;
-  height: 44px;
+.proc-fridge-grid span {
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--color-surface);
   border-radius: var(--radius-sm);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
 }
-/* Мягкие пастельные подложки под иконки продуктов (спокойная палитра) */
-.proc-photo-grid span:nth-child(1) { background: #fff1e6; color: #e07a3a; } /* морковь — персиковая */
-.proc-photo-grid span:nth-child(2) { background: #fbeceb; color: #cf6f62; } /* курица — тёплая роза */
-.proc-photo-grid span:nth-child(3) { background: #fce8ef; color: #d24f78; } /* вишня — розовая */
-.proc-photo-grid span:nth-child(4) { background: #e9f6ee; color: #3f9e5f; } /* салат — зелёная */
-.proc-photo-grid span:nth-child(5) { background: #fff6df; color: #cf9a34; } /* яйцо — жёлтая */
-.proc-photo-grid span:nth-child(6) { background: #e9f1fb; color: #4d84c4; } /* рыба — голубая */
+/* Пастельные подложки под продукты — спокойная палитра, как было раньше. */
+.proc-fridge-grid span:nth-child(1) { background: #fff1e6; color: #e07a3a; }
+.proc-fridge-grid span:nth-child(2) { background: #fbeceb; color: #cf6f62; }
+.proc-fridge-grid span:nth-child(3) { background: #fff6df; color: #cf9a34; }
+.proc-fridge-grid span:nth-child(4) { background: #e9f6ee; color: #3f9e5f; }
+.proc-fridge-grid span:nth-child(5) { background: #e9f1fb; color: #4d84c4; }
+.proc-fridge-grid span:nth-child(6) { background: #fce8ef; color: #d24f78; }
 .proc-chip {
   position: absolute;
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-1) var(--space-2);
+  gap: 4px;
+  padding: 3px 8px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-full);
-  font-size: var(--font-size-caption);
+  font-size: 11px;
   font-weight: var(--font-weight-medium);
   color: var(--color-text);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
   white-space: nowrap;
 }
 .proc-chip svg { color: var(--color-accent); flex-shrink: 0; }
-.proc-chip b { color: var(--color-accent); font-weight: var(--font-weight-semibold); }
-.proc-chip-1 { top: 10px; left: -8px; }
-.proc-chip-2 { top: 66px; right: -12px; }
-.proc-chip-3 { bottom: 12px; left: 4px; }
+.proc-chip-1 { top: -10px; left: -26px; }
+.proc-chip-2 { top: 38px; right: -34px; }
+.proc-chip-3 { bottom: -10px; left: -14px; }
 
-.proc-recipe-card {
-  width: 230px;
+/* --- Сцена 2: три блюда, одно выбрано --- */
+.proc-dishes { display: flex; gap: 10px; align-items: stretch; }
+.proc-dish {
+  position: relative;
+  width: 74px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+}
+.proc-dish-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-muted);
+}
+.proc-dish-line {
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--color-bg-subtle);
+}
+.proc-dish-line-short { width: 60%; }
+.proc-dish-check {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  display: flex;
+  color: var(--color-accent);
+  background: var(--color-surface);
+  border-radius: var(--radius-full);
+  opacity: 0;
+}
+/* Выбранная карточка — базовое состояние без анимации тоже подсвечено. */
+.proc-dish-pick {
+  border-color: var(--color-accent);
+  box-shadow: 0 10px 26px -8px rgba(5, 150, 105, 0.35);
+}
+.proc-dish-pick .proc-dish-thumb { background: var(--color-accent-subtle); color: var(--color-accent); }
+
+/* --- Сцена 3: строка рецепта, которую читают вслух --- */
+.proc-voice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 240px;
+  padding: 12px;
   background: var(--color-surface);
   border: 1px solid var(--color-accent-subtle);
   border-radius: var(--radius-md);
-  /* Лёгкая тень с тёплым зелёным акцентом (в пределах акцентного цвета) */
-  box-shadow: 0 12px 40px -8px rgba(5, 150, 105, 0.18);
-  padding: var(--space-3);
+  box-shadow: 0 12px 32px -10px rgba(5, 150, 105, 0.28);
 }
-.proc-recipe-head {
+.proc-voice-icon {
+  position: relative;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  background: var(--color-accent-subtle);
   color: var(--color-accent);
-  margin-bottom: var(--space-2);
 }
-.proc-recipe-title {
-  font-size: var(--font-size-body);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text);
+/* Волны — два кольца, расходящиеся от динамика. */
+.proc-wave {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-full);
+  border: 1.5px solid var(--color-accent);
+  opacity: 0;
 }
-.proc-recipe-meta {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+.proc-voice-text {
   font-size: var(--font-size-caption);
-  color: var(--color-text-muted);
-  margin-bottom: var(--space-3);
+  line-height: 1.35;
+  color: var(--color-text);
+  text-align: left;
 }
-.proc-skel-lines { display: flex; flex-direction: column; gap: var(--space-2); }
-.proc-skel { height: 10px; border-radius: var(--radius-full); background: var(--color-bg-subtle); }
-.proc-skel:nth-child(1) { width: 100%; }
-.proc-skel:nth-child(2) { width: 85%; }
-.proc-skel:nth-child(3) { width: 60%; }
+.proc-voice-text b { color: var(--color-accent); font-weight: var(--font-weight-semibold); }
+/* Каретка «дочитываю строку» — тонкая палочка в конце текста. */
+.proc-caret {
+  display: inline-block;
+  width: 2px;
+  height: 12px;
+  margin-left: 3px;
+  vertical-align: -2px;
+  background: var(--color-accent);
+  opacity: 0;
+}
 
-@keyframes procPhoto {
-  0%   { opacity: 0; transform: scale(0.96); }
-  5%   { opacity: 1; transform: scale(1); }
-  56%  { opacity: 1; transform: scale(1); }
-  63%  { opacity: 0; transform: scale(1.02); }
-  100% { opacity: 0; }
+/* --- Общий цикл 9 с: A 0–33%, B 33–66%, C 66–100% --- */
+@keyframes procSceneA {
+  0%        { opacity: 0; transform: scale(0.97); }
+  4%, 29%   { opacity: 1; transform: scale(1); }
+  34%, 100% { opacity: 0; transform: scale(1.01); }
 }
-@keyframes procRecipe {
-  0%, 60% { opacity: 0; transform: translateY(10px); }
-  68%     { opacity: 1; transform: translateY(0); }
-  92%     { opacity: 1; transform: translateY(0); }
-  100%    { opacity: 0; transform: translateY(-6px); }
+@keyframes procSceneB {
+  0%, 31%   { opacity: 0; transform: scale(0.97); }
+  37%, 62%  { opacity: 1; transform: scale(1); }
+  67%, 100% { opacity: 0; transform: scale(1.01); }
 }
+@keyframes procSceneC {
+  0%, 64%   { opacity: 0; transform: translateY(8px); }
+  70%, 96%  { opacity: 1; transform: translateY(0); }
+  100%      { opacity: 0; transform: translateY(-4px); }
+}
+/* Чипы распознавания выскакивают по одному внутри первой сцены. */
 @keyframes procChip1 {
-  0%, 28%   { opacity: 0; transform: translateY(6px) scale(0.92); }
-  33%, 100% { opacity: 1; transform: translateY(0) scale(1); }
+  0%, 8%    { opacity: 0; transform: translateY(5px) scale(0.9); }
+  12%, 100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 @keyframes procChip2 {
-  0%, 36%   { opacity: 0; transform: translateY(6px) scale(0.92); }
-  41%, 100% { opacity: 1; transform: translateY(0) scale(1); }
+  0%, 14%   { opacity: 0; transform: translateY(5px) scale(0.9); }
+  18%, 100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 @keyframes procChip3 {
-  0%, 44%   { opacity: 0; transform: translateY(6px) scale(0.92); }
-  49%, 100% { opacity: 1; transform: translateY(0) scale(1); }
+  0%, 20%   { opacity: 0; transform: translateY(5px) scale(0.9); }
+  24%, 100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+/* Галочка на выбранном блюде — в середине второй сцены. */
+@keyframes procPick {
+  0%, 45%   { opacity: 0; transform: scale(0.6); }
+  50%, 100% { opacity: 1; transform: scale(1); }
+}
+@keyframes procWave {
+  0%   { opacity: 0.55; transform: scale(1); }
+  70%  { opacity: 0; transform: scale(1.6); }
+  100% { opacity: 0; transform: scale(1.6); }
+}
+@keyframes procCaret {
+  0%, 49%   { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+/* Подсветка подписи под блоком — тот же девятисекундный цикл. Переключение
+   резкое (шаг в одну сотую), чтобы подпись зажигалась ровно со сменой сцены. */
+@keyframes procStep1 {
+  0%, 32%   { color: var(--color-accent); }
+  33%, 100% { color: var(--color-text-secondary); }
+}
+@keyframes procStep1Icon {
+  0%, 32%   { background: var(--color-accent-subtle); color: var(--color-accent); }
+  33%, 100% { background: var(--color-bg-subtle); color: var(--color-text-muted); }
+}
+@keyframes procStep2 {
+  0%, 32%   { color: var(--color-text-secondary); }
+  34%, 65%  { color: var(--color-accent); }
+  66%, 100% { color: var(--color-text-secondary); }
+}
+@keyframes procStep2Icon {
+  0%, 32%   { background: var(--color-bg-subtle); color: var(--color-text-muted); }
+  34%, 65%  { background: var(--color-accent-subtle); color: var(--color-accent); }
+  66%, 100% { background: var(--color-bg-subtle); color: var(--color-text-muted); }
+}
+@keyframes procStep3 {
+  0%, 65%   { color: var(--color-text-secondary); }
+  67%, 100% { color: var(--color-accent); }
+}
+@keyframes procStep3Icon {
+  0%, 65%   { background: var(--color-bg-subtle); color: var(--color-text-muted); }
+  67%, 100% { background: var(--color-accent-subtle); color: var(--color-accent); }
 }
 @keyframes skelPulse {
   0%, 100% { opacity: 1; }
   50%      { opacity: 0.5; }
 }
 
+/* Анимации включаются ТОЛЬКО если человек не просил их убрать. При
+   prefers-reduced-motion остаётся статичная первая сцена и первая подпись. */
 @media (prefers-reduced-motion: no-preference) {
-  .proc-photo   { animation: procPhoto 8s ease-in-out infinite; }
-  .proc-recipe  { animation: procRecipe 8s ease-in-out infinite; }
-  .proc-chip-1  { animation: procChip1 8s ease-in-out infinite; }
-  .proc-chip-2  { animation: procChip2 8s ease-in-out infinite; }
-  .proc-chip-3  { animation: procChip3 8s ease-in-out infinite; }
-  .proc-skel, .sc-skel { animation: skelPulse 1.6s ease-in-out infinite; }
+  .proc-scene-a  { animation: procSceneA 9s ease-in-out infinite; }
+  .proc-scene-b  { animation: procSceneB 9s ease-in-out infinite; }
+  .proc-scene-c  { animation: procSceneC 9s ease-in-out infinite; }
+  .proc-chip-1   { animation: procChip1 9s ease-in-out infinite; }
+  .proc-chip-2   { animation: procChip2 9s ease-in-out infinite; }
+  .proc-chip-3   { animation: procChip3 9s ease-in-out infinite; }
+  .proc-dish-check { animation: procPick 9s ease-out infinite; }
+  .proc-wave-1   { animation: procWave 1.8s ease-out infinite; }
+  .proc-wave-2   { animation: procWave 1.8s ease-out 0.6s infinite; }
+  .proc-caret    { animation: procCaret 1s steps(1) infinite; }
+  .how-step-1 .how-step-label { animation: procStep1 9s infinite; }
+  .how-step-1 .how-step-icon  { animation: procStep1Icon 9s infinite; }
+  .how-step-2 .how-step-label { animation: procStep2 9s infinite; }
+  .how-step-2 .how-step-icon  { animation: procStep2Icon 9s infinite; }
+  .how-step-3 .how-step-label { animation: procStep3 9s infinite; }
+  .how-step-3 .how-step-icon  { animation: procStep3Icon 9s infinite; }
+  .sc-skel { animation: skelPulse 1.6s ease-in-out infinite; }
 }
+
 
 /* --- SKELETON (пульсирующие плашки вместо спиннеров) --- */
 .sc-skel { background: var(--color-bg-subtle); border-radius: var(--radius-full); }
@@ -648,8 +779,8 @@ body {
   position: fixed;
   left: var(--space-3);
   right: var(--space-3);
-  /* Над таб-баром: одно число --tab-bar-h держит его высоту, плюс вырез снизу. */
-  bottom: calc(var(--tab-bar-h) + env(safe-area-inset-bottom) + var(--space-2));
+  /* Над таб-баром: --tab-bar-total уже включает вырез снизу и подъём панели. */
+  bottom: calc(var(--tab-bar-total) + var(--space-2));
   max-width: 468px;
   margin: 0 auto;
   z-index: 8500;
@@ -1719,7 +1850,7 @@ body {
    Дубль offset из AppToaster — страховка на случай, если sonner поменяет
    имя своей внутренней переменной отступа. */
 [data-sonner-toaster][data-y-position="bottom"] {
-  bottom: calc(var(--tab-bar-h) + env(safe-area-inset-bottom) + 12px) !important;
+  bottom: calc(var(--tab-bar-total) + 12px) !important;
   /* Ширина: экран минус 32px, но не шире карточки контента.
      margin-inline: auto центрирует контейнер при left/right = 0 — трогать
      transform нельзя, на нём висит анимация появления самих карточек. */
@@ -1841,7 +1972,23 @@ button.daily-teaser { width: 100%; font: inherit; text-align: left; }
 /* --- Таб-бар: основная навигация 3 разделов ---
    Высота контентной части ~60px + safe-area-inset снизу (жестовая полоса iPhone).
    Одно число --tab-bar-h держит высоту бара и нижний отступ контента в синхроне. */
-:root { --tab-bar-h: 60px; }
+:root {
+  /* Безопасные зоны одним именем: в переменной env() читается и на десктопе
+     (там 0), и в PWA/Capacitor, а ещё её можно подменить в отладке, чтобы
+     посмотреть вёрстку «как на айфоне». Работают только при viewport-fit=cover
+     (см. app/layout.tsx) — иначе браузер всегда отдаёт ноль. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  /* Сама панель: иконка + подпись. */
+  --tab-bar-h: 60px;
+  /* Свой отступ НАД полоской Home Indicator — как в Telegram: подписи не
+     упираются в полоску, а стоят выше неё. */
+  --tab-bar-lift: 6px;
+  /* Полная занимаемая высота: панель + отступ + вырез снизу. Одно число
+     держит в синхроне сам бар, нижний отступ контента и всё, что всплывает
+     над баром (тосты, карточка установки, кнопка «наверх»). */
+  --tab-bar-total: calc(var(--tab-bar-h) + var(--tab-bar-lift) + var(--safe-bottom));
+}
 .tab-bar {
   position: fixed;
   left: 0;
@@ -1851,7 +1998,7 @@ button.daily-teaser { width: 100%; font: inherit; text-align: left; }
   display: flex;
   justify-content: space-around;
   align-items: stretch;
-  height: calc(var(--tab-bar-h) + env(safe-area-inset-bottom));
+  height: var(--tab-bar-total);
   /* iOS-стиль: почти непрозрачный фон + матовое размытие (frosted glass).
      Непрозрачность 94% — контент при скролле не «просвечивает кашей»;
      фолбэк без backdrop-filter выглядит так же плотно. */
@@ -1860,7 +2007,9 @@ button.daily-teaser { width: 100%; font: inherit; text-align: left; }
   -webkit-backdrop-filter: saturate(180%) blur(16px);
   border-top: 1px solid var(--color-border);
   box-shadow: 0 -6px 22px rgba(0, 0, 0, 0.08);
-  padding-bottom: env(safe-area-inset-bottom);
+  /* Фон бара доходит до самого низа экрана, а иконки с подписями живут выше
+     полоски Home Indicator: вырез + собственный отступ. */
+  padding-bottom: calc(var(--safe-bottom) + var(--tab-bar-lift));
 }
 .tab-item {
   flex: 1;
@@ -1893,7 +2042,7 @@ button.daily-teaser { width: 100%; font: inherit; text-align: left; }
 .tab-item-active .tab-icon { background: var(--color-accent-subtle); }
 .tab-label { line-height: 1; white-space: nowrap; }
 /* Нижний отступ контента, чтобы фиксированный бар не перекрывал футер/контент */
-.has-tabbar { padding-bottom: calc(var(--tab-bar-h) + env(safe-area-inset-bottom)); }
+.has-tabbar { padding-bottom: var(--tab-bar-total); }
 
 /* Верхняя шапка — ТОЛЬКО на явном десктопе (>=1024px). На мобиле и планшете
    (в т.ч. iPad-portrait 768px, тач-ширины) таб-бар остаётся снизу в стиле iOS. */
@@ -3406,7 +3555,7 @@ a.news-card:hover { transform: translateY(-2px); }
 /* Пришёл на смену ProcessAnimation: три шага статично, без движения на первом
    касании страницы. Под ним живут демо-чипы (.demo-magic), переехавшие с
    первого экрана. */
-.how-block { margin-bottom: var(--space-5); }
+.how-block { margin-bottom: var(--space-4); }
 .how-steps {
   display: flex;
   align-items: flex-start;
@@ -3425,16 +3574,25 @@ a.news-card:hover { transform: translateY(-2px); }
   gap: var(--space-2);
   text-align: center;
 }
+/* Базовое состояние подписи — неактивная. Активной её делает либо анимация
+   (см. procStepN), либо — при prefers-reduced-motion — правило ниже для
+   первого шага: статичный кадр показывает сцену 1, подпись должна ей
+   соответствовать. */
 .how-step-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   border-radius: var(--radius-full);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-muted);
+}
+.how-step-1 .how-step-icon {
   background: var(--color-accent-subtle);
   color: var(--color-accent);
 }
+.how-step-1 .how-step-label { color: var(--color-accent); }
 .how-step-label {
   font-size: var(--font-size-caption);
   font-weight: var(--font-weight-medium);

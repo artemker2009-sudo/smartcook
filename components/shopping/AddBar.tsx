@@ -63,33 +63,118 @@ export default function AddBar({ onAdd, busy = false }: Props) {
 
   // --- Экранная клавиатура ----------------------------------------------------
   //
-  // Панель прижата к низу через position: fixed. На iOS клавиатура НЕ уменьшает
-  // layout viewport — она просто наезжает сверху, и панель вместе с полем
-  // оказывается под ней: человек печатает вслепую. Поднимаем панель на высоту
-  // клавиатуры — разницу между окном и видимой частью.
+  // Панель прижата к низу через position: fixed. Пока клавиатура открыта,
+  // ставим нижний край панели ровно на нижний край ВИДИМОЙ области:
+  // top = visualViewport.offsetTop + visualViewport.height, панель — вверх на
+  // свою высоту (CSS, html.sh-kb-open).
   //
-  // Слушаем ТОЛЬКО resize, то есть само появление и исчезновение клавиатуры.
-  // Первая версия слушала ещё и visualViewport «scroll» — и панель дёргалась на
-  // каждый пиксель прокрутки страницы с открытой клавиатурой, потому что
-  // offsetTop меняется постоянно. Отсюда же transition в CSS: панель переезжает
-  // один раз и плавно, а не скачет.
+  // Именно от видимой области, а не «отступ снизу = окно − видимая часть»:
+  // прежняя формула зависела от высоты раскладки, а она у всех своя. Замеры в
+  // симуляторе iOS 26:
+  //   • Safari, страница прокрутилась: offsetTop 0 — формулы совпадают;
+  //   • Safari, фокус у низа страницы: видимая область сдвинута (offsetTop 337),
+  //     отступ выходил отрицательным, его обрезали до нуля — панель вставала на
+  //     таб-бар, а таб-бар накрывал поле;
+  //   • Capacitor: innerHeight сжимается до видимой части (471), а фиксированные
+  //     элементы по-прежнему живут в полной высоте (offsetTop 403) — отступ
+  //     выходил −403, и панель уехала бы под экран.
+  // top от offsetTop + height верен во всех трёх.
   //
-  // Там, где клавиатура сама сжимает вёрстку (Android Chrome), разница выходит
-  // нулевой и ничего не происходит — отдельной ветки по платформе не нужно.
+  // Прокрутку с открытой клавиатурой НЕ отслеживаем попиксельно: первая версия
+  // так и делала, и панель дёргалась. Поправка — одна, когда прокрутка затихла.
+  // Показать поле после фокуса. Живёт в эффекте с visualViewport, а зовётся
+  // из onFocus.
+  const revealRef = useRef<() => void>(() => {});
   useEffect(() => {
     const vv = typeof window !== "undefined" ? window.visualViewport : undefined;
     if (!vv) return;
-    const apply = () => {
-      const inset = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
-      // Мелочь до 80px — это не клавиатура, а панель браузера или округление.
-      // Реагировать на неё значит гонять панель туда-обратно без причины.
-      document.documentElement.style.setProperty("--sh-kb-inset", inset > 80 ? `${Math.round(inset)}px` : "0px");
+    const root = document.documentElement;
+    // Высота окна БЕЗ клавиатуры. Нужна для оболочек, где клавиатура сама
+    // сжимает раскладку (Capacitor/WKWebView, Android): там innerHeight падает
+    // вместе с visualViewport, разница между ними нулевая, и по ней клавиатуру
+    // не видно — таб-бар оставался стоять прямо на клавиатуре.
+    let baseline = window.innerHeight;
+    let baseWidth = window.innerWidth;
+    // Клавиатура бывает открыта только при фокусе в поле ввода. Без этой
+    // проверки складывание панели Safari (окно выросло, потом уменьшилось)
+    // принималось бы за клавиатуру.
+    const editing = () => {
+      const el = document.activeElement as HTMLElement | null;
+      return Boolean(el && (el.tagName === "TEXTAREA" || el.tagName === "INPUT" || el.isContentEditable));
     };
+    const apply = () => {
+      if (window.innerWidth !== baseWidth) {
+        // Поворот экрана — старая высота больше не годится.
+        baseWidth = window.innerWidth;
+        baseline = window.innerHeight;
+      }
+      if (!editing()) baseline = window.innerHeight;
+      const keyboard = editing() ? baseline - vv.height : 0;
+      if (keyboard > 80) {
+        root.style.setProperty("--sh-vv-bottom", `${Math.round(vv.offsetTop + vv.height)}px`);
+        root.classList.add("sh-kb-open");
+      } else {
+        root.style.removeProperty("--sh-vv-bottom");
+        root.classList.remove("sh-kb-open");
+      }
+    };
+
+    // Прокрутка с открытой клавиатурой: панель НЕ двигаем на каждый пиксель
+    // (так она дёргалась), а поправляем один раз, когда прокрутка затихла.
+    // В Safari iOS 26 offsetTop при прокрутке не меняется, и поправка ничего
+    // не сдвигает; iOS 17/18 сдвигает саму видимую область — там панель
+    // встанет на место одним переездом.
+    let settle: ReturnType<typeof setTimeout> | undefined;
+    const onScroll = () => {
+      if (!root.classList.contains("sh-kb-open")) return;
+      clearTimeout(settle);
+      settle = setTimeout(apply, 150);
+    };
+
+    // После фокуса: дождаться, пока клавиатура выедет, пересчитать отступ и
+    // показать поле, если его всё-таки перекрыло. block: "nearest" не
+    // прокручивает страницу, когда поле и так видно.
+    let reveal: ReturnType<typeof setTimeout> | undefined;
+    revealRef.current = () => {
+      clearTimeout(reveal);
+      const run = () => {
+        apply();
+        inputRef.current?.scrollIntoView({ block: "nearest" });
+      };
+      const onKeyboard = () => {
+        vv.removeEventListener("resize", onKeyboard);
+        clearTimeout(reveal);
+        // Клавиатура выезжает с анимацией, и resize приходит в её начале.
+        reveal = setTimeout(run, 120);
+      };
+      vv.addEventListener("resize", onKeyboard);
+      // Клавиатура уже была открыта (фокус переходит с другого поля) — resize
+      // не придёт вовсе.
+      reveal = setTimeout(() => {
+        vv.removeEventListener("resize", onKeyboard);
+        run();
+      }, 600);
+    };
+
     apply();
     vv.addEventListener("resize", apply);
+    vv.addEventListener("scroll", onScroll);
+    // Сжатие раскладки (Capacitor) приходит событием окна, а не visualViewport;
+    // фокус и уход из поля меняют ответ на «открыта ли клавиатура».
+    window.addEventListener("resize", apply);
+    document.addEventListener("focusin", apply);
+    document.addEventListener("focusout", apply);
     return () => {
+      clearTimeout(settle);
+      clearTimeout(reveal);
+      revealRef.current = () => {};
       vv.removeEventListener("resize", apply);
-      document.documentElement.style.removeProperty("--sh-kb-inset");
+      vv.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", apply);
+      document.removeEventListener("focusin", apply);
+      document.removeEventListener("focusout", apply);
+      root.style.removeProperty("--sh-vv-bottom");
+      root.classList.remove("sh-kb-open");
     };
   }, []);
 
@@ -323,7 +408,10 @@ export default function AddBar({ onAdd, busy = false }: Props) {
                 handleAdd();
               }
             }}
-            onFocus={() => setFocused(true)}
+            onFocus={() => {
+              setFocused(true);
+              revealRef.current();
+            }}
             onBlur={() => setFocused(false)}
             // Подсказка про запятую переехала в строку над полем и видна только
             // пока поле в работе: прежние пять строк объяснений под полем
@@ -349,7 +437,9 @@ export default function AddBar({ onAdd, busy = false }: Props) {
               <ArrowUp size={22} strokeWidth={2.6} />
             </button>
           ) : (
-            <>
+            // Голос и фото — ОДНОЙ группой справа, каждая кнопка в своём
+            // круге. Голые серые иконки без подложки не читались как кнопки.
+            <div className="sh-field-actions">
               {/* Микрофон — только если браузер поддерживает Web Speech API
                   (мягкая деградация: без поддержки кнопки просто нет). */}
               {voice.supported && (
@@ -359,7 +449,7 @@ export default function AddBar({ onAdd, busy = false }: Props) {
                   aria-label={voice.status === "listening" ? "Остановить запись" : "Сказать, что купить"}
                   className={voice.status === "listening" ? "sh-field-icon sh-field-icon-rec" : "sh-field-icon"}
                 >
-                  {voice.status === "listening" ? <Square size={20} fill="currentColor" /> : <Mic size={24} />}
+                  {voice.status === "listening" ? <Square size={16} fill="currentColor" /> : <Mic size={20} />}
                 </button>
               )}
 
@@ -370,9 +460,9 @@ export default function AddBar({ onAdd, busy = false }: Props) {
                 aria-label="Распознать список по фото"
                 className="sh-field-icon"
               >
-                {photoBusy ? <Loader2 size={24} className="animate-spin" /> : <Camera size={24} />}
+                {photoBusy ? <Loader2 size={20} className="animate-spin" /> : <Camera size={20} />}
               </button>
-            </>
+            </div>
           )}
         </div>
       </div>

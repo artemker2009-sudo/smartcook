@@ -2,16 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Copy, LogOut, Pencil, Pin, PinOff, Share2, Users, WifiOff, X } from "lucide-react";
+import { Copy, LogOut, Pencil, Users, WifiOff } from "lucide-react";
 
-import { copyText } from "@/lib/clipboard";
 import { reachGoal } from "@/lib/metrika";
 import { supabase } from "@/lib/supabase";
-import { MAX_SHOPPING_ITEMS, itemsToText, signatureFromNames } from "@/lib/shoppingList";
+import { MAX_SHOPPING_ITEMS } from "@/lib/shoppingList";
 import { listDisplayName } from "@/lib/shoppingLists";
 import {
   addSharedItems,
   clearSharedChecked,
+  extendSharedSort,
   fetchSharedList,
   parseSnapshotUpdatedAt,
   patchSharedItem,
@@ -26,7 +26,10 @@ import {
 import { TEMP_ITEM_PREFIX, enqueue, flushPending, pendingCount } from "@/lib/sharedShoppingQueue";
 import { sharedListChannelName } from "@/lib/sharedShoppingBroadcast";
 import ListScreen from "@/components/shopping/ListScreen";
+import { MembersModal } from "@/components/shopping/ListModals";
 import PartnerFooter from "@/components/shopping/PartnerFooter";
+import { copyItemsAsText, shareInviteLink } from "@/components/shopping/shareActions";
+import { useAutoPlace } from "@/components/shopping/useAutoPlace";
 import { useSortToggle } from "@/components/shopping/useSortToggle";
 import type { MenuAction, RowItem } from "@/components/shopping/types";
 
@@ -70,9 +73,6 @@ type Props = {
   onForget: () => void;
   /** Переименовать — через сервер: имя в БД и видно всем участникам. */
   onRename: () => void;
-  /** Список закреплён в хабе. Закрепление ЛОКАЛЬНОЕ, на этом устройстве. */
-  pinned: boolean;
-  onTogglePin: () => void;
 };
 
 export default function SharedList({
@@ -84,8 +84,6 @@ export default function SharedList({
   onOpenMenu,
   onForget,
   onRename,
-  pinned,
-  onTogglePin,
 }: Props) {
   const [name, setName] = useState(initial.name);
   const [items, setItems] = useState<SharedItem[]>(initial.items);
@@ -194,14 +192,32 @@ export default function SharedList({
     };
   }, [listId, memberRef, refetch, syncPendingCount]);
 
-  // Подпись считается из тех же названий и той же формулой, что на сервере
-  // (signatureFromNames). Разъедется формула — раскладка будет вечно считаться
-  // устаревшей, поэтому она одна на обе стороны.
-  const sig = useMemo(() => signatureFromNames(items.map((it) => it.name)), [items]);
+  const names = useMemo(() => items.map((it) => it.name), [items]);
+  // На сервер дописываем только то, что сервер уже записал: оптимистичные
+  // tmp-позиции живут до ответа на добавление, и в БД их пока нет.
+  const syncNames = useMemo(
+    () => items.filter((it) => !it.id.startsWith(TEMP_ITEM_PREFIX)).map((it) => it.name),
+    [items],
+  );
+
+  // Новая позиция в разложенном списке встаёт в свой отдел сразу (словарь),
+  // а на сервер дописывается одним запросом после паузы — и её отдел видят все
+  // участники. Незнакомое сервер сам спросит у модели.
+  const cache = useAutoPlace({
+    names,
+    syncNames,
+    cache: sortCache,
+    active: grouped,
+    sync: async ({ known }) => {
+      const result = await extendSharedSort(listId, memberRef, known);
+      setSortCache(result);
+      return result.groups;
+    },
+  });
 
   const sort = useSortToggle({
-    sig,
-    cache: sortCache,
+    names,
+    cache,
     grouped,
     setGrouped: onGroupedChange,
     empty: items.length === 0,
@@ -230,7 +246,7 @@ export default function SharedList({
 
   // --- Действия ---------------------------------------------------------------
 
-  const handleAddNames = async (names: string[]) => {
+  const handleAddNames = async (newNames: string[]) => {
     if (items.length >= MAX_SHOPPING_ITEMS) {
       toast.error(`Список полон: не больше ${MAX_SHOPPING_ITEMS} позиций`);
       return;
@@ -238,7 +254,7 @@ export default function SharedList({
 
     // Оптимистично: позиции появляются сразу, до ответа сервера. tmp-id живут
     // только до ближайшего перечитывания снимка.
-    const optimistic: SharedItem[] = names.map((itemName, i) => ({
+    const optimistic: SharedItem[] = newNames.map((itemName, i) => ({
       id: `${TEMP_ITEM_PREFIX}${Date.now()}-${i}`,
       name: itemName,
       checked: false,
@@ -247,7 +263,7 @@ export default function SharedList({
     setItems((prev) => [...prev, ...optimistic]);
     setBusy(true);
     try {
-      const result = await addSharedItems(listId, memberRef, names);
+      const result = await addSharedItems(listId, memberRef, newNames);
       reachGoal("shopping_shared_item_added", { count: result.added });
       if (result.limited) toast.error(`Список полон: не больше ${MAX_SHOPPING_ITEMS} позиций`);
       else if (result.added === 0 && result.duplicate > 0) toast("Это уже в списке");
@@ -256,7 +272,7 @@ export default function SharedList({
     } catch {
       // Не отменяем оптимистичную вставку: она уйдёт на сервер, когда вернётся
       // связь. Повторная отправка безопасна — сервер дедупит по названию.
-      enqueue(listId, { kind: "add", names });
+      enqueue(listId, { kind: "add", names: newNames });
       syncPendingCount();
       setOffline(true);
     } finally {
@@ -306,50 +322,22 @@ export default function SharedList({
     }
   };
 
-  const handleShare = async () => {
-    const url = `${window.location.origin}/shopping/join/${listId}`;
-    reachGoal("shopping_shared_invite_click");
-    const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
-    if (nav.share) {
-      try {
-        await nav.share({ title: name, text: `Общий список покупок: ${name}`, url });
-        return;
-      } catch {
-        // Отменили системное окно — падаем в копирование.
-      }
-    }
-    const ok = await copyText(url);
-    // Приглашение в общий список (/shopping/join/<id>) — не копия.
-    toast(ok ? "Ссылка скопирована. Список общий — галочки видны всем" : "Не удалось скопировать ссылку");
-  };
-
-  const handleCopy = async () => {
-    const ok = await copyText(itemsToText(items.map((it) => ({ id: it.id, name: it.name, checked: it.checked }))));
-    toast(ok ? "Список скопирован" : "Не удалось скопировать");
-  };
-
-  // Те же четыре пункта, что у локального списка. Разница — в последнем:
-  // общий список нельзя удалить у всех, его можно только убрать у СЕБЯ, и
-  // называться это должно так, как и работает.
+  // Те же три пункта, что у локального списка. Разница — в последнем: общий
+  // список нельзя удалить у всех, его можно только убрать у СЕБЯ, и называться
+  // это должно так, как и работает.
   const openMenu = () =>
     onOpenMenu([
-      {
-        key: "pin",
-        label: pinned ? "Открепить" : "Закрепить",
-        icon: pinned ? <PinOff size={20} /> : <Pin size={20} />,
-        onSelect: onTogglePin,
-      },
       { key: "rename", label: "Переименовать", icon: <Pencil size={20} />, onSelect: onRename },
       {
         key: "share",
         label: "Поделиться",
-        icon: <Share2 size={20} />,
+        icon: <Users size={20} />,
         next: {
           title: "Поделиться списком",
           actions: [
-            { key: "invite", label: "Позвать в список", icon: <Users size={20} />, onSelect: () => void handleShare() },
+            { key: "invite", label: "Позвать в список", icon: <Users size={20} />, onSelect: () => void shareInviteLink(listId, name) },
             { key: "members", label: "Кто в списке", icon: <Users size={20} />, onSelect: () => setShowMembers(true) },
-            { key: "copy-text", label: "Скопировать текстом", icon: <Copy size={20} />, onSelect: () => void handleCopy() },
+            { key: "copy-text", label: "Скопировать текстом", icon: <Copy size={20} />, onSelect: () => void copyItemsAsText(items) },
           ],
         },
       },
@@ -370,7 +358,7 @@ export default function SharedList({
         sort={sort}
         onToggle={(id) => void toggle(id)}
         onRemove={(id) => void remove(id)}
-        onAddNames={(names) => void handleAddNames(names)}
+        onAddNames={(newNames) => void handleAddNames(newNames)}
         onClearChecked={() => void clearChecked()}
         onMenu={openMenu}
         busy={busy}
@@ -390,51 +378,14 @@ export default function SharedList({
         footer={<PartnerFooter items={items} />}
       />
 
-      {/* Кто в списке */}
       {showMembers && (
-        <div className="sl-overlay sl-overlay-center" onClick={() => setShowMembers(false)}>
-          <div className="sl-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="sl-modal-head">
-              <h2 className="sl-modal-title">Кто в списке</h2>
-              <button type="button" className="sl-modal-x" onClick={() => setShowMembers(false)} aria-label="Закрыть">
-                <X size={20} />
-              </button>
-            </div>
-            <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-              {members.map((m) => (
-                <li
-                  key={m.memberRef}
-                  style={{
-                    padding: "var(--space-3) 0",
-                    borderBottom: "1px solid var(--color-border)",
-                    fontSize: "var(--font-size-heading)",
-                    color: "var(--color-text)",
-                  }}
-                >
-                  {m.name}
-                  {m.memberRef === initial.ownerRef && (
-                    <span style={{ marginLeft: 8, fontSize: "var(--font-size-caption)", color: "var(--color-text-muted)" }}>
-                      создал(а) список
-                    </span>
-                  )}
-                  {m.memberRef === memberRef && (
-                    <span style={{ marginLeft: 8, fontSize: "var(--font-size-caption)", color: "var(--color-accent)" }}>
-                      это вы
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
-            <button
-              type="button"
-              className="sl-modal-primary"
-              onClick={() => void handleShare()}
-              style={{ marginTop: "var(--space-3)" }}
-            >
-              Позвать ещё
-            </button>
-          </div>
-        </div>
+        <MembersModal
+          members={members}
+          ownerRef={initial.ownerRef}
+          memberRef={memberRef}
+          onInvite={() => void shareInviteLink(listId, name)}
+          onClose={() => setShowMembers(false)}
+        />
       )}
     </>
   );

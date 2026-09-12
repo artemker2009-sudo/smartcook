@@ -3537,18 +3537,13 @@ a.news-card:hover { transform: translateY(-2px); }
    кружка в воздухе: поле и рядом два круга, которые читались как чужие кнопки
    поверх экрана. Образец — строка ввода в мессенджере.
 
-   --sh-kb-inset поднимает панель над экранной клавиатурой на iOS, где она не
-   сжимает вёрстку, а наезжает сверху (см. AddBar). transition — чтобы панель
-   переезжала один раз и плавно, а не скакала. */
+   Над экранной клавиатурой панель ставит класс html.sh-kb-open (см. AddBar и
+   правило ниже). */
 .sh-bar {
   position: fixed;
   left: 0;
   right: 0;
-  /* max(), а НЕ сумма: без клавиатуры панель стоит на таб-баре, с клавиатурой
-     — на её верхней кромке. Сумма оставляла между панелью и клавиатурой
-     полосу в высоту таб-бара — а он в этот момент и так скрыт клавиатурой, и
-     панель просто висела в воздухе. */
-  bottom: max(var(--tab-bar-total), var(--sh-kb-inset, 0px));
+  bottom: var(--tab-bar-total);
   z-index: 50;
   max-width: 500px;
   margin: 0 auto;
@@ -3558,11 +3553,22 @@ a.news-card:hover { transform: translateY(-2px); }
      равно не видны — а скруглять их значило бы оставить под панелью щель. */
   border-radius: 16px 16px 0 0;
   box-shadow: 0 -8px 24px -8px rgba(0, 0, 0, 0.12);
-  transition: bottom 0.2s ease;
 }
-@media (prefers-reduced-motion: reduce) {
-  .sh-bar { transition: none; }
+/* Клавиатура открыта: нижний край панели — на нижнем краю ВИДИМОЙ области
+   (--sh-vv-bottom = visualViewport.offsetTop + height, считает AddBar).
+   Отступ снизу здесь не годится: высота раскладки под клавиатурой у Safari и
+   у Capacitor разная, а верх видимой области в координатах страницы —
+   одинаковый. */
+html.sh-kb-open .sh-bar {
+  top: var(--sh-vv-bottom, 100%);
+  bottom: auto;
+  transform: translateY(-100%);
 }
+/* С открытой клавиатурой таб-бар не нужен, и прятать его ОБЯЗАТЕЛЬНО. Когда
+   Safari сдвигает саму видимую область (offsetTop > 0 — фокус у низа
+   страницы), низ раскладки совпадает с верхом клавиатуры: таб-бар всплывал
+   прямо над ней и накрывал поле ввода — человек печатал вслепую. */
+html.sh-kb-open .tab-bar { visibility: hidden; }
 /* Само поле: рамка одна на всё — и на текст, и на иконки внутри. */
 .sh-field {
   display: flex;
@@ -3607,18 +3613,30 @@ a.news-card:hover { transform: translateY(-2px); }
    правого края поля при каждом наборе символа. */
 .sh-field-input { scrollbar-width: none; }
 .sh-field-input::-webkit-scrollbar { display: none; }
-/* Микрофон и камера — серые 24px внутри поля. */
+/* Микрофон и камера — одной группой справа, каждая в круглой подложке 36px.
+   Голые серые иконки без подложки не читались как кнопки, а два отдельных
+   элемента с разными отступами выглядели случайно брошенными в поле. Группа
+   стоит по центру поля по вертикали; отступ от правого края даёт padding
+   поля (8px). */
+.sh-field-actions {
+  flex-shrink: 0;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .sh-field-icon {
   flex-shrink: 0;
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   border: none;
   border-radius: var(--radius-full);
-  background: transparent;
-  color: var(--color-text-muted);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-secondary);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
@@ -3676,7 +3694,7 @@ body.has-addbar { padding-bottom: calc(var(--tab-bar-total) + 72px); }
 /* На десктопе таб-бар уезжает наверх (см. .tab-bar выше) — панели больше не
    над чем висеть, она встаёт на дно экрана. */
 @media (min-width: 1024px) {
-  .sh-bar { bottom: var(--sh-kb-inset, 0px); }
+  .sh-bar { bottom: 0; }
 }
 
 /* --- Оверлеи, нижний лист (меню списка), модалки --- */
@@ -3732,6 +3750,13 @@ body.has-addbar { padding-bottom: calc(var(--tab-bar-total) + 72px); }
 }
 .sl-sheet-btn:hover { background: var(--color-bg-subtle); }
 .sl-sheet-danger { color: var(--color-danger); }
+/* Черта перед опасным пунктом («Удалить список»): удаление стоит последним и
+   отдельно, чтобы в него не попадали, целясь в «Поделиться». */
+.sl-sheet-sep {
+  height: 1px;
+  margin: var(--space-1) var(--space-2);
+  background: var(--color-border);
+}
 /* Пункт с вложенным листом («Поделиться») — со стрелкой справа. */
 .sl-sheet-chevron { margin-left: auto; color: var(--color-text-muted); }
 .sl-sheet-cancel {

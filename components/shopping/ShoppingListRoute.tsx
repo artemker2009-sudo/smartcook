@@ -1,14 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, ChevronRight, Loader2, X } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 
-import { reachGoal } from "@/lib/metrika";
-import { copyText } from "@/lib/clipboard";
-import { itemsToText, type ShoppingItem, type SortCache } from "@/lib/shoppingList";
+import type { ShoppingItem, SortCache } from "@/lib/shoppingList";
 import {
   deleteList,
   listDisplayName,
@@ -24,24 +22,27 @@ import {
   openedFromHub,
   saveGroupedMode,
 } from "@/lib/shoppingActive";
-import { isPinned, togglePinned, unpin } from "@/lib/shoppingPinned";
-import { buildShareUrl, canShareByLink } from "@/lib/shoppingShare";
+import { unpin } from "@/lib/shoppingPinned";
 import {
-  createSharedList,
   fetchSharedList,
   forgetSharedList,
-  lastKnownMemberName,
   loadSharedPointers,
-  newMemberRef,
-  rememberSharedList,
   renameSharedList,
-  saveMemberIdentity,
   updatePointerName,
   type SharedListPointer,
   type SharedSnapshot,
 } from "@/lib/sharedShoppingList";
 import LocalList from "@/components/shopping/LocalList";
+import {
+  DeleteListModal,
+  InviteModal,
+  MakeSharedModal,
+  RenameListModal,
+  ShareTooBigModal,
+} from "@/components/shopping/ListModals";
+import MenuSheet from "@/components/shopping/MenuSheet";
 import SharedList from "@/components/shopping/SharedList";
+import { shareListCopy } from "@/components/shopping/shareActions";
 import type { MenuAction } from "@/components/shopping/types";
 
 /**
@@ -52,13 +53,18 @@ import type { MenuAction } from "@/components/shopping/types";
  * указатели общих списков первыми — локальный оригинал общего списка намеренно
  * спрятан (fromLocalId), и открывать надо именно общий.
  *
- * Здесь же живут все окна подтверждений: переименование, удаление, «сделать
- * общим», приглашение. Рисование самого списка — в LocalList / SharedList
- * поверх общего ListScreen.
+ * Здесь же живут окна подтверждений (сами окна — в ListModals, они общие с
+ * хабом). Рисование самого списка — в LocalList / SharedList поверх общего
+ * ListScreen.
  */
 export default function ShoppingListRoute({ listId }: { listId: string }) {
   const router = useRouter();
   const [lists, setLists] = useState<ShoppingListRecord[]>([]);
+  // Самые свежие списки для записи. Раскладка дописывается ПОСЛЕ сетевого
+  // запроса, и между двумя записями (позиции, затем раскладка) state ещё не
+  // успевает обновиться: запись поверх старого массива стёрла бы только что
+  // добавленный продукт.
+  const listsRef = useRef<ShoppingListRecord[]>([]);
   const [pointer, setPointer] = useState<SharedListPointer | null>(null);
   const [loaded, setLoaded] = useState(false);
 
@@ -69,24 +75,24 @@ export default function ShoppingListRoute({ listId }: { listId: string }) {
   const [sharedLoading, setSharedLoading] = useState(false);
 
   const [grouped, setGrouped] = useState(false);
-  // Меню «⋯»: стек листов. Второй уровень нужен «Поделиться» — см. MenuAction.next.
   const [menu, setMenu] = useState<MenuAction[] | null>(null);
-  const [menuTitle, setMenuTitle] = useState<string | null>(null);
-  const [pinned, setPinned] = useState(false);
   // Переименование общего списка идёт на сервер и может не долететь.
   const [renameBusy, setRenameBusy] = useState(false);
-
-  const [renameOpen, setRenameOpen] = useState(false);
-  const [renameValue, setRenameValue] = useState("");
+  // Имя, с которым открыто окно переименования. null — окно закрыто.
+  const [renameFrom, setRenameFrom] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [shareBig, setShareBig] = useState(false);
   const [makeSharedOpen, setMakeSharedOpen] = useState(false);
-  const [makeSharedName, setMakeSharedName] = useState("");
-  const [makeSharedBusy, setMakeSharedBusy] = useState(false);
   const [forgetOpen, setForgetOpen] = useState(false);
   // Окно «позовите близких» сразу после создания общего списка. Без него
   // владелец остаётся с общим списком, о котором никто не знает.
   const [inviteFor, setInviteFor] = useState<{ id: string; name: string } | null>(null);
+
+  const updateLists = (change: (prev: ShoppingListRecord[]) => ShoppingListRecord[]) => {
+    const next = change(listsRef.current);
+    listsRef.current = next;
+    setLists(next);
+  };
 
   const openShared = useCallback(
     async (p: SharedListPointer) => {
@@ -113,17 +119,20 @@ export default function ShoppingListRoute({ listId }: { listId: string }) {
   useEffect(() => {
     const init = () => {
       setGrouped(loadGroupedMode());
-      setPinned(isPinned(listId));
       const p = loadSharedPointers().find((x) => x.id === listId) ?? null;
       setPointer(p);
-      setLists(loadLists());
+      listsRef.current = loadLists();
+      setLists(listsRef.current);
       setLoaded(true);
       if (p) void openShared(p);
     };
     init();
 
     // Список могли поменять в другой вкладке.
-    const onStorage = () => setLists(loadLists());
+    const onStorage = () => {
+      listsRef.current = loadLists();
+      setLists(listsRef.current);
+    };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, [listId, openShared]);
@@ -135,17 +144,10 @@ export default function ShoppingListRoute({ listId }: { listId: string }) {
     saveGroupedMode(next);
   };
 
-  // --- Локальный список -------------------------------------------------------
-
-  const confirmRename = async () => {
-    const name = renameValue.trim();
-    if (!name) {
-      toast("Впишите название списка");
-      return;
-    }
+  const confirmRename = async (name: string) => {
     if (local) {
-      setLists(renameList(lists, local.id, name));
-      setRenameOpen(false);
+      updateLists((prev) => renameList(prev, local.id, name));
+      setRenameFrom(null);
       return;
     }
     // Общий список: имя лежит в БД, значит это запрос на сервер. Локально
@@ -158,7 +160,7 @@ export default function ShoppingListRoute({ listId }: { listId: string }) {
       updatePointerName(pointer.id, result.name);
       setPointer({ ...pointer, name: result.name });
       setShared({ ...shared, snapshot: { ...shared.snapshot, name: result.name } });
-      setRenameOpen(false);
+      setRenameFrom(null);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Не удалось переименовать список");
     } finally {
@@ -166,122 +168,23 @@ export default function ShoppingListRoute({ listId }: { listId: string }) {
     }
   };
 
-  const handleTogglePin = () => {
-    setPinned(togglePinned(listId));
-  };
-
-  const closeMenu = () => {
-    setMenu(null);
-    setMenuTitle(null);
-  };
-
-  // Хозяин списка отдаёт только верхний уровень; заголовка у него нет — имя
-  // списка и так стоит в шапке прямо над листом.
-  const openMenu = (actions: MenuAction[]) => {
-    setMenuTitle(null);
-    setMenu(actions);
-  };
-
   const confirmDelete = () => {
     if (!local) return;
     setDeleteOpen(false);
-    deleteList(lists, local.id);
+    updateLists((prev) => deleteList(prev, local.id));
     unpin(local.id);
     // Возвращаться в удалённый список нельзя — replace, а не push. Хаб сам
     // заведёт первый список, если этот был последним.
     router.replace("/shopping");
   };
 
-  // ВАЖНО не путать с общим списком: здесь весь список укладывается в ссылку, и
-  // получатель заводит СВОЮ копию — дальше два списка живут независимо, отметки
-  // друг к другу не ходят. Живой сценарий — только «Позвать в общий список».
-  // Тексты и иконки разведены именно поэтому.
   const handleShareCopy = async () => {
     if (!local) return;
-    reachGoal("shopping_share_click");
-
-    if (!canShareByLink(local.items.length)) {
-      setShareBig(true); // слишком большой для ссылки → предложим текст
-      return;
-    }
-
-    const url = buildShareUrl(
+    const result = await shareListCopy(
       local.name,
       local.items.map((it) => it.name),
     );
-
-    const nav = typeof navigator !== "undefined" ? (navigator as Navigator & { share?: (d: ShareData) => Promise<void> }) : null;
-    if (nav?.share) {
-      try {
-        await nav.share({ title: local.name, text: `Список покупок: ${local.name}`, url });
-        return;
-      } catch {
-        // пользователь отменил share sheet или он недоступен — падаем в копирование
-      }
-    }
-    const ok = await copyText(url);
-    // buildShareUrl кладёт САМ СПИСОК в адрес (?shared=<base64url>), получатель
-    // разворачивает его в свой локальный список. Это копия, не совместный
-    // доступ — тост обязан сказать это прямо, иначе человек ждёт синхронизации,
-    // которой не будет.
-    toast(ok ? "Ссылка скопирована. Друг получит копию списка — изменения не синхронизируются" : "Не удалось скопировать ссылку");
-  };
-
-  const copyBigAsText = async () => {
-    if (!local) return;
-    const text = `${local.name}\n${itemsToText(local.items)}`;
-    const ok = await copyText(text);
-    toast(ok ? "Список скопирован текстом" : "Не удалось скопировать");
-    setShareBig(false);
-  };
-
-  // --- Общий список -----------------------------------------------------------
-
-  // «Сделать общим» копирует ТЕКУЩИЕ позиции на сервер как стартовый набор.
-  //
-  // Локальный оригинал остаётся в localStorage нетронутым, но в хабе больше НЕ
-  // показывается: связь запоминается в fromLocalId. Иначе получались две строки
-  // с одинаковым именем — и владелец продукта на приёмке сам открыл не ту,
-  // увидел её пустой и решил, что синхронизация сломана. Уберёте общий с
-  // устройства — оригинал вернётся на место.
-  const confirmMakeShared = async () => {
-    if (!local) return;
-    const ownerName = makeSharedName.trim();
-    if (!ownerName) {
-      toast("Напишите, как вас зовут");
-      return;
-    }
-    setMakeSharedBusy(true);
-    try {
-      const ownerRef = newMemberRef();
-      const snap = await createSharedList({
-        name: local.name,
-        items: local.items.map((it) => it.name),
-        ownerRef,
-        ownerName,
-      });
-      saveMemberIdentity(snap.id, { memberRef: ownerRef, name: ownerName });
-      rememberSharedList({
-        id: snap.id,
-        name: snap.name,
-        memberRef: ownerRef,
-        role: "owner",
-        joinedAt: Date.now(),
-        fromLocalId: local.id,
-        counts: { total: snap.items.length, done: snap.items.filter((it) => it.checked).length },
-      });
-      reachGoal("shopping_shared_created");
-      setMakeSharedOpen(false);
-      // Общий список — это ДРУГОЙ адрес. replace, а не push: локальный
-      // оригинал спрятан, и возвращаться на него кнопкой «назад» человеку
-      // некуда.
-      setInviteFor({ id: snap.id, name: snap.name });
-      router.replace(`/shopping/${snap.id}`);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Не удалось создать общий список");
-    } finally {
-      setMakeSharedBusy(false);
-    }
+    if (result === "too-big") setShareBig(true);
   };
 
   const confirmForget = () => {
@@ -291,28 +194,6 @@ export default function ShoppingListRoute({ listId }: { listId: string }) {
     setForgetOpen(false);
     toast("Список убран с этого устройства");
     router.replace("/shopping");
-  };
-
-  // Отправить ссылку-приглашение. Системное окно «Поделиться» на телефоне,
-  // копирование в буфер — на десктопе и если человек его отменил.
-  const shareInvite = async (id: string, listName: string) => {
-    const url = `${window.location.origin}/shopping/join/${id}`;
-    reachGoal("shopping_shared_invite_click");
-    const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
-    if (nav.share) {
-      try {
-        await nav.share({ title: listName, text: `Общий список покупок: ${listName}`, url });
-        setInviteFor(null);
-        return;
-      } catch {
-        // Отменили системное окно — падаем в копирование.
-      }
-    }
-    const ok = await copyText(url);
-    // Здесь наоборот: /shopping/join/<id> добавляет человека участником общего
-    // списка (joinSharedList), отметки видят все.
-    toast(ok ? "Ссылка скопирована. Список общий — галочки видны всем" : "Не удалось скопировать ссылку");
-    if (ok) setInviteFor(null);
   };
 
   // --- Разметка ---------------------------------------------------------------
@@ -343,227 +224,47 @@ export default function ShoppingListRoute({ listId }: { listId: string }) {
   const modals = (
     <>
       {/* Меню «⋯». Пункты пришли от хозяина списка: у локального и общего они
-          разные, а лист один. Пункт с `next` не закрывает лист, а показывает
-          вложенный — так «Поделиться» умещается в меню из четырёх пунктов, не
-          сваливая в одну кучу живой общий список и снимок в ссылке. */}
-      {menu && (
-        <div className="sl-overlay" onClick={closeMenu}>
-          <div className="sl-sheet" onClick={(e) => e.stopPropagation()}>
-            {menuTitle && <div className="sl-sheet-title">{menuTitle}</div>}
-            {menu.map((action) => (
-              <button
-                key={action.key}
-                type="button"
-                className={action.danger ? "sl-sheet-btn sl-sheet-danger" : "sl-sheet-btn"}
-                onClick={() => {
-                  if (action.next) {
-                    setMenuTitle(action.next.title);
-                    setMenu(action.next.actions);
-                    return;
-                  }
-                  closeMenu();
-                  action.onSelect?.();
-                }}
-              >
-                {action.icon} {action.label}
-                {action.next && <ChevronRight size={18} className="sl-sheet-chevron" aria-hidden />}
-              </button>
-            ))}
-            <button type="button" className="sl-sheet-cancel" onClick={closeMenu}>
-              Отмена
-            </button>
-          </div>
-        </div>
-      )}
+          разные, а лист один. */}
+      {menu && <MenuSheet actions={menu} onClose={() => setMenu(null)} />}
 
       {/* Переименование. Локальное имя правится в localStorage, имя общего
           списка уходит на сервер и возвращается всем участникам. */}
-      {renameOpen && (local || pointer) && (
-        <div className="sl-overlay sl-overlay-center" onClick={() => setRenameOpen(false)}>
-          <div className="sl-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="sl-modal-head">
-              <h2 className="sl-modal-title">Название списка</h2>
-              <button type="button" className="sl-modal-x" onClick={() => setRenameOpen(false)} aria-label="Закрыть">
-                <X size={20} />
-              </button>
-            </div>
-            <input
-              autoFocus
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void confirmRename();
-              }}
-              placeholder="Например, Пятёрочка"
-              aria-label="Название списка"
-              className="sl-modal-input"
-              disabled={renameBusy}
-            />
-            <button
-              type="button"
-              className="sl-modal-primary"
-              onClick={() => void confirmRename()}
-              disabled={renameBusy || !renameValue.trim()}
-              style={{ opacity: renameBusy || !renameValue.trim() ? 0.5 : 1 }}
-            >
-              {renameBusy ? "Сохраняю…" : "Сохранить"}
-            </button>
-          </div>
-        </div>
+      {renameFrom !== null && (local || pointer) && (
+        <RenameListModal
+          initialName={renameFrom}
+          busy={renameBusy}
+          onSave={(name) => void confirmRename(name)}
+          onClose={() => setRenameFrom(null)}
+        />
       )}
 
-      {/* Удаление списка */}
       {deleteOpen && local && (
-        <div className="sl-overlay sl-overlay-center" onClick={() => setDeleteOpen(false)}>
-          <div className="sl-modal" onClick={(e) => e.stopPropagation()}>
-            <h2 className="sl-modal-title" style={{ marginBottom: "var(--space-2)" }}>Удалить список?</h2>
-            <p style={{ margin: "0 0 var(--space-4) 0", color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
-              «{listDisplayName(local.name)}» и все его позиции будут удалены. Это действие нельзя
-              отменить.
-            </p>
-            <div style={{ display: "flex", gap: "var(--space-2)" }}>
-              <button type="button" className="sl-modal-secondary" onClick={() => setDeleteOpen(false)}>
-                Отмена
-              </button>
-              <button type="button" className="sl-modal-danger" onClick={confirmDelete}>
-                Удалить
-              </button>
-            </div>
-          </div>
-        </div>
+        <DeleteListModal kind="local" name={local.name} onConfirm={confirmDelete} onClose={() => setDeleteOpen(false)} />
       )}
 
-      {/* Список слишком большой для ссылки → поделиться текстом */}
-      {shareBig && local && (
-        <div className="sl-overlay sl-overlay-center" onClick={() => setShareBig(false)}>
-          <div className="sl-modal" onClick={(e) => e.stopPropagation()}>
-            <h2 className="sl-modal-title" style={{ marginBottom: "var(--space-2)" }}>Список большой для ссылки</h2>
-            <p style={{ margin: "0 0 var(--space-4) 0", color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
-              В ссылку помещается до 80 позиций. Поделитесь списком текстом — скопируйте и отправьте в любой мессенджер.
-            </p>
-            <div style={{ display: "flex", gap: "var(--space-2)" }}>
-              <button type="button" className="sl-modal-secondary" onClick={() => setShareBig(false)}>
-                Отмена
-              </button>
-              <button type="button" className="sl-modal-primary" style={{ flex: 1 }} onClick={copyBigAsText}>
-                Скопировать
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {shareBig && local && <ShareTooBigModal name={local.name} items={local.items} onClose={() => setShareBig(false)} />}
 
-      {/* Сделать список общим: спрашиваем только имя — регистрации нет. */}
       {makeSharedOpen && local && (
-        <div className="sl-overlay sl-overlay-center" onClick={() => !makeSharedBusy && setMakeSharedOpen(false)}>
-          <div className="sl-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="sl-modal-head">
-              <h2 className="sl-modal-title">Общий список с семьёй</h2>
-              <button type="button" className="sl-modal-x" onClick={() => setMakeSharedOpen(false)} aria-label="Закрыть">
-                <X size={20} />
-              </button>
-            </div>
-            {/* Текст обязан совпадать с тем, что реально произойдёт. Прежняя
-                формулировка обещала «этот список останется у вас и таким, как
-                есть» — а локальный оригинал сразу прячется из хаба
-                (convertedLocalListIds), и человек решал, что список пропал. */}
-            <p style={{ margin: "0 0 var(--space-3) 0", color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
-              «{listDisplayName(local.name)}» станет общим: вы получите ссылку, и всё, что кто-то
-              отметит, сразу увидят остальные. Позиции и отметки перенесутся, а вместо двух
-              одинаковых списков останется один — со значком «людей».
-            </p>
-            <label
-              htmlFor="make-shared-name"
-              style={{
-                display: "block",
-                marginBottom: "var(--space-2)",
-                fontSize: "var(--font-size-body)",
-                fontWeight: "var(--font-weight-medium)",
-                color: "var(--color-text)",
-              }}
-            >
-              Ваше имя
-            </label>
-            <input
-              id="make-shared-name"
-              autoFocus
-              value={makeSharedName}
-              onChange={(e) => setMakeSharedName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void confirmMakeShared();
-              }}
-              placeholder="Например, Мама"
-              maxLength={50}
-              className="sl-modal-input"
-            />
-            <button
-              type="button"
-              className="sl-modal-primary"
-              onClick={() => void confirmMakeShared()}
-              disabled={makeSharedBusy || !makeSharedName.trim()}
-              style={{ opacity: makeSharedBusy || !makeSharedName.trim() ? 0.5 : 1 }}
-            >
-              {makeSharedBusy ? "Создаю…" : "Сделать общим"}
-            </button>
-          </div>
-        </div>
+        <MakeSharedModal
+          list={local}
+          onClose={() => setMakeSharedOpen(false)}
+          onCreated={(created) => {
+            setMakeSharedOpen(false);
+            // Общий список — это ДРУГОЙ адрес. replace, а не push: локальный
+            // оригинал спрятан, и возвращаться на него кнопкой «назад» человеку
+            // некуда.
+            setInviteFor(created);
+            router.replace(`/shopping/${created.id}`);
+          }}
+        />
       )}
 
-      {/* Сразу после создания общего списка */}
-      {inviteFor && (
-        <div className="sl-overlay sl-overlay-center" onClick={() => setInviteFor(null)}>
-          <div className="sl-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="sl-modal-head">
-              <h2 className="sl-modal-title">Список стал общим</h2>
-              <button type="button" className="sl-modal-x" onClick={() => setInviteFor(null)} aria-label="Закрыть">
-                <X size={20} />
-              </button>
-            </div>
-            <p style={{ margin: "0 0 var(--space-4) 0", color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
-              Остался один шаг: отправьте ссылку близким. У них список появится
-              только после того, как они её откроют.
-            </p>
-            <button
-              type="button"
-              className="sl-modal-primary"
-              onClick={() => void shareInvite(inviteFor.id, inviteFor.name)}
-            >
-              Отправить ссылку
-            </button>
-            <button
-              type="button"
-              className="sl-modal-secondary"
-              style={{ width: "100%", marginTop: "var(--space-2)" }}
-              onClick={() => setInviteFor(null)}
-            >
-              Позже
-            </button>
-          </div>
-        </div>
-      )}
+      {inviteFor && <InviteModal id={inviteFor.id} name={inviteFor.name} onClose={() => setInviteFor(null)} />}
 
       {/* Убрать общий список с устройства. Именно «убрать у себя»: данные
           остаются, у остальных участников список продолжает жить. */}
       {forgetOpen && pointer && (
-        <div className="sl-overlay sl-overlay-center" onClick={() => setForgetOpen(false)}>
-          <div className="sl-modal" onClick={(e) => e.stopPropagation()}>
-            <h2 className="sl-modal-title" style={{ marginBottom: "var(--space-2)" }}>
-              Убрать список у себя?
-            </h2>
-            <p style={{ margin: "0 0 var(--space-4) 0", color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
-              «{listDisplayName(pointer.name)}» исчезнет с этого устройства. У остальных участников
-              он останется, и вы сможете вернуться по той же ссылке.
-            </p>
-            <div style={{ display: "flex", gap: "var(--space-2)" }}>
-              <button type="button" className="sl-modal-secondary" onClick={() => setForgetOpen(false)}>
-                Отмена
-              </button>
-              <button type="button" className="sl-modal-danger" onClick={confirmForget}>
-                Убрать
-              </button>
-            </div>
-          </div>
-        </div>
+        <DeleteListModal kind="shared" name={pointer.name} onConfirm={confirmForget} onClose={() => setForgetOpen(false)} />
       )}
     </>
   );
@@ -580,14 +281,9 @@ export default function ShoppingListRoute({ listId }: { listId: string }) {
             initial={shared.snapshot}
             grouped={grouped}
             onGroupedChange={changeGrouped}
-            onOpenMenu={openMenu}
+            onOpenMenu={setMenu}
             onForget={() => setForgetOpen(true)}
-            onRename={() => {
-              setRenameValue(shared.snapshot.name);
-              setRenameOpen(true);
-            }}
-            pinned={pinned}
-            onTogglePin={handleTogglePin}
+            onRename={() => setRenameFrom(shared.snapshot.name)}
           />
           {modals}
         </main>
@@ -629,21 +325,13 @@ export default function ShoppingListRoute({ listId }: { listId: string }) {
           list={local}
           grouped={grouped}
           onGroupedChange={changeGrouped}
-          onItemsChange={(items: ShoppingItem[]) => setLists(setListItems(lists, local.id, items))}
-          onSortChange={(sort: SortCache | null) => setLists(setListSort(lists, local.id, sort))}
-          onOpenMenu={openMenu}
-          onRename={() => {
-            setRenameValue(local.name);
-            setRenameOpen(true);
-          }}
-          pinned={pinned}
-          onTogglePin={handleTogglePin}
+          onItemsChange={(items: ShoppingItem[]) => updateLists((prev) => setListItems(prev, local.id, items))}
+          onSortChange={(sort: SortCache | null) => updateLists((prev) => setListSort(prev, local.id, sort))}
+          onOpenMenu={setMenu}
+          onRename={() => setRenameFrom(local.name)}
           onDelete={() => setDeleteOpen(true)}
           onShareCopy={() => void handleShareCopy()}
-          onMakeShared={() => {
-            setMakeSharedName(lastKnownMemberName());
-            setMakeSharedOpen(true);
-          }}
+          onMakeShared={() => setMakeSharedOpen(true)}
         />
         {modals}
       </main>

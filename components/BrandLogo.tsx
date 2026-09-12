@@ -9,8 +9,12 @@ import { ChefHat } from "lucide-react";
  * световое пятно под самим логотипом (.hero-header-inner::before).
  *
  * Слово набрано Manrope ExtraBold: Unbounded в этом кегле читался плохо.
- * Отдельной иконки-логотипа в репозитории нет, поэтому шапка шефа — ChefHat
- * из lucide, который уже стоит в проекте.
+ * Знак — шапка шефа в скруглённом зелёном квадрате, слово целиком тёмное.
+ * Двухцветное слово («Cook» фирменным зелёным) пробовал и убрал: зелёный текст
+ * поверх фотографии давал контраст 2.1:1, а плашки под словом на этом экране
+ * быть не должно.
+ * Отдельной иконки-логотипа в репозитории нет, поэтому это ChefHat из lucide,
+ * который уже стоит в проекте.
  *
  * Серверный компонент — на первом экране ему нечего делать на клиенте.
  */
@@ -18,7 +22,9 @@ export default function BrandLogo() {
   return (
     <header className="hero-header">
       <div className="hero-header-inner">
-        <ChefHat className="hero-header-mark" size={25} strokeWidth={2.2} aria-hidden />
+        <span className="hero-header-mark" aria-hidden>
+          <ChefHat size={20} strokeWidth={2.3} />
+        </span>
         <span className="hero-header-word">SmartCook</span>
       </div>
     </header>

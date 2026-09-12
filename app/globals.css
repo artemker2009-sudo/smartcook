@@ -2,18 +2,18 @@
 @import "tailwindcss";
 
 /* === SMARTCOOK DESIGN TOKENS === */
-/* Шрифт логотипа. Файл — латинский срез Unbounded 700 с Google Fonts, лежит у
-   нас в статике (public/fonts): никаких запросов к Google из браузера, CSP
-   'self' не трогаем. Раньше это делал next/font, но он заводил ОТДЕЛЬНЫЙ
-   блокирующий css-файл — лишний круг на медленной сети, +0.3 с к FCP.
-   font-display: swap и никакой преднагрузки: логотип секунду постоит системным
-   шрифтом, канал нужен фотографии первого экрана (это LCP-кадр). */
+/* Шрифт логотипа — Manrope ExtraBold. Unbounded читался в мелком кегле плохо
+   (широкие геометрические буквы сливаются), и больше в проекте не используется:
+   заголовок H1 набран системным шрифтом, менять его не просили. Файл — латинский
+   срез с Google Fonts, лежит у нас в статике (public/fonts): никаких запросов к
+   Google из браузера, CSP 'self' не трогаем. font-display: swap и никакой
+   преднагрузки — канал нужен фотографии первого экрана (это LCP-кадр). */
 @font-face {
-  font-family: "Unbounded";
+  font-family: "Manrope";
   font-style: normal;
-  font-weight: 700;
+  font-weight: 800;
   font-display: swap;
-  src: url("/fonts/unbounded-700-latin.woff2") format("woff2");
+  src: url("/fonts/manrope-800-latin.woff2") format("woff2");
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
     U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
     U+2212, U+2215, U+FEFF, U+FFFD;
@@ -120,45 +120,66 @@ body {
   margin-bottom: var(--space-3);
 }
 
-/* Шапка: логотип во всю ширину окна поверх фотографии. Не плашка — полоса от
-   края до края, полупрозрачная с размытием, содержимое по левому краю с тем же
-   отступом, что и остальной контент. Секция живёт внутри .container
-   (max-width 500px), поэтому полоса вырывается из него на всю ширину окна. */
+/* Шапка: логотип поверх фотографии, БЕЗ собственной полосы и без размытия —
+   любая заливка во всю ширину давала горизонтальную границу поперёк первого
+   экрана. Читаемость обеспечивает не полоса, а маленькое световое пятно прямо
+   под логотипом (::before ниже). */
 .hero-header {
   width: 100vw;
   margin-left: calc(50% - 50vw);
   display: flex;
   justify-content: center;
-  /* Сверху — вырез телефона: в PWA и Capacitor шапка уходит под строку
-     состояния, но текст в неё не залезает. */
-  padding: calc(var(--safe-top) + 9px) var(--space-3) 9px;
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: saturate(150%) blur(14px);
-  -webkit-backdrop-filter: saturate(150%) blur(14px);
-  margin-bottom: var(--space-5);
+  padding: calc(var(--safe-top) + 14px) var(--space-3) 10px;
+  margin-bottom: var(--space-4);
+  background: none;
+  /* Свечение под логотипом шире экрана — режем по кромке окна, чтобы не
+     появилась горизонтальная прокрутка. Именно overflow-x: clip, а не
+     overflow: hidden: hidden обрезал бы свечение и снизу, и на нижней кромке
+     шапки появлялась светлая горизонтальная граница поперёк экрана. */
+  overflow-x: clip;
 }
 /* Внутренность шапки повторяет ширину контейнера: на широком экране логотип
    стоит по кромке контента, а не убегает в левый край окна. */
 .hero-header-inner {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 9px;
+  gap: 8px;
   width: 100%;
   max-width: calc(500px - var(--space-3) * 2);
   text-align: left;
+}
+/* Световое пятно под логотипом — то же, что под заголовком, только маленькое:
+   белое радиальное свечение, сходящее на нет к краям. */
+.hero-header-inner::before {
+  content: "";
+  position: absolute;
+  left: 27.5%;
+  top: 50%;
+  width: 122%;
+  height: 260%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 255, 255, 0.78) 0%,
+    rgba(255, 255, 255, 0.6) 50%,
+    rgba(255, 255, 255, 0) 85%
+  );
+  filter: blur(24px);
+  z-index: -1;
 }
 .hero-header-mark {
   flex-shrink: 0;
   color: #0e8a60;
 }
 .hero-header-word {
-  font-family: "Unbounded", -apple-system, BlinkMacSystemFont, sans-serif;
-  font-weight: 700;
-  /* Примерно как подзаголовок (17px) — шапка читается, а не теряется. */
+  font-family: "Manrope", -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 800;
+  /* Кегль прежний, буквы плотнее — Manrope набирается компактнее Unbounded. */
   font-size: 17px;
   line-height: 1.15;
-  letter-spacing: -0.2px;
+  letter-spacing: -0.02em;
   color: #1a1a1a;
 }
 
@@ -182,26 +203,63 @@ body {
   object-fit: cover;
   object-position: 50% 30%;
 }
-/* Вуаль. Симметричная: снимок проявляется из фона страницы сверху и уходит в
-   него снизу — обрезанной кромки нет ни сверху, ни снизу. Профиль не ровный, а
-   подогнан под текст: плотнее там, где лежат заголовок и подзаголовок, тоньше
-   в просветах (под шапкой и вокруг кнопки — кнопка непрозрачная, ей вуаль не
-   нужна). Числа проверены замером контраста: заголовок 6.4:1, подзаголовок
-   6.0:1 в худшей точке (см. HeroLanding.tsx). */
+/* Вуаль. Поверх снимка только лёгкая дымка (22%) — овощи должны быть видны.
+   Единственный переход на первом экране — мягкий уход в цвет фона страницы в
+   нижней четверти фотографии; никаких горизонтальных кромок выше. Читаемость
+   текста обеспечивает не эта заливка, а локальные световые пятна под шапкой и
+   под заголовком (см. .hero-copy::before). */
 .hero-photo::after {
   content: "";
   position: absolute;
   inset: 0;
   background: linear-gradient(
     180deg,
-    rgba(250, 249, 247, 0.88) 0%,
-    rgba(250, 249, 247, 0.45) 14%,
-    rgba(250, 249, 247, 0.7) 26%,
-    rgba(250, 249, 247, 0.86) 50%,
-    rgba(250, 249, 247, 0.6) 68%,
-    rgba(250, 249, 247, 0.9) 84%,
+    rgba(250, 249, 247, 0.22) 0%,
+    rgba(250, 249, 247, 0.22) 62%,
+    rgba(250, 249, 247, 0.45) 78%,
+    rgba(250, 249, 247, 0.86) 90%,
     var(--color-bg) 100%
   );
+}
+
+/* Световое пятно под заголовком и подзаголовком: мягкое белое сияние, которое
+   сходит на нет к краям. Оно и держит контраст текста вместо сплошной заливки —
+   значения проверены замером (см. HeroLanding.tsx). Лежит между фотографией
+   (z-index -1) и текстом: у обоих отрицательный z-index, но пятно идёт в
+   разметке позже, поэтому рисуется поверх снимка; .hero-copy своего контекста
+   наложения не создаёт.
+   Обёртка нужна ровно для одного: пятно ШИРЕ экрана (иначе у крайних букв не
+   хватает контраста), а вылезать за окно ему нельзя — появилась бы
+   горизонтальная прокрутка. Обёртка ровно в ширину окна и режет хвосты. */
+.hero-copy { position: relative; }
+.hero-copy-glow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 100vw;
+  height: 210%;
+  transform: translate(-50%, -50%);
+  /* Только по горизонтали: hidden обрезал бы размытие сверху и снизу и дал бы
+     видимую кромку поперёк экрана. */
+  overflow-x: clip;
+  pointer-events: none;
+  z-index: -1;
+}
+.hero-copy-glow::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(640px, 165vw);
+  height: 100%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 255, 255, 0.82) 0%,
+    rgba(255, 255, 255, 0.74) 60%,
+    rgba(255, 255, 255, 0) 92%
+  );
+  filter: blur(55px);
 }
 
 .hero-headline {

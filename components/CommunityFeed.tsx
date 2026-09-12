@@ -14,6 +14,7 @@ import {
   submitFeedReport,
   useBlockedAuthors,
 } from "@/components/FeedModeration";
+import { SHOW_COOKED_PHOTO_BLOCK } from "@/lib/features";
 
 // Лента сообщества (премодерируемая). Публичные данные — ТОЛЬКО из view
 // community_posts_public (не раскрывает user_ref/status, счётчик лайков —
@@ -326,6 +327,8 @@ export default function CommunityFeed({ initialItems }: { initialItems: Communit
     <section className="home-feed" style={{ paddingBottom: "var(--space-6)" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "var(--space-2)" }}>
         <h2 className="section-title" style={{ marginBottom: 0 }}>Лента сообщества</h2>
+        {/* Вход в публикацию своего блюда — за общим флагом (см. lib/features). */}
+        {SHOW_COOKED_PHOTO_BLOCK && (
         <button
           type="button"
           onClick={openCompose}
@@ -338,6 +341,7 @@ export default function CommunityFeed({ initialItems }: { initialItems: Communit
         >
           <ImagePlus size={16} /> Поделиться
         </button>
+        )}
       </div>
 
       {/* Мои посты на модерации/отклонённые (видны только автору) */}
@@ -442,7 +446,7 @@ export default function CommunityFeed({ initialItems }: { initialItems: Communit
       )}
 
       {/* Компоновщик */}
-      {isComposeOpen && (
+      {SHOW_COOKED_PHOTO_BLOCK && isComposeOpen && (
         <div
           onClick={resetCompose}
           style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}

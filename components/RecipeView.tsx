@@ -26,6 +26,7 @@ import RecipeImage from "@/components/RecipeImage";
 import RecipeMissingBlock from "@/components/RecipeMissingBlock";
 import AiRecipeDisclaimer from "@/components/AiRecipeDisclaimer";
 import { formatCookingTime } from "@/lib/utils";
+import { SHOW_COOKED_PHOTO_BLOCK } from "@/lib/features";
 
 interface RecipeViewProps {
   recipe: any;
@@ -573,180 +574,184 @@ export default function RecipeView({
         )}
       </div>
 
-      <div
-        id="cooked-photo-zone"
-        style={{
-          marginTop: "var(--space-5)",
-          background: "var(--color-bg)",
-          padding: "var(--space-4) var(--space-3)",
-          borderRadius: "var(--radius-sm)",
-          border: "1px solid var(--color-border)",
-          textAlign: "center",
-        }}
-      >
-        <h3
+      {/* Публикация фото готового блюда. Спрятана флагом до появления
+          активной аудитории — код рабочий, флаг в true возвращает блок. */}
+      {SHOW_COOKED_PHOTO_BLOCK && (
+        <div
+          id="cooked-photo-zone"
           style={{
-            fontSize: "var(--font-size-body)",
-            fontWeight: "var(--font-weight-semibold)",
-            marginBottom: "var(--space-1)",
-            color: "var(--color-text)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "var(--space-2)",
+            marginTop: "var(--space-5)",
+            background: "var(--color-bg)",
+            padding: "var(--space-4) var(--space-3)",
+            borderRadius: "var(--radius-sm)",
+            border: "1px solid var(--color-border)",
+            textAlign: "center",
           }}
         >
-          <Camera size={18} /> Приготовили? Покажите результат!
-        </h3>
-        <p
-          style={{
-            fontSize: "var(--font-size-caption)",
-            color: "var(--color-text-secondary)",
-            marginBottom: "var(--space-3)",
-            lineHeight: 1.4,
-          }}
-        >
-          Отметьте галочку — и ваше блюдо увидят другие: сразу в{" "}
-          <strong>«Приготовили сегодня»</strong> на главной и, после проверки, в{" "}
-          <strong>ленте сообщества</strong>.
-        </p>
-        {!user ? (
-          <Button
-            variant="primary"
-            onClick={() => setIsAuthModalOpen(true)}
-          >
-            Войти, чтобы опубликовать фото
-          </Button>
-        ) : (
-          <div
+          <h3
             style={{
+              fontSize: "var(--font-size-body)",
+              fontWeight: "var(--font-weight-semibold)",
+              marginBottom: "var(--space-1)",
+              color: "var(--color-text)",
               display: "flex",
-              flexDirection: "column",
-              gap: "var(--space-3)",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "var(--space-2)",
             }}
           >
-            {!userPhotoFile ? (
-              <div
-                style={{
-                  border: "2px dashed var(--color-border)",
-                  borderRadius: "var(--radius-sm)",
-                  padding: "var(--space-3)",
-                  cursor: "pointer",
-                  background: "var(--color-surface)",
-                }}
-                onClick={async () => {
-                  setIsStandaloneUploadOpen(false);
-                  // В нативе — системный выбор камера/галерея.
-                  if (await pickImageIntoInputHandler(handleUserPhotoChange)) return;
-                  const input = document.getElementById(
-                    "user-photo-upload"
-                  ) as HTMLInputElement | null;
-                  input?.click();
-                }}
-              >
-                <Camera
-                  size={32}
-                  color="var(--color-accent)"
-                  style={{ margin: "0 auto var(--space-2) auto" }}
-                />
+            <Camera size={18} /> Приготовили? Покажите результат!
+          </h3>
+          <p
+            style={{
+              fontSize: "var(--font-size-caption)",
+              color: "var(--color-text-secondary)",
+              marginBottom: "var(--space-3)",
+              lineHeight: 1.4,
+            }}
+          >
+            Отметьте галочку — и ваше блюдо увидят другие: сразу в{" "}
+            <strong>«Приготовили сегодня»</strong> на главной и, после проверки, в{" "}
+            <strong>ленте сообщества</strong>.
+          </p>
+          {!user ? (
+            <Button
+              variant="primary"
+              onClick={() => setIsAuthModalOpen(true)}
+            >
+              Войти, чтобы опубликовать фото
+            </Button>
+          ) : (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "var(--space-3)",
+              }}
+            >
+              {!userPhotoFile ? (
                 <div
                   style={{
-                    fontSize: "var(--font-size-caption)",
-                    fontWeight: "var(--font-weight-medium)",
-                    color: "var(--color-text-secondary)",
-                  }}
-                >
-                  Нажмите, чтобы загрузить фото блюда
-                </div>
-                <input
-                  id="user-photo-upload"
-                  type="file"
-                  accept="image/*"
-                  style={{ display: "none" }}
-                  onChange={handleUserPhotoChange}
-                />
-              </div>
-            ) : (
-              <div
-                style={{
-                  background: "var(--color-surface)",
-                  padding: "var(--space-3)",
-                  borderRadius: "var(--radius-sm)",
-                  border: "1px solid var(--color-border)",
-                }}
-              >
-                {userPhotoPreview && (
-                  <img
-                    src={userPhotoPreview}
-                    alt="Preview"
-                    style={{
-                      width: "100%",
-                      height: "200px",
-                      objectFit: "cover",
-                      borderRadius: "var(--radius-sm)",
-                      marginBottom: "var(--space-3)",
-                    }}
-                  />
-                )}
-                <label
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "var(--space-2)",
-                    marginBottom: "var(--space-3)",
+                    border: "2px dashed var(--color-border)",
+                    borderRadius: "var(--radius-sm)",
+                    padding: "var(--space-3)",
                     cursor: "pointer",
-                    fontSize: "var(--font-size-caption)",
-                    color: "var(--color-text-secondary)",
-                    lineHeight: 1.4,
+                    background: "var(--color-surface)",
+                  }}
+                  onClick={async () => {
+                    setIsStandaloneUploadOpen(false);
+                    // В нативе — системный выбор камера/галерея.
+                    if (await pickImageIntoInputHandler(handleUserPhotoChange)) return;
+                    const input = document.getElementById(
+                      "user-photo-upload"
+                    ) as HTMLInputElement | null;
+                    input?.click();
                   }}
                 >
-                  <input
-                    type="checkbox"
-                    checked={showInFeed}
-                    onChange={(e) => setShowInFeed(e.target.checked)}
-                    style={{ marginTop: "2px", width: "18px", height: "18px", accentColor: "var(--color-accent)", flexShrink: 0 }}
+                  <Camera
+                    size={32}
+                    color="var(--color-accent)"
+                    style={{ margin: "0 auto var(--space-2) auto" }}
                   />
-                  <span>Показать в «Приготовили сегодня»</span>
-                </label>
-                <div style={{ display: "flex", gap: "var(--space-2)" }}>
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
-                      setUserPhotoFile(null);
-                      setUserPhotoPreview(null);
-                      setUserComment("");
-                      setShowInFeed(false);
+                  <div
+                    style={{
+                      fontSize: "var(--font-size-caption)",
+                      fontWeight: "var(--font-weight-medium)",
+                      color: "var(--color-text-secondary)",
                     }}
-                    style={{ flex: 1 }}
                   >
-                    Отмена
-                  </Button>
-                  <Button
-                    variant="primary"
-                    onClick={() => submitFeedPost(recipe, showInFeed)}
-                    disabled={isUploadingPhoto || !showInFeed}
-                    style={{ flex: 2 }}
-                  >
-                    {isUploadingPhoto ? "Публикуем..." : "Опубликовать"}
-                  </Button>
+                    Нажмите, чтобы загрузить фото блюда
+                  </div>
+                  <input
+                    id="user-photo-upload"
+                    type="file"
+                    accept="image/*"
+                    style={{ display: "none" }}
+                    onChange={handleUserPhotoChange}
+                  />
                 </div>
-                {/* Честный текст про два адресата: витрина видна сразу, лента —
-                    после премодерации. Обещать «сразу везде» нельзя. */}
-                <p
+              ) : (
+                <div
                   style={{
-                    margin: "var(--space-2) 0 0",
-                    fontSize: "var(--font-size-caption)",
-                    color: "var(--color-text-secondary)",
-                    lineHeight: 1.4,
+                    background: "var(--color-surface)",
+                    padding: "var(--space-3)",
+                    borderRadius: "var(--radius-sm)",
+                    border: "1px solid var(--color-border)",
                   }}
                 >
-                  Появится на главной сразу, в ленте — после проверки
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+                  {userPhotoPreview && (
+                    <img
+                      src={userPhotoPreview}
+                      alt="Preview"
+                      style={{
+                        width: "100%",
+                        height: "200px",
+                        objectFit: "cover",
+                        borderRadius: "var(--radius-sm)",
+                        marginBottom: "var(--space-3)",
+                      }}
+                    />
+                  )}
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: "var(--space-2)",
+                      marginBottom: "var(--space-3)",
+                      cursor: "pointer",
+                      fontSize: "var(--font-size-caption)",
+                      color: "var(--color-text-secondary)",
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={showInFeed}
+                      onChange={(e) => setShowInFeed(e.target.checked)}
+                      style={{ marginTop: "2px", width: "18px", height: "18px", accentColor: "var(--color-accent)", flexShrink: 0 }}
+                    />
+                    <span>Показать в «Приготовили сегодня»</span>
+                  </label>
+                  <div style={{ display: "flex", gap: "var(--space-2)" }}>
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        setUserPhotoFile(null);
+                        setUserPhotoPreview(null);
+                        setUserComment("");
+                        setShowInFeed(false);
+                      }}
+                      style={{ flex: 1 }}
+                    >
+                      Отмена
+                    </Button>
+                    <Button
+                      variant="primary"
+                      onClick={() => submitFeedPost(recipe, showInFeed)}
+                      disabled={isUploadingPhoto || !showInFeed}
+                      style={{ flex: 2 }}
+                    >
+                      {isUploadingPhoto ? "Публикуем..." : "Опубликовать"}
+                    </Button>
+                  </div>
+                  {/* Честный текст про два адресата: витрина видна сразу, лента —
+                      после премодерации. Обещать «сразу везде» нельзя. */}
+                  <p
+                    style={{
+                      margin: "var(--space-2) 0 0",
+                      fontSize: "var(--font-size-caption)",
+                      color: "var(--color-text-secondary)",
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    Появится на главной сразу, в ленте — после проверки
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {cooking && (
         <CookMode
@@ -756,12 +761,17 @@ export default function RecipeView({
           cookingTimeMinutes={recipe.cooking_time_minutes}
           onClose={() => setCooking(false)}
           // Финал: закрываем режим и подводим к готовому флоу «Приготовили? Покажите».
-          onCookedPhoto={() => {
-            setCooking(false);
-            setTimeout(() => {
-              document.getElementById("cooked-photo-zone")?.scrollIntoView({ behavior: "smooth", block: "center" });
-            }, 100);
-          }}
+          // Пока флаг выключен — кнопки на финале нет, вести некуда.
+          onCookedPhoto={
+            SHOW_COOKED_PHOTO_BLOCK
+              ? () => {
+                  setCooking(false);
+                  setTimeout(() => {
+                    document.getElementById("cooked-photo-zone")?.scrollIntoView({ behavior: "smooth", block: "center" });
+                  }, 100);
+                }
+              : undefined
+          }
         />
       )}
     </div>

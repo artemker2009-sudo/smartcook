@@ -17,13 +17,26 @@ import {
   type SortCache,
 } from "./shoppingList";
 import { convertedLocalListIds, loadSharedPointers } from "./sharedShoppingList";
+import { saveActiveListId } from "./shoppingActive";
 
 // v2-хранилище. Старые ключи (v1) читаем только для одноразовой миграции.
 export const SHOPPING_LISTS_KEY = "smartcook_shopping_lists_v2";
 
 export const MAX_LIST_NAME_LENGTH = 60;
-// Имя списка по умолчанию при миграции одиночного списka из MVP.
-export const MIGRATED_LIST_NAME = "Мои покупки";
+/**
+ * Имя первого списка — и при миграции одиночного списка из MVP, и у человека,
+ * который зашёл в раздел впервые.
+ *
+ * Раньше было «Мои покупки», а новые списки назывались «Покупки, 6 августа».
+ * На четырёх списках экран превращался в четыре карточки «Покупки», и какая из
+ * них какая — понять было нельзя. Слово «Покупки» осталось только у самого
+ * раздела: в таб-баре и в заголовке страницы.
+ *
+ * Уже созданные списки НЕ переименовываем — они лежат в localStorage как
+ * лежали. Легаси-имена вида «Покупки, 11 сентября» различаются в чипе по дате,
+ * см. listChipLabel.
+ */
+export const MIGRATED_LIST_NAME = "Мой список";
 
 export type ShoppingListRecord = {
   id: string;
@@ -51,9 +64,39 @@ export function formatListDate(createdAt: number): string {
   }
 }
 
-/** Имя по умолчанию для нового списка: «Покупки, 6 августа». */
-export function defaultListName(now: Date = new Date()): string {
-  return `Покупки, ${RU_DAY_MONTH.format(now)}`;
+/**
+ * Имя по умолчанию для нового списка: «Мой список», затем «Список 2»,
+ * «Список 3»… Номер берётся первый свободный, а не по количеству списков:
+ * иначе после удаления среднего списка два новых получили бы одно имя.
+ *
+ * Без аргумента (так зовёт серверный роут общего списка как резервное имя)
+ * отдаёт «Мой список».
+ */
+export function defaultListName(lists: ShoppingListRecord[] = []): string {
+  const taken = new Set(lists.map((l) => l.name.trim().toLowerCase()));
+  if (!taken.has(MIGRATED_LIST_NAME.toLowerCase())) return MIGRATED_LIST_NAME;
+  for (let n = 2; n < 100; n++) {
+    const candidate = `Список ${n}`;
+    if (!taken.has(candidate.toLowerCase())) return candidate;
+  }
+  // Сотня списков с занятыми именами — сценарий из области фантастики, но
+  // возвращать undefined нельзя: имя обязано быть.
+  return `Список ${RU_DAY_MONTH.format(new Date())}`;
+}
+
+/**
+ * Короткая подпись списка для чипа-переключателя.
+ *
+ * Обычное имя показываем целиком. Исключение — легаси-имена по умолчанию
+ * («Покупки, 11 сентября», «Мои покупки»): слово «Покупки» у всех таких
+ * списков одинаковое, различает их только дата, поэтому в чипе остаётся она.
+ * Данные при этом не переписываем: в шапке и при «поделиться» имя по-прежнему
+ * полное.
+ */
+export function listChipLabel(name: string): string {
+  const { title, subtitle } = splitListTitle(name);
+  if (subtitle && /^(покупки|мои покупки)$/i.test(title)) return subtitle;
+  return name;
 }
 
 /**
@@ -150,7 +193,7 @@ function readListsRaw(): ShoppingListRecord[] | null {
 
 /**
  * Загружает все списки. Если v2-ключа ещё нет — одноразово мигрирует одиночный
- * список из MVP (v1) в первый список «Мои покупки», чтобы данные ранних
+ * список из MVP (v1) в первый список (MIGRATED_LIST_NAME), чтобы данные ранних
  * пользователей не потерялись. Пустой v1 → пустой набор (ничего не пишем).
  */
 export function loadLists(): ShoppingListRecord[] {
@@ -197,7 +240,7 @@ export function saveLists(lists: ShoppingListRecord[]): void {
 export function createList(lists: ShoppingListRecord[], name?: string): { lists: ShoppingListRecord[]; list: ShoppingListRecord } {
   const list: ShoppingListRecord = {
     id: newId(),
-    name: sanitizeListName(name, defaultListName()),
+    name: sanitizeListName(name, defaultListName(lists)),
     createdAt: Date.now(),
     items: [],
     sort: null,
@@ -316,6 +359,11 @@ export function addNamesToDefaultList(
   const result: AddNamesResult = addNames(target.items, names, { source: opts?.source });
   // Список изменился — старый кэш сортировки этого списка больше не валиден.
   setListItems(lists, target.id, result.items, null);
+  // Раздел «Покупки» одноэкранный и открывает ПОСЛЕДНИЙ активный список.
+  // Без этой строки продукты с экрана рецепта уезжали в первый видимый
+  // список, а раздел открывался на том, где человек был до этого, — и
+  // добавленного он там не находил.
+  saveActiveListId(target.id);
   return {
     added: result.added,
     duplicate: result.duplicate,

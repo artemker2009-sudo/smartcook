@@ -29,6 +29,17 @@ export type SharedListPointer = {
    * устройства — оригинал снова появится.
    */
   fromLocalId?: string;
+  /**
+   * Последний известный счётчик «куплено из сколько».
+   *
+   * Позиции общего списка лежат на сервере, и до открытия списка их количество
+   * неизвестно. Чипу-переключателю счётчик нужен СРАЗУ — иначе у общего списка
+   * он появляется только после того, как человек в него зайдёт, и чипы выглядят
+   * разнородно. Поэтому запоминаем числа из последнего снимка: они могли
+   * устареть (кто-то отметил позицию, пока мы не смотрели), и это честно —
+   * открытие списка их обновит. Никаких данных, кроме двух чисел, тут нет.
+   */
+  counts?: { total: number; done: number };
 };
 
 export type SharedItem = {
@@ -164,7 +175,20 @@ function normalizePointer(raw: unknown): SharedListPointer | null {
     role: o.role === "owner" ? "owner" : "member",
     joinedAt: typeof o.joinedAt === "number" && Number.isFinite(o.joinedAt) ? o.joinedAt : Date.now(),
     ...(typeof o.fromLocalId === "string" && o.fromLocalId ? { fromLocalId: o.fromLocalId } : {}),
+    ...normalizeCounts(o.counts),
   };
+}
+
+// Счётчик из localStorage — данные с устройства, доверять им нельзя: любое
+// нечисло или отрицательное значение просто выкидываем (чип покажет только
+// значок «общий», без цифр).
+function normalizeCounts(raw: unknown): { counts?: { total: number; done: number } } {
+  if (!raw || typeof raw !== "object") return {};
+  const total = (raw as { total?: unknown }).total;
+  const done = (raw as { done?: unknown }).done;
+  if (typeof total !== "number" || !Number.isFinite(total) || total < 0) return {};
+  if (typeof done !== "number" || !Number.isFinite(done) || done < 0) return {};
+  return { counts: { total: Math.round(total), done: Math.min(Math.round(done), Math.round(total)) } };
 }
 
 /**
@@ -223,6 +247,16 @@ export function forgetSharedList(listId: string): SharedListPointer[] {
 export function updatePointerName(listId: string, name: string): void {
   const pointers = loadSharedPointers();
   const next = pointers.map((p) => (p.id === listId ? { ...p, name } : p));
+  savePointers(next);
+}
+
+/**
+ * Запоминает счётчик общего списка, чтобы чип-переключатель показывал «3/12»
+ * ещё до открытия списка. Зовётся там же, где применяется снимок.
+ */
+export function updatePointerCounts(listId: string, counts: { total: number; done: number }): void {
+  const pointers = loadSharedPointers();
+  const next = pointers.map((p) => (p.id === listId ? { ...p, counts } : p));
   savePointers(next);
 }
 

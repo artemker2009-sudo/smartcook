@@ -1,41 +1,49 @@
 "use client";
-import { pickImageIntoInputHandler, isNativePlatform } from "@/lib/native";
 
-import { useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { toast } from "sonner";
 import { Camera, Image as ImageIcon, Loader2, Mic, Plus, Square, X } from "lucide-react";
 
+import { isNativePlatform, pickImageIntoInputHandler } from "@/lib/native";
 import { reachGoal } from "@/lib/metrika";
 import { fetchWithTimeout, preparePhoto, reportPhotoError } from "@/lib/photo";
 import { parseNames } from "@/lib/shoppingList";
 import { useVoiceInput } from "@/components/useVoiceInput";
 
-// Ввод продуктов: текст, голос и фото в одном блоке.
+// Ввод продуктов: текст, голос и фото — ОДНОЙ строкой, прижатой к низу экрана.
 //
-// Вынесен из ShoppingListView, чтобы ОБА экрана списка — локальный и общий
-// (семейный) — имели один и тот же ввод. Дублировать здесь нечего: пайплайн
-// фото и разбор голоса нетривиальны, и две расходящиеся копии разъехались бы
-// после первой же правки.
+// Пришёл на смену ShoppingItemInput: сам пайплайн (голос, подготовка фото,
+// распознавание, чипы на подтверждение) перенесён один в один, поменялась
+// только подача. Прежний блок занимал ~360px в начале экрана — поле, кнопка
+// «Добавить» во всю ширину и подсказка в пять строк, — и вместе с остальной
+// обвязкой отодвигал первую позицию списка на 573-й пиксель из 812. Теперь
+// добавление всегда под рукой и не отнимает у списка ни одной строки.
 //
-// Компонент НИЧЕГО не знает про хранилище: он отдаёт наверх готовые названия
-// через onAdd, а куда они лягут — в localStorage или на сервер — решает
-// родитель. Санитайз и дедуп при этом всё равно происходят дальше (addNames
+// Компонент НИЧЕГО не знает про хранилище: отдаёт наверх готовые названия через
+// onAdd. Санитайз, дедуп и лимит по-прежнему делает получатель (addNames
 // локально, серверный роут для общего списка).
 
 // Потолок для отправки НЕОБРАБОТАННОГО оригинала (когда браузер не смог его
 // подготовить). Совпадает с лимитом роута распознавания — больше он не примет.
 const RAW_PHOTO_MAX_BYTES = 15 * 1024 * 1024;
 
+// Поле растёт под вставленный список, но не выше: это нижняя панель, а не
+// половина экрана.
+const MAX_INPUT_HEIGHT = 96;
+
 type Props = {
   /** Готовые названия из любого источника. Родитель решает, куда их девать. */
   onAdd: (names: string[]) => void;
   /** Идёт запись на сервер — блокируем повторные отправки. */
   busy?: boolean;
-  placeholder?: string;
 };
 
-export default function ShoppingItemInput({ onAdd, busy = false, placeholder = "Молоко 2 л" }: Props) {
+export default function AddBar({ onAdd, busy = false }: Props) {
   const [input, setInput] = useState("");
+  // Подсказка про запятую показывается ТОЛЬКО когда поле в работе. Раньше под
+  // полем висел абзац в пять строк — прочитанный один раз, он потом просто
+  // занимал ~150px на каждом экране.
+  const [focused, setFocused] = useState(false);
 
   // Поле ввода — textarea, а не input: однострочный input по спецификации
   // ВЫРЕЗАЕТ переводы строк из вставленного текста, и список из заметок
@@ -46,14 +54,44 @@ export default function ShoppingItemInput({ onAdd, busy = false, placeholder = "
     const el = inputRef.current;
     if (!el) return;
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 180)}px`;
+    el.style.height = `${Math.min(el.scrollHeight, MAX_INPUT_HEIGHT)}px`;
   };
+
+  const resetHeight = () => {
+    if (inputRef.current) inputRef.current.style.height = "";
+  };
+
+  // --- Экранная клавиатура ----------------------------------------------------
+  //
+  // Панель прижата к низу через position: fixed. На iOS клавиатура НЕ уменьшает
+  // layout viewport — она просто наезжает сверху, и панель вместе с полем
+  // оказывается под ней: человек печатает вслепую. Поднимаем панель на высоту
+  // клавиатуры, считая её как разницу между окном и видимой частью.
+  //
+  // Там, где клавиатура сама сжимает вёрстку (Android Chrome), разница выходит
+  // нулевой и ничего не происходит — отдельной ветки по платформе не нужно.
+  useEffect(() => {
+    const vv = typeof window !== "undefined" ? window.visualViewport : undefined;
+    if (!vv) return;
+    const apply = () => {
+      const inset = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
+      document.documentElement.style.setProperty("--sh-kb-inset", `${Math.round(inset)}px`);
+    };
+    apply();
+    vv.addEventListener("resize", apply);
+    vv.addEventListener("scroll", apply);
+    return () => {
+      vv.removeEventListener("resize", apply);
+      vv.removeEventListener("scroll", apply);
+      document.documentElement.style.removeProperty("--sh-kb-inset");
+    };
+  }, []);
 
   const handleAdd = () => {
     if (!input.trim() || busy) return;
     const names = parseNames(input);
     setInput("");
-    if (inputRef.current) inputRef.current.style.height = "";
+    resetHeight();
     if (names.length > 0) onAdd(names);
   };
 
@@ -174,14 +212,90 @@ export default function ShoppingItemInput({ onAdd, busy = false, placeholder = "
     onAdd(names);
   };
 
+  const hasText = input.trim().length > 0;
+
   return (
     <>
-      {/* Телефон — главный сценарий: поле на всю ширину, микрофон и камера рядом
-          с ним, крупная кнопка «Добавить» отдельной строкой под полем. */}
-      <div style={{ marginBottom: "var(--space-4)" }}>
-        {/* flex-start: когда поле вырастает под вставленный список, кнопки
-            остаются у первой строки, а не уезжают в середину. */}
-        <div style={{ display: "flex", alignItems: "flex-start", gap: "var(--space-2)" }}>
+      <div className="sh-bar">
+        {/* Всё, что требует внимания — статус фото, «Слушаю…», чипы на
+            подтверждение — всплывает НАД полем, в той же прижатой к низу
+            панели. Раньше эти блоки жили в начале экрана, и человек, нажавший
+            микрофон и смотрящий на низ экрана, не видел ни «Слушаю…», ни
+            распознанных слов. */}
+        {photoBusy && (
+          <div className="sh-bar-status" role="status">
+            <Loader2 size={20} className="animate-spin" style={{ flexShrink: 0, color: "var(--color-accent)" }} />
+            <div style={{ minWidth: 0 }}>
+              <div className="sl-photo-status-title">Читаю список с фото…</div>
+              <div className="sl-photo-status-hint">Это займёт пару секунд</div>
+            </div>
+          </div>
+        )}
+
+        {voice.status === "listening" && (
+          <div className="sh-bar-status" role="status">
+            <span className="voice-listening-dot" aria-hidden />
+            <div style={{ minWidth: 0 }}>
+              <div className="voice-listening-title">Слушаю…</div>
+              <div className="voice-listening-hint">
+                {voice.interim ? voice.interim : "Говорите как удобно — я разберу на продукты"}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {voice.status === "denied" && (
+          <div className="sh-bar-status">
+            Разрешите доступ к микрофону в настройках браузера, чтобы говорить продукты вслух.
+          </div>
+        )}
+
+        {/* Превью распознанного: чипами, ничего не улетает в список, пока не
+            нажато «Готово». Один и тот же блок для голоса и для фото — и то и
+            другое читается с ошибками, поэтому подтверждение обязательно. */}
+        {pendingNames.length > 0 && (
+          <div className="sh-bar-pending">
+            <div className="voice-preview-title">
+              {pendingSource === "photo" ? "Добавить с фото:" : "Добавить:"}
+            </div>
+            <div className="voice-preview-chips">
+              {pendingNames.map((name, i) => (
+                <span key={`${name}-${i}`} className="voice-chip">
+                  {name}
+                  <button
+                    type="button"
+                    onClick={() => removePending(i)}
+                    aria-label={`Убрать «${name}»`}
+                    className="voice-chip-x"
+                  >
+                    <X size={14} />
+                  </button>
+                </span>
+              ))}
+            </div>
+            {pendingSource === "photo" && (
+              <div className="voice-preview-hint">
+                Проверьте: с фото я мог прочитать что-то неверно. Лишнее уберите крестиком.
+              </div>
+            )}
+            <div className="voice-preview-actions">
+              <button type="button" className="voice-btn-cancel" onClick={cancelPending}>
+                Отмена
+              </button>
+              <button type="button" className="voice-btn-done" onClick={confirmPending} disabled={busy}>
+                Готово
+              </button>
+            </div>
+          </div>
+        )}
+
+        {focused && (
+          <p className="sh-bar-hint">
+            Через запятую или с новой строки — сразу несколько продуктов.
+          </p>
+        )}
+
+        <div className="sh-bar-row">
           <textarea
             ref={inputRef}
             value={input}
@@ -198,166 +312,61 @@ export default function ShoppingItemInput({ onAdd, busy = false, placeholder = "
                 handleAdd();
               }
             }}
-            placeholder={placeholder}
+            // Подсказка про запятую переехала в placeholder: прежние пять строк
+            // объяснений под полем человек читал один раз, а место они занимали
+            // всегда.
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            placeholder="Добавить продукт"
             aria-label="Добавить продукт"
             enterKeyHint="done"
-            style={{
-              flex: 1,
-              minWidth: 0,
-              minHeight: 52,
-              padding: "var(--space-3)",
-              fontFamily: "inherit",
-              fontSize: "var(--font-size-heading)",
-              lineHeight: 1.3,
-              border: "1px solid var(--color-border)",
-              borderRadius: "var(--radius-sm)",
-              background: "var(--color-surface)",
-              color: "var(--color-text)",
-              resize: "none",
-              overflowY: "auto",
-            }}
+            className="sh-bar-input"
           />
 
-          {/* Кнопка-микрофон: только если браузер поддерживает Web Speech API
-              (мягкая деградация — без поддержки кнопки просто нет). */}
-          {voice.supported && (
+          {/* Пока поле пустое — голос и фото. Как только в поле что-то есть,
+              обе иконки уступают место одной зелёной кнопке: на 375px три
+              контрола рядом с полем не оставляют места самому полю, а главное
+              действие должно быть очевидным. */}
+          {hasText ? (
             <button
               type="button"
-              onClick={startVoice}
-              aria-label={voice.status === "listening" ? "Остановить запись" : "Сказать, что купить"}
-              className={voice.status === "listening" ? "voice-mic-btn voice-mic-btn-active" : "voice-mic-btn"}
-              style={{ marginTop: 2 }}
+              onClick={handleAdd}
+              disabled={busy}
+              className="sh-bar-btn sh-bar-btn-primary"
+              aria-label="Добавить в список"
             >
-              {voice.status === "listening" ? <Square size={22} fill="currentColor" /> : <Mic size={26} />}
+              <Plus size={24} strokeWidth={2.6} />
             </button>
-          )}
-
-          {/* Распознать список по фото. Рядом с микрофоном, тот же размер. */}
-          <button
-            type="button"
-            onClick={openPhotoSheet}
-            disabled={photoBusy}
-            aria-label="Распознать список по фото"
-            className="voice-mic-btn"
-            style={{ marginTop: 2, opacity: photoBusy ? 0.6 : 1 }}
-          >
-            {photoBusy ? <Loader2 size={24} className="animate-spin" /> : <Camera size={26} />}
-          </button>
-        </div>
-
-        <button
-          type="button"
-          onClick={handleAdd}
-          disabled={!input.trim() || busy}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "var(--space-2)",
-            width: "100%",
-            minHeight: 52,
-            marginTop: "var(--space-2)",
-            padding: "var(--space-3) var(--space-4)",
-            background: "var(--color-accent)",
-            color: "#fff",
-            border: "none",
-            borderRadius: "var(--radius-sm)",
-            fontSize: "var(--font-size-heading)",
-            fontWeight: "var(--font-weight-semibold)",
-            cursor: input.trim() && !busy ? "pointer" : "default",
-            opacity: input.trim() && !busy ? 1 : 0.45,
-            transition: "opacity 0.15s ease",
-          }}
-        >
-          <Plus size={24} strokeWidth={2.6} />
-          Добавить
-        </button>
-
-        <p
-          style={{
-            margin: "var(--space-2) 0 0 0",
-            fontSize: "var(--font-size-caption)",
-            lineHeight: 1.4,
-            color: "var(--color-text-muted)",
-          }}
-        >
-          Можно вписать или вставить сразу весь список — через пробел, запятую
-          или с новой строки. Или продиктовать всё одной фразой — разложу по
-          позициям. Или сфотографировать написанный от руки.
-        </p>
-      </div>
-
-      {/* Пока читаем фото. Отдельный блок, а не тост: распознавание занимает
-          несколько секунд, и человек должен видеть, что процесс идёт. */}
-      {photoBusy && (
-        <div className="sl-photo-status" role="status">
-          <Loader2 size={22} className="animate-spin" style={{ flexShrink: 0, color: "var(--color-accent)" }} />
-          <div style={{ minWidth: 0 }}>
-            <div className="sl-photo-status-title">Читаю список с фото…</div>
-            <div className="sl-photo-status-hint">Это займёт пару секунд</div>
-          </div>
-        </div>
-      )}
-
-      {/* Индикатор «Слушаю…». Ниже — то, что распознаётся прямо сейчас: в позицию
-          оно попадёт только когда фраза договорена (финальный результат). */}
-      {voice.status === "listening" && (
-        <div className="voice-listening" role="status">
-          <span className="voice-listening-dot" aria-hidden />
-          <div style={{ minWidth: 0 }}>
-            <div className="voice-listening-title">Слушаю…</div>
-            <div className="voice-listening-hint">
-              {voice.interim ? voice.interim : "Говорите как удобно — я разберу на продукты"}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Спокойная подсказка при отказе в доступе к микрофону — не ошибка. */}
-      {voice.status === "denied" && (
-        <div className="voice-denied">
-          Разрешите доступ к микрофону в настройках браузера, чтобы говорить продукты вслух.
-        </div>
-      )}
-
-      {/* Превью распознанного: чипами, ничего не улетает в список, пока не нажато
-          «Готово». Один и тот же блок для голоса и для фото — и то и другое
-          читается с ошибками, поэтому подтверждение обязательно. */}
-      {pendingNames.length > 0 && (
-        <div className="voice-preview">
-          <div className="voice-preview-title">
-            {pendingSource === "photo" ? "Добавить с фото:" : "Добавить:"}
-          </div>
-          <div className="voice-preview-chips">
-            {pendingNames.map((name, i) => (
-              <span key={`${name}-${i}`} className="voice-chip">
-                {name}
+          ) : (
+            <>
+              {/* Микрофон — только если браузер поддерживает Web Speech API
+                  (мягкая деградация: без поддержки кнопки просто нет). */}
+              {voice.supported && (
                 <button
                   type="button"
-                  onClick={() => removePending(i)}
-                  aria-label={`Убрать «${name}»`}
-                  className="voice-chip-x"
+                  onClick={startVoice}
+                  aria-label={voice.status === "listening" ? "Остановить запись" : "Сказать, что купить"}
+                  className={
+                    voice.status === "listening" ? "sh-bar-btn sh-bar-btn-rec" : "sh-bar-btn"
+                  }
                 >
-                  <X size={14} />
+                  {voice.status === "listening" ? <Square size={20} fill="currentColor" /> : <Mic size={22} />}
                 </button>
-              </span>
-            ))}
-          </div>
-          {pendingSource === "photo" && (
-            <div className="voice-preview-hint">
-              Проверьте: с фото я мог прочитать что-то неверно. Лишнее уберите крестиком.
-            </div>
+              )}
+
+              <button
+                type="button"
+                onClick={openPhotoSheet}
+                disabled={photoBusy}
+                aria-label="Распознать список по фото"
+                className="sh-bar-btn"
+              >
+                {photoBusy ? <Loader2 size={22} className="animate-spin" /> : <Camera size={22} />}
+              </button>
+            </>
           )}
-          <div className="voice-preview-actions">
-            <button type="button" className="voice-btn-cancel" onClick={cancelPending}>
-              Отмена
-            </button>
-            <button type="button" className="voice-btn-done" onClick={confirmPending} disabled={busy}>
-              Готово
-            </button>
-          </div>
         </div>
-      )}
+      </div>
 
       {/* Выбор источника фото. Две явные кнопки, как в поиске по фото: одно
           общее меню на Android открывало только галерею, камера была недоступна.

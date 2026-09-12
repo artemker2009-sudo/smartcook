@@ -2,6 +2,23 @@
 @import "tailwindcss";
 
 /* === SMARTCOOK DESIGN TOKENS === */
+/* Шрифт логотипа. Файл — латинский срез Unbounded 700 с Google Fonts, лежит у
+   нас в статике (public/fonts): никаких запросов к Google из браузера, CSP
+   'self' не трогаем. Раньше это делал next/font, но он заводил ОТДЕЛЬНЫЙ
+   блокирующий css-файл — лишний круг на медленной сети, +0.3 с к FCP.
+   font-display: swap и никакой преднагрузки: логотип секунду постоит системным
+   шрифтом, канал нужен фотографии первого экрана (это LCP-кадр). */
+@font-face {
+  font-family: "Unbounded";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/unbounded-700-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 :root {
   /* Поверхности */
   --color-bg: #faf9f7;         /* тёплый off-white — фон страницы (этап 4.1: утепление) */
@@ -89,42 +106,93 @@ body {
 .brand-sub { font-size: var(--font-size-body); color: var(--color-text-secondary); font-weight: var(--font-weight-regular); }
 
 /* --- ПЕРВЫЙ ЭКРАН ГЛАВНОЙ (этап H11: одно обещание, одна кнопка) --- */
-/* Главная больше не рисует плавающий бургер, поэтому ей не нужен верхний
-   клиренс в 60px, которым .container уводит контент из-под кнопки меню: на
-   первом экране это была четверть высоты телефона впустую. */
+/* Главная не рисует плавающий бургер, поэтому ей не нужен верхний клиренс в
+   60px, которым .container уводит контент из-под кнопки меню. */
 .container-home {
-  padding-top: calc(env(safe-area-inset-top) + var(--space-4));
+  padding-top: calc(env(safe-area-inset-top) + var(--space-2));
 }
-/* Секция занимает ровно видимую часть экрана: высота окна минус вырезы,
-   фиксированный таб-бар и вертикальные отступы контейнера. Контент по центру —
-   обещание и кнопка целиком видны без скролла на iPhone SE и выше.
-   100vh оставлен запасным значением для браузеров без dvh. */
+/* Контент прижат к ВЕРХУ (≈12% высоты экрана), а не отцентрован по вертикали:
+   ниже ссылки в тот же экран должен входить блок «Как это работает». Высоту
+   секции не фиксируем — иначе на высоких экранах между ссылкой и шагами
+   возвращается та самая пустота. svh, а не vh: на мобильных Safari динамическая
+   адресная строка иначе двигает отступ при скролле. */
 .hero-screen {
+  position: relative;
   display: flex;
   flex-direction: column;
-  justify-content: center;
   text-align: center;
-  min-height: calc(100vh - var(--tab-bar-h) - var(--space-4) - var(--space-3));
-  min-height: calc(
-    100dvh - var(--tab-bar-h) - env(safe-area-inset-top) - env(safe-area-inset-bottom)
-      - var(--space-4) - var(--space-3)
+  padding-top: 12vh;
+  padding-top: 12svh;
+  margin-bottom: var(--space-4);
+}
+
+/* Фотография продуктов во всю ширину окна: секция живёт внутри .container
+   (max-width 500px), поэтому слой вырывается из него на 100vw. Высота в svh —
+   ровно верхняя часть первого экрана; ниже вуаль доходит до цвета фона и
+   картинка кончается там же, где начинается кнопка. */
+.hero-photo {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100vw;
+  top: calc(-1 * (env(safe-area-inset-top) + var(--space-2)));
+  height: 52vh;
+  height: 52svh;
+  max-height: 460px;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+.hero-photo-img {
+  object-fit: cover;
+  /* Кадр смещён вверх: внизу снимка фон светлее и «пустее», а он и так уходит
+     под вуаль. */
+  object-position: 50% 28%;
+}
+/* Вуаль. Сверху почти прозрачная (снимок виден), к низу — цвет фона страницы:
+   заголовок и подзаголовок читаются, кнопка стоит уже на чистом фоне.
+   Значения подобраны под проверку контраста WCAG AA (см. HeroLanding.tsx). */
+.hero-photo::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(250, 249, 247, 0.34) 0%,
+    rgba(250, 249, 247, 0.58) 26%,
+    rgba(250, 249, 247, 0.84) 52%,
+    rgba(250, 249, 247, 0.98) 78%,
+    var(--color-bg) 100%
   );
-  margin-bottom: var(--space-5);
 }
-.hero-brand {
-  text-align: center;
-  /* Название-вензель заметно крупнее (было caption/13px). clamp держит ширину
-     в узде на 360–430px: «SMARTCOOK» в верхнем регистре не вылезает даже на
-     360px (min 22px), на широких — до 30px. Letter-spacing уменьшен, чтобы
-     крупные капсы не переполняли строку. */
-  font-size: clamp(22px, 7vw, 30px);
+
+/* Логотип: шапка шефа + слово в Unbounded. Компактный — это опознавательный
+   знак, а не заголовок.
+   Плашка не для красоты: фирменный зелёный прямо поверх снимка давал контраст
+   1.47 (тёмная зелень брюссельской капусты под буквами). На непрозрачной
+   подложке — 4.35 при кегле 19px/700, то есть «крупный текст» по WCAG, порог 3.0. */
+.brand-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  align-self: center;
+  padding: 7px 14px 7px 12px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.07);
+  color: #0e8a60;
+  margin-bottom: var(--space-4);
+}
+.brand-logo-mark { flex-shrink: 0; }
+.brand-logo-word {
+  font-family: "Unbounded", -apple-system, BlinkMacSystemFont, sans-serif;
   font-weight: 700;
-  letter-spacing: 0.5px;
-  line-height: 1.1;
-  text-transform: uppercase;
-  color: var(--color-accent);
-  margin-bottom: var(--space-3);
+  font-size: 19px;
+  line-height: 1;
+  letter-spacing: -0.2px;
 }
+
 .hero-headline {
   text-align: center;
   /* Крупнее обычного заголовка (28px): на первом экране конкурентов у него
@@ -3508,6 +3576,9 @@ a.news-card:hover { transform: translateY(-2px); }
 /* На десктопе таб-бар — верхняя шапка, а не нижний бар: растягивать первый
    экран во всю высоту окна там не нужно (получалась пустая полоса). */
 @media (min-width: 1024px) {
-  .hero-screen { min-height: 0; padding: var(--space-6) 0; }
+  /* На десктопе таб-бар — верхняя шапка: контент и фотография начинаются под
+     ней, а не под вырезом телефона. */
+  .hero-screen { padding-top: var(--space-5); }
   .container-home { padding-top: var(--space-4); }
+  .hero-photo { top: calc(-1 * var(--space-4)); height: 420px; }
 }

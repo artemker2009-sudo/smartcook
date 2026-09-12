@@ -483,7 +483,7 @@ body {
 .process-stage {
   position: relative;
   height: 132px;
-  margin-bottom: var(--space-3);
+  margin-bottom: var(--space-2);
   pointer-events: none;
 }
 /* Мягкий зелёный свет за сценой — один статичный радиальный градиент. */
@@ -3630,6 +3630,15 @@ a.news-card:hover { transform: translateY(-2px); }
    касании страницы. Под ним живут демо-чипы (.demo-magic), переехавшие с
    первого экрана. */
 .how-block { margin-bottom: var(--space-4); }
+/* Тонкая серая рамка: видно, что объяснение сценария — отдельный блок, а не
+   продолжение первого экрана. Фон не заливаем, чтобы блок не спорил с
+   карточками ниже: только линия и скругление. */
+.how-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-2) var(--space-3);
+  background: color-mix(in srgb, var(--color-surface) 55%, transparent);
+}
 .how-steps {
   display: flex;
   align-items: flex-start;

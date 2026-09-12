@@ -168,9 +168,19 @@ body {
   filter: blur(24px);
   z-index: -1;
 }
+/* Иконка в мягком зелёном квадрате — знак читается как логотип, а не как
+   случайная иконка рядом с текстом. */
 .hero-header-mark {
   flex-shrink: 0;
-  color: #0e8a60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  background: #0e8a60;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(14, 138, 96, 0.28);
 }
 .hero-header-word {
   font-family: "Manrope", -apple-system, BlinkMacSystemFont, sans-serif;
@@ -198,7 +208,10 @@ body {
   height: 40vh;
   height: 40svh;
   max-height: 360px;
-  border-radius: 32px 32px 0 0;
+  /* Эллиптическое скругление: по горизонтали радиус больше, чем по вертикали.
+     Кривая выходит площе и мягче обычного круглого угла — ближе к скруглению
+     корпуса телефона. */
+  border-radius: 52px 52px 0 0 / 38px 38px 0 0;
   z-index: -1;
   overflow: hidden;
   pointer-events: none;

@@ -1,6 +1,7 @@
 /* SmartCook — permission prompts (English).
-   The base Info.plist keeps the same English wording as a fallback for
-   languages we do not ship; this file covers en explicitly. */
+   The base Info.plist is Russian (the app's development region) and serves
+   as the fallback for languages we do not ship; this file covers English
+   devices, including App Review. */
 
 "NSCameraUsageDescription" = "SmartCook uses the camera so you can photograph the groceries you have at home. The photo is sent for recognition and a recipe is suggested from what it finds.";
 

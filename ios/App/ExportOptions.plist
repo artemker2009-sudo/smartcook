@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Экспорт архива с загрузкой в App Store Connect (TestFlight).
+  Секретов здесь нет: ключ API передаётся в xcodebuild -exportArchive флагами
+  -authenticationKeyPath / -authenticationKeyID / -authenticationKeyIssuerID.
+  manageAppVersionAndBuildNumber = false: версию и билд задаёт проект
+  (MARKETING_VERSION / CURRENT_PROJECT_VERSION), а не App Store Connect.
+-->
+<plist version="1.0">
+<dict>
+	<key>method</key>
+	<string>app-store-connect</string>
+	<key>destination</key>
+	<string>upload</string>
+	<key>signingStyle</key>
+	<string>automatic</string>
+	<key>teamID</key>
+	<string>D5WV4C9NM6</string>
+	<key>uploadSymbols</key>
+	<true/>
+	<key>manageAppVersionAndBuildNumber</key>
+	<false/>
+</dict>
+</plist>

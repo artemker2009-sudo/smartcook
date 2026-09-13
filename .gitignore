@@ -36,6 +36,14 @@ yarn-error.log*
 # vercel
 .vercel
 
+# iOS release: ключи App Store Connect и артефакты сборки
+*.p8
+*.xcarchive
+*.ipa
+*.xcdistributionlogs
+/ios/App/build/
+/ios/App/export/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

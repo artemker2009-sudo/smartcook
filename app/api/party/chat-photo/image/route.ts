@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { FEATURE_BANQUETS } from "@/lib/features";
 
 export const runtime = "nodejs";
 
@@ -14,6 +15,8 @@ const getAllowedStorageHost = () => {
 };
 
 export async function GET(request: Request) {
+  // Банкеты скрыты флагом.
+  if (!FEATURE_BANQUETS) return NextResponse.json({ error: "Not found" }, { status: 404 });
   try {
     const requestUrl = new URL(request.url);
     const photoUrl = requestUrl.searchParams.get("url");

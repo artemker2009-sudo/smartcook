@@ -347,7 +347,7 @@ export default function AuthModal({
                     aria-describedby={nameErr ? "auth-name-error" : undefined}
                     maxLength={NAME_MAX}
                   />
-                  <p style={hintStyle}>Так вас будут видеть другие: под фото, в ленте и на банкетах. Можно менять в профиле.</p>
+                  <p style={hintStyle}>Так вас будут видеть другие. Можно менять в профиле.</p>
                   {nameErr ? <FieldError id="auth-name-error">{nameErr}</FieldError> : null}
                 </div>
               ) : null}

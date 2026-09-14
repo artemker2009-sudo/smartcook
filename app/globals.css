@@ -1823,6 +1823,8 @@ body {
 
 @media (min-width: 560px) {
   .about-cards { grid-template-columns: 1fr 1fr; }
+  /* Нечётная последняя карточка (напр. «Банкеты» скрыты флагом) — на всю ширину, без дырки в сетке. */
+  .about-cards > .about-card:last-child:nth-child(odd) { grid-column: 1 / -1; }
   .about-hero { padding: 32px 28px; }
   .about-hero-title { font-size: 32px; }
 }

@@ -58,7 +58,7 @@ import CropperModal from "@/components/modals/CropperModal";
 import DeleteAccountModal from "@/components/modals/DeleteAccountModal";
 import NativeDocsLinks from "@/components/NativeDocsLinks";
 import SuggestSheet from "@/components/SuggestSheet";
-import { FEATURE_COMMUNITY_FEED } from "@/lib/features";
+import { FEATURE_BANQUETS, FEATURE_COMMUNITY_FEED } from "@/lib/features";
 
 type MyPost = {
   id: string;
@@ -86,25 +86,28 @@ function formatJoined(createdAt?: string): string | null {
 // ленты ноль публикаций — в основной навигации они занимали место, но не
 // работали. Сами страницы /parties и /feed не тронуты, вход в них остался
 // здесь. Показываем и гостю: банкеты у анонима живут на устройстве, ленту он
-// тоже читает — кабинет теперь единственный вход в оба раздела. Лента скрыта
-// флагом FEATURE_COMMUNITY_FEED — её пункта нет.
+// тоже читает — кабинет теперь единственный вход в оба раздела. Оба раздела
+// скрыты флагами (FEATURE_BANQUETS, FEATURE_COMMUNITY_FEED) — их пунктов нет.
 function ProfileSectionLinks() {
+  if (!FEATURE_BANQUETS && !FEATURE_COMMUNITY_FEED) return null;
   return (
     <div className="profile-links">
-      <Link
-        href="/parties"
-        className="profile-link"
-        onClick={() => reachGoal("nav_parties")}
-      >
-        <span className="profile-link-icon" aria-hidden style={{ background: "#fce7f3", color: "#be185d" }}>
-          <PartyPopper size={20} />
-        </span>
-        <span className="profile-link-body">
-          <span className="profile-link-title">Банкеты</span>
-          <span className="profile-link-sub">Меню на компанию и список закупки</span>
-        </span>
-        <ChevronRight size={18} className="profile-link-arrow" aria-hidden />
-      </Link>
+      {FEATURE_BANQUETS && (
+        <Link
+          href="/parties"
+          className="profile-link"
+          onClick={() => reachGoal("nav_parties")}
+        >
+          <span className="profile-link-icon" aria-hidden style={{ background: "#fce7f3", color: "#be185d" }}>
+            <PartyPopper size={20} />
+          </span>
+          <span className="profile-link-body">
+            <span className="profile-link-title">Банкеты</span>
+            <span className="profile-link-sub">Меню на компанию и список закупки</span>
+          </span>
+          <ChevronRight size={18} className="profile-link-arrow" aria-hidden />
+        </Link>
+      )}
 
       {FEATURE_COMMUNITY_FEED && (
         <Link
@@ -417,6 +420,18 @@ export default function ProfileApp() {
   const favorites = feed.filter((r) => r.is_favorite);
   const joined = formatJoined(user?.created_at);
 
+  // AuthModal живёт ВНЕ ветки гость/залогинен и на одной позиции в дереве.
+  // Регистрация — это вход: signInWithPassword переключает user, экран уходит в
+  // ветку «залогинен», а модалка должна остаться и показать код восстановления
+  // до «Я сохранил код». Раньше она сидела только в гостевой ветке и
+  // размонтировалась вместе с ней — код не видел никто.
+  const withAuthModal = (view: React.ReactNode) => (
+    <>
+      {view}
+      <AuthModal {...authModalProps} />
+    </>
+  );
+
   // Пока сессия не проверена — не мигаем гостевым экраном.
   if (!authChecked) {
     return <div style={{ minHeight: "60vh" }} />;
@@ -424,7 +439,7 @@ export default function ProfileApp() {
 
   // ---------- ГОСТЬ ----------
   if (!user) {
-    return (
+    return withAuthModal(
       <div className="container" style={{ paddingTop: "calc(env(safe-area-inset-top) + var(--space-6))", paddingBottom: "var(--space-6)" }}>
         <div style={{ maxWidth: "440px", margin: "0 auto", textAlign: "center" }}>
           <div style={{ background: "var(--color-bg-subtle)", width: "88px", height: "88px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto var(--space-4) auto" }}>
@@ -472,8 +487,6 @@ export default function ProfileApp() {
             <ProfileSectionLinks />
           </div>
         </div>
-
-        <AuthModal {...authModalProps} />
       </div>
     );
   }
@@ -482,7 +495,7 @@ export default function ProfileApp() {
   const displayName = user.user_metadata?.full_name || "Шеф";
   const username = user.user_metadata?.username || user.email?.split("@")[0];
 
-  return (
+  return withAuthModal(
     <div className="container" style={{ paddingTop: "calc(env(safe-area-inset-top) + var(--space-5))", paddingBottom: "var(--space-6)" }}>
       <div style={{ maxWidth: "560px", margin: "0 auto" }}>
         {/* Шапка профиля */}

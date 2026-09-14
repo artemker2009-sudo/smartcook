@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from '@supabase/supabase-js';
+import { FEATURE_BANQUETS } from '@/lib/features';
 
 const FREE_GUEST_LIMIT = 2;
 
@@ -66,6 +67,9 @@ export type TogglePartyItemVoteActionResult =
   | { success: true; item: PartyItemData }
   | { success: false; error: string };
 
+// Банкеты скрыты флагом FEATURE_BANQUETS: экшены вызываются по id и в обход
+// недоступных страниц, поэтому отказ стоит в каждом. deletePartyAction флагом
+// не закрыт — им пользуется удаление банкета из админки.
 const getActionErrorMessage = (error: unknown) => (error instanceof Error ? error.message : "Неизвестная ошибка сервера");
 const ZERO_WIDTH_CHARS = ["\u200B", "\u200C", "\u200D", "\u2060"] as const;
 const makeInvisibleSuffix = (seed: string) =>
@@ -81,6 +85,7 @@ const toggleVotesForUser = (votes: string[] | null | undefined, userMarkers: str
 };
 
 export async function createPartyAction(title: string, guestCount: number, theme: string, hostId?: string | null) {
+  if (!FEATURE_BANQUETS) return { success: false, error: "Раздел недоступен" };
   try {
     const supabase = createServerSupabaseClient();
     const trimmedHostId = hostId?.trim();
@@ -107,6 +112,7 @@ export async function createPartyAction(title: string, guestCount: number, theme
 }
 
 export async function getHubParties(userId?: string | null, localIds?: string[]): Promise<HubParty[]> {
+  if (!FEATURE_BANQUETS) return [];
   const trimmedUserId = userId?.trim();
   const uniqueLocalIds = Array.from(
     new Set((localIds ?? []).map((id) => id.trim()).filter(Boolean)),
@@ -204,6 +210,7 @@ export async function deletePartyAction(id: string) {
 }
 
 export async function bindPartyHostAction(partyId: string, hostId: string) {
+  if (!FEATURE_BANQUETS) return { success: false, error: "Раздел недоступен" };
   const trimmedPartyId = partyId.trim();
   const trimmedHostId = hostId.trim();
 
@@ -229,6 +236,7 @@ export async function updatePartyRoomSettingsAction(
   title: string,
   description: string | null,
 ) {
+  if (!FEATURE_BANQUETS) return { success: false, error: "Раздел недоступен" };
   const trimmedPartyId = partyId.trim();
   const trimmedHostId = hostId.trim();
   const trimmedTitle = title.trim();
@@ -275,6 +283,7 @@ export async function joinPartyAction(
   // существующего не ослабляет.
   platform?: string,
 ): Promise<JoinPartyActionResult> {
+  if (!FEATURE_BANQUETS) return { success: false, error: "Раздел недоступен" };
   const trimmedName = userName.trim();
   const trimmedUserId = userId.trim();
   const bypassGate = platform === "ios";
@@ -392,6 +401,7 @@ export async function sendPaywallChatAlertAction(
   partyId: string,
   guestName: string,
 ): Promise<SendPaywallChatAlertActionResult> {
+  if (!FEATURE_BANQUETS) return { success: false, error: "Раздел недоступен" };
   const trimmedName = guestName.trim();
 
   if (!partyId || !trimmedName) {
@@ -419,6 +429,7 @@ export async function sendPaywallChatAlertAction(
 }
 
 export async function activatePartyPassAction(partyId: string): Promise<ActivatePartyPassActionResult> {
+  if (!FEATURE_BANQUETS) return { success: false, error: "Раздел недоступен" };
   const trimmedPartyId = partyId.trim();
 
   if (!trimmedPartyId) {
@@ -443,6 +454,7 @@ export async function addPartyItemAction(
   category: string,
   userId: string,
 ): Promise<AddPartyItemActionResult> {
+  if (!FEATURE_BANQUETS) return { success: false, error: "Раздел недоступен" };
   const trimmedPartyId = partyId.trim();
   const trimmedName = name.trim();
   const trimmedCategory = category.trim();
@@ -514,6 +526,7 @@ export async function togglePartyItemVoteAction(
   userId: string,
   userName?: string | null,
 ): Promise<TogglePartyItemVoteActionResult> {
+  if (!FEATURE_BANQUETS) return { success: false, error: "Раздел недоступен" };
   const trimmedPartyId = partyId.trim();
   const trimmedItemId = itemId.trim();
   const trimmedUserId = userId.trim();

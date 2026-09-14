@@ -18,6 +18,7 @@ import { isNativePlatform, openExternal } from "@/lib/native";
 import { useCanPromptInstall } from "@/lib/installEnv";
 import { RUSTORE_URL, TELEGRAM_URL, SUPPORT_EMAIL, VK_URL } from "@/lib/constants";
 import NativeDocsLinks from "@/components/NativeDocsLinks";
+import { FEATURE_BANQUETS } from "@/lib/features";
 
 // «О проекте» — ОДНА страница на веб и приложение.
 //
@@ -52,11 +53,16 @@ const FEATURES: Feature[] = [
     title: "Покупки",
     text: "Списки голосом, текстом и по фото. Общий список с семьёй.",
   },
-  {
-    icon: <PartyPopper size={22} />,
-    title: "Банкеты",
-    text: "Меню на праздник за минуту, пожелания гостей — по ссылке.",
-  },
+  // Банкеты скрыты флагом — карточки нет.
+  ...(FEATURE_BANQUETS
+    ? [
+        {
+          icon: <PartyPopper size={22} />,
+          title: "Банкеты",
+          text: "Меню на праздник за минуту, пожелания гостей — по ссылке.",
+        },
+      ]
+    : []),
 ];
 
 const PRINCIPLES: { icon: React.ReactNode; text: React.ReactNode }[] = [

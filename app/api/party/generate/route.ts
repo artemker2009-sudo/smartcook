@@ -7,6 +7,7 @@ import { createClient } from '@supabase/supabase-js';
 import { checkAndConsumeAiRateLimit, rateLimitResponse } from '@/lib/rateLimit';
 import { isTrustedOrigin, originBlockedResponse } from '@/lib/originGuard';
 import { isStringListTooLong, isTextTooLong, MAX_LONG_TEXT_LENGTH } from '@/lib/inputLimits';
+import { FEATURE_BANQUETS } from '@/lib/features';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -136,6 +137,8 @@ const parseGeneratedMenu = (responseContent: string | null, allowedCategories: s
 };
 
 export async function POST(req: Request) {
+  // Банкеты скрыты флагом.
+  if (!FEATURE_BANQUETS) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   let partyId: string | undefined;
   let roomId: string | undefined;
   let lockAcquired = false;

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getVerifiedUserId } from "@/lib/auth";
 import { createServiceRoleClient } from "@/lib/supabaseAdmin";
+import { FEATURE_BANQUETS } from "@/lib/features";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,6 +14,8 @@ type Claim = { partyId: string; anonUserId: string };
 // триггер лимита гостей (ТГ-гейт «с 3-го гостя») не срабатывает заново, и дублей
 // участий не возникает.
 export async function POST(req: Request) {
+  // Банкеты скрыты флагом.
+  if (!FEATURE_BANQUETS) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const accountUserId = await getVerifiedUserId(req);
   if (!accountUserId) {
     return NextResponse.json({ error: "Не авторизован" }, { status: 401 });

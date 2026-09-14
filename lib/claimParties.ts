@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { FEATURE_BANQUETS } from "./features";
 
 const GUEST_PARTIES_STORAGE_KEY = "smartcook_guest_parties";
 
@@ -37,6 +38,8 @@ function anonIdForParty(partyId: string): string | null {
  * сессии (JWT), не из тела запроса.
  */
 export async function claimGuestPartiesToAccount(): Promise<void> {
+  // Банкеты скрыты флагом — API переноса отдаёт 404, не дёргаем его.
+  if (!FEATURE_BANQUETS) return;
   try {
     const ids = readGuestPartyIds();
     if (!ids.length) return;

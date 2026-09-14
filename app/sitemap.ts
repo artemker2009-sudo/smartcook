@@ -1,5 +1,5 @@
 import { MetadataRoute } from 'next'
-import { FEATURE_COMMUNITY_FEED } from '@/lib/features'
+import { FEATURE_BANQUETS, FEATURE_COMMUNITY_FEED } from '@/lib/features'
 
 // Заметки — наш первый контент под поисковый трафик, поэтому добавляем и
 // раздел /articles, и каждую опубликованную статью в карту сайта. Slug и
@@ -71,16 +71,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'weekly',
       priority: 0.9,
     },
-    {
-      url: 'https://smart-cook.pro/parties',
-      lastModified: new Date(),
-      changeFrequency: 'weekly',
-      priority: 0.8,
-    },
+    // Банкеты скрыты флагом — в карте сайта их тоже нет (иначе поисковик получит 404).
+    ...(FEATURE_BANQUETS
+      ? [
+          {
+            url: 'https://smart-cook.pro/parties',
+            lastModified: new Date(),
+            changeFrequency: 'weekly' as const,
+            priority: 0.8,
+          },
+        ]
+      : []),
     // «Умный список покупок» — раздел, который продукт называет новинкой и
     // рекламирует на Главной, но в карте сайта его не было вовсе: для поиска
-    // его просто не существовало. Приоритет как у /parties — это такой же
-    // самостоятельный раздел, а не служебная страница.
+    // его просто не существовало. Приоритет 0.8 — это самостоятельный
+    // раздел, а не служебная страница.
     {
       url: 'https://smart-cook.pro/shopping',
       lastModified: new Date(),

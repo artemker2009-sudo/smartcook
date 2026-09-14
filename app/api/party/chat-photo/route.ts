@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { checkAndConsumeAiRateLimit, rateLimitResponse } from "@/lib/rateLimit";
 import { isTrustedOrigin, originBlockedResponse } from "@/lib/originGuard";
+import { FEATURE_BANQUETS } from "@/lib/features";
 
 const PARTY_CHAT_PHOTO_BUCKET = "recipe_photos";
 const PARTY_CHAT_PHOTO_MAX_BYTES = 8 * 1024 * 1024;
@@ -31,6 +32,8 @@ const getPhotoExtension = (file: File) => {
 const getErrorMessage = (error: unknown) => (error instanceof Error ? error.message : "Неизвестная ошибка сервера");
 
 export async function POST(request: Request) {
+  // Банкеты скрыты флагом.
+  if (!FEATURE_BANQUETS) return NextResponse.json({ error: "Not found" }, { status: 404 });
   try {
     if (!isTrustedOrigin(request)) return originBlockedResponse();
 

@@ -173,8 +173,8 @@ export default function ShoppingListRoute({ listId }: { listId: string }) {
     setDeleteOpen(false);
     updateLists((prev) => deleteList(prev, local.id));
     unpin(local.id);
-    // Возвращаться в удалённый список нельзя — replace, а не push. Хаб сам
-    // заведёт первый список, если этот был последним.
+    // Возвращаться в удалённый список нельзя — replace, а не push. Если этот
+    // был последним, хаб покажет пустой экран «Списков пока нет».
     router.replace("/shopping");
   };
 

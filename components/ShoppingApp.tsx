@@ -104,7 +104,7 @@ export default function ShoppingApp() {
         enc = null;
       }
       const sharedPayload = enc ? decodeSharedList(enc) : null;
-      let initialLists = loadLists();
+      const initialLists = loadLists();
       const initialPointers = loadSharedPointers();
 
       if (sharedPayload && enc) {
@@ -128,15 +128,8 @@ export default function ShoppingApp() {
         return;
       }
 
-      const hidden = convertedLocalListIds(initialPointers);
-      const visible = initialLists.filter((l) => !hidden.has(l.id));
-
-      // Пустого состояния у хаба не бывает: человек пришёл писать продукты, а
-      // не заводить списки. Нет ни одного — первый создаём сами.
-      if (visible.length === 0 && initialPointers.length === 0) {
-        initialLists = createList(initialLists).lists;
-      }
-
+      // Списков нет — ничего не создаём: хаб покажет пустой экран с призывом.
+      // Раньше «Список 1» заводился сам и лежал у каждого, кто просто заглянул.
       setLists(initialLists);
       setPointers(initialPointers);
       setPinnedIds(loadPinned());
@@ -215,7 +208,8 @@ export default function ShoppingApp() {
     return pointer ? { kind: "shared", pointer } : null;
   };
 
-  const handleCreate = () => {
+  const handleCreate = (fromEmpty = false) => {
+    if (fromEmpty) reachGoal("shopping_empty_cta");
     const { lists: next, list } = createList(lists);
     setLists(next);
     reachGoal("shopping_list_created");
@@ -230,10 +224,8 @@ export default function ShoppingApp() {
       const next = deleteList(lists, deleteTarget.list.id);
       unpin(deleteTarget.list.id);
       setPinnedIds(loadPinned());
-      // Не осталось ни одного списка — заводим первый заново: пустого хаба не
-      // бывает.
-      const empty = next.filter((l) => !hidden.has(l.id)).length === 0 && pointers.length === 0;
-      setLists(empty ? createList(next).lists : next);
+      // Удалили последний — новый не заводим, хаб покажет пустой экран.
+      setLists(next);
     } else {
       setPointers(forgetSharedList(deleteTarget.pointer.id));
       unpin(deleteTarget.pointer.id);
@@ -387,9 +379,24 @@ export default function ShoppingApp() {
         <ShoppingCart size={26} color="var(--color-accent)" aria-hidden /> Покупки
       </h1>
 
-      <button type="button" className="sh-hub-new" onClick={handleCreate}>
-        <Plus size={22} strokeWidth={2.6} aria-hidden /> Новый список
-      </button>
+      {entries.length === 0 ? (
+        <section className="sh-hub-empty">
+          <h2 className="sh-hub-empty-title">Списков пока нет</h2>
+          <p className="sh-hub-empty-lead">Создайте первый список — и забудьте бумажки.</p>
+          <p className="sh-hub-empty-text">
+            Диктуйте голосом, сфотографируйте написанный от руки список или добавьте одной кнопкой то, чего
+            не хватает для рецепта. Продукты сами разложатся по отделам магазина. Откройте список семье —
+            кто что купил, видно сразу.
+          </p>
+          <button type="button" className="sh-hub-new sh-hub-empty-cta" onClick={() => handleCreate(true)}>
+            <Plus size={22} strokeWidth={2.6} aria-hidden /> Создать первый список
+          </button>
+        </section>
+      ) : (
+        <button type="button" className="sh-hub-new" onClick={() => handleCreate()}>
+          <Plus size={22} strokeWidth={2.6} aria-hidden /> Новый список
+        </button>
+      )}
 
       <div className="sh-hub-list">
         {entries.map((entry) => (

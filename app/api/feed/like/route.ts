@@ -3,6 +3,7 @@ import { getVerifiedUserId } from "@/lib/auth";
 import { createServiceRoleClient } from "@/lib/supabaseAdmin";
 import { checkAndConsumeFeedLikeRateLimit, likeRateLimitResponse } from "@/lib/rateLimit";
 import { readGuestRef, newGuestRef, setGuestCookie } from "@/lib/guestSession";
+import { FEATURE_COMMUNITY_FEED } from "@/lib/features";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,6 +37,8 @@ async function countLikes(
 }
 
 export async function POST(req: Request) {
+  // Лента скрыта флагом — роута для внешнего мира нет.
+  if (!FEATURE_COMMUNITY_FEED) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   const postId = typeof body?.postId === "string" ? body.postId.trim() : "";
   if (!body || !UUID_RE.test(postId)) {
@@ -160,6 +163,7 @@ export async function POST(req: Request) {
 // Залогиненному это не нужно: liked_by_me приходит из view. Cookie здесь НЕ
 // выдаём (просмотр страницы новых cookie не создаёт) — нет cookie, пустой ответ.
 export async function GET(req: Request) {
+  if (!FEATURE_COMMUNITY_FEED) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const guestRef = readGuestRef(req);
   if (!guestRef) return NextResponse.json({ likedPostIds: [] });
 

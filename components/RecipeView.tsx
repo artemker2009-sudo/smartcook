@@ -26,7 +26,7 @@ import RecipeImage from "@/components/RecipeImage";
 import RecipeMissingBlock from "@/components/RecipeMissingBlock";
 import AiRecipeDisclaimer from "@/components/AiRecipeDisclaimer";
 import { formatCookingTime } from "@/lib/utils";
-import { SHOW_COOKED_PHOTO_BLOCK } from "@/lib/features";
+import { SHOW_COOKED_PHOTO_BLOCK, FEATURE_COMMUNITY_FEED } from "@/lib/features";
 
 interface RecipeViewProps {
   recipe: any;
@@ -611,8 +611,13 @@ export default function RecipeView({
             }}
           >
             Отметьте галочку — и ваше блюдо увидят другие: сразу в{" "}
-            <strong>«Приготовили сегодня»</strong> на главной и, после проверки, в{" "}
-            <strong>ленте сообщества</strong>.
+            <strong>«Приготовили сегодня»</strong> на главной
+            {FEATURE_COMMUNITY_FEED ? (
+              <>
+                {" "}и, после проверки, в <strong>ленте сообщества</strong>
+              </>
+            ) : null}
+            .
           </p>
           {!user ? (
             <Button

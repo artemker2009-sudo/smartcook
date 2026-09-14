@@ -58,6 +58,7 @@ import CropperModal from "@/components/modals/CropperModal";
 import DeleteAccountModal from "@/components/modals/DeleteAccountModal";
 import NativeDocsLinks from "@/components/NativeDocsLinks";
 import SuggestSheet from "@/components/SuggestSheet";
+import { FEATURE_COMMUNITY_FEED } from "@/lib/features";
 
 type MyPost = {
   id: string;
@@ -85,7 +86,8 @@ function formatJoined(createdAt?: string): string | null {
 // ленты ноль публикаций — в основной навигации они занимали место, но не
 // работали. Сами страницы /parties и /feed не тронуты, вход в них остался
 // здесь. Показываем и гостю: банкеты у анонима живут на устройстве, ленту он
-// тоже читает — кабинет теперь единственный вход в оба раздела.
+// тоже читает — кабинет теперь единственный вход в оба раздела. Лента скрыта
+// флагом FEATURE_COMMUNITY_FEED — её пункта нет.
 function ProfileSectionLinks() {
   return (
     <div className="profile-links">
@@ -104,20 +106,22 @@ function ProfileSectionLinks() {
         <ChevronRight size={18} className="profile-link-arrow" aria-hidden />
       </Link>
 
-      <Link
-        href="/feed"
-        className="profile-link"
-        onClick={() => reachGoal("home_feed_open")}
-      >
-        <span className="profile-link-icon" aria-hidden style={{ background: "var(--color-accent-subtle)", color: "var(--color-accent)" }}>
-          <ImageIcon size={20} />
-        </span>
-        <span className="profile-link-body">
-          <span className="profile-link-title">Лента сообщества</span>
-          <span className="profile-link-sub">Фото блюд от других поваров</span>
-        </span>
-        <ChevronRight size={18} className="profile-link-arrow" aria-hidden />
-      </Link>
+      {FEATURE_COMMUNITY_FEED && (
+        <Link
+          href="/feed"
+          className="profile-link"
+          onClick={() => reachGoal("home_feed_open")}
+        >
+          <span className="profile-link-icon" aria-hidden style={{ background: "var(--color-accent-subtle)", color: "var(--color-accent)" }}>
+            <ImageIcon size={20} />
+          </span>
+          <span className="profile-link-body">
+            <span className="profile-link-title">Лента сообщества</span>
+            <span className="profile-link-sub">Фото блюд от других поваров</span>
+          </span>
+          <ChevronRight size={18} className="profile-link-arrow" aria-hidden />
+        </Link>
+      )}
     </div>
   );
 }
@@ -196,7 +200,9 @@ export default function ProfileApp() {
   }, []);
 
   // Свои посты (в т.ч. на модерации/отклонённые) — RLS отдаёт только владельцу.
+  // Лента скрыта флагом — в community_posts не ходим, блок не показываем.
   const loadMine = useCallback(async () => {
+    if (!FEATURE_COMMUNITY_FEED) return;
     const { data, error } = await supabase
       .from("community_posts")
       .select("id,created_at,recipe_title,photo_url,caption,status")
@@ -435,7 +441,9 @@ export default function ProfileApp() {
             {[
               { icon: History, title: "История не потеряется", text: "Все найденные рецепты останутся с вами на любом устройстве." },
               { icon: Heart, title: "Избранное под рукой", text: "Любимые рецепты — в один тап, всегда рядом." },
-              { icon: ImageIcon, title: "Свои блюда в ленте", text: "Делитесь фото готовых блюд с сообществом." },
+              ...(FEATURE_COMMUNITY_FEED
+                ? [{ icon: ImageIcon, title: "Свои блюда в ленте", text: "Делитесь фото готовых блюд с сообществом." }]
+                : []),
             ].map(({ icon: Icon, title, text }) => (
               <div key={title} style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-start", background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "var(--space-3) var(--space-4)" }}>
                 <div style={{ flexShrink: 0, width: "40px", height: "40px", borderRadius: "50%", background: "var(--color-accent-subtle)", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -540,7 +548,7 @@ export default function ProfileApp() {
         </div>
 
         {/* Мои посты в ленте (все статусы) */}
-        {myPosts.length > 0 && (
+        {FEATURE_COMMUNITY_FEED && myPosts.length > 0 && (
           <div className="card" style={{ padding: "var(--space-4)", marginBottom: "var(--space-3)" }}>
             <h2 style={{ margin: "0 0 var(--space-3) 0", fontSize: "var(--font-size-body)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text)" }}>Мои посты в ленте</h2>
             <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>

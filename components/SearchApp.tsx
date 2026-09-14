@@ -14,7 +14,7 @@ import { demoChipProducts } from "@/lib/demoChips";
 import { claimGuestPartiesToAccount } from "@/lib/claimParties";
 import { preparePhoto, decodeHeicIfNeeded, reportPhotoError, fetchStreamWithTimeout } from "@/lib/photo";
 import { splitStreamPayload, stageFromStream, type PhotoStage } from "@/lib/photoStream";
-import { FEATURE_RESTAURANT_GAME } from "@/lib/features";
+import { FEATURE_RESTAURANT_GAME, FEATURE_COMMUNITY_FEED } from "@/lib/features";
 import { addProduct, MAX_PRODUCTS } from "@/lib/products";
 import { useAuthModal } from "@/components/modals/useAuthModal";
 import { RECIPE_READY_EVENT } from "@/components/InstallBanner";
@@ -651,22 +651,25 @@ export default function SearchApp() {
 
       // (б) Тот же снимок — в ленту сообщества, на премодерацию. Роут сам берёт
       // владельца из проверенной сессии и шлёт карточку модерации в Telegram.
+      // Лента скрыта флагом — шаг (б) пропускаем, про ленту в тосте молчим.
       let sentToFeed = false;
-      try {
-        const res = await fetch("/api/feed/submit", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) },
-          body: JSON.stringify({
-            photoUrl: publicUrlData.publicUrl,
-            userName,
-            recipeTitle,
-            recipeId,
-            caption: userComment.trim() || null,
-          }),
-        });
-        sentToFeed = res.ok;
-        if (res.ok) reachGoal('feed_post_submit');
-      } catch { /* сеть моргнула — фото на главной уже есть, про ленту молчим */ }
+      if (FEATURE_COMMUNITY_FEED) {
+        try {
+          const res = await fetch("/api/feed/submit", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) },
+            body: JSON.stringify({
+              photoUrl: publicUrlData.publicUrl,
+              userName,
+              recipeTitle,
+              recipeId,
+              caption: userComment.trim() || null,
+            }),
+          });
+          sentToFeed = res.ok;
+          if (res.ok) reachGoal('feed_post_submit');
+        } catch { /* сеть моргнула — фото на главной уже есть, про ленту молчим */ }
+      }
 
       showToast(
         sentToFeed

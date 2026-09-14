@@ -3,6 +3,7 @@ import { getVerifiedUserId } from "@/lib/auth";
 import { createServiceRoleClient } from "@/lib/supabaseAdmin";
 import { readGuestRef, newGuestRef, setGuestCookie } from "@/lib/guestSession";
 import { sendReportCard } from "@/lib/telegram";
+import { FEATURE_COMMUNITY_FEED } from "@/lib/features";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -61,6 +62,12 @@ export async function POST(req: Request) {
   const raw = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   const postId = typeof raw?.postId === "string" ? raw.postId.trim() : "";
   const photoId = typeof raw?.photoId === "string" ? raw.photoId.trim() : "";
+
+  // Лента скрыта флагом — ветка { postId } недоступна (404). Жалобы на фото
+  // витрины ({ photoId }) работают как раньше: это App Store 1.2 для Главной.
+  if (postId && !FEATURE_COMMUNITY_FEED) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
   // Ровно одна цель. Оба поля сразу — это уже не «жалоба», а попытка что-то
   // нащупать: отказываем, не угадывая.

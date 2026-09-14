@@ -1,11 +1,17 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import CommunityFeed, { type CommunityPost } from "@/components/CommunityFeed";
+import { FEATURE_COMMUNITY_FEED } from "@/lib/features";
 
-export const metadata: Metadata = {
-  title: "Лента сообщества — SmartCook",
-  description: "Фото блюд от пользователей SmartCook. Делитесь своими блюдами и оценивайте чужие.",
-  alternates: { canonical: "/feed" },
-};
+// При выключенной ленте метаданных нет вовсе — чтобы название раздела не
+// просочилось в <title> страницы 404.
+export const metadata: Metadata = FEATURE_COMMUNITY_FEED
+  ? {
+      title: "Лента сообщества — SmartCook",
+      description: "Фото блюд от пользователей SmartCook. Делитесь своими блюдами и оценивайте чужие.",
+      alternates: { canonical: "/feed" },
+    }
+  : {};
 
 // Лента сообщества (/). Серверный компонент: первые одобренные посты читаются на
 // СЕРВЕРЕ из публичного view community_posts_public (не отдаёт user_ref/status,
@@ -35,6 +41,8 @@ async function getFeed(): Promise<CommunityPost[]> {
 }
 
 export default async function FeedPage() {
+  // Лента скрыта флагом — настоящий 404, и до запроса к БД.
+  if (!FEATURE_COMMUNITY_FEED) notFound();
   const items = await getFeed();
   return (
     <div className="container feed-container">

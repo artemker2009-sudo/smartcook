@@ -3,6 +3,7 @@ import { getVerifiedUserId, createRequestScopedClient } from "@/lib/auth";
 import { createServiceRoleClient } from "@/lib/supabaseAdmin";
 import { checkAndConsumeFeedSubmitRateLimit, rateLimitResponse } from "@/lib/rateLimit";
 import { sendModerationCard } from "@/lib/telegram";
+import { FEATURE_COMMUNITY_FEED } from "@/lib/features";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,6 +29,8 @@ function clean(raw: unknown, max: number): string {
 // виден никому, кроме автора и админа, пока не одобрен. После вставки шлём
 // карточку основателю в Telegram (путь модерации «б»).
 export async function POST(req: Request) {
+  // Лента скрыта флагом — новых постов (и карточек модерации в Telegram) нет.
+  if (!FEATURE_COMMUNITY_FEED) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const userId = await getVerifiedUserId(req);
   if (!userId) {
     return NextResponse.json({ error: "Нужно войти в аккаунт." }, { status: 401 });

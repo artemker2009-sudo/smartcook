@@ -1,5 +1,6 @@
 import React from 'react';
 import { Lock, Trophy, AlertTriangle, Store, Cookie, Lightbulb, CookingPot, Zap, TrendingUp } from 'lucide-react';
+import { FEATURE_COMMUNITY_FEED } from '@/lib/features';
 
 export default function Game(props: any) {
   const {
@@ -105,7 +106,7 @@ export default function Game(props: any) {
               <div style={{fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-body)', color: 'var(--color-text)', marginBottom: 'var(--space-1)'}}>Оценить коллег (лайки)</div>
               <div style={{fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)', fontWeight: 'var(--font-weight-medium)'}}>Награда: (Скоро)</div>
             </div>
-            <a href="/feed" style={{background: 'var(--color-accent)', color: 'white', border: 'none', padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-full)', fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-caption)', cursor: 'pointer', textDecoration: 'none'}}>В ленту</a>
+            {FEATURE_COMMUNITY_FEED && <a href="/feed" style={{background: 'var(--color-accent)', color: 'white', border: 'none', padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-full)', fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-caption)', cursor: 'pointer', textDecoration: 'none'}}>В ленту</a>}
           </div>
 
           <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--color-bg)', padding: 'var(--space-3)', borderRadius: 'var(--radius-sm)'}}>
@@ -113,7 +114,7 @@ export default function Game(props: any) {
               <div style={{fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-body)', color: 'var(--color-text)', marginBottom: 'var(--space-1)'}}>Выложить фото блюда</div>
               <div style={{fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)', fontWeight: 'var(--font-weight-medium)'}}>Награда: 1000 куков</div>
             </div>
-            <a href="/feed" style={{background: 'var(--color-accent)', color: 'white', border: 'none', padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-full)', fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-caption)', cursor: 'pointer', textDecoration: 'none'}}>В ленту</a>
+            {FEATURE_COMMUNITY_FEED && <a href="/feed" style={{background: 'var(--color-accent)', color: 'white', border: 'none', padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-full)', fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-caption)', cursor: 'pointer', textDecoration: 'none'}}>В ленту</a>}
           </div>
         </div>
       )}

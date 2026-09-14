@@ -1,4 +1,5 @@
 import { MetadataRoute } from 'next'
+import { FEATURE_COMMUNITY_FEED } from '@/lib/features'
 
 // Заметки — наш первый контент под поисковый трафик, поэтому добавляем и
 // раздел /articles, и каждую опубликованную статью в карту сайта. Slug и
@@ -87,13 +88,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.8,
     },
     // Лента сообщества: контент обновляется чаще разделов, но приоритет ниже —
-    // это витрина, а не точка входа в основной сценарий.
-    {
-      url: 'https://smart-cook.pro/feed',
-      lastModified: new Date(),
-      changeFrequency: 'daily',
-      priority: 0.6,
-    },
+    // это витрина, а не точка входа в основной сценарий. Скрыта флагом — в
+    // карте сайта её тоже нет (иначе поисковик получит 404).
+    ...(FEATURE_COMMUNITY_FEED
+      ? [
+          {
+            url: 'https://smart-cook.pro/feed',
+            lastModified: new Date(),
+            changeFrequency: 'daily' as const,
+            priority: 0.6,
+          },
+        ]
+      : []),
     {
       url: 'https://smart-cook.pro/about',
       lastModified: new Date(),

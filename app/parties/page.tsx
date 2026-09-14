@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarDays, ChevronRight, Loader2, MoreHorizontal, Plus, UsersRound } from "lucide-react";
 
-import { deletePartyAction, getHubParties, type HubParty } from "@/app/actions/party";
+import { getHubParties, type HubParty } from "@/app/actions/party";
 import BanquetAccountBanner from "@/components/BanquetAccountBanner";
 import { supabase } from "@/lib/supabase";
 
@@ -231,10 +231,26 @@ export default function PartiesHubPage() {
     setDeleteError("");
 
     try {
-      const result = await deletePartyAction(partyToDelete.id);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token;
 
-      if (!result.success) {
-        throw new Error(result.error);
+      // Гость без аккаунта доказать, что он организатор, не может — у него
+      // только device-id в localStorage. Поэтому из базы ничего не удаляем,
+      // а просто убираем банкет из списка на этом устройстве.
+      if (token) {
+        // Организатора сервер берёт из проверенного токена и сверяет с host_id.
+        const response = await fetch("/api/party/delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ partyId: partyToDelete.id }),
+        });
+        const payload = await response.json().catch(() => null);
+
+        if (!response.ok || !payload?.ok) {
+          throw new Error(payload?.error || "Не удалось удалить банкет.");
+        }
       }
 
       removeLocalPartyId(partyToDelete.id);
@@ -295,9 +311,13 @@ export default function PartiesHubPage() {
       {partyToDelete && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/35 px-4 backdrop-blur-md">
           <div className="w-full max-w-sm scale-100 rounded-[32px] border border-white/70 bg-white/95 p-6 text-center shadow-[0_24px_80px_rgba(15,23,42,0.24)]">
-            <h2 className="text-2xl font-black tracking-tight text-zinc-950">Удалить банкет?</h2>
+            <h2 className="text-2xl font-black tracking-tight text-zinc-950">
+              {isAnon ? "Убрать банкет из списка?" : "Удалить банкет?"}
+            </h2>
             <p className="mt-3 text-sm leading-6 text-zinc-500">
-              Это действие безвозвратно. Меню, чат и список гостей будут стерты навсегда.
+              {isAnon
+                ? "Банкет пропадёт из списка на этом устройстве. Удалить комнату насовсем может только организатор, вошедший в аккаунт."
+                : "Это действие безвозвратно. Меню, чат и список гостей будут стерты навсегда."}
             </p>
 
             {deleteError && (
@@ -327,7 +347,7 @@ export default function PartiesHubPage() {
                 className="flex items-center justify-center gap-2 rounded-2xl bg-red-500 px-4 py-3 text-sm font-bold text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {isDeleting && <Loader2 size={16} className="animate-spin" />}
-                Да, удалить
+                {isAnon ? "Да, убрать" : "Да, удалить"}
               </button>
             </div>
           </div>

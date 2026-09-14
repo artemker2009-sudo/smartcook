@@ -68,8 +68,10 @@ export type TogglePartyItemVoteActionResult =
   | { success: false; error: string };
 
 // Банкеты скрыты флагом FEATURE_BANQUETS: экшены вызываются по id и в обход
-// недоступных страниц, поэтому отказ стоит в каждом. deletePartyAction флагом
-// не закрыт — им пользуется удаление банкета из админки.
+// недоступных страниц, поэтому отказ стоит в каждом.
+// Удаления банкета здесь НЕТ и быть не должно: server action нельзя закрыть
+// проверкой владельца по JWT (у экшена нет заголовков запроса). Удаление живёт
+// в роутах /api/party/delete (организатор по JWT) и /api/admin/parties (админ).
 const getActionErrorMessage = (error: unknown) => (error instanceof Error ? error.message : "Неизвестная ошибка сервера");
 const ZERO_WIDTH_CHARS = ["\u200B", "\u200C", "\u200D", "\u2060"] as const;
 const makeInvisibleSuffix = (seed: string) =>
@@ -181,32 +183,6 @@ export async function getHubParties(userId?: string | null, localIds?: string[])
 
     return bTime - aTime;
   });
-}
-
-export async function deletePartyAction(id: string) {
-  const trimmedId = id.trim();
-
-  if (!trimmedId) {
-    return { success: false, error: "Не хватает ID банкета для удаления" };
-  }
-
-  try {
-    const supabase = createServerSupabaseClient();
-    const childTables = ["party_messages", "party_members", "party_items"] as const;
-
-    for (const table of childTables) {
-      const { error } = await supabase.from(table).delete().eq("party_id", trimmedId);
-      if (error) throw new Error(error.message);
-    }
-
-    const { error } = await supabase.from("parties").delete().eq("id", trimmedId);
-
-    if (error) throw new Error(error.message);
-    return { success: true };
-  } catch (error) {
-    console.error("Delete Party Action Error:", error);
-    return { success: false, error: getActionErrorMessage(error) };
-  }
 }
 
 export async function bindPartyHostAction(partyId: string, hostId: string) {

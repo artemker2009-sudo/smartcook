@@ -27,5 +27,6 @@ export const FEATURE_COMMUNITY_FEED = false;
 // /party/* отдают 404, API банкетов (/api/party/*) — 404, server actions
 // банкетов отвечают отказом, перенос гостевых банкетов в аккаунт при входе не
 // запускается, /parties убран из sitemap. Данные и таблицы НЕ тронуты, удаление
-// банкета из админки работает. Чтобы вернуть банкеты — поставить true.
+// банкета из админки (/api/admin/parties) работает. Чтобы вернуть банкеты —
+// поставить true.
 export const FEATURE_BANQUETS = false;

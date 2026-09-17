@@ -6,6 +6,7 @@ import {
   BarChart3,
   CheckCircle2,
   CircleDollarSign,
+  Eraser,
   Shield,
   Sparkles,
   Wrench,
@@ -301,6 +302,12 @@ export default function AdminPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  // Аварийные рубильники кэша (уровни B и C отката).
+  const [cacheEpoch, setCacheEpoch] = useState<string | null>(null);
+  const [purgeClientCache, setPurgeClientCache] = useState(false);
+  const [isCacheBusy, setIsCacheBusy] = useState(false);
+  const [cacheMessage, setCacheMessage] = useState("");
+  const [cacheError, setCacheError] = useState("");
   // Жалобы на посты ленты (вкладка «Жалобы»). Грузятся лениво при открытии.
   const [suggestions, setSuggestions] = useState<SuggestionItem[] | null>(null);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
@@ -409,6 +416,8 @@ export default function AdminPage() {
       const data = await response.json();
 
       setIsMaintenance(Boolean(data.isMaintenance));
+      setCacheEpoch((data.cacheEpoch as string | null) ?? null);
+      setPurgeClientCache(Boolean(data.purgeClientCache));
       setStats({
         parties: (data.parties as PartyRecord[] | null) ?? [],
         recentEvents: (data.recentEvents as AnalyticsEvent[] | null) ?? [],
@@ -578,6 +587,67 @@ export default function AdminPage() {
       setErrorMessage("Не удалось обновить режим обслуживания.");
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  // УРОВЕНЬ B. Новая метка поколения кэша: каждый клиент, увидев её, выбросит
+  // кэши сервис-воркера и перерегистрирует его. Списки покупок и прочий
+  // localStorage при этом НЕ ТРОГАЮТСЯ — см. components/CacheKillSwitch.tsx.
+  const handleBumpCacheEpoch = async () => {
+    setIsCacheBusy(true);
+    setCacheError("");
+    setCacheMessage("");
+
+    try {
+      const response = await fetch("/api/admin/cache-purge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "bump" }),
+      });
+
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.error || "Не удалось сбросить кэш");
+
+      setCacheEpoch((data?.cacheEpoch as string | null) ?? null);
+      setCacheMessage("Метка обновлена. Люди получат чистый кэш при следующем заходе (до минуты на раздачу).");
+    } catch (error) {
+      console.error("Ошибка сброса кэша", error);
+      setCacheError(error instanceof Error ? error.message : "Не удалось сбросить кэш.");
+    } finally {
+      setIsCacheBusy(false);
+    }
+  };
+
+  // УРОВЕНЬ C. Тумблер: пока включён, proxy.ts отдаёт Clear-Site-Data: "cache".
+  // Выключить обязан человек, когда авария закрыта.
+  const handleTogglePurgeClientCache = async () => {
+    const nextValue = !purgeClientCache;
+
+    setIsCacheBusy(true);
+    setCacheError("");
+    setCacheMessage("");
+
+    try {
+      const response = await fetch("/api/admin/cache-purge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ purgeClientCache: nextValue }),
+      });
+
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.error || "Не удалось переключить чистку HTTP-кэша");
+
+      setPurgeClientCache(nextValue);
+      setCacheMessage(
+        nextValue
+          ? "Заголовок включён. Не забудьте выключить его, когда авария закроется."
+          : "Заголовок выключен.",
+      );
+    } catch (error) {
+      console.error("Ошибка переключения чистки HTTP-кэша", error);
+      setCacheError(error instanceof Error ? error.message : "Не удалось переключить чистку HTTP-кэша.");
+    } finally {
+      setIsCacheBusy(false);
     }
   };
 
@@ -1431,7 +1501,7 @@ export default function AdminPage() {
           </header>
 
           {activeTab === "management" ? (
-            <section className="flex min-h-[calc(100vh-14rem)] items-center justify-center">
+            <section className="flex min-h-[calc(100vh-14rem)] flex-col items-center justify-center gap-6">
               <div
                 className={`w-full max-w-4xl rounded-[2rem] p-8 shadow-sm lg:p-10 ${
                   isLoading
@@ -1530,6 +1600,97 @@ export default function AdminPage() {
                         Изменение применяется сразу и влияет на доступность сайта для пользователей.
                       </p>
                     </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* АВАРИЙНЫЙ СБРОС КЭША. Два рубильника на случай, когда людям
+                  уехала сломанная версия и они на ней застряли. Появились
+                  после разбора аварии 5 сентября: тогда дотянуться до
+                  застрявших клиентов было нечем. */}
+              <div className="w-full max-w-4xl rounded-[2rem] border border-zinc-200 bg-white p-8 shadow-sm lg:p-10">
+                <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-100 text-zinc-700">
+                  <Eraser className="h-7 w-7" />
+                </div>
+                <p className="mt-6 text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                  Аварийный сброс кэша
+                </p>
+                <h3 className="mt-4 text-3xl font-semibold tracking-tight text-zinc-900">
+                  Если людям уехала сломанная версия
+                </h3>
+                <p className="mt-4 max-w-2xl text-base leading-7 text-zinc-700">
+                  Обычное обновление доезжает само, на следующий спокойный заход. Эти две кнопки нужны
+                  только тогда, когда ждать нельзя. Ни одна из них{" "}
+                  <span className="font-semibold">не удаляет данные людей</span>: списки покупок,
+                  закрепления и вход в аккаунт остаются на месте.
+                </p>
+
+                {cacheError ? (
+                  <p className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                    {cacheError}
+                  </p>
+                ) : null}
+                {cacheMessage ? (
+                  <p className="mt-5 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+                    {cacheMessage}
+                  </p>
+                ) : null}
+
+                <div className="mt-8 grid gap-5 lg:grid-cols-2">
+                  {/* УРОВЕНЬ B — основной рубильник. */}
+                  <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+                    <p className="text-sm font-semibold text-zinc-500">Основной способ</p>
+                    <h4 className="mt-2 text-lg font-semibold text-zinc-900">Сбросить кэш у всех</h4>
+                    <p className="mt-3 text-sm leading-6 text-zinc-600">
+                      Каждый телефон при следующем заходе выбросит кэш приложения и заберёт свежую
+                      версию. Работает в браузере и в Android-приложении. В iOS-приложении кэша
+                      приложения нет вовсе, поэтому там эта кнопка ничего не меняет.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleBumpCacheEpoch}
+                      disabled={isLoading || isCacheBusy}
+                      className="mt-5 inline-flex w-full items-center justify-center rounded-2xl bg-zinc-900 px-6 py-4 text-base font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isCacheBusy ? "Сохраняем..." : "Сбросить кэш у всех"}
+                    </button>
+                    <p className="mt-4 text-xs leading-5 text-zinc-500">
+                      {cacheEpoch
+                        ? `Последний сброс: ${new Date(cacheEpoch).toLocaleString("ru-RU")}`
+                        : "Сбросов ещё не было."}
+                    </p>
+                  </div>
+
+                  {/* УРОВЕНЬ C — третья линия, слабее, но единственная для iOS. */}
+                  <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+                    <p className="text-sm font-semibold text-zinc-500">Если не помогло</p>
+                    <h4 className="mt-2 text-lg font-semibold text-zinc-900">
+                      Чистить кэш браузера
+                    </h4>
+                    <p className="mt-3 text-sm leading-6 text-zinc-600">
+                      Просит сам браузер выбросить то, что он сохранил. Слабее первой кнопки, зато
+                      это единственное, что действует в iOS-приложении. Пока включено — работает на
+                      каждом заходе, поэтому выключите, когда всё почините.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleTogglePurgeClientCache}
+                      disabled={isLoading || isCacheBusy}
+                      className={`mt-5 inline-flex w-full items-center justify-center rounded-2xl px-6 py-4 text-base font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                        purgeClientCache
+                          ? "bg-amber-500 text-white hover:bg-amber-400"
+                          : "border border-zinc-300 bg-white text-zinc-900 hover:bg-zinc-50"
+                      }`}
+                    >
+                      {isCacheBusy
+                        ? "Сохраняем..."
+                        : purgeClientCache
+                          ? "Выключить"
+                          : "Включить"}
+                    </button>
+                    <p className="mt-4 text-xs leading-5 text-zinc-500">
+                      {purgeClientCache ? "🟡 Сейчас включено" : "Сейчас выключено"}
+                    </p>
                   </div>
                 </div>
               </div>

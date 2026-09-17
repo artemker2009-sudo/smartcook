@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { Camera, Home, ShoppingCart, User } from "lucide-react";
 import { reachGoal } from "@/lib/metrika";
+import { isChromeHidden } from "@/lib/layoutGate";
 
 // Основная навигация по четырём разделам. Мобайл — фиксированный таб-бар снизу
 // (safe-area для PWA/iOS), десктоп — те же пункты в верхней шапке (через CSS).
@@ -51,19 +52,18 @@ const TABS = [
 export default function TabBar() {
   const pathname = usePathname() || "/";
 
-  // Где таб-бар скрыт — должно совпадать с серверной логикой в app/layout.tsx
-  // (админка и полноэкранная комната банкета /party/<id>, кроме /party/create).
-  // Считаем это НА КЛИЕНТЕ по usePathname, потому что root-layout — серверный
-  // компонент и не пересчитывает свой gate при soft-навигации между детьми:
-  // при переходе со списка банкетов в комнату фиксированный бар оставался
-  // смонтированным и перекрывал переключатель Меню/Чат.
-  const isAdminRoute = pathname.startsWith("/admin");
-  const isPartyRoom = pathname.startsWith("/party/") && pathname !== "/party/create";
-  const hidden = isAdminRoute || isPartyRoom;
+  // Где таб-бар скрыт: админка и полноэкранная комната банкета /party/<id>
+  // (кроме /party/create). Правило лежит в lib/layoutGate.ts — ОДНО на всю
+  // обвязку, чтобы копии в разных компонентах не разъезжались. Считается НА
+  // КЛИЕНТЕ по usePathname: серверный root-layout не пересчитывает свой гейт
+  // при soft-навигации между детьми, из-за чего бар когда-то залипал в комнате
+  // банкета и перекрывал переключатель Меню/Чат.
+  const hidden = isChromeHidden(pathname);
 
   // Класс has-tabbar на <body> (нижний отступ под фиксированный бар) сервер
-  // задаёт для первого кадра, но при soft-навигации он тоже «залипает».
-  // Держим его в синхроне с фактической видимостью бара на клиенте.
+  // теперь ставит БЕЗУСЛОВНО — это верное значение почти для всех экранов, и
+  // именно так layout остался статическим. Снять его там, где бара нет, —
+  // задача этого эффекта; он и раньше держал класс в синхроне при навигации.
   useEffect(() => {
     document.body.classList.toggle("has-tabbar", !hidden);
   }, [hidden]);

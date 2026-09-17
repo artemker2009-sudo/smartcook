@@ -1,16 +1,15 @@
 import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/react";
-import { headers } from "next/headers";
 import "./globals.css";
 import YandexMetrika from "@/components/YandexMetrika"; // Импортируем компонент Метрики
 import PWAUpdater from "@/components/PWAUpdater";
+import CacheKillSwitch from "@/components/CacheKillSwitch";
 import PWAInstall from "@/components/PWAInstall";
 import InstallBanner from "@/components/InstallBanner";
 import TelegramWebViewBanner from "@/components/TelegramWebViewBanner";
-import Footer from "@/components/Footer";
 import NativeShell from "@/components/NativeShell";
 import TabBar from "@/components/TabBar";
-import OnboardingModal from "@/components/modals/OnboardingModal";
+import LayoutGate from "@/components/LayoutGate";
 import AppToaster from "@/components/ui/AppToaster";
 import { SITE_URL } from "@/lib/site";
 import { Suspense } from "react"; // Импортируем Suspense для корректной работы
@@ -141,31 +140,32 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const pathname = (await headers()).get("x-pathname") || "";
-  const isAdminRoute = pathname.startsWith("/admin");
-  // Комната банкета (/party/<id>) — полноэкранный рабочий экран со скроллом
-  // чата и меню; полный футер там мешает. Список банкетов (/parties) и форма
-  // создания (/party/create) футер сохраняют. Доступ к «Сообщить об ошибке»
-  // внутри комнаты остаётся компактной иконкой в шапке (ClientRoom).
-  const isPartyRoom = pathname.startsWith("/party/") && pathname !== "/party/create";
-  // Таб-бар (Главная/Поиск/Банкеты) прячем там же, где футер: в админке и в
-  // полноэкранной комнате банкета (задача D). На остальных страницах он есть,
-  // поэтому добавляем нижний отступ body, чтобы фиксированный бар не перекрывал
-  // контент/футер на мобайле (класс has-tabbar, стиль в globals.css).
-  // ВАЖНО: showTabBar здесь считается из x-pathname один раз на серверном
-  // рендере и НЕ пересчитывается при клиентской (soft) навигации между детьми
-  // root-layout. Поэтому сам <TabBar> монтируется всегда и решает свою
-  // видимость на клиенте по usePathname (иначе при переходе со списка банкетов
-  // в комнату бар «залипал» и перекрывал переключатель Меню/Чат). Значение ниже
-  // задаёт только КОРРЕКТНЫЙ первый отступ body (has-tabbar) без мигания —
-  // дальше класс синхронизирует сам TabBar.
-  const hideFooter = isAdminRoute || isPartyRoom;
-  const showTabBar = !hideFooter;
+  // ЗДЕСЬ БОЛЬШЕ НЕТ headers(). Это не косметика, а главное изменение PR.
+  //
+  // Раньше layout читал x-pathname через headers(), чтобы решить, показывать ли
+  // футер, онбординг и нижний отступ под таб-бар. Чтение заголовков — обращение
+  // к данным конкретного запроса, и Next.js из-за него помечал ДИНАМИЧЕСКИМ всё
+  // дерево маршрутов: ни одна страница сайта не рендерилась статически (в
+  // prerender-manifest лежали только robots.txt и sitemap.xml), каждая
+  // навигация шла в серверную функцию и возвращалась с `no-store` и
+  // `x-vercel-cache: MISS`. Секунду на переход в приложении платили за это.
+  //
+  // Все три решения переехали на клиент, где им и место, потому что при
+  // клиентской навигации серверный layout всё равно не пересчитывается
+  // (см. components/LayoutGate.tsx и lib/layoutGate.ts).
+  //
+  // has-tabbar на <body> теперь стоит ВСЕГДА. Класс задаёт нижний отступ под
+  // фиксированный таб-бар, а бар виден почти везде — значит для первого кадра
+  // это верное значение на подавляющем большинстве экранов. На двух маршрутах,
+  // где бара нет (админка и комната банкета), класс снимет сам TabBar сразу
+  // после гидрации: он и раньше держал его в синхроне через useEffect. Разница
+  // видна только там и только как лишний нижний отступ на один кадр.
+  //
   // Режим обслуживания живёт в proxy.ts (middleware): при включённом
   // обслуживании публичные страницы вообще не доходят до рендера — отдаётся
   // HTTP 503 с Retry-After, чтобы поисковый робот не индексировал заглушку.
@@ -173,7 +173,7 @@ export default async function RootLayout({
 
   return (
     <html lang="ru">
-      <body className={showTabBar ? "has-tabbar" : undefined}>
+      <body className="has-tabbar">
         {/* Инициализация нативной оболочки. В вебе — no-op. */}
         <NativeShell />
         {/* Оборачиваем Метрику в Suspense, чтобы Next.js не ругался при сборке */}
@@ -181,6 +181,8 @@ export default async function RootLayout({
           <YandexMetrika />
         </Suspense>
         <PWAUpdater />
+        {/* Аварийный сброс кэша по метке из админки. localStorage не трогает. */}
+        <CacheKillSwitch />
         <PWAInstall />
         <InstallBanner />
         <TelegramWebViewBanner />
@@ -190,8 +192,8 @@ export default async function RootLayout({
             на каждом экране. Компонент остался в репозитории. */}
         <TabBar />
         {children}
-        {!hideFooter && <Footer />}
-        {!isAdminRoute && <OnboardingModal />}
+        {/* Футер + онбординг: гейт по маршруту считается на клиенте. */}
+        <LayoutGate />
 
         {/* Единый рендерер всех уведомлений: снизу, над таб-баром, белая
             карточка. Настройки — в components/ui/AppToaster. */}

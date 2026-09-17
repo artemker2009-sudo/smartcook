@@ -1,4 +1,8 @@
-# Внешний сторож доступности smart-cook.pro.
+# Внешний сторож доступности smartcook.pro и smart-cook.pro.
+#
+# Проверяем ОБА домена: новый основной и старый, который работает навсегда
+# (вшит в сборки iOS/Android). Падение любого из них — авария. Домены ходят
+# через один VPS, но у каждого свой сертификат и свой server-блок nginx.
 #
 # Зачем он нужен при наличии сторожа на самом VPS: если ляжет сам VPS (или его
 # сеть), сторож на нём замолчит вместе с сайтом и никто ничего не узнает.
@@ -28,9 +32,9 @@ on:
   workflow_dispatch:
     inputs:
       url:
-        description: "Что проверять (для ручной проверки алерта подставьте заведомо неверный адрес)"
+        description: "Что проверять (пусто — оба домена; для ручной проверки алерта подставьте заведомо неверный адрес)"
         required: false
-        default: "https://smart-cook.pro/"
+        default: ""
 
 permissions: {}
 
@@ -44,11 +48,16 @@ jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    strategy:
+      # Упал один домен — второй всё равно проверяем и алертим независимо.
+      fail-fast: false
+      matrix:
+        host: ["smartcook.pro", "smart-cook.pro"]
     steps:
       - name: HEAD-проверка сайта
         id: probe
         env:
-          TARGET_URL: ${{ github.event.inputs.url || 'https://smart-cook.pro/' }}
+          TARGET_URL: ${{ github.event.inputs.url || format('https://{0}/', matrix.host) }}
         run: |
           set -uo pipefail
 
@@ -102,7 +111,7 @@ jobs:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           CODE: ${{ steps.probe.outputs.code }}
-          TARGET_URL: ${{ github.event.inputs.url || 'https://smart-cook.pro/' }}
+          TARGET_URL: ${{ github.event.inputs.url || format('https://{0}/', matrix.host) }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -uo pipefail
@@ -124,7 +133,7 @@ jobs:
           # такой переменной обязаны начинаться с нулевой колонки, и это ломает
           # блочный скаляр YAML (наступил на это при написании файла).
           TEXT="$(printf '%s\n' \
-            "⛔ Снаружи smart-cook.pro не отвечает (возможно, лёг VPS)" \
+            "⛔ Снаружи ${TARGET_URL} не отвечает (возможно, лёг VPS)" \
             "" \
             "Адрес: ${TARGET_URL}" \
             "Проверка: ${DETAIL}" \

@@ -12,6 +12,7 @@ import NativeShell from "@/components/NativeShell";
 import TabBar from "@/components/TabBar";
 import OnboardingModal from "@/components/modals/OnboardingModal";
 import AppToaster from "@/components/ui/AppToaster";
+import { SITE_URL } from "@/lib/site";
 import { Suspense } from "react"; // Импортируем Suspense для корректной работы
 
 // 1. Настройки внешнего вида (PWA, цвета, масштаб)
@@ -33,10 +34,11 @@ export const viewport: Viewport = {
 
 // 2. Настройки SEO и метаданные
 export const metadata: Metadata = {
-  // Канонический хост ВЕЗДЕ — apex без www. metadataBase делает все
+  // Канонический хост ВЕЗДЕ — основной домен (NEXT_PUBLIC_SITE_URL), apex без
+  // www, и на smartcook.pro, и на старом smart-cook.pro. metadataBase делает все
   // относительные ссылки (canonical, og:image, twitter:image) абсолютными
   // именно на этот origin.
-  metadataBase: new URL("https://smart-cook.pro"),
+  metadataBase: new URL(SITE_URL),
   // Дефолтный title = title Главной (у неё нет своего override). Остальные
   // страницы задают свой полный title сами, поэтому template не используем,
   // чтобы не задваивать бренд («О сервисе — SmartCook»).
@@ -79,7 +81,7 @@ export const metadata: Metadata = {
     title: "SmartCook (СмартКук) — рецепты по фото продуктов",
     description:
       "Сфотографируйте продукты — получите рецепты из того, что есть дома. Плюс пошаговый режим готовки и умные списки покупок.",
-    url: "https://smart-cook.pro",
+    url: SITE_URL,
     siteName: "SmartCook",
     locale: "ru_RU",
     type: "website",

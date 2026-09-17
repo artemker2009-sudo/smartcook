@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { SITE_HOSTS, SITE_URL } from "./lib/site";
 
 const SUPABASE_URL =
   process.env.NEXT_PUBLIC_SUPABASE_URL || "https://yjfqwwiqwoighjdlkodg.supabase.co";
@@ -14,14 +15,12 @@ const SUPABASE_HOST = (() => {
   }
 })();
 
-// Канонический хост — apex без www. Живёт в одном месте, чтобы редирект и
-// возможные будущие проверки не расходились.
-const CANONICAL_HOST = "smart-cook.pro";
-
-// Хосты, на которых сайт «настоящий». Всё остальное (адреса деплоя Vercel,
-// localhost, любой будущий алиас) — не наш канонический адрес: такие ответы
-// помечаем noindex/nofollow и отдаём на них запрещающий robots.txt.
-const CANONICAL_HOSTS = new Set([CANONICAL_HOST, `www.${CANONICAL_HOST}`]);
+// Хосты, на которых сайт «настоящий»: основной smartcook.pro И старый
+// smart-cook.pro (каждый с www), см. lib/site.ts. Старый домен сюда входит
+// намеренно и навсегда — он вшит в сборки iOS/Android, редиректа с него нет.
+// Всё остальное (адреса деплоя Vercel, localhost, любой будущий алиас) — не наш
+// адрес: такие ответы помечаем noindex/nofollow и отдаём запрещающий robots.txt.
+const CANONICAL_HOSTS = SITE_HOSTS;
 
 // Пути, которые НЕЛЬЗЯ уводить редиректом на канонический хост, даже когда
 // запрос пришёл на *.vercel.app:
@@ -155,8 +154,8 @@ const MAINTENANCE_HTML = `<!doctype html>
   <div class="thanks">Спасибо, что вы с нами 💚</div>
 </div></body></html>`;
 
-// robots.txt для неканонического хоста. На smart-cook.pro этот код не
-// срабатывает — там robots.txt по-прежнему целиком генерирует app/robots.ts
+// robots.txt для неканонического хоста. На smartcook.pro и smart-cook.pro этот
+// код не срабатывает — там robots.txt по-прежнему целиком генерирует app/robots.ts
 // (и sitemap.xml — app/sitemap.ts), они не тронуты.
 const ROBOTS_DENY_ALL = "User-agent: *\nDisallow: /\n";
 
@@ -199,17 +198,24 @@ export async function proxy(request: NextRequest) {
     return withSecurityHeaders(NextResponse.redirect(httpsUrl, 308));
   }
 
-  // Канонический хост — apex без www. Любой www.* уводим 308-редиректом на apex,
-  // чтобы у сайта был единственный хост (без дублей для поисковика).
-  const host = (request.headers.get("host") || "").toLowerCase();
-  if (process.env.NODE_ENV === "production" && host.startsWith("www.")) {
+  // www.* уводим 308-редиректом на apex ТОГО ЖЕ домена (www.smart-cook.pro →
+  // smart-cook.pro, www.smartcook.pro → smartcook.pro). Между доменами не
+  // редиректим никогда: старый домен обязан продолжать работать сам по себе.
+  // Уводим только наши www из SITE_HOSTS — подставленный в Host чужой www.*
+  // не должен превращаться в редирект на произвольный адрес.
+  const hostname = hostnameOf(request);
+  if (
+    process.env.NODE_ENV === "production" &&
+    hostname.startsWith("www.") &&
+    CANONICAL_HOSTS.has(hostname)
+  ) {
     const apexUrl = new URL(request.nextUrl.toString());
-    apexUrl.host = CANONICAL_HOST;
+    apexUrl.host = hostname.slice("www.".length);
+    apexUrl.port = "";
     apexUrl.protocol = "https:";
     return withSecurityHeaders(NextResponse.redirect(apexUrl, 308));
   }
 
-  const hostname = hostnameOf(request);
   const isCanonicalHost = CANONICAL_HOSTS.has(hostname);
   const { pathname } = request.nextUrl;
 
@@ -231,10 +237,7 @@ export async function proxy(request: NextRequest) {
     // Собираем адрес заново от канонического origin, а не правим host у
     // nextUrl: так в Location гарантированно не утечёт ни хост деплоя, ни
     // http-схема.
-    const canonicalUrl = new URL(
-      `${pathname}${request.nextUrl.search}`,
-      `https://${CANONICAL_HOST}`,
-    );
+    const canonicalUrl = new URL(`${pathname}${request.nextUrl.search}`, SITE_URL);
     return withSecurityHeaders(NextResponse.redirect(canonicalUrl, 301), { noindex: true });
   }
 

@@ -1,6 +1,7 @@
 Contact: mailto:a35499445@gmail.com
 Expires: 2027-07-06T00:00:00.000Z
 Preferred-Languages: ru, en
+Canonical: https://smartcook.pro/.well-known/security.txt
 Canonical: https://smart-cook.pro/.well-known/security.txt
 
 # Несанкционированное тестирование на проникновение (pentest), сканирование

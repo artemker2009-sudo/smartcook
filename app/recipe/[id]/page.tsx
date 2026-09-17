@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import SharedRecipe from "@/components/SharedRecipe";
 import type { RecipeData } from "@/lib/types";
+import { siteUrl } from "@/lib/site";
 
 // Выделенный маршрут расшаренного рецепта (задача T, P0). Раньше share-ссылка
 // вела на /search?recipeId=… — это монтировало ВЕСЬ SearchApp (~800 КБ JS,
@@ -78,7 +79,7 @@ export async function generateMetadata({
         height: 630,
         alt: "SmartCook — сфотографируйте продукты, получите рецепт",
       };
-  const url = `https://smart-cook.pro/recipe/${id}`;
+  const url = siteUrl(`/recipe/${id}`);
 
   return {
     title,
@@ -115,7 +116,7 @@ function buildRecipeJsonLd(recipe: RecipeData, id: string) {
     "@context": "https://schema.org",
     "@type": "Recipe",
     name: recipe.title,
-    url: `https://smart-cook.pro/recipe/${id}`,
+    url: siteUrl(`/recipe/${id}`),
   };
 
   if (recipe.image_url) jsonLd.image = recipe.image_url;

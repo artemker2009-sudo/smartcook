@@ -48,10 +48,15 @@ const config: CapacitorConfig = {
     // считал уходом на сторонний адрес — кнопка «Повторить» открывала сайт в
     // Safari, с адресной строкой, вместо возврата в приложение.
     //
-    // Список намеренно узкий: только наш домен. Всё остальное (Kuper, Telegram,
+    // Список намеренно узкий: только наши домены. Всё остальное (Kuper, Telegram,
     // RuStore) по-прежнему обязано уходить наружу — этим занимается openExternal
     // в lib/native.ts, и подменять это поведение здесь нельзя.
-    allowNavigation: ["smart-cook.pro", "www.smart-cook.pro"],
+    //
+    // smartcook.pro — основной домен: на него ведут share-ссылки (lib/site.ts),
+    // и тап по такой ссылке внутри приложения не должен выкидывать в Safari.
+    // server.url при этом остаётся на smart-cook.pro: старый домен работает
+    // навсегда, а на нём у установивших приложение лежат сессия и localStorage.
+    allowNavigation: ["smart-cook.pro", "www.smart-cook.pro", "smartcook.pro", "www.smartcook.pro"],
   },
 
   ios: {

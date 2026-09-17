@@ -32,6 +32,7 @@ import Button from "@/components/ui/Button";
 import { MAX_PRODUCT_LENGTH } from "@/lib/products";
 import { PHOTO_STAGE_LABELS, type PhotoStage } from "@/lib/photoStream";
 import { shareOrCopy } from "@/lib/share";
+import { siteUrl } from "@/lib/site";
 import { formatCookingTime } from "@/lib/utils";
 
 // Порядок этапов ожидания. Совпадает с порядком ключей в схеме ответа модели
@@ -1130,9 +1131,7 @@ export default function ServiceView({
                         aria-label="Поделиться рецептом"
                         onClick={(e) => {
                           e.stopPropagation();
-                          const url = item.id
-                            ? `${window.location.origin}/?recipeId=${item.id}`
-                            : window.location.origin;
+                          const url = siteUrl(item.id ? `/?recipeId=${item.id}` : "/");
                           shareOrCopy({
                             title: item.title,
                             text: `«${item.title}» • ${formatTime(item.time)}`,

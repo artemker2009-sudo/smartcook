@@ -6,6 +6,7 @@ import { copyText } from "@/lib/clipboard";
 import { reachGoal } from "@/lib/metrika";
 import { itemsToText, type ShoppingItem } from "@/lib/shoppingList";
 import { buildShareUrl, canShareByLink } from "@/lib/shoppingShare";
+import { siteUrl } from "@/lib/site";
 
 // Способы отдать список — общие для хаба и экрана списка. Раньше жили внутри
 // ShoppingListRoute; меню «⋯» переехало на карточки хаба, и копия этих функций
@@ -47,7 +48,7 @@ export async function shareListCopy(name: string, itemNames: string[]): Promise<
  * участником, отметки видят все. true — ссылка ушла (окно или буфер).
  */
 export async function shareInviteLink(id: string, listName: string): Promise<boolean> {
-  const url = `${window.location.origin}/shopping/join/${id}`;
+  const url = siteUrl(`/shopping/join/${id}`);
   reachGoal("shopping_shared_invite_click");
   const nav = navigator as NavigatorWithShare;
   if (nav.share) {

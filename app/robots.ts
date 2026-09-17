@@ -1,4 +1,5 @@
 import { MetadataRoute } from 'next'
+import { siteUrl } from '@/lib/site'
 
 const AI_CRAWLER_USER_AGENTS = [
   'GPTBot',
@@ -31,6 +32,7 @@ export default function robots(): MetadataRoute.Robots {
       // разрешения владельца тоже запрещены, см. /.well-known/security.txt
       ...AI_CRAWLER_USER_AGENTS.map((userAgent) => ({ userAgent, disallow: '/' })),
     ],
-    sitemap: 'https://smart-cook.pro/sitemap.xml',
+    // Один и тот же robots.txt на обоих доменах: карта сайта — на основном.
+    sitemap: siteUrl('/sitemap.xml'),
   }
 }

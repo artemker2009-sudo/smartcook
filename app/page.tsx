@@ -3,6 +3,7 @@ import HomeContent from "@/components/HomeContent";
 import type { FeedPhoto } from "@/components/HomeFeed";
 import { feedWindowStartISO } from "@/lib/feedWindow";
 import { type DemoChip, filterAvailableChips } from "@/lib/demoChips";
+import { SITE_URL, siteUrl } from "@/lib/site";
 
 // Каноникал Главной — apex-корень. title/description/og наследуются из корневого
 // layout (у Главной они и есть дефолтные), здесь добавляем только canonical.
@@ -78,20 +79,20 @@ const JSON_LD = {
   "@graph": [
     {
       "@type": "WebSite",
-      "@id": "https://smart-cook.pro/#website",
-      url: "https://smart-cook.pro",
+      "@id": siteUrl("/#website"),
+      url: SITE_URL,
       name: "SmartCook",
       alternateName: ["СмартКук", "Смарт Кук", "smart cook pro"],
       inLanguage: "ru-RU",
-      publisher: { "@id": "https://smart-cook.pro/#organization" },
+      publisher: { "@id": siteUrl("/#organization") },
     },
     {
       "@type": "Organization",
-      "@id": "https://smart-cook.pro/#organization",
+      "@id": siteUrl("/#organization"),
       name: "SmartCook",
       alternateName: "СмартКук",
-      url: "https://smart-cook.pro",
-      logo: "https://smart-cook.pro/icon-512.png",
+      url: SITE_URL,
+      logo: siteUrl("/icon-512.png"),
       sameAs: ["https://t.me/smartcook2026"],
     },
   ],

@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Clock } from "lucide-react";
 import ArticleLikeButton from "@/components/ArticleLikeButton";
 import { renderMarkdown } from "@/lib/markdown";
 import { coverTone } from "@/lib/articleCover";
+import { siteUrl } from "@/lib/site";
 
 // Страница «Кухонной заметки» (задача Y). SSR (правила T/W): статья читается
 // ОДНИМ серверным запросом и попадает в HTML сразу — это наш первый контент,
@@ -66,13 +67,13 @@ export async function generateMetadata({
   return {
     title,
     description,
-    alternates: { canonical: `https://smart-cook.pro/articles/${article.slug}` },
+    alternates: { canonical: siteUrl(`/articles/${article.slug}`) },
     openGraph: {
       title,
       description,
       type: "article",
       siteName: "SmartCook",
-      url: `https://smart-cook.pro/articles/${article.slug}`,
+      url: siteUrl(`/articles/${article.slug}`),
       // Та же болезнь, что была у /recipe/[id]: заданный здесь openGraph не
       // добирает images из корневого layout, и ссылка на заметку уходила в чат
       // без картинки. Своей картинки у заметок нет (обложка рисуется на клиенте

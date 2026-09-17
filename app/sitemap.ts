@@ -1,5 +1,6 @@
 import { MetadataRoute } from 'next'
 import { FEATURE_BANQUETS, FEATURE_COMMUNITY_FEED } from '@/lib/features'
+import { SITE_URL, siteUrl } from '@/lib/site'
 
 // Заметки — наш первый контент под поисковый трафик, поэтому добавляем и
 // раздел /articles, и каждую опубликованную статью в карту сайта. Slug и
@@ -60,13 +61,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   return [
     {
-      url: 'https://smart-cook.pro',
+      url: SITE_URL,
       lastModified: new Date(),
       changeFrequency: 'daily',
       priority: 1,
     },
     {
-      url: 'https://smart-cook.pro/search',
+      url: siteUrl('/search'),
       lastModified: new Date(),
       changeFrequency: 'weekly',
       priority: 0.9,
@@ -75,7 +76,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...(FEATURE_BANQUETS
       ? [
           {
-            url: 'https://smart-cook.pro/parties',
+            url: siteUrl('/parties'),
             lastModified: new Date(),
             changeFrequency: 'weekly' as const,
             priority: 0.8,
@@ -87,7 +88,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // его просто не существовало. Приоритет 0.8 — это самостоятельный
     // раздел, а не служебная страница.
     {
-      url: 'https://smart-cook.pro/shopping',
+      url: siteUrl('/shopping'),
       lastModified: new Date(),
       changeFrequency: 'weekly',
       priority: 0.8,
@@ -98,7 +99,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...(FEATURE_COMMUNITY_FEED
       ? [
           {
-            url: 'https://smart-cook.pro/feed',
+            url: siteUrl('/feed'),
             lastModified: new Date(),
             changeFrequency: 'daily' as const,
             priority: 0.6,
@@ -106,25 +107,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         ]
       : []),
     {
-      url: 'https://smart-cook.pro/about',
+      url: siteUrl('/about'),
       lastModified: new Date(),
       changeFrequency: 'monthly',
       priority: 0.5,
     },
     {
-      url: 'https://smart-cook.pro/articles',
+      url: siteUrl('/articles'),
       lastModified: new Date(),
       changeFrequency: 'weekly',
       priority: 0.7,
     },
     ...articles.map((a) => ({
-      url: `https://smart-cook.pro/articles/${a.slug}`,
+      url: siteUrl(`/articles/${a.slug}`),
       lastModified: new Date(a.published_at || a.created_at),
       changeFrequency: 'monthly' as const,
       priority: 0.6,
     })),
     ...recipes.map((r) => ({
-      url: `https://smart-cook.pro/recipe/${r.id}`,
+      url: siteUrl(`/recipe/${r.id}`),
       lastModified: new Date(r.created_at),
       changeFrequency: 'monthly' as const,
       priority: r.image_url ? 0.7 : 0.6,

@@ -19,9 +19,24 @@ describe("isTrustedOrigin", () => {
 
   it("боевой домен разрешён, чужой — нет", () => {
     vi.stubEnv("NODE_ENV", "production");
+    expect(isTrustedOrigin(req({ origin: "https://smartcook.pro" }))).toBe(true);
+    expect(isTrustedOrigin(req({ origin: "https://www.smartcook.pro" }))).toBe(true);
+    expect(isTrustedOrigin(req({ origin: "https://evil.example" }))).toBe(false);
+  });
+
+  it("старый домен smart-cook.pro разрешён навсегда (вшит в сборки iOS/Android)", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("VERCEL_ENV", "production");
     expect(isTrustedOrigin(req({ origin: "https://smart-cook.pro" }))).toBe(true);
     expect(isTrustedOrigin(req({ origin: "https://www.smart-cook.pro" }))).toBe(true);
-    expect(isTrustedOrigin(req({ origin: "https://evil.example" }))).toBe(false);
+    expect(isTrustedOrigin(req({ referer: "https://smart-cook.pro/search" }))).toBe(true);
+  });
+
+  it("похожие на наши, но чужие хосты — отказ", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    expect(isTrustedOrigin(req({ origin: "https://smartcook.pro.evil.example" }))).toBe(false);
+    expect(isTrustedOrigin(req({ origin: "https://evil-smartcook.pro" }))).toBe(false);
+    expect(isTrustedOrigin(req({ origin: "https://sub.smartcook.pro" }))).toBe(false);
   });
 
   it("без Origin и Referer — отказ (так ходят скрипты, не браузер)", () => {
@@ -101,6 +116,7 @@ describe("isTrustedOriginForRead — GET-версия для публичных 
 
   it("свой домен разрешён", () => {
     vi.stubEnv("NODE_ENV", "production");
+    expect(isTrustedOriginForRead(getReq({ origin: "https://smartcook.pro" }))).toBe(true);
     expect(isTrustedOriginForRead(getReq({ origin: "https://smart-cook.pro" }))).toBe(true);
     expect(isTrustedOriginForRead(getReq({ referer: "https://smart-cook.pro/" }))).toBe(true);
   });

@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { reachGoal } from "@/lib/metrika";
+import { siteUrl } from "@/lib/site";
 import {
   activatePartyPassAction,
   addPartyItemAction,
@@ -1474,7 +1475,7 @@ export default function ClientRoom({
     const shareData = {
       title: currentParty.title,
       text: `Присоединяйся к банкету «${currentParty.title}»`,
-      url: window.location.href,
+      url: siteUrl(`/party/${currentParty.id}`),
     };
 
     // В нативной оболочке — системный share sheet (в вебе вернёт false).

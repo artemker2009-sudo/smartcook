@@ -1,5 +1,6 @@
 // Поделиться списком покупок БЕЗ БД — весь список кодируется в ссылку.
-// Формат: https://smart-cook.pro/shopping?shared=<base64url>&utm_source=shopping_share
+// Формат: https://smartcook.pro/shopping?shared=<base64url>&utm_source=shopping_share
+// (основной домен из NEXT_PUBLIC_SITE_URL — независимо от того, откуда поделились).
 //
 // БЕЗОПАСНОСТЬ: при разборе ссылки принимаем ТОЛЬКО строки и жёстко их
 // санитизируем (обрезка 50 симв./позиция, максимум SHARE_MAX_ITEMS позиций,
@@ -7,10 +8,11 @@
 // никакого HTML/кода из ссылки исполнить нельзя.
 
 import { sanitizeShoppingName } from "./shoppingList";
+import { siteUrl } from "./site";
 
 export const SHARE_PARAM = "shared";
 export const SHARE_MAX_ITEMS = 80;
-export const SHARE_BASE_URL = "https://smart-cook.pro/shopping";
+export const SHARE_BASE_URL = siteUrl("/shopping");
 export const SHARE_UTM = "shopping_share";
 
 export type SharedPayload = { name: string; items: string[] };

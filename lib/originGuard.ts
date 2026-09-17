@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
+import { SITE_HOSTS } from "./site";
 
-// Домены, с которых разрешено дергать эндпоинты генерации.
+// Домены, с которых разрешено дергать эндпоинты генерации: основной
+// smartcook.pro и старый smart-cook.pro (оба с www), см. lib/site.ts.
 // Прямые запросы curl/Postman/скриптов без Origin/Referer нашего сайта отсекаются.
-const ALLOWED_HOSTS = new Set(["smart-cook.pro", "www.smart-cook.pro"]);
+const ALLOWED_HOSTS = SITE_HOSTS;
 
 function extractHost(headerValue: string | null): string | null {
   if (!headerValue) return null;
@@ -29,7 +31,7 @@ function isAllowedHost(host: string, req: Request): boolean {
   // Дальше — только адреса деплоев Vercel. Боевые домены сюда не попадают.
   if (!host.endsWith(".vercel.app")) return false;
   // На БОЕВОМ деплое адрес вида *.vercel.app не разрешаем: туда ходят через
-  // smart-cook.pro, он уже проверен выше.
+  // боевые домены, они уже проверены выше.
   if (process.env.VERCEL_ENV === "production") return false;
 
   // Собственный адрес этого preview-деплоя: уникальный, адрес ветки, либо —

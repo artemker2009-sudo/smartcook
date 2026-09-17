@@ -117,7 +117,9 @@ export const metadata: Metadata = {
     },
   },
   verification: {
-    yandex: "a83c0f9947054198",
+    // Яндекс.Вебмастер: smart-cook.pro и smartcook.pro — отдельные сайты со своими
+    // кодами. Отдаём оба на обоих доменах, несколько тегов Яндекс допускает.
+    yandex: ["a83c0f9947054198", "273c719e95db60c6"],
   },
   other: {
     // Верификационный мета-тег партнёрской сети Admitad (как yandex-verification):

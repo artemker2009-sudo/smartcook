@@ -37,4 +37,4 @@ export const FEATURE_BANQUETS = false;
 // раньше — только localStorage устройства. Общие (семейные) списки от флага не
 // зависят, это отдельная сущность. Включать ПОСЛЕ прогона миграции
 // supabase_user_shopping_lists.sql и приёмки по чек-листу PR.
-export const FEATURE_SHOPPING_SYNC = false;
+export const FEATURE_SHOPPING_SYNC = true;

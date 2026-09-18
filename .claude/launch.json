@@ -4,7 +4,22 @@
     {
       "name": "recipe-ai-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--", "--webpack"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--webpack"
+      ],
+      "port": 3000,
+      "autoPort": true
+    },
+    {
+      "name": "recipe-ai-prod",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "start"
+      ],
       "port": 3000,
       "autoPort": true
     }

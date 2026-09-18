@@ -13,7 +13,10 @@ export async function GET(req: Request) {
   const supabase = createServiceRoleClient();
 
   const [maintenanceResult, partiesResult, recentEventsResult, errorReportsResult] = await Promise.all([
-    supabase.from("site_settings").select("is_maintenance").eq("id", 1).single(),
+    // select("*"), а не поимённо: строка одна и крошечная, зато админка не
+    // падает, если миграция supabase_site_settings_cache_switches.sql ещё не
+    // прогнана — новые поля просто приедут пустыми.
+    supabase.from("site_settings").select("*").eq("id", 1).single(),
     supabase.from("parties").select("*"),
     supabase
       .from("analytics_events")
@@ -80,6 +83,10 @@ export async function GET(req: Request) {
 
   return NextResponse.json({
     isMaintenance: Boolean(maintenanceResult.data?.is_maintenance),
+    // Аварийные рубильники кэша. До миграции оба приедут пустыми — админка
+    // покажет их выключенными, а не сломается.
+    cacheEpoch: (maintenanceResult.data?.cache_epoch as string | null) ?? null,
+    purgeClientCache: Boolean(maintenanceResult.data?.purge_client_cache),
     parties: partiesResult.data ?? [],
     recentEvents: recentEventsResult.data ?? [],
     errorReports: errorReportsResult.data ?? [],

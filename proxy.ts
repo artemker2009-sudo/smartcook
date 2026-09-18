@@ -78,7 +78,28 @@ const CONTENT_SECURITY_POLICY = [
   ...(IS_DEV ? [] : ["upgrade-insecure-requests"]),
 ].join("; ");
 
-function withSecurityHeaders(response: NextResponse, options?: { noindex?: boolean }) {
+// УРОВЕНЬ C аварийного отката: просим браузер выбросить собственный HTTP-кэш.
+//
+// ТОЛЬКО "cache" — и это принципиально. Значение "storage" умеет снести и
+// сервис-воркер разом, но вместе с ним стирает localStorage, то есть списки
+// покупок живых людей. Данные пользователей мы не удаляем никогда, поэтому
+// "storage" здесь не появится.
+//
+// Из-за этого уровень C СЛАБЕЕ уровня B и не претендует на роль универсального
+// лекарства: застрявший сервис-воркер он не убивает, это работа
+// components/CacheKillSwitch.tsx. Зато у него есть ниша, которой нет ни у кого
+// другого: в iOS-оболочке сервис-воркера не существует вовсе (см. шапку
+// next.config.ts), там весь кэш — это HTTP-кэш WKWebView, и чистится он ровно
+// этим заголовком.
+const CLEAR_SITE_DATA_CACHE = '"cache"';
+
+function withSecurityHeaders(
+  response: NextResponse,
+  options?: { noindex?: boolean; purgeClientCache?: boolean },
+) {
+  if (options?.purgeClientCache) {
+    response.headers.set("Clear-Site-Data", CLEAR_SITE_DATA_CACHE);
+  }
   // Любой неканонический хост (адрес деплоя Vercel, localhost) не должен
   // попадать в выдачу: одинаковый контент на двух адресах — это дубль, а
   // превью-деплои вообще не предназначены для людей из поиска.
@@ -94,34 +115,53 @@ function withSecurityHeaders(response: NextResponse, options?: { noindex?: boole
   return response;
 }
 
-// Статус обслуживания читаем из site_settings. Middleware не пользуется
-// data-кэшем RSC, поэтому кэшируем результат в памяти инстанса на короткий TTL —
-// это ограничивает обращения к БД до ~одного в MAINTENANCE_TTL_MS, а не на
-// каждый запрос. Обслуживание переключается редко, задержка распространения в
-// пару секунд допустима.
-const MAINTENANCE_TTL_MS = 15_000;
-let maintenanceCache: { value: boolean; at: number } = { value: false, at: 0 };
+// Настройки сайта читаем из site_settings ОДНИМ запросом. Middleware не
+// пользуется data-кэшем RSC, поэтому кэшируем результат в памяти инстанса на
+// короткий TTL — это ограничивает обращения к БД до ~одного в SETTINGS_TTL_MS,
+// а не на каждый запрос. Обе настройки переключаются редко, задержка
+// распространения в пару секунд допустима.
+//
+// select=* , а не перечисление колонок, — НАМЕРЕННО. Строка тут одна и
+// крошечная, зато запрос не разваливается, если миграция
+// supabase_site_settings_cache_switches.sql ещё не прогнана: недостающие поля
+// просто приедут как undefined. Спрашивать колонку поимённо было бы опасно —
+// PostgREST ответил бы ошибкой на ВЕСЬ запрос, и вместе с новым флагом
+// перестал бы работать режим обслуживания, который тут же рядом.
+const SETTINGS_TTL_MS = 15_000;
 
-async function isMaintenance(): Promise<boolean> {
+type SiteSettings = {
+  /** Режим обслуживания: публичные страницы отдают 503. */
+  maintenance: boolean;
+  /** Просьба браузеру сбросить свой HTTP-кэш (уровень C аварийного отката). */
+  purgeClientCache: boolean;
+};
+
+const SETTINGS_FALLBACK: SiteSettings = { maintenance: false, purgeClientCache: false };
+let settingsCache: { value: SiteSettings; at: number } = { value: SETTINGS_FALLBACK, at: 0 };
+
+async function getSiteSettings(): Promise<SiteSettings> {
   const now = Date.now();
-  if (now - maintenanceCache.at < MAINTENANCE_TTL_MS) return maintenanceCache.value;
+  if (now - settingsCache.at < SETTINGS_TTL_MS) return settingsCache.value;
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/site_settings?select=is_maintenance&id=eq.1`,
+      `${SUPABASE_URL}/rest/v1/site_settings?select=*&id=eq.1`,
       {
         headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
         cache: "no-store",
       },
     );
-    if (!res.ok) return maintenanceCache.value;
+    if (!res.ok) return settingsCache.value;
     const data = await res.json();
     const row = Array.isArray(data) ? data[0] : data;
-    const value = Boolean(row?.is_maintenance);
-    maintenanceCache = { value, at: now };
+    const value: SiteSettings = {
+      maintenance: Boolean(row?.is_maintenance),
+      purgeClientCache: Boolean(row?.purge_client_cache),
+    };
+    settingsCache = { value, at: now };
     return value;
   } catch {
     // БД недоступна — считаем сайт живым, а не роняем его в 503.
-    return maintenanceCache.value;
+    return settingsCache.value;
   }
 }
 
@@ -247,13 +287,16 @@ export async function proxy(request: NextRequest) {
     return robotsDenyAllResponse();
   }
 
+  // Обе настройки сайта — одним чтением, с общим кэшем на инстанс.
+  const settings = await getSiteSettings();
+
   // Режим обслуживания: отдаём 503 всем публичным страницам. Админку и API не
   // трогаем — из админки обслуживание и выключается. robots.txt тоже пропускаем
   // мимо заглушки: он попал под matcher только ради ветки выше, а на боевом
   // хосте должен вести себя ровно так же, как до этой правки.
   const bypassMaintenance =
     pathname.startsWith("/admin") || pathname.startsWith("/api/") || pathname === "/robots.txt";
-  if (!bypassMaintenance && (await isMaintenance())) {
+  if (!bypassMaintenance && settings.maintenance) {
     return maintenanceResponse();
   }
 
@@ -266,7 +309,13 @@ export async function proxy(request: NextRequest) {
     },
   });
 
-  return withSecurityHeaders(response, { noindex: !isCanonicalHost });
+  // Clear-Site-Data не вешаем на админку: оттуда флаг и выключают, а вычистить
+  // HTTP-кэш прямо под работающей админской страницей — лишний способ
+  // выстрелить себе в ногу ровно в тот момент, когда чинишь аварию.
+  return withSecurityHeaders(response, {
+    noindex: !isCanonicalHost,
+    purgeClientCache: settings.purgeClientCache && !pathname.startsWith("/admin"),
+  });
 }
 
 export const config = {

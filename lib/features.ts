@@ -30,3 +30,11 @@ export const FEATURE_COMMUNITY_FEED = false;
 // банкета из админки (/api/admin/parties) работает. Чтобы вернуть банкеты —
 // поставить true.
 export const FEATURE_BANQUETS = false;
+
+// FEATURE_SHOPPING_SYNC: зеркалирование ЛИЧНЫХ списков покупок на сервер для
+// залогиненных (таблица user_shopping_lists, lib/shoppingSync.ts). Выключено:
+// ни одного сетевого запроса не уходит, раздел «Покупки» работает ровно как
+// раньше — только localStorage устройства. Общие (семейные) списки от флага не
+// зависят, это отдельная сущность. Включать ПОСЛЕ прогона миграции
+// supabase_user_shopping_lists.sql и приёмки по чек-листу PR.
+export const FEATURE_SHOPPING_SYNC = false;

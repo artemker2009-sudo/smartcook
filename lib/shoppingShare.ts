@@ -1,6 +1,10 @@
 // Поделиться списком покупок БЕЗ БД — весь список кодируется в ссылку.
-// Формат: https://smartcook.pro/shopping?shared=<base64url>&utm_source=shopping_share
-// (основной домен из NEXT_PUBLIC_SITE_URL — независимо от того, откуда поделились).
+// Формат: https://<origin>/shopping?shared=<base64url>&utm_source=shopping_share
+//
+// Хост — тот, на котором человек сейчас стоит (shareUrl из lib/site.ts), а не
+// канон: в приложении и в установленном PWA это старый smart-cook.pro, и ссылка
+// на канон увела бы на другой origin с пустым localStorage. Поэтому адрес
+// вычисляется в момент вызова, а не константой при загрузке модуля.
 //
 // БЕЗОПАСНОСТЬ: при разборе ссылки принимаем ТОЛЬКО строки и жёстко их
 // санитизируем (обрезка 50 симв./позиция, максимум SHARE_MAX_ITEMS позиций,
@@ -8,11 +12,10 @@
 // никакого HTML/кода из ссылки исполнить нельзя.
 
 import { sanitizeShoppingName } from "./shoppingList";
-import { siteUrl } from "./site";
+import { shareUrl } from "./site";
 
 export const SHARE_PARAM = "shared";
 export const SHARE_MAX_ITEMS = 80;
-export const SHARE_BASE_URL = siteUrl("/shopping");
 export const SHARE_UTM = "shopping_share";
 
 export type SharedPayload = { name: string; items: string[] };
@@ -49,10 +52,10 @@ export function encodeSharedList(name: string, itemNames: string[]): string {
   return toBase64Url(JSON.stringify(payload));
 }
 
-/** Собирает полную ссылку для шаринга (прод-домен + utm). */
+/** Собирает полную ссылку для шаринга (текущий домен + utm). */
 export function buildShareUrl(name: string, itemNames: string[]): string {
   const encoded = encodeSharedList(name, itemNames);
-  return `${SHARE_BASE_URL}?${SHARE_PARAM}=${encoded}&utm_source=${SHARE_UTM}`;
+  return `${shareUrl("/shopping")}?${SHARE_PARAM}=${encoded}&utm_source=${SHARE_UTM}`;
 }
 
 /**

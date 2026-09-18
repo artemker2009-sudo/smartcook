@@ -59,7 +59,10 @@ export interface DBRecipe {
   detailed_ingredients?: DetailedIngredient[];
   missing_ingredients?: string[];
   description?: string;
-  session_id: string;
+  // Клиенту больше не приходит: колонка закрыта поколоночной привилегией
+  // (supabase_recipes_session_id_privacy.sql), история читается через
+  // recipes_for_session. Поле осталось для серверного кода на service_role.
+  session_id?: string;
   likes_count?: number;
   comments_count?: number;
   is_liked?: boolean;

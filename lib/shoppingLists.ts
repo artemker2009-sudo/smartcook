@@ -207,7 +207,14 @@ function normalizeSort(raw: unknown): SortCache | null {
   return { sig, groups } as SortCache;
 }
 
-function normalizeList(raw: unknown): ShoppingListRecord | null {
+/**
+ * Приводит сырую запись списка к безопасному ShoppingListRecord.
+ *
+ * Экспортируется ради синхронизации (lib/shoppingSync.ts): строка, приехавшая
+ * с сервера, проходит ровно тот же санитайз и те же лимиты, что запись из
+ * localStorage. Второй нормализатор неминуемо разъехался бы с этим.
+ */
+export function normalizeList(raw: unknown): ShoppingListRecord | null {
   if (!raw || typeof raw !== "object") return null;
   const id = typeof (raw as { id?: unknown }).id === "string" ? (raw as { id: string }).id : newId();
   const name = sanitizeListName((raw as { name?: unknown }).name, MIGRATED_LIST_NAME);

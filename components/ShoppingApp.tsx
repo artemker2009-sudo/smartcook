@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Copy, LogOut, Pencil, Pin, PinOff, Plus, Send, ShoppingCart, Trash2, Users } from "lucide-react";
 
 import { reachGoal } from "@/lib/metrika";
-import { addNames } from "@/lib/shoppingList";
+import { addNames, SHOPPING_CHANGED_EVENT } from "@/lib/shoppingList";
 import {
   createList,
   deleteList,
@@ -22,6 +22,8 @@ import {
   type ShoppingListRecord,
 } from "@/lib/shoppingLists";
 import { decodeSharedList, SHARE_PARAM } from "@/lib/shoppingShare";
+import { FEATURE_SHOPPING_SYNC } from "@/lib/features";
+import { startShoppingSync, syncShoppingLists } from "@/lib/shoppingSync";
 import {
   convertedLocalListIds,
   fetchSharedList,
@@ -138,14 +140,31 @@ export default function ShoppingApp() {
     };
     init();
 
-    // Списки могли поменять в другой вкладке.
+    // Списки могли поменять в другой вкладке — или их мог обновить приезд
+    // серверной версии (синхронизация пишет через saveLists, а тот шлёт
+    // SHOPPING_CHANGED_EVENT). Обработчик один: он просто перечитывает
+    // хранилище, источник правды всегда там.
     const onStorage = () => {
       setLists(loadLists());
       setPointers(loadSharedPointers());
       setPinnedIds(loadPinned());
     };
     window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    // Под флагом, а не всегда: при выключенной синхронизации в этом слушателе
+    // нет смысла (приезжать нечему), и выключенный флаг обязан означать РОВНО
+    // сегодняшнее поведение, без единого лишнего перечитывания.
+    if (FEATURE_SHOPPING_SYNC) window.addEventListener(SHOPPING_CHANGED_EVENT, onStorage);
+
+    // Личные списки залогиненного зеркалятся на сервер. При выключенном флаге и
+    // у гостей обе функции — пустышки.
+    const stopSync = startShoppingSync();
+    void syncShoppingLists("hub");
+
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener(SHOPPING_CHANGED_EVENT, onStorage);
+      stopSync();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- router (App Router) стабилен между рендерами, эффект должен выполниться только один раз при монтировании.
   }, []);
 

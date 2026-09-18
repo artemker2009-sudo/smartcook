@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import { syncShoppingListsAfterAuth } from "@/lib/shoppingSync";
 import {
   PASSWORD_MIN,
   USERNAME_MAX,
@@ -77,6 +78,26 @@ export function useAuthModal(options: Options = {}) {
     setAuthRecoveryCode("");
   };
 
+  /**
+   * Общая точка «человек только что авторизовался» — для всех трёх исходов
+   * (регистрация, вход, восстановление).
+   *
+   * Перенос личных списков покупок в аккаунт живёт ЗДЕСЬ, а не в экране,
+   * который позвал хук. Причина конкретная: перенос профиля вкуса подключён
+   * только в SearchApp, и у тех, кто регистрировался через /profile, вкусы в
+   * аккаунт молча не переезжали. Со списками покупок цена такой же ошибки
+   * несопоставимо выше.
+   *
+   * Не ждём завершения: следом за регистрацией показывается код
+   * восстановления, и задерживать этот экран сетевым запросом нельзя.
+   * Синхронизация и так устроена best-effort — что не доехало сейчас, доедет
+   * при следующем открытии раздела.
+   */
+  const announceAuthenticated = async (user: User, outcome: AuthOutcome) => {
+    await onAuthenticated?.(user, outcome);
+    syncShoppingListsAfterAuth();
+  };
+
   const finish = (outcome: AuthOutcome) => {
     close();
     setRecoveryCodeToShow(null);
@@ -133,7 +154,7 @@ export function useAuthModal(options: Options = {}) {
           return;
         }
 
-        await onAuthenticated?.(data.user, "register");
+        await announceAuthenticated(data.user, "register");
         // Модалку не закрываем: сперва пользователь должен сохранить код.
         setLastOutcome("register");
         setRecoveryCodeToShow(payload.recoveryCode as string);
@@ -151,7 +172,7 @@ export function useAuthModal(options: Options = {}) {
           return;
         }
 
-        await onAuthenticated?.(data.user, "login");
+        await announceAuthenticated(data.user, "login");
         finish("login");
       }
     } catch {
@@ -200,7 +221,7 @@ export function useAuthModal(options: Options = {}) {
         return;
       }
 
-      await onAuthenticated?.(data.user, "recover");
+      await announceAuthenticated(data.user, "recover");
       setLastOutcome("recover");
       setRecoveryCodeToShow(payload.recoveryCode as string);
     } catch {

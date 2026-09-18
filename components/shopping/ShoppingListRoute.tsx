@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
-import type { ShoppingItem, SortCache } from "@/lib/shoppingList";
+import { SHOPPING_CHANGED_EVENT, type ShoppingItem, type SortCache } from "@/lib/shoppingList";
 import {
   deleteList,
   listDisplayName,
@@ -23,6 +23,8 @@ import {
   saveGroupedMode,
 } from "@/lib/shoppingActive";
 import { unpin } from "@/lib/shoppingPinned";
+import { FEATURE_SHOPPING_SYNC } from "@/lib/features";
+import { startShoppingSync, syncShoppingLists } from "@/lib/shoppingSync";
 import {
   fetchSharedList,
   forgetSharedList,
@@ -128,13 +130,26 @@ export default function ShoppingListRoute({ listId }: { listId: string }) {
     };
     init();
 
-    // Список могли поменять в другой вкладке.
+    // Список могли поменять в другой вкладке — или его могла обновить
+    // синхронизация, забрав версию с другого устройства: она пишет через
+    // saveLists, а тот шлёт SHOPPING_CHANGED_EVENT.
     const onStorage = () => {
       listsRef.current = loadLists();
       setLists(listsRef.current);
     };
     window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    // Под флагом: выключенная синхронизация = сегодняшнее поведение один в один.
+    if (FEATURE_SHOPPING_SYNC) window.addEventListener(SHOPPING_CHANGED_EVENT, onStorage);
+
+    // При выключенном флаге и у гостей — пустышки.
+    const stopSync = startShoppingSync();
+    void syncShoppingLists("list");
+
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener(SHOPPING_CHANGED_EVENT, onStorage);
+      stopSync();
+    };
   }, [listId, openShared]);
 
   const local = lists.find((l) => l.id === listId) ?? null;

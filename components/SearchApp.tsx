@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import type { AnalysisData, RecipeData, DBRecipe, DailyRecipeType, HolidayType, DBComment } from "@/lib/types";
 import { DEVELOPER_ID, scaleAmount, formatCooks, cleanText, formatTime, formatCalories, getCroppedImg } from "@/lib/utils";
 import { shareOrCopy } from "@/lib/share";
-import { siteUrl } from "@/lib/site";
+import { shareUrl } from "@/lib/site";
 import { shareNative } from "@/lib/native";
 import { reachGoal } from "@/lib/metrika";
 import { demoChipProducts } from "@/lib/demoChips";
@@ -683,7 +683,7 @@ export default function SearchApp() {
   };
 
   const handleShareDaily = async () => { 
-    if (!dailyRecipe) return; const recipeUrl = siteUrl("/search?daily=true"); const fullText = `«${dailyRecipe.title}» 🍲\nПриготовлено с помощью SmartCook 👨‍🍳\n\nСмотри рецепт по ссылке:\n${recipeUrl}`;
+    if (!dailyRecipe) return; const recipeUrl = shareUrl("/search?daily=true"); const fullText = `«${dailyRecipe.title}» 🍲\nПриготовлено с помощью SmartCook 👨‍🍳\n\nСмотри рецепт по ссылке:\n${recipeUrl}`;
     // Нативный share sheet имеет приоритет; в вебе shareNative вернёт false.
     try { if (await shareNative({ title: dailyRecipe.title, text: fullText, url: recipeUrl, dialogTitle: "Рецепт дня" })) return; if (navigator.share) await navigator.share({ title: dailyRecipe.title, text: fullText }); else { await navigator.clipboard.writeText(fullText); showToast("Ссылка скопирована в буфер обмена!", <Clipboard size={18} color="var(--color-accent)" />); } } catch (err) {} 
   }; 
@@ -691,7 +691,7 @@ export default function SearchApp() {
   const handleShareRecipe = async () => { 
     if (!recipe) return;
     // Быстрый серверный маршрут расшаренного рецепта (задача T), а не /search-монолит.
-    const recipeUrl = siteUrl(recipe.id ? `/recipe/${recipe.id}` : "/search");
+    const recipeUrl = shareUrl(recipe.id ? `/recipe/${recipe.id}` : "/search");
     // Единый хелпер: navigator.share → фолбэк на копирование ссылки. Текст —
     // название блюда + время приготовления. Цель Метрики — share_recipe.
     shareOrCopy({

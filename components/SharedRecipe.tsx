@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { formatTime, formatCookingTime, formatCalories, scaleAmount, cleanText } from "@/lib/utils";
 import { shareOrCopy } from "@/lib/share";
-import { siteUrl } from "@/lib/site";
+import { shareUrl } from "@/lib/site";
 import type { RecipeData } from "@/lib/types";
 import CookMode from "@/components/CookMode";
 import AiRecipeDisclaimer from "@/components/AiRecipeDisclaimer";
@@ -37,9 +37,10 @@ export default function SharedRecipe({ recipe }: { recipe: RecipeData }) {
     shareOrCopy({
       title: recipe.title,
       text: `${recipe.title} — рецепт из SmartCook`,
-      // Ссылка всегда на основной домен (NEXT_PUBLIC_SITE_URL), даже если
-      // рецепт открыт на старом smart-cook.pro.
-      url: siteUrl(recipe.id ? `/recipe/${recipe.id}` : typeof window !== "undefined" ? window.location.pathname : "/"),
+      // Ссылка — от ТЕКУЩЕГО домена (shareUrl): рецепт, открытый внутри
+      // приложения на smart-cook.pro, шарится тем же адресом, иначе тап по нему
+      // в приложении уводит на чужой origin с пустым хранилищем.
+      url: shareUrl(recipe.id ? `/recipe/${recipe.id}` : typeof window !== "undefined" ? window.location.pathname : "/"),
       goal: "share_recipe",
     });
 

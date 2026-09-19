@@ -103,6 +103,13 @@ $$;
 revoke all on function public.recipes_for_session(text) from public;
 grant execute on function public.recipes_for_session(text) to anon, authenticated;
 
+-- PostgREST держит список функций в своём кэше схемы и НЕ перечитывает его сам
+-- по факту create function. Без этой строки новая функция отвечает 404
+-- PGRST202 «no matches were found in the schema cache» — причём всем ролям,
+-- включая service_role, из-за чего это легко принять за «функция не создалась».
+-- Привилегии (revoke/grant ниже) так не кэшируются и вступают в силу сразу.
+notify pgrst, 'reload schema';
+
 
 -- ============================================================================
 -- 2) Снятие табличного SELECT и выдача поколоночного без session_id.

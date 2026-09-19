@@ -193,12 +193,12 @@ export default function ProfileApp() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Своя история — через security definer функцию, а не select по таблице:
+  // колонка session_id закрыта поколоночной привилегией, и фильтровать по ней
+  // с клиента тоже нельзя (фильтр требует SELECT на колонку так же, как
+  // чтение). См. supabase_recipes_session_id_privacy.sql.
   const fetchMyRecipes = useCallback(async (sessionId: string) => {
-    const { data, error } = await supabase
-      .from("recipes")
-      .select("*")
-      .eq("session_id", sessionId)
-      .order("created_at", { ascending: false });
+    const { data, error } = await supabase.rpc("recipes_for_session", { p_session: sessionId });
     if (!error && data) setFeed(data as DBRecipe[]);
   }, []);
 

@@ -6,6 +6,8 @@ import { Sparkles, Code2, Clipboard } from "lucide-react";
 import { toast } from "sonner";
 
 import type { AnalysisData, RecipeData, DBRecipe, DailyRecipeType, HolidayType, DBComment } from "@/lib/types";
+import { RECIPE_CLIENT_COLUMNS } from "@/lib/recipeColumns";
+import { ensureGuestId, rememberAccountId } from "@/lib/guestIdentity";
 import { DEVELOPER_ID, scaleAmount, formatCooks, cleanText, formatTime, formatCalories, getCroppedImg } from "@/lib/utils";
 import { shareOrCopy } from "@/lib/share";
 import { shareUrl } from "@/lib/site";
@@ -271,14 +273,22 @@ export default function SearchApp() {
   }, [recipe?.dish_cache_id, recipe?.image_status, recipe?.image_url]);
 
   useEffect(() => {
-    let currentSessionId = localStorage.getItem("cook_user_id");
+    // Владелец истории: аккаунт, если человек залогинен, иначе гостевой
+    // идентификатор устройства. Ветка «не залогинен» раньше выдавала новый id
+    // только когда ключа не было вовсе — и после выхода из аккаунта в нём
+    // оставался uuid, под которым «гость» продолжал писать в чужую историю.
+    // Теперь это решает ensureGuestId (см. lib/guestIdentity.ts): он ротирует
+    // идентификатор всегда, когда в ключе лежит аккаунтный uuid. Через эффект,
+    // а не через кнопку «Выйти», намеренно — так же закрываются истёкшая
+    // сессия и выход, сделанный на другом экране.
+    let currentSessionId: string;
     if (user) {
-      currentSessionId = user.id; localStorage.setItem("cook_user_id", user.id);
+      currentSessionId = user.id; rememberAccountId(user.id);
       setEditProfileName(user.user_metadata?.full_name || ""); 
       setEditAvatarPreview(user.user_metadata?.avatar_url || null);
       setEditUsername(user.user_metadata?.username || user.email?.split('@')[0] || ""); 
-    } else if (!currentSessionId) {
-      currentSessionId = "user_" + Math.random().toString(36).substr(2, 9); localStorage.setItem("cook_user_id", currentSessionId); 
+    } else {
+      currentSessionId = ensureGuestId();
     }
     setUserId(currentSessionId); if (currentSessionId) fetchMyRecipes(currentSessionId); 
   }, [user]);
@@ -462,7 +472,15 @@ export default function SearchApp() {
   }, [gameTab]);
 
   /* --- ФУНКЦИИ ОБРАБОТЧИКИ --- */
-  const fetchMyRecipes = async (currentId: string) => { const { data, error } = await supabase.from('recipes').select('*').eq('session_id', currentId).order('created_at', { ascending: false }); if (!error && data) setFeed(data); };
+  // Своя история. Раньше это был select('*').eq('session_id', …) — и то и
+  // другое теперь невозможно: колонка session_id закрыта поколоночной
+  // привилегией, а фильтр по колонке требует на неё SELECT ровно так же, как
+  // чтение. Читаем через security definer функцию: она фильтрует по session_id
+  // внутри себя и наружу его не отдаёт (supabase_recipes_session_id_privacy.sql).
+  const fetchMyRecipes = async (currentId: string) => {
+    const { data, error } = await supabase.rpc('recipes_for_session', { p_session: currentId });
+    if (!error && data) setFeed(data as DBRecipe[]);
+  };
 
   // Перенос профиля вкуса из localStorage (анонимный опыт) в аккаунт при
   // входе/регистрации. МЁРДЖ, а не перезапись: то, что уже сохранено в
@@ -591,7 +609,7 @@ export default function SearchApp() {
       try { await fetch("/api/favorite", { method: "POST", headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) }, body: JSON.stringify({ id: dailyFavoriteId, isFavorite: false, sessionId: userId }) }); } catch(e) {}
     } else { 
       const dailyCookingTime = Number.isFinite(Number(dailyRecipe.cooking_time_minutes)) && Number(dailyRecipe.cooking_time_minutes) > 0 ? Math.round(Number(dailyRecipe.cooking_time_minutes)) : null;
-      const { data } = await supabase.from('recipes').insert({ session_id: userId, title: dailyRecipe.title, description: dailyRecipe.description, time: String(dailyRecipe.time), cooking_time_minutes: dailyCookingTime, calories: String(dailyRecipe.calories), ingredients: dailyRecipe.ingredients || dailyRecipe.detailed_ingredients?.map(i => `${i.name} - ${i.amount}`) || [], detailed_ingredients: dailyRecipe.detailed_ingredients || [], missing_ingredients: dailyRecipe.missing_ingredients || [], steps: dailyRecipe.steps, is_favorite: true }).select('*');
+      const { data } = await supabase.from('recipes').insert({ session_id: userId, title: dailyRecipe.title, description: dailyRecipe.description, time: String(dailyRecipe.time), cooking_time_minutes: dailyCookingTime, calories: String(dailyRecipe.calories), ingredients: dailyRecipe.ingredients || dailyRecipe.detailed_ingredients?.map(i => `${i.name} - ${i.amount}`) || [], detailed_ingredients: dailyRecipe.detailed_ingredients || [], missing_ingredients: dailyRecipe.missing_ingredients || [], steps: dailyRecipe.steps, is_favorite: true }).select('id');
       if (data && data.length > 0) { setDailyFavoriteId(data[0].id); fetchMyRecipes(userId); } 
     } 
   }; 
@@ -1101,7 +1119,7 @@ export default function SearchApp() {
 
   const loadSharedRecipe = async (id: string, source: 'photos' | false = false) => { 
     try { 
-      const { data, error } = await supabase.from('recipes').select('*').eq('id', id).single(); 
+      const { data, error } = await supabase.from('recipes').select(RECIPE_CLIENT_COLUMNS).eq('id', id).single<DBRecipe>(); 
       if (data && !error) { 
         setAnalysisResult(null); setDemoProducts(null); setQuestion(""); setAnswer(null); setServings(1);  
         setRecipe({ id: data.id, is_favorite: data.is_favorite, title: data.title, description: data.description, time: data.time, cooking_time_minutes: data.cooking_time_minutes, calories: data.calories, image_url: data.image_url, steps: data.steps || [], missing_ingredients: data.missing_ingredients || [], ingredients: data.ingredients || [], detailed_ingredients: data.detailed_ingredients || [], estimated_cost: data.estimated_cost, budget_tier: data.budget_tier });

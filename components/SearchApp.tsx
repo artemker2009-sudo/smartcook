@@ -7,7 +7,8 @@ import { toast } from "sonner";
 
 import type { AnalysisData, RecipeData, DBRecipe, DailyRecipeType, HolidayType, DBComment } from "@/lib/types";
 import { RECIPE_CLIENT_COLUMNS } from "@/lib/recipeColumns";
-import { ensureGuestId, rememberAccountId } from "@/lib/guestIdentity";
+import { ensureGuestId, rememberAccountId, RECIPES_CLAIMED_EVENT } from "@/lib/guestIdentity";
+import { claimGuestRecipesToAccount } from "@/lib/claimRecipes";
 import { DEVELOPER_ID, scaleAmount, formatCooks, cleanText, formatTime, formatCalories, getCroppedImg } from "@/lib/utils";
 import { shareOrCopy } from "@/lib/share";
 import { shareUrl } from "@/lib/site";
@@ -291,7 +292,21 @@ export default function SearchApp() {
       currentSessionId = ensureGuestId();
     }
     setUserId(currentSessionId); if (currentSessionId) fetchMyRecipes(currentSessionId); 
+    // Подметалка: человек уже залогинен, но на устройстве остались гостевые
+    // рецепты — например, он зарегистрировался ДО появления переноса. Список
+    // гостевых id пуст у подавляющего большинства, и тогда функция выходит на
+    // первой строке, не трогая сеть.
+    if (user) void claimGuestRecipesToAccount(user.id);
   }, [user]);
+
+  // Перенос закончился — перечитываем историю. Иначе рецепты появятся только
+  // после перезагрузки: claim идёт fire-and-forget и заведомо финиширует позже,
+  // чем отработал эффект выше.
+  useEffect(() => {
+    const onClaimed = () => { if (userId) fetchMyRecipes(userId); };
+    window.addEventListener(RECIPES_CLAIMED_EVENT, onClaimed);
+    return () => window.removeEventListener(RECIPES_CLAIMED_EVENT, onClaimed);
+  }, [userId]);
 
   const loadDailyRecipe = () => {
     setDailyError(false);
@@ -482,31 +497,6 @@ export default function SearchApp() {
     if (!error && data) setFeed(data as DBRecipe[]);
   };
 
-  // Перенос профиля вкуса из localStorage (анонимный опыт) в аккаунт при
-  // входе/регистрации. МЁРДЖ, а не перезапись: то, что уже сохранено в
-  // аккаунте, остаётся; добавляется только новое из localStorage.
-  const mergeTasteProfileIntoAccount = async (
-    accountUser: { user_metadata?: { allergies?: unknown; dislikes?: unknown } } | null | undefined,
-  ) => {
-    try {
-      const localA = JSON.parse(localStorage.getItem("sc_allergies") || "[]");
-      const localD = JSON.parse(localStorage.getItem("sc_dislikes") || "[]");
-      const accA = Array.isArray(accountUser?.user_metadata?.allergies) ? (accountUser!.user_metadata!.allergies as string[]) : [];
-      const accD = Array.isArray(accountUser?.user_metadata?.dislikes) ? (accountUser!.user_metadata!.dislikes as string[]) : [];
-      const mergedA = Array.from(new Set([...accA, ...(Array.isArray(localA) ? localA : [])]));
-      const mergedD = Array.from(new Set([...accD, ...(Array.isArray(localD) ? localD : [])]));
-
-      // Пишем в аккаунт только если localStorage добавил что-то новое.
-      if (mergedA.length !== accA.length || mergedD.length !== accD.length) {
-        await supabase.auth.updateUser({ data: { allergies: mergedA, dislikes: mergedD } });
-      }
-      setAllergies(mergedA);
-      setDislikes(mergedD);
-      localStorage.setItem("sc_allergies", JSON.stringify(mergedA));
-      localStorage.setItem("sc_dislikes", JSON.stringify(mergedD));
-    } catch {}
-  };
-
   // Вся авторизация (регистрация/вход/восстановление пароля) живёт в общем
   // хуке — раньше она была скопирована сюда и ещё в две страницы банкетов.
   const {
@@ -514,11 +504,10 @@ export default function SearchApp() {
     setIsOpen: setIsAuthModalOpen,
     authModalProps,
   } = useAuthModal({
-    onAuthenticated: async (authedUser, outcome) => {
+    onAuthenticated: async (_authedUser, outcome) => {
       reachGoal(
         outcome === "register" ? "auth_signup" : outcome === "recover" ? "auth_recover" : "auth_login",
       );
-      await mergeTasteProfileIntoAccount(authedUser);
       await claimGuestPartiesToAccount();
       if (outcome === "register") {
         showToast("Добро пожаловать, шеф!", <Sparkles size={18} color="var(--color-accent)" />);

@@ -51,6 +51,8 @@ import type { DBRecipe } from "@/lib/types";
 
 import Button from "@/components/ui/Button";
 import { useAuthModal } from "@/components/modals/useAuthModal";
+import { claimGuestRecipesToAccount } from "@/lib/claimRecipes";
+import { RECIPES_CLAIMED_EVENT } from "@/lib/guestIdentity";
 import AuthModal from "@/components/modals/AuthModal";
 import PreferencesModal from "@/components/modals/PreferencesModal";
 import EditProfileModal from "@/components/modals/EditProfileModal";
@@ -230,7 +232,18 @@ export default function ProfileApp() {
     }
     fetchMyRecipes(user.id);
     loadMine();
+    // Подметалка для уже залогиненных: на /profile SearchApp не монтируется,
+    // а именно здесь регистрировалась часть людей — у них гостевой id до сих
+    // пор лежит в cook_user_id нетронутым.
+    void claimGuestRecipesToAccount(user.id);
   }, [user, fetchMyRecipes, loadMine]);
+
+  // Перенос закончился — перечитываем историю (claim идёт fire-and-forget).
+  useEffect(() => {
+    const onClaimed = () => { if (user) fetchMyRecipes(user.id); };
+    window.addEventListener(RECIPES_CLAIMED_EVENT, onClaimed);
+    return () => window.removeEventListener(RECIPES_CLAIMED_EVENT, onClaimed);
+  }, [user, fetchMyRecipes]);
 
   // --- Профиль вкуса: та же персистентность, что и в поиске (localStorage +
   //     user_metadata для залогиненного). ---

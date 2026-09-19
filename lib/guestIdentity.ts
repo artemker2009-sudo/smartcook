@@ -15,6 +15,27 @@
 
 export const COOK_USER_ID_KEY = "cook_user_id";
 
+// Накопительный список гостевых идентификаторов, под которыми на этом
+// устройстве сохранялись рецепты. Только ДОБАВЛЯЕМ; убираем строго после
+// подтверждённого переноса в аккаунт.
+//
+// Зачем отдельный список, если есть cook_user_id. При входе в аккаунт
+// cook_user_id перезаписывается на user.id, и прежнее значение пропадает. Читать
+// его «в момент авторизации» нельзя: перезапись живёт в эффекте SearchApp по
+// смене user, а перенос вызывается из useAuthModal сразу после
+// signInWithPassword — кто из них успеет первым, не определено. Накопительный
+// список этой гонки не знает вовсе: он переживает и вход, и выход, и второе
+// устройство.
+export const GUEST_IDS_KEY = "smartcook_guest_recipe_ids";
+
+// Событие «гостевые рецепты переехали в аккаунт» — экраны с историей по нему
+// перечитывают список. Тот же приём, что у SHOPPING_CHANGED_EVENT.
+export const RECIPES_CLAIMED_EVENT = "smartcook:recipes-claimed";
+
+// Больше на одном устройстве не накапливается: это защита от разрастания
+// localStorage, а не архив.
+const MAX_GUEST_IDS = 20;
+
 // Идентификатор аккаунта — это uuid из auth.users. Гостевой — "user_xxxxxxxxx".
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -49,13 +70,74 @@ export function ensureGuestId(): string {
     return newGuestId();
   }
 
-  if (stored && !isAccountId(stored)) return stored;
+  if (stored && !isAccountId(stored)) {
+    rememberGuestId(stored);
+    return stored;
+  }
 
   const fresh = newGuestId();
   try {
     localStorage.setItem(COOK_USER_ID_KEY, fresh);
   } catch {}
+  rememberGuestId(fresh);
   return fresh;
+}
+
+// --- накопительный список гостевых id -------------------------------------
+
+function readGuestIds(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const parsed = JSON.parse(localStorage.getItem(GUEST_IDS_KEY) || "[]");
+    return Array.isArray(parsed)
+      ? parsed.filter((v): v is string => typeof v === "string" && v.trim().length > 0 && !isAccountId(v))
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeGuestIds(ids: string[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    const unique = Array.from(new Set(ids));
+    localStorage.setItem(GUEST_IDS_KEY, JSON.stringify(unique.slice(-MAX_GUEST_IDS)));
+  } catch {
+    // Переполнение/приватный режим: перенос просто не состоится, рецепты целы.
+  }
+}
+
+/** Запомнить гостевой идентификатор как кандидата на перенос. */
+export function rememberGuestId(id: string): void {
+  if (!id || isAccountId(id)) return;
+  const ids = readGuestIds();
+  if (ids.includes(id)) return;
+  writeGuestIds([...ids, id]);
+}
+
+/**
+ * Все гостевые идентификаторы устройства, которые ещё не переехали в аккаунт.
+ *
+ * Кроме самого списка смотрит на текущий cook_user_id: на устройствах, живших
+ * до появления списка, гостевой id лежит только там. Это же вытаскивает тех,
+ * кто регистрировался через /profile — SearchApp у них не монтировался, и
+ * cook_user_id до сих пор хранит гостевое значение, а не uuid аккаунта.
+ */
+export function collectGuestIds(): string[] {
+  if (typeof window === "undefined") return [];
+  const ids = readGuestIds();
+  try {
+    const stored = localStorage.getItem(COOK_USER_ID_KEY);
+    if (stored && !isAccountId(stored) && !ids.includes(stored)) ids.push(stored);
+  } catch {}
+  return ids.slice(0, MAX_GUEST_IDS);
+}
+
+/** Убрать из списка идентификаторы, перенос которых сервер подтвердил. */
+export function forgetGuestIds(claimed: string[]): void {
+  if (!claimed.length) return;
+  const done = new Set(claimed);
+  writeGuestIds(readGuestIds().filter((id) => !done.has(id)));
 }
 
 /** Запомнить, что устройство теперь работает под аккаунтом. */

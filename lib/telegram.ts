@@ -249,3 +249,31 @@ export async function sendSuggestionCard(input: {
     return false;
   }
 }
+
+// Простое служебное уведомление основателю — без кнопок и без пользовательских
+// данных. Для порогов и аномалий (напр. необычно крупный перенос рецептов в
+// аккаунт, см. /api/recipes/claim). parse_mode не используем: текст уходит как
+// есть, разметку сломать нечем.
+export async function sendPlainAlert(text: string): Promise<boolean> {
+  const creds = credentials();
+  if (!creds) {
+    console.error("[telegram] TELEGRAM_BOT_TOKEN/CHAT_ID не заданы — уведомление не отправлено");
+    return false;
+  }
+
+  try {
+    const res = await fetch(`${TELEGRAM_API}/bot${creds.token}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: creds.chatId, text: text.slice(0, 3500) }),
+    });
+    if (!res.ok) {
+      console.error("[telegram] sendMessage (alert) не удался, статус", res.status);
+      return false;
+    }
+    return true;
+  } catch {
+    console.error("[telegram] sendPlainAlert: сетевая ошибка");
+    return false;
+  }
+}

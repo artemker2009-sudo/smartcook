@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import {
   Activity,
   BarChart3,
@@ -12,6 +12,14 @@ import {
   Wrench,
 } from "lucide-react";
 import { renderMarkdown } from "@/lib/markdown";
+import {
+  IDEA_ALLERGENS,
+  IDEA_COOK_METHODS,
+  IDEA_IMAGE_ASPECTS,
+  IDEA_MAIN_PRODUCTS,
+  IDEA_MEALS,
+  type IdeaRecipeAdmin,
+} from "@/lib/ideaRecipes";
 
 type AnalyticsEvent = {
   party_id?: string | null;
@@ -143,7 +151,20 @@ type ImagesStatus = {
   maxBatch: number;
 };
 
-type TabId = "management" | "analytics" | "purchases" | "news" | "articles" | "tips" | "feed" | "images" | "warmup" | "requests" | "errors" | "reports" | "suggestions";
+type TabId = "management" | "analytics" | "purchases" | "news" | "articles" | "ideas" | "tips" | "feed" | "images" | "warmup" | "requests" | "errors" | "reports" | "suggestions";
+
+// Что показать, когда сервер ответил 401. Админ-сессия живёт 12 часов
+// (lib/adminAuth.ts), и вкладка, оставленная открытой на ночь, доживает до
+// утра с мёртвой кукой. Без этого сообщения запись просто «не срабатывала»:
+// роут отвечал 401, а интерфейс показывал общее «не удалось сохранить».
+const ADMIN_SESSION_EXPIRED = "Сессия админки истекла — войдите заново.";
+
+// Отчёт импорта каталога. Структуру задаёт /api/admin/ideas (op=import).
+type IdeaImportReport = {
+  added: { slug: string; title: string }[];
+  skipped: { slug: string; reason: string }[];
+  warnings: string[];
+};
 
 // Предложения пользователей («что добавить, а что убрать»). Личность автора
 // сюда не приходит вовсе — только тип и хвост идентификатора (см. роут).
@@ -197,6 +218,7 @@ const TABS = [
   { id: "purchases" as TabId, label: "💳 История покупок", hint: "Только оплаченные банкеты" },
   { id: "news" as TabId, label: "📰 Новости", hint: "Новости проекта на главной" },
   { id: "articles" as TabId, label: "📝 Заметки", hint: "Кухонные заметки на главной" },
+  { id: "ideas" as TabId, label: "🍳 Каталог", hint: "Рецепты раздела «Идеи»" },
   { id: "tips" as TabId, label: "💡 Советы", hint: "Совет дня на главной" },
   { id: "feed" as TabId, label: "🍽️ Лента", hint: "Премодерация ленты + витрина" },
   { id: "images" as TabId, label: "🖼️ Картинки", hint: "ИИ-картинки блюд к рецептам" },
@@ -386,6 +408,42 @@ export default function AdminPage() {
   const [articlePreview, setArticlePreview] = useState(false);
   const [articleTopic, setArticleTopic] = useState("");
   const [articleGenerating, setArticleGenerating] = useState(false);
+  // Ссылка на форму заметки — по ней её показывают при «Редактировать».
+  const articleFormRef = useRef<HTMLFormElement>(null);
+  // --- Каталог «Идеи» ---
+  // Список грузится СВОИМ запросом к /api/admin/ideas, а не из общего
+  // /api/admin/dashboard: каталог нужен только на своей вкладке, и тащить его
+  // в каждую загрузку админки незачем.
+  const [ideas, setIdeas] = useState<IdeaRecipeAdmin[]>([]);
+  const [ideasMigrationMissing, setIdeasMigrationMissing] = useState(false);
+  const [ideasLoading, setIdeasLoading] = useState(false);
+  const [ideaError, setIdeaError] = useState("");
+  const [ideaBusyId, setIdeaBusyId] = useState<string | null>(null);
+  const [ideaSearch, setIdeaSearch] = useState("");
+  const [ideaFilter, setIdeaFilter] = useState<"all" | "draft" | "published">("all");
+  const [ideaImporting, setIdeaImporting] = useState(false);
+  const [ideaReport, setIdeaReport] = useState<IdeaImportReport | null>(null);
+  // Форма правки. Открывается только для существующего рецепта: создавать
+  // руками нечего — рецепты приезжают файлом.
+  const [ideaEditingId, setIdeaEditingId] = useState<string | null>(null);
+  // Ссылка на форму правки — по ней её показывают (см. эффект ниже).
+  const ideaFormRef = useRef<HTMLFormElement>(null);
+  const [ideaForm, setIdeaForm] = useState({
+    slug: "",
+    title: "",
+    description: "",
+    servings: "2",
+    cooking_time_minutes: "30",
+    meals: [] as string[],
+    main_product: IDEA_MAIN_PRODUCTS[0] as string,
+    cook_method: "" as string,
+    tags: "",
+    allergens: [] as string[],
+    image_aspect: "square",
+    sort_weight: "0",
+    ingredients: "",
+    steps: "",
+  });
   const [tips, setTips] = useState<Tip[]>([]);
   const [tipEditingId, setTipEditingId] = useState<string | null>(null);
   const [tipBody, setTipBody] = useState("");
@@ -465,6 +523,15 @@ export default function AdminPage() {
       void loadSuggestions(suggestionsFilter);
     }
   }, [isAuthenticated, activeTab, suggestionsFilter]);
+
+  // Раздел «Каталог» грузим лениво — при первом открытии вкладки. В общий
+  // /api/admin/dashboard каталог не тащим: он нужен только здесь.
+  useEffect(() => {
+    if (isAuthenticated && activeTab === "ideas" && ideas.length === 0 && !ideasLoading && !ideaError) {
+      void loadIdeas();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, activeTab]);
 
   // Раздел «Жалобы» грузим лениво — при первом открытии вкладки.
   useEffect(() => {
@@ -1119,7 +1186,12 @@ export default function AdminPage() {
     setArticleBody(item.body ?? "");
     setArticleError("");
     setArticlePreview(false);
-    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+    // Тот же дефект, что был в «Каталоге», просто здесь его не замечали: окно
+    // в админке не прокручивается (корень h-screen + overflow-hidden), поэтому
+    // window.scrollTo не делал ничего, и форма правки открывалась вне
+    // видимой части списка. Форма заметок смонтирована всегда, так что
+    // отдельного эффекта, в отличие от «Каталога», не нужно.
+    articleFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   const handleGenerateDraft = async () => {
@@ -1216,6 +1288,253 @@ export default function AdminPage() {
       setArticleBusyId(null);
     }
   };
+
+  // --- Каталог «Идеи» ---
+
+  /**
+   * Сервер сказал «не авторизован». Возвращаем на экран входа И называем
+   * причину: иначе человек видит форму пароля вместо своей работы и не
+   * понимает, что произошло.
+   */
+  const handleAdminUnauthorized = () => {
+    setErrorMessage(ADMIN_SESSION_EXPIRED);
+    setIsAuthenticated(false);
+  };
+
+  const loadIdeas = async () => {
+    setIdeasLoading(true);
+    setIdeaError("");
+    try {
+      const response = await fetch("/api/admin/ideas", { cache: "no-store" });
+      if (response.status === 401) {
+        handleAdminUnauthorized();
+        return;
+      }
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.error || "Не удалось загрузить каталог");
+      setIdeas((data?.recipes as IdeaRecipeAdmin[] | null) ?? []);
+      setIdeasMigrationMissing(Boolean(data?.migrationMissing));
+    } catch (error) {
+      setIdeaError(error instanceof Error ? error.message : "Не удалось загрузить каталог");
+    } finally {
+      setIdeasLoading(false);
+    }
+  };
+
+  const resetIdeaForm = () => {
+    setIdeaEditingId(null);
+    setIdeaError("");
+  };
+
+  // Ингредиенты правятся текстом «название | количество» построчно, а не
+  // двадцатью парами полей: вычитка идёт глазами по всему списку сразу, и
+  // форма из сорока инпутов для этого непригодна.
+  const ingredientsToText = (list: { name: string; amount: string }[]) =>
+    list.map((i) => `${i.name} | ${i.amount}`).join("\n");
+
+  const textToIngredients = (text: string) =>
+    text
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [name, ...rest] = line.split("|");
+        return { name: (name || "").trim(), amount: rest.join("|").trim() };
+      });
+
+  const startEditIdea = (item: IdeaRecipeAdmin) => {
+    setIdeaEditingId(item.id);
+    setIdeaError("");
+    setIdeaForm({
+      slug: item.slug,
+      title: item.title,
+      description: item.description,
+      servings: String(item.servings),
+      cooking_time_minutes: String(item.cooking_time_minutes),
+      meals: item.meals ?? [],
+      main_product: item.main_product,
+      cook_method: item.cook_method ?? "",
+      tags: (item.tags ?? []).join(", "),
+      allergens: item.allergens ?? [],
+      image_aspect: item.image_aspect || "square",
+      sort_weight: String(item.sort_weight ?? 0),
+      ingredients: ingredientsToText(item.ingredients ?? []),
+      steps: (item.steps ?? []).join("\n"),
+    });
+    // Показать форму — задача эффекта ниже: в этот момент её ещё нет в DOM,
+    // она появляется только вместе с ideaEditingId.
+  };
+
+  /**
+   * Показать форму правки, когда она смонтировалась.
+   *
+   * СКРОЛЛИМ ЭЛЕМЕНТ, А НЕ ОКНО. Корень админки — `h-screen overflow-hidden`,
+   * прокручивается не документ, а `<main className="overflow-y-auto">`.
+   * Поэтому window.scrollTo здесь не делает РОВНО НИЧЕГО (проверено замером:
+   * main.scrollTop не меняется). Из-за этого форма открывалась выше текущего
+   * положения списка, человек не видел никакой реакции — и кнопка
+   * «Редактировать» выглядела мёртвой на всех блюдах сразу.
+   *
+   * scrollIntoView не зависит от того, какой предок прокручивается, поэтому
+   * переживёт и следующую перестройку вёрстки админки.
+   */
+  useEffect(() => {
+    if (!ideaEditingId) return;
+    ideaFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [ideaEditingId]);
+
+  const toggleIdeaMeal = (meal: string) => {
+    setIdeaForm((f) => ({
+      ...f,
+      meals: f.meals.includes(meal) ? f.meals.filter((m) => m !== meal) : [...f.meals, meal],
+    }));
+  };
+
+  const toggleIdeaAllergen = (allergen: string) => {
+    setIdeaForm((f) => ({
+      ...f,
+      allergens: f.allergens.includes(allergen)
+        ? f.allergens.filter((a) => a !== allergen)
+        : [...f.allergens, allergen],
+    }));
+  };
+
+  const handleSaveIdea = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!ideaEditingId) return;
+    setIdeaBusyId(ideaEditingId);
+    setIdeaError("");
+    try {
+      const response = await fetch("/api/admin/ideas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          op: "update",
+          id: ideaEditingId,
+          // Собираем ровно тот объект, который принимает импорт: проверяет их
+          // один и тот же код на сервере.
+          recipe: {
+            slug: ideaForm.slug,
+            title: ideaForm.title,
+            description: ideaForm.description,
+            servings: Number(ideaForm.servings),
+            cooking_time_minutes: Number(ideaForm.cooking_time_minutes),
+            meals: ideaForm.meals,
+            main_product: ideaForm.main_product,
+            cook_method: ideaForm.cook_method || null,
+            tags: ideaForm.tags.split(",").map((t) => t.trim()).filter(Boolean),
+            allergens: ideaForm.allergens,
+            image_aspect: ideaForm.image_aspect,
+            sort_weight: Number(ideaForm.sort_weight),
+            ingredients: textToIngredients(ideaForm.ingredients),
+            steps: ideaForm.steps.split("\n").map((s) => s.trim()).filter(Boolean),
+          },
+        }),
+      });
+      if (response.status === 401) {
+        handleAdminUnauthorized();
+        return;
+      }
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.error || "Не удалось сохранить рецепт");
+      await loadIdeas();
+      resetIdeaForm();
+    } catch (error) {
+      setIdeaError(error instanceof Error ? error.message : "Не удалось сохранить рецепт");
+    } finally {
+      setIdeaBusyId(null);
+    }
+  };
+
+  const handleIdeaPublished = async (id: string, published: boolean) => {
+    setIdeaBusyId(id);
+    setIdeaError("");
+    try {
+      const response = await fetch("/api/admin/ideas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ op: "setPublished", id, published }),
+      });
+      if (response.status === 401) {
+        handleAdminUnauthorized();
+        return;
+      }
+      if (!response.ok) throw new Error("Не удалось обновить статус");
+      await loadIdeas();
+    } catch (error) {
+      setIdeaError(error instanceof Error ? error.message : "Не удалось обновить статус");
+    } finally {
+      setIdeaBusyId(null);
+    }
+  };
+
+  const handleDeleteIdea = async (id: string, title: string) => {
+    if (!confirm(`Удалить «${title}» из каталога безвозвратно?`)) return;
+    setIdeaBusyId(id);
+    setIdeaError("");
+    try {
+      const response = await fetch("/api/admin/ideas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ op: "delete", id }),
+      });
+      if (response.status === 401) {
+        handleAdminUnauthorized();
+        return;
+      }
+      if (!response.ok) throw new Error("Не удалось удалить");
+      setIdeas((current) => current.filter((r) => r.id !== id));
+      if (ideaEditingId === id) resetIdeaForm();
+    } catch (error) {
+      setIdeaError(error instanceof Error ? error.message : "Не удалось удалить");
+    } finally {
+      setIdeaBusyId(null);
+    }
+  };
+
+  const handleImportIdeas = async (file: File) => {
+    setIdeaImporting(true);
+    setIdeaError("");
+    setIdeaReport(null);
+    try {
+      // Читаем файл на клиенте и шлём текстом: сервер сам считает размер в
+      // байтах и разбирает JSON, чтобы ошибку разбора показать отдельно от
+      // ошибок проверки рецептов.
+      const text = await file.text();
+      const response = await fetch("/api/admin/ideas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ op: "import", file: text }),
+      });
+      if (response.status === 401) {
+        handleAdminUnauthorized();
+        return;
+      }
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.error || "Не удалось импортировать файл");
+      setIdeaReport({
+        added: data?.added ?? [],
+        skipped: data?.skipped ?? [],
+        warnings: data?.warnings ?? [],
+      });
+      await loadIdeas();
+    } catch (error) {
+      setIdeaError(error instanceof Error ? error.message : "Не удалось импортировать файл");
+    } finally {
+      setIdeaImporting(false);
+    }
+  };
+
+  // Отчёт целиком текстом — чтобы отправить директору на исправление файла,
+  // а не пересказывать руками.
+  const ideaReportAsText = (report: IdeaImportReport) =>
+    [
+      `Добавлено: ${report.added.length}`,
+      ...report.added.map((a) => `  + ${a.title} (${a.slug})`),
+      `Пропущено: ${report.skipped.length}`,
+      ...report.skipped.map((s) => `  - ${s.slug}: ${s.reason}`),
+      ...(report.warnings.length ? ["Предупреждения:", ...report.warnings.map((w) => `  ! ${w}`)] : []),
+    ].join("\n");
 
   // --- Советы (tips) ---
   const resetTipForm = () => {
@@ -2079,7 +2398,7 @@ export default function AdminPage() {
               </div>
 
               {/* Форма создания / редактирования */}
-              <form onSubmit={handleSaveArticle} className="space-y-3 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+              <form ref={articleFormRef} onSubmit={handleSaveArticle} className="space-y-3 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-semibold text-zinc-900">
                     {articleEditingId ? "Редактирование заметки" : "Новая заметка"}
@@ -2235,6 +2554,450 @@ export default function AdminPage() {
                     </article>
                   );
                 })
+              )}
+            </section>
+          ) : null}
+
+          {activeTab === "ideas" ? (
+            <section className="space-y-4">
+              <div className="rounded-[2rem] border border-zinc-200 bg-white px-6 py-5 shadow-sm">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-400">Контент</p>
+                <h3 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-950">Каталог «Идеи»</h3>
+                <p className="mt-2 text-sm text-zinc-500">
+                  Рецепты раздела «Идеи». Заливаются файлом, публикуются вручную после
+                  вычитки: импорт создаёт только черновики и никогда не перезаписывает
+                  то, что уже в каталоге. Картинки блюд — отдельный раздел, позже.
+                </p>
+              </div>
+
+              {ideasMigrationMissing ? (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800">
+                  Таблица каталога не найдена. Прогоните миграцию{" "}
+                  <code className="rounded bg-amber-100 px-1">supabase_idea_recipes.sql</code> в
+                  Supabase SQL Editor.
+                </div>
+              ) : null}
+
+              {ideaError ? (
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                  {ideaError}
+                </div>
+              ) : null}
+
+              {/* Импорт файла */}
+              <div className="space-y-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-6 shadow-sm">
+                <p className="text-sm font-semibold text-emerald-900">Импорт JSON</p>
+                <p className="text-xs text-emerald-800">
+                  Формат — в <code className="rounded bg-emerald-100 px-1">docs/ideas-import-format.md</code>.
+                  До 100 рецептов и 1 МБ за раз. Всё приезжает <b>черновиками</b>; рецепт с уже
+                  существующим slug пропускается, а не перезаписывается.
+                </p>
+                <input
+                  type="file"
+                  accept="application/json,.json"
+                  disabled={ideaImporting}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    // Сбрасываем значение: иначе повторный выбор ТОГО ЖЕ файла
+                    // не вызовет onChange, и «импортировать ещё раз» молча не
+                    // сработает.
+                    e.target.value = "";
+                    if (file) void handleImportIdeas(file);
+                  }}
+                  className="block w-full text-sm text-emerald-900 file:mr-3 file:rounded-full file:border-0 file:bg-emerald-600 file:px-5 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-emerald-500 disabled:opacity-50"
+                />
+                {ideaImporting ? <p className="text-xs text-emerald-700">Загружаем…</p> : null}
+              </div>
+
+              {/* Отчёт импорта */}
+              {ideaReport ? (
+                <div className="space-y-3 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-zinc-900">Отчёт импорта</p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void navigator.clipboard?.writeText(ideaReportAsText(ideaReport))}
+                        className="rounded-full bg-zinc-100 px-4 py-1.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-200"
+                      >
+                        Скопировать отчёт
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIdeaReport(null)}
+                        className="rounded-full bg-zinc-100 px-4 py-1.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-200"
+                      >
+                        Закрыть
+                      </button>
+                    </div>
+                  </div>
+
+                  <p className="text-sm text-emerald-700">Добавлено: {ideaReport.added.length}</p>
+                  {ideaReport.added.length > 0 ? (
+                    <ul className="space-y-0.5 text-xs text-zinc-600">
+                      {ideaReport.added.map((a) => (
+                        <li key={a.slug}>+ {a.title}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+
+                  <p className="text-sm text-amber-700">Пропущено: {ideaReport.skipped.length}</p>
+                  {ideaReport.skipped.length > 0 ? (
+                    <ul className="space-y-0.5 text-xs text-zinc-600">
+                      {ideaReport.skipped.map((s, i) => (
+                        <li key={`${s.slug}-${i}`}>
+                          <span className="font-mono text-zinc-500">{s.slug}</span> — {s.reason}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+
+                  {ideaReport.warnings.map((w, i) => (
+                    <p key={i} className="text-xs text-amber-700">
+                      {w}
+                    </p>
+                  ))}
+                </div>
+              ) : null}
+
+              {/* Форма правки — только для выбранного рецепта */}
+              {ideaEditingId ? (
+                <form
+                  ref={ideaFormRef}
+                  onSubmit={handleSaveIdea}
+                  className="space-y-3 rounded-2xl border border-zinc-300 bg-white p-6 shadow-sm"
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-zinc-900">Правка рецепта</p>
+                    <button
+                      type="button"
+                      onClick={resetIdeaForm}
+                      className="rounded-full bg-zinc-100 px-4 py-1.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-200"
+                    >
+                      Закрыть
+                    </button>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="text-xs font-medium text-zinc-600">
+                      Название
+                      <input
+                        value={ideaForm.title}
+                        onChange={(e) => setIdeaForm((f) => ({ ...f, title: e.target.value }))}
+                        className="mt-1 w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-900"
+                      />
+                    </label>
+                    <label className="text-xs font-medium text-zinc-600">
+                      slug (адрес /ideas/…)
+                      <input
+                        value={ideaForm.slug}
+                        onChange={(e) => setIdeaForm((f) => ({ ...f, slug: e.target.value }))}
+                        className="mt-1 w-full rounded-xl border border-zinc-300 px-3 py-2 font-mono text-sm outline-none focus:border-zinc-900"
+                      />
+                    </label>
+                  </div>
+
+                  <label className="block text-xs font-medium text-zinc-600">
+                    Описание (карточка и превью ссылки)
+                    <textarea
+                      value={ideaForm.description}
+                      onChange={(e) => setIdeaForm((f) => ({ ...f, description: e.target.value }))}
+                      rows={2}
+                      className="mt-1 w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-900"
+                    />
+                  </label>
+
+                  <div className="grid gap-3 sm:grid-cols-4">
+                    <label className="text-xs font-medium text-zinc-600">
+                      Порций
+                      <input
+                        type="number"
+                        value={ideaForm.servings}
+                        onChange={(e) => setIdeaForm((f) => ({ ...f, servings: e.target.value }))}
+                        className="mt-1 w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-900"
+                      />
+                    </label>
+                    <label className="text-xs font-medium text-zinc-600">
+                      Минут
+                      <input
+                        type="number"
+                        value={ideaForm.cooking_time_minutes}
+                        onChange={(e) =>
+                          setIdeaForm((f) => ({ ...f, cooking_time_minutes: e.target.value }))
+                        }
+                        className="mt-1 w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-900"
+                      />
+                    </label>
+                    <label className="text-xs font-medium text-zinc-600">
+                      Главный продукт
+                      <select
+                        value={ideaForm.main_product}
+                        onChange={(e) => setIdeaForm((f) => ({ ...f, main_product: e.target.value }))}
+                        className="mt-1 w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-900"
+                      >
+                        {IDEA_MAIN_PRODUCTS.map((p) => (
+                          <option key={p} value={p}>
+                            {p}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="text-xs font-medium text-zinc-600">
+                      Способ (не показывается)
+                      <select
+                        value={ideaForm.cook_method}
+                        onChange={(e) => setIdeaForm((f) => ({ ...f, cook_method: e.target.value }))}
+                        className="mt-1 w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-900"
+                      >
+                        <option value="">не задан</option>
+                        {IDEA_COOK_METHODS.map((m) => (
+                          <option key={m} value={m}>
+                            {m}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+
+                  <div className="text-xs font-medium text-zinc-600">
+                    Приёмы пищи
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      {IDEA_MEALS.map((meal) => (
+                        <button
+                          key={meal}
+                          type="button"
+                          onClick={() => toggleIdeaMeal(meal)}
+                          className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                            ideaForm.meals.includes(meal)
+                              ? "bg-zinc-900 text-white"
+                              : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                          }`}
+                        >
+                          {meal}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="text-xs font-medium text-zinc-600">
+                    Аллергены (только из словаря)
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      {IDEA_ALLERGENS.map((a) => (
+                        <button
+                          key={a}
+                          type="button"
+                          onClick={() => toggleIdeaAllergen(a)}
+                          className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                            ideaForm.allergens.includes(a)
+                              ? "bg-red-600 text-white"
+                              : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                          }`}
+                        >
+                          {a}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <label className="block text-xs font-medium text-zinc-600">
+                    Ингредиенты — по строке на продукт, «название | количество»
+                    <textarea
+                      value={ideaForm.ingredients}
+                      onChange={(e) => setIdeaForm((f) => ({ ...f, ingredients: e.target.value }))}
+                      rows={6}
+                      className="mt-1 w-full rounded-xl border border-zinc-300 px-3 py-2 font-mono text-xs outline-none focus:border-zinc-900"
+                    />
+                  </label>
+
+                  <label className="block text-xs font-medium text-zinc-600">
+                    Шаги — по строке на шаг
+                    <textarea
+                      value={ideaForm.steps}
+                      onChange={(e) => setIdeaForm((f) => ({ ...f, steps: e.target.value }))}
+                      rows={6}
+                      className="mt-1 w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-900"
+                    />
+                  </label>
+
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <label className="text-xs font-medium text-zinc-600">
+                      Теги (через запятую)
+                      <input
+                        value={ideaForm.tags}
+                        onChange={(e) => setIdeaForm((f) => ({ ...f, tags: e.target.value }))}
+                        className="mt-1 w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-900"
+                      />
+                    </label>
+                    <label className="text-xs font-medium text-zinc-600">
+                      Пропорции картинки
+                      <select
+                        value={ideaForm.image_aspect}
+                        onChange={(e) => setIdeaForm((f) => ({ ...f, image_aspect: e.target.value }))}
+                        className="mt-1 w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-900"
+                      >
+                        {IDEA_IMAGE_ASPECTS.map((a) => (
+                          <option key={a} value={a}>
+                            {a === "square" ? "квадрат" : "вертикаль"}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="text-xs font-medium text-zinc-600">
+                      Вес в ленте (больше — выше)
+                      <input
+                        type="number"
+                        value={ideaForm.sort_weight}
+                        onChange={(e) => setIdeaForm((f) => ({ ...f, sort_weight: e.target.value }))}
+                        className="mt-1 w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-900"
+                      />
+                    </label>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={!!ideaEditingId && ideaBusyId === ideaEditingId}
+                    className="rounded-full bg-zinc-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-zinc-700 disabled:opacity-50"
+                  >
+                    {ideaBusyId === ideaEditingId ? "Сохраняем…" : "Сохранить"}
+                  </button>
+                </form>
+              ) : null}
+
+              {/* Поиск и фильтр */}
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <input
+                  value={ideaSearch}
+                  onChange={(e) => setIdeaSearch(e.target.value)}
+                  placeholder="Поиск по названию"
+                  className="flex-1 rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm outline-none focus:border-zinc-900"
+                />
+                <div className="flex gap-2">
+                  {([
+                    ["all", "Все"],
+                    ["draft", "Черновики"],
+                    ["published", "Опубликованные"],
+                  ] as const).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setIdeaFilter(value)}
+                      className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
+                        ideaFilter === value
+                          ? "bg-zinc-900 text-white"
+                          : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Список */}
+              {ideasLoading ? (
+                <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-12 text-center text-sm text-zinc-500 shadow-sm">
+                  Загружаем каталог…
+                </div>
+              ) : (
+                (() => {
+                  const query = ideaSearch.trim().toLowerCase();
+                  const visible = ideas.filter((item) => {
+                    if (ideaFilter === "draft" && item.is_published) return false;
+                    if (ideaFilter === "published" && !item.is_published) return false;
+                    if (query && !item.title.toLowerCase().includes(query)) return false;
+                    return true;
+                  });
+
+                  if (visible.length === 0) {
+                    return (
+                      <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-12 text-center text-sm text-zinc-500 shadow-sm">
+                        {ideas.length === 0 ? "Каталог пуст — загрузите файл." : "Ничего не нашлось."}
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <>
+                      <p className="text-xs text-zinc-400">
+                        Показано {visible.length} из {ideas.length}
+                      </p>
+                      {visible.map((item) => {
+                        const published = item.is_published === true;
+                        return (
+                          <article
+                            key={item.id}
+                            className={`rounded-2xl border bg-white p-5 shadow-sm ${
+                              published ? "border-zinc-200" : "border-amber-200"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="text-xs text-zinc-400">/ideas/{item.slug}</p>
+                                <p className="font-semibold text-zinc-900">{item.title}</p>
+                                <p className="mt-1 text-xs text-zinc-500">
+                                  {item.cooking_time_minutes} мин · {(item.meals ?? []).join(", ")} ·{" "}
+                                  {item.main_product}
+                                  {(item.allergens ?? []).length > 0
+                                    ? ` · аллергены: ${item.allergens.join(", ")}`
+                                    : ""}
+                                </p>
+                              </div>
+                              <div className="flex shrink-0 flex-col items-end gap-1">
+                                <span
+                                  className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ${
+                                    published
+                                      ? "bg-green-100 text-green-700 ring-green-200"
+                                      : "bg-amber-100 text-amber-700 ring-amber-200"
+                                  }`}
+                                >
+                                  {published ? "Опубликовано" : "Черновик"}
+                                </span>
+                                <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-600">
+                                  {item.image_status === "ready"
+                                    ? "картинка есть"
+                                    : item.image_status === "generating"
+                                      ? "картинка рисуется"
+                                      : item.image_status === "failed"
+                                        ? "картинка не вышла"
+                                        : "без картинки"}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => startEditIdea(item)}
+                                className="rounded-full bg-zinc-900 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-zinc-700"
+                              >
+                                Редактировать
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleIdeaPublished(item.id, !published)}
+                                disabled={ideaBusyId === item.id}
+                                className={`rounded-full px-4 py-1.5 text-xs font-semibold transition disabled:opacity-50 ${
+                                  published
+                                    ? "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
+                                    : "bg-emerald-600 text-white hover:bg-emerald-500"
+                                }`}
+                              >
+                                {ideaBusyId === item.id ? "..." : published ? "Снять с публикации" : "Опубликовать"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteIdea(item.id, item.title)}
+                                disabled={ideaBusyId === item.id}
+                                className="rounded-full bg-red-50 px-4 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-100 disabled:opacity-50"
+                              >
+                                Удалить
+                              </button>
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </>
+                  );
+                })()
               )}
             </section>
           ) : null}

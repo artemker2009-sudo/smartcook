@@ -152,6 +152,28 @@ describe("parseIdeasImport — дубли и негодный файл", () => {
 });
 
 describe("parseIdeaRecipe — правка в админке", () => {
+  // РАССЛЕДОВАНИЕ 20.09: публикации основателя дважды сбрасывались в черновики.
+  // Первое подозрение — что «Сохранить» в форме правки затирает статус. Тест
+  // фиксирует, что это НЕ так, и не даст сломать это впредь: объект правки
+  // уходит в update целиком, поэтому появление в нём is_published или
+  // published_at означало бы снятие публикации при каждом сохранении текста.
+  it("объект правки НЕ содержит полей публикации", () => {
+    const result = parseIdeaRecipe(recipe({ is_published: true, published_at: "2026-09-20" }));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(Object.keys(result.row)).not.toContain("is_published");
+    expect(Object.keys(result.row)).not.toContain("published_at");
+  });
+
+  it("объект правки не содержит и полей картинки — их ведёт генерация", () => {
+    const result = parseIdeaRecipe(recipe({ image_url: "http://x", image_status: "ready" }));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(Object.keys(result.row)).not.toContain("image_url");
+    expect(Object.keys(result.row)).not.toContain("image_status");
+  });
+
+
   it("принимает годный рецепт", () => {
     const result = parseIdeaRecipe(recipe());
     expect(result.ok).toBe(true);

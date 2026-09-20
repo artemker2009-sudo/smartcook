@@ -54,6 +54,21 @@ const MAIN_CHIPS = Object.entries(MAIN_BY_PARAM).map(([param, value]) => ({
 // колонки; остальное lazy, иначе восемьдесят картинок стартуют одновременно.
 const EAGER_IMAGES = 4;
 
+// Высота, на которой лента замирает с крутящимся индикатором.
+const PULL_INDICATOR_PX = 56;
+// Сколько держим индикатор, прежде чем менять карточки, и длительность
+// затухания. 200–300 мс — предел, за которым пауза начинает читаться как
+// зависание, а не как работа.
+const HOLD_MS = 420;
+const FADE_MS = 200;
+// Сопротивление: чем дальше тянешь, тем медленнее едет лента. Асимптота не
+// даёт улететь на пол-экрана даже при рывке.
+const PULL_MAX_PX = 140;
+
+function resist(distance: number): number {
+  return PULL_MAX_PX * (1 - Math.exp(-Math.max(0, distance) / PULL_MAX_PX));
+}
+
 function readJson<T>(storage: Storage | null, key: string, fallback: T): T {
   if (!storage) return fallback;
   try {
@@ -165,14 +180,32 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
   const [taste, setTaste] = useState<TasteMatcher | null>(null);
   const seenRef = useRef<Set<string>>(new Set());
 
+  // Сдвиг ленты под пальцем и прозрачность карточек при подмене. Оба —
+  // ТОЛЬКО transform и opacity: layout при обновлении не трогается вовсе,
+  // иначе на каждом кадре пересчитывалась бы вся сетка.
+  const [offset, setOffsetState] = useState(0);
+  // Тот же сдвиг, но доступный синхронно. Нужен обработчику отпускания:
+  // решение «обновлять или пружинить назад» нельзя принимать внутри
+  // обновлятора setState — тот выполняется в фазе рендера, и вызванный оттуда
+  // setState React отбрасывает. Поймано замером: лента зависала на 106px
+  // вместо того, чтобы вернуться.
+  const offsetRef = useRef(0);
+  const setOffset = useCallback((value: number) => {
+    offsetRef.current = value;
+    setOffsetState(value);
+  }, []);
+  const [dragging, setDragging] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [faded, setFaded] = useState(false);
+
   /**
-   * Перемешать ленту заново.
+   * Пересобрать порядок. Чистая часть обновления, без анимации.
    *
    * Снимок открытых берётся ЗАНОВО из localStorage: только что открытые
    * рецепты должны уехать в конец — ради этого обновление и нужно.
    */
-  const reshuffle = useCallback(
-    (how: "pull" | "tab" | "resume", scrollTop: boolean) => {
+  const applyReshuffle = useCallback(
+    (how: "pull" | "tab" | "resume") => {
       const seen = readJson<string[]>(localStorage, SEEN_KEY, []);
       seenRef.current = new Set(seen);
       const seed = newSeed();
@@ -180,14 +213,48 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
       persistVisit(seed, next.map((c) => c.slug));
       setOrdered(next);
       reachGoal("ideas_refresh", { how });
-      if (scrollTop) {
-        window.scrollTo({
-          top: 0,
-          behavior: prefersReducedMotion() ? "auto" : "smooth",
-        });
-      }
     },
     [initialCards],
+  );
+
+  /**
+   * Обновление с анимацией: подержать индикатор, мягко погасить карточки,
+   * подменить порядок, проявить обратно, закрыть.
+   *
+   * Мгновенная подмена читается как сбой отрисовки: человек тянул, отпустил —
+   * и содержимое дёрнулось. Пауза с затуханием превращает это в понятное
+   * «лента обновилась».
+   */
+  const runRefresh = useCallback(
+    (how: "pull" | "tab" | "resume", scrollTop: boolean) => {
+      const reduced = prefersReducedMotion();
+
+      if (scrollTop) {
+        window.scrollTo({ top: 0, behavior: reduced ? "auto" : "smooth" });
+      }
+
+      if (reduced) {
+        // «Поменьше движения» — значит без движения: просто смена.
+        applyReshuffle(how);
+        setOffset(0);
+        setRefreshing(false);
+        return;
+      }
+
+      setRefreshing(true);
+      setOffset(PULL_INDICATOR_PX);
+
+      window.setTimeout(() => setFaded(true), HOLD_MS);
+      window.setTimeout(() => {
+        applyReshuffle(how);
+        setFaded(false);
+      }, HOLD_MS + FADE_MS);
+      window.setTimeout(() => {
+        setRefreshing(false);
+        setOffset(0);
+      }, HOLD_MS + FADE_MS * 2);
+    },
+    [applyReshuffle, setOffset],
   );
 
   // Порядок захода. Считается один раз и живёт в sessionStorage, но ТОЛЬКО
@@ -241,35 +308,37 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
       const hiddenMs = hiddenAt === null ? null : Date.now() - hiddenAt;
       hiddenAt = null;
       if (shouldStartNewVisit({ isFirstMountInDocument: false, hiddenMs })) {
-        reshuffle("resume", true);
+        runRefresh("resume", true);
       }
     };
     document.addEventListener("visibilitychange", onVisibility);
     return () => document.removeEventListener("visibilitychange", onVisibility);
-  }, [reshuffle]);
+  }, [runRefresh]);
 
   // ── Оттяжка вниз ──────────────────────────────────────────────────────────
   //
-  // Своими руками, без библиотек. Три условия, чтобы жест не мешал жить:
+  // Своими руками, без библиотек. Лента едет за пальцем через translate3d:
+  // layout не трогается вовсе, поэтому каждый кадр — это только композитинг.
+  //
+  // Три условия, чтобы жест не мешал жить:
   //   • только когда лента уже в самом верху (scrollY === 0);
   //   • только если палец идёт вниз И вертикаль заметно больше горизонтали —
   //     иначе жест перехватывал бы боковую прокрутку чипов;
   //   • preventDefault на touchmove, чтобы не тянулась «резинка» браузера.
   //     Слушатель обязан быть НЕ пассивным, иначе preventDefault игнорируется.
-  //
-  // Нативная прокрутка страницы не трогается: пока условия не сошлись, мы
-  // вообще ничего не делаем.
-  const [pull, setPull] = useState(0);
-  const [refreshing, setRefreshing] = useState(false);
-  const pullState = useRef<{ startY: number; startX: number; active: boolean } | null>(null);
+  const pullState = useRef<{ startY: number; startX: number; active: boolean; buzzed: boolean } | null>(
+    null,
+  );
 
   useEffect(() => {
+    const reduced = prefersReducedMotion();
+
     const onStart = (e: TouchEvent) => {
       if (window.scrollY > 0 || refreshing) return;
       // Горизонтальная лента чипов живёт своей жизнью.
       if ((e.target as HTMLElement | null)?.closest?.(".ideas-chips-scroll")) return;
       const t = e.touches[0];
-      pullState.current = { startY: t.clientY, startX: t.clientX, active: false };
+      pullState.current = { startY: t.clientY, startX: t.clientX, active: false, buzzed: false };
     };
 
     const onMove = (e: TouchEvent) => {
@@ -281,47 +350,56 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
 
       if (!st.active) {
         // Решаем один раз: это оттяжка или обычный жест.
-        if (dy <= 0 || dy < 8) return;
+        if (dy < 8) return;
         if (dx > dy) {
           pullState.current = null;
           return;
         }
         st.active = true;
+        setDragging(true);
       }
 
       if (window.scrollY > 0) {
         pullState.current = null;
-        setPull(0);
+        setDragging(false);
+        setOffset(0);
         return;
       }
 
       e.preventDefault();
-      // Затухание: палец уходит вниз быстрее, чем индикатор, — так жест
-      // ощущается упругим и не улетает на пол-экрана.
-      setPull(Math.min(PULL_THRESHOLD_PX * 1.6, dy * 0.5));
+      const next = resist(dy);
+
+      // Лёгкий тычок ровно один раз — в момент, когда оттяжка «зарядилась».
+      // В iOS-WebView vibrate не поддерживается: молча пропускаем, никаких
+      // проверок платформы и никаких заглушек.
+      if (!st.buzzed && next >= PULL_THRESHOLD_PX) {
+        st.buzzed = true;
+        try {
+          navigator.vibrate?.(10);
+        } catch {
+          /* нет вибрации — и не надо */
+        }
+      }
+
+      setOffset(reduced ? 0 : next);
     };
 
     const onEnd = () => {
       const st = pullState.current;
       pullState.current = null;
+      setDragging(false);
       if (!st?.active) {
-        setPull(0);
+        setOffset(0);
         return;
       }
-      setPull((current) => {
-        if (current >= PULL_THRESHOLD_PX * 0.5) {
-          setRefreshing(true);
-          // Перемешиваем на следующем кадре: индикатор успевает показаться, и
-          // обновление не выглядит мгновенным «морганием».
-          window.setTimeout(() => {
-            reshuffle("pull", false);
-            setRefreshing(false);
-            setPull(0);
-          }, prefersReducedMotion() ? 0 : 260);
-          return PULL_THRESHOLD_PX * 0.5;
-        }
-        return 0;
-      });
+      // Решение принимаем по последнему известному сдвигу, а не по сырому
+      // пальцу: порог должен совпадать с тем, что человек ВИДЕЛ.
+      if (reduced || offsetRef.current >= PULL_THRESHOLD_PX) {
+        runRefresh("pull", false);
+      } else {
+        // Не дотянул — пружинит обратно.
+        setOffset(0);
+      }
     };
 
     window.addEventListener("touchstart", onStart, { passive: true });
@@ -334,7 +412,7 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
       window.removeEventListener("touchend", onEnd);
       window.removeEventListener("touchcancel", onEnd);
     };
-  }, [reshuffle, refreshing]);
+  }, [runRefresh, refreshing]);
 
   // Гасим встроенную оттяжку-обновление Chrome и цепную прокрутку — ТОЛЬКО
   // пока открыта лента. Свойство ставится на документ (скроллится именно он, а
@@ -350,11 +428,11 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
   useEffect(() => {
     const onReselect = (e: Event) => {
       const href = (e as CustomEvent<{ href?: string }>).detail?.href ?? "";
-      if (href.startsWith("/ideas")) reshuffle("tab", true);
+      if (href.startsWith("/ideas")) runRefresh("tab", true);
     };
     window.addEventListener(TAB_RESELECT_EVENT, onReselect);
     return () => window.removeEventListener(TAB_RESELECT_EVENT, onReselect);
-  }, [reshuffle]);
+  }, [runRefresh]);
 
   // Профиль вкуса — в эффекте, а не в layout: он влияет только на видимость
   // чипа и на фильтр, а не на первый кадр.
@@ -429,11 +507,29 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
   const flatIndex = new Map(visible.map((c, i) => [c.slug, i]));
 
   return (
-    <>
-      {/* Индикатор оттяжки. Высота управляется жестом, поэтому инлайн-стиль —
-          это не вкусовщина, а единственное место, где значение известно. */}
-      <div className="ideas-pull" style={{ height: `${pull}px` }} aria-hidden={pull === 0}>
-        <span className={`ideas-pull-dot${refreshing ? " is-spinning" : ""}`} />
+    <div
+      className={`ideas-shift${dragging ? " is-dragging" : ""}`}
+      // Сдвиг живёт в инлайн-стиле: значение известно только здесь и меняется
+      // на каждом кадре жеста. translate3d, а не top/margin — чтобы браузер
+      // не пересчитывал раскладку.
+      style={{ transform: `translate3d(0, ${offset}px, 0)` }}
+    >
+      {/* Индикатор висит НАД лентой и выезжает вместе с ней: собственной
+          высоты не занимает, поэтому вёрстка под ним не дёргается. */}
+      <div className="ideas-pull" aria-hidden={offset === 0 && !refreshing}>
+        <span
+          className={`ideas-pull-dot${refreshing ? " is-spinning" : ""}`}
+          style={
+            refreshing
+              ? undefined
+              : {
+                  // Пока тянут — крутим пропорционально оттяжке и проявляем:
+                  // индикатор «заряжается» вместе с жестом.
+                  transform: `rotate(${Math.round(offset * 3)}deg)`,
+                  opacity: Math.min(1, offset / PULL_THRESHOLD_PX),
+                }
+          }
+        />
       </div>
 
       <div className="ideas-chips ideas-chips-meal">
@@ -499,6 +595,7 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
         <p className="ideas-note">Скрыли блюда с вашими аллергиями и нелюбимыми продуктами</p>
       )}
 
+      <div className={`ideas-content${faded ? " is-faded" : ""}`}>
       {visible.length === 0 ? (
         <div className="feed-empty">
           <p className="feed-empty-text">Таких блюд пока нет</p>
@@ -540,6 +637,7 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
           ))}
         </div>
       )}
-    </>
+      </div>
+    </div>
   );
 }

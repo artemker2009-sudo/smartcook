@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { requireAdminSession } from "@/lib/adminAuth";
 import { createServiceRoleClient } from "@/lib/supabaseAdmin";
 import { IDEA_ADMIN_COLUMNS, effectiveImageStatus } from "@/lib/ideaRecipes";
@@ -37,6 +38,27 @@ function isMissingTable(error: { code?: string; message?: string } | null): bool
 /** Нарушение уникальности slug. */
 function isDuplicateKey(error: { code?: string } | null): boolean {
   return error?.code === "23505";
+}
+
+
+/**
+ * Сбросить кэш ленты и экрана рецепта.
+ *
+ * /ideas — статическая страница с revalidate 300. Без явного сброса публикация
+ * появлялась бы в ленте не сразу, а в пределах пяти минут: человек нажал
+ * «Опубликовать», пошёл смотреть — и не увидел ничего. Пять минут тишины
+ * выглядят как «не работает».
+ *
+ * Путь рецепта сбрасываем тоже: экран /ideas/<slug> появится следующим PR, но
+ * забыть про него потом легче, чем добавить сейчас.
+ */
+function revalidateIdeas(slug?: string | null): void {
+  try {
+    revalidatePath("/ideas");
+    if (slug) revalidatePath(`/ideas/${slug}`);
+  } catch {
+    // Сброс кэша не должен ронять операцию: данные уже записаны.
+  }
 }
 
 function badRequest(message: string) {
@@ -219,12 +241,16 @@ export async function POST(req: Request) {
       if (isDuplicateKey(error)) return badRequest("Такой slug уже занят другим рецептом");
       return NextResponse.json({ error: "Не удалось сохранить рецепт" }, { status: 500 });
     }
+    revalidateIdeas(parsed.row.slug);
     return NextResponse.json({ success: true });
   }
 
   if (op === "setPublished") {
     const published = b.published === true;
     const patch: Record<string, unknown> = { is_published: published };
+    // Нужен для сброса кэша экрана рецепта; заполняется, когда мы и так
+    // читаем строку ради гейта публикации.
+    let publishedSlug: string | null = null;
 
     if (published) {
       // ГЕЙТ: публикуем только рецепт с готовой картинкой.
@@ -238,9 +264,16 @@ export async function POST(req: Request) {
       // застрял бы между «нельзя публиковать» и «нельзя перегенерировать».
       const { data: current } = await supabase
         .from("idea_recipes")
-        .select("image_status, image_url, updated_at")
+        .select("image_status, image_url, updated_at, slug")
         .eq("id", id)
-        .maybeSingle<{ image_status: string; image_url: string | null; updated_at: string }>();
+        .maybeSingle<{
+          image_status: string;
+          image_url: string | null;
+          updated_at: string;
+          slug: string;
+        }>();
+
+      publishedSlug = current?.slug ?? null;
 
       const status = current
         ? effectiveImageStatus(current.image_status, current.updated_at)
@@ -270,12 +303,22 @@ export async function POST(req: Request) {
 
     const { error } = await supabase.from("idea_recipes").update(patch).eq("id", id);
     if (error) return NextResponse.json({ error: "Не удалось обновить статус" }, { status: 500 });
+    revalidateIdeas(publishedSlug);
     return NextResponse.json({ success: true });
   }
 
   if (op === "delete") {
+    // Slug читаем ДО удаления — после строки уже нет, а сбросить кэш её
+    // страницы надо.
+    const { data: doomed } = await supabase
+      .from("idea_recipes")
+      .select("slug")
+      .eq("id", id)
+      .maybeSingle<{ slug: string }>();
+
     const { error } = await supabase.from("idea_recipes").delete().eq("id", id);
     if (error) return NextResponse.json({ error: "Не удалось удалить" }, { status: 500 });
+    revalidateIdeas(doomed?.slug ?? null);
     return NextResponse.json({ success: true });
   }
 

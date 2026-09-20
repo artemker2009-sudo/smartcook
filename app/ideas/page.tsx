@@ -59,12 +59,12 @@ export default async function IdeasPage() {
 
   return (
     <div className="ideas-page">
-      <header className="ideas-header">
-        <h1 className="ideas-title">Идеи</h1>
-        <p className="ideas-subtitle">Подборка SmartCook. Картинки блюд созданы ИИ.</p>
-      </header>
+      {/* Заголовок ленты живёт ВНУТРИ IdeasFeed: рядом с ним стоит сердечко,
+          переключающее фильтр избранного, а фильтры — состояние ленты, из
+          серверного компонента его не достать. На SSR это не влияет: клиентский
+          компонент рендерится сервером так же, заголовок в HTML остаётся.
 
-      {/* Suspense-границы здесь нет намеренно: лента НЕ вызывает
+          Suspense-границы здесь нет намеренно: лента НЕ вызывает
           useSearchParams, иначе Next отрендерил бы её целиком на клиенте и
           статический HTML остался бы без карточек. */}
       <IdeasFeed initialCards={cards} />

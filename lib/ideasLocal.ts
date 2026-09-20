@@ -1,0 +1,104 @@
+// Локальная память раздела «Идеи»: избранное и отметки «есть дома».
+//
+// Оба хранилища — СВОИ сущности, а не поля рецептов. Избранное каталога
+// намеренно не трогает recipes.is_favorite: та таблица про рецепты, которые
+// человек получил от модели по своим продуктам, у неё другой владелец
+// (session_id) и другая судьба. Смешивать их значит однажды показать в
+// избранном каталога чужой сгенерированный рецепт.
+//
+// Ключи с версией в имени: схема здесь наверняка ещё поменяется, а молча
+// прочитанный старый формат — это сломанный экран у человека, который ничего
+// не делал.
+//
+// ЧИСТЫЕ функции отделены от доступа к localStorage: тестируется логика
+// (вытеснение, переключение), а не браузерное хранилище.
+
+export const FAV_KEY = "sc_ideas_fav_v1";
+export const HAVE_KEY = "sc_ideas_have_v1";
+
+/** Потолок избранного. Больше — вытесняем самое старое. */
+export const MAX_FAVORITES = 300;
+/**
+ * Для скольких рецептов помним галочки «есть дома». Словарь растёт молча и
+ * навсегда, а localStorage не резиновый: 5 МБ на домен, и делим мы их со
+ * списками покупок.
+ */
+export const MAX_HAVE_RECIPES = 200;
+
+export type HaveMap = Record<string, string[]>;
+
+/** Добавить или убрать slug. Новый уходит в КОНЕЦ — вытесняем с начала. */
+export function toggleInList(list: string[], slug: string, max = MAX_FAVORITES): string[] {
+  const without = list.filter((item) => item !== slug);
+  if (without.length === list.length) {
+    const next = [...without, slug];
+    return next.length > max ? next.slice(next.length - max) : next;
+  }
+  return without;
+}
+
+/**
+ * Запомнить отметки «есть дома» для рецепта.
+ *
+ * Храним ИМЕНА, а не индексы: редактор может поменять порядок ингредиентов
+ * или добавить новый, и индексы тогда зачеркнут не то. Пустой набор отметок
+ * не храним вовсе — это то же самое, что ничего не отмечено.
+ */
+export function putHave(
+  map: HaveMap,
+  slug: string,
+  names: string[],
+  max = MAX_HAVE_RECIPES,
+): HaveMap {
+  const next: HaveMap = {};
+  // Пересобираем в порядке вставки, без текущего рецепта: так он окажется
+  // последним и вытеснится последним.
+  for (const key of Object.keys(map)) {
+    if (key !== slug) next[key] = map[key];
+  }
+  if (names.length > 0) next[slug] = names;
+
+  const keys = Object.keys(next);
+  if (keys.length <= max) return next;
+  const trimmed: HaveMap = {};
+  for (const key of keys.slice(keys.length - max)) trimmed[key] = next[key];
+  return trimmed;
+}
+
+function readJson<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    return parsed ?? fallback;
+  } catch {
+    // Приватный режим, переполненное или битое хранилище — просто не помним.
+    return fallback;
+  }
+}
+
+function writeJson(key: string, value: unknown): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Квота кончилась. Терять экран из-за этого нельзя.
+  }
+}
+
+export function readFavorites(): string[] {
+  const list = readJson<string[]>(FAV_KEY, []);
+  return Array.isArray(list) ? list.filter((s) => typeof s === "string") : [];
+}
+
+export function writeFavorites(list: string[]): void {
+  writeJson(FAV_KEY, list);
+}
+
+export function readHave(): HaveMap {
+  const map = readJson<HaveMap>(HAVE_KEY, {});
+  return map && typeof map === "object" && !Array.isArray(map) ? map : {};
+}
+
+export function writeHave(map: HaveMap): void {
+  writeJson(HAVE_KEY, map);
+}

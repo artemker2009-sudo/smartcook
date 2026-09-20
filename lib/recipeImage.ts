@@ -2,7 +2,7 @@ import "server-only";
 import OpenAI from "openai";
 import sharp from "sharp";
 import { createServiceRoleClient } from "@/lib/supabaseAdmin";
-import { buildDishPrompt, pickDishware } from "@/lib/dishPrompt";
+import { buildDishPrompt, pickDishware, pickScene } from "@/lib/dishPrompt";
 
 // Серверная генерация картинок блюд. Ключ OpenAI — только на сервере, в клиент
 // не течёт. Запуск — исключительно из админ-роутов (app/api/admin/images,
@@ -179,14 +179,28 @@ async function renderDishImage(
   title: string,
   ingredients: string[],
   aspect: ImageAspect,
-  hints: { tags?: string[] | null; cookMethod?: string | null } = {},
+  hints: {
+    tags?: string[] | null;
+    cookMethod?: string | null;
+    /** Ключ сцены. Для каталога — slug, для остальных — устойчивый id. */
+    sceneSeed: string;
+    family?: string | null;
+    familyIndex?: number;
+    variant?: number;
+  },
 ): Promise<{ webp: Buffer; costUsd: number }> {
-  const prompt = buildDishPrompt({
+  const dishware = pickDishware({ title, tags: hints.tags, cookMethod: hints.cookMethod });
+  const scene = pickScene({
+    slug: hints.sceneSeed,
+    family: hints.family,
+    familyIndex: hints.familyIndex,
+    variant: hints.variant,
     title,
+    tags: hints.tags,
     ingredients,
-    aspect,
-    dishware: pickDishware({ title, tags: hints.tags, cookMethod: hints.cookMethod }),
+    dishware,
   });
+  const prompt = buildDishPrompt({ title, ingredients, aspect, dishware, scene });
   const { b64, costUsd } = await generateImageBase64(prompt, aspect);
   const webp = await toWebp(Buffer.from(b64, "base64"), aspect);
   return { webp, costUsd };
@@ -273,7 +287,9 @@ export async function generateRecipeImage(
     const title = sanitizeTitle(data.title);
     if (!title) throw new Error("empty recipe title");
 
-    const { webp, costUsd } = await renderDishImage(title, keyIngredients(data), "square");
+    const { webp, costUsd } = await renderDishImage(title, keyIngredients(data), "square", {
+      sceneSeed: `recipe-${recipeId}`,
+    });
     const publicUrl = await uploadDishImage(supabase, `${recipeId}.webp`, webp, {
       cacheBuster: true,
     });
@@ -353,7 +369,9 @@ export async function generateDishCacheImage(
         ingredients?: string[] | null;
       }>();
 
-    const { webp } = await renderDishImage(title, keyIngredients(variant || {}), "square");
+    const { webp } = await renderDishImage(title, keyIngredients(variant || {}), "square", {
+      sceneSeed: `dish-${dishCacheId}`,
+    });
     const publicUrl = await uploadDishImage(supabase, `dish-cache/${dishCacheId}.webp`, webp, {
       cacheBuster: true,
     });
@@ -401,6 +419,47 @@ function ideaImagePath(slug: string, now: number = Date.now()): string {
   return `ideas/${safeSlug}-${now}.webp`;
 }
 
+/** Сколько картинок уже сгенерировано этому рецепту (файлы копятся, мы их не удаляем). */
+async function countIdeaImages(
+  supabase: ReturnType<typeof createServiceRoleClient>,
+  slug: string,
+): Promise<number> {
+  try {
+    const { data, error } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .list("ideas", { search: `${slug}-`, limit: 100 });
+    if (error || !data) return 0;
+    // search в Storage — это «содержит», поэтому отсекаем соседей вроде
+    // syrniki-s-bananom при поиске syrniki-.
+    return data.filter((f) => f.name.startsWith(`${slug}-`)).length;
+  } catch {
+    // Не смогли посчитать — сцена просто останется первой. Это лучше, чем
+    // уронить генерацию из-за счётчика.
+    return 0;
+  }
+}
+
+/** Позиция рецепта среди одноимённого семейства (по slug, чтобы была устойчивой). */
+async function familyPosition(
+  supabase: ReturnType<typeof createServiceRoleClient>,
+  family: string | null,
+  slug: string,
+): Promise<number> {
+  if (!family) return 0;
+  try {
+    const { data, error } = await supabase
+      .from("idea_recipes")
+      .select("slug")
+      .eq("family", family)
+      .order("slug", { ascending: true });
+    if (error || !data) return 0;
+    const index = data.findIndex((r) => (r as { slug: string }).slug === slug);
+    return index < 0 ? 0 : index;
+  } catch {
+    return 0;
+  }
+}
+
 export async function generateIdeaImage(
   ideaId: string,
   opts: { force?: boolean } = {},
@@ -409,7 +468,9 @@ export async function generateIdeaImage(
   try {
     const { data: idea, error } = await supabase
       .from("idea_recipes")
-      .select("id, slug, title, ingredients, tags, cook_method, image_url, image_status, image_aspect")
+      .select(
+        "id, slug, title, ingredients, tags, cook_method, family, image_url, image_status, image_aspect",
+      )
       .eq("id", ideaId)
       .single<{
         id: string;
@@ -418,6 +479,7 @@ export async function generateIdeaImage(
         ingredients: { name?: string }[] | null;
         tags: string[] | null;
         cook_method: string | null;
+        family: string | null;
         image_url: string | null;
         image_status: string;
         image_aspect: string;
@@ -449,11 +511,30 @@ export async function generateIdeaImage(
     if (!title) throw new Error("empty idea title");
 
     const aspect = normalizeAspect(idea.image_aspect);
+
+    // СКОЛЬКО РАЗ УЖЕ РИСОВАЛИ. Считаем по файлам в бакете: путь у каждой
+    // генерации свой (ideas/<slug>-<метка>.webp), а удалять из storage нам
+    // нельзя — значит число файлов и есть счётчик перегенераций. Отдельная
+    // колонка под это не нужна.
+    const variant = await countIdeaImages(supabase, idea.slug);
+
+    // ПОРЯДКОВЫЙ НОМЕР В СЕМЕЙСТВЕ. Нужен, чтобы у «Сырников классических» и
+    // «Сырников с бананом» сцены не совпали: два почти одинаковых блюда на
+    // одном фоне читаются в ленте как дубль. Без family запрос не делаем.
+    const familyIndex = await familyPosition(supabase, idea.family, idea.slug);
+
     const { webp, costUsd } = await renderDishImage(
       title,
       keyIngredients({ detailed_ingredients: idea.ingredients }),
       aspect,
-      { tags: idea.tags, cookMethod: idea.cook_method },
+      {
+        tags: idea.tags,
+        cookMethod: idea.cook_method,
+        sceneSeed: idea.slug,
+        family: idea.family,
+        familyIndex,
+        variant,
+      },
     );
     const publicUrl = await uploadDishImage(supabase, ideaImagePath(idea.slug), webp);
 

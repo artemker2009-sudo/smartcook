@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import {
   Activity,
   BarChart3,
@@ -152,6 +152,12 @@ type ImagesStatus = {
 };
 
 type TabId = "management" | "analytics" | "purchases" | "news" | "articles" | "ideas" | "tips" | "feed" | "images" | "warmup" | "requests" | "errors" | "reports" | "suggestions";
+
+// Что показать, когда сервер ответил 401. Админ-сессия живёт 12 часов
+// (lib/adminAuth.ts), и вкладка, оставленная открытой на ночь, доживает до
+// утра с мёртвой кукой. Без этого сообщения запись просто «не срабатывала»:
+// роут отвечал 401, а интерфейс показывал общее «не удалось сохранить».
+const ADMIN_SESSION_EXPIRED = "Сессия админки истекла — войдите заново.";
 
 // Отчёт импорта каталога. Структуру задаёт /api/admin/ideas (op=import).
 type IdeaImportReport = {
@@ -402,6 +408,8 @@ export default function AdminPage() {
   const [articlePreview, setArticlePreview] = useState(false);
   const [articleTopic, setArticleTopic] = useState("");
   const [articleGenerating, setArticleGenerating] = useState(false);
+  // Ссылка на форму заметки — по ней её показывают при «Редактировать».
+  const articleFormRef = useRef<HTMLFormElement>(null);
   // --- Каталог «Идеи» ---
   // Список грузится СВОИМ запросом к /api/admin/ideas, а не из общего
   // /api/admin/dashboard: каталог нужен только на своей вкладке, и тащить его
@@ -418,6 +426,8 @@ export default function AdminPage() {
   // Форма правки. Открывается только для существующего рецепта: создавать
   // руками нечего — рецепты приезжают файлом.
   const [ideaEditingId, setIdeaEditingId] = useState<string | null>(null);
+  // Ссылка на форму правки — по ней её показывают (см. эффект ниже).
+  const ideaFormRef = useRef<HTMLFormElement>(null);
   const [ideaForm, setIdeaForm] = useState({
     slug: "",
     title: "",
@@ -1176,7 +1186,12 @@ export default function AdminPage() {
     setArticleBody(item.body ?? "");
     setArticleError("");
     setArticlePreview(false);
-    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+    // Тот же дефект, что был в «Каталоге», просто здесь его не замечали: окно
+    // в админке не прокручивается (корень h-screen + overflow-hidden), поэтому
+    // window.scrollTo не делал ничего, и форма правки открывалась вне
+    // видимой части списка. Форма заметок смонтирована всегда, так что
+    // отдельного эффекта, в отличие от «Каталога», не нужно.
+    articleFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   const handleGenerateDraft = async () => {
@@ -1276,13 +1291,23 @@ export default function AdminPage() {
 
   // --- Каталог «Идеи» ---
 
+  /**
+   * Сервер сказал «не авторизован». Возвращаем на экран входа И называем
+   * причину: иначе человек видит форму пароля вместо своей работы и не
+   * понимает, что произошло.
+   */
+  const handleAdminUnauthorized = () => {
+    setErrorMessage(ADMIN_SESSION_EXPIRED);
+    setIsAuthenticated(false);
+  };
+
   const loadIdeas = async () => {
     setIdeasLoading(true);
     setIdeaError("");
     try {
       const response = await fetch("/api/admin/ideas", { cache: "no-store" });
       if (response.status === 401) {
-        setIsAuthenticated(false);
+        handleAdminUnauthorized();
         return;
       }
       const data = await response.json().catch(() => null);
@@ -1336,8 +1361,27 @@ export default function AdminPage() {
       ingredients: ingredientsToText(item.ingredients ?? []),
       steps: (item.steps ?? []).join("\n"),
     });
-    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+    // Показать форму — задача эффекта ниже: в этот момент её ещё нет в DOM,
+    // она появляется только вместе с ideaEditingId.
   };
+
+  /**
+   * Показать форму правки, когда она смонтировалась.
+   *
+   * СКРОЛЛИМ ЭЛЕМЕНТ, А НЕ ОКНО. Корень админки — `h-screen overflow-hidden`,
+   * прокручивается не документ, а `<main className="overflow-y-auto">`.
+   * Поэтому window.scrollTo здесь не делает РОВНО НИЧЕГО (проверено замером:
+   * main.scrollTop не меняется). Из-за этого форма открывалась выше текущего
+   * положения списка, человек не видел никакой реакции — и кнопка
+   * «Редактировать» выглядела мёртвой на всех блюдах сразу.
+   *
+   * scrollIntoView не зависит от того, какой предок прокручивается, поэтому
+   * переживёт и следующую перестройку вёрстки админки.
+   */
+  useEffect(() => {
+    if (!ideaEditingId) return;
+    ideaFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [ideaEditingId]);
 
   const toggleIdeaMeal = (meal: string) => {
     setIdeaForm((f) => ({
@@ -1387,6 +1431,10 @@ export default function AdminPage() {
           },
         }),
       });
+      if (response.status === 401) {
+        handleAdminUnauthorized();
+        return;
+      }
       const data = await response.json().catch(() => null);
       if (!response.ok) throw new Error(data?.error || "Не удалось сохранить рецепт");
       await loadIdeas();
@@ -1407,6 +1455,10 @@ export default function AdminPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ op: "setPublished", id, published }),
       });
+      if (response.status === 401) {
+        handleAdminUnauthorized();
+        return;
+      }
       if (!response.ok) throw new Error("Не удалось обновить статус");
       await loadIdeas();
     } catch (error) {
@@ -1426,6 +1478,10 @@ export default function AdminPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ op: "delete", id }),
       });
+      if (response.status === 401) {
+        handleAdminUnauthorized();
+        return;
+      }
       if (!response.ok) throw new Error("Не удалось удалить");
       setIdeas((current) => current.filter((r) => r.id !== id));
       if (ideaEditingId === id) resetIdeaForm();
@@ -1450,6 +1506,10 @@ export default function AdminPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ op: "import", file: text }),
       });
+      if (response.status === 401) {
+        handleAdminUnauthorized();
+        return;
+      }
       const data = await response.json().catch(() => null);
       if (!response.ok) throw new Error(data?.error || "Не удалось импортировать файл");
       setIdeaReport({
@@ -2338,7 +2398,7 @@ export default function AdminPage() {
               </div>
 
               {/* Форма создания / редактирования */}
-              <form onSubmit={handleSaveArticle} className="space-y-3 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+              <form ref={articleFormRef} onSubmit={handleSaveArticle} className="space-y-3 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-semibold text-zinc-900">
                     {articleEditingId ? "Редактирование заметки" : "Новая заметка"}
@@ -2603,6 +2663,7 @@ export default function AdminPage() {
               {/* Форма правки — только для выбранного рецепта */}
               {ideaEditingId ? (
                 <form
+                  ref={ideaFormRef}
                   onSubmit={handleSaveIdea}
                   className="space-y-3 rounded-2xl border border-zinc-300 bg-white p-6 shadow-sm"
                 >
@@ -2794,7 +2855,7 @@ export default function AdminPage() {
 
                   <button
                     type="submit"
-                    disabled={ideaBusyId === ideaEditingId}
+                    disabled={!!ideaEditingId && ideaBusyId === ideaEditingId}
                     className="rounded-full bg-zinc-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-zinc-700 disabled:opacity-50"
                   >
                     {ideaBusyId === ideaEditingId ? "Сохраняем…" : "Сохранить"}

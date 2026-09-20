@@ -3,19 +3,53 @@ import OpenAI from "openai";
 import sharp from "sharp";
 import { createServiceRoleClient } from "@/lib/supabaseAdmin";
 
-// Серверная генерация картинки блюда (этап 1). Ключ OpenAI — только на сервере,
-// в клиент не течёт. Запуск — исключительно из админ-роутов (см.
-// app/api/admin/images). Здесь нет проверки прав: за неё отвечает роут.
+// Серверная генерация картинок блюд. Ключ OpenAI — только на сервере, в клиент
+// не течёт. Запуск — исключительно из админ-роутов (app/api/admin/images,
+// app/api/admin/ideas/images) и из фоновой генерации кэша блюд. Здесь нет
+// проверки прав: за неё отвечает роут.
+//
+// ТРИ ПОТРЕБИТЕЛЯ, ОДНО ЯДРО:
+//   • recipes      — картинка к рецепту из личной истории (этап 1);
+//   • dish_cache   — картинка блюда из кэша текстового поиска (этап 2);
+//   • idea_recipes — картинка рецепта каталога «Идеи».
+// Раньше первые два были двумя почти одинаковыми функциями, и любая правка
+// промпта требовала не забыть про вторую. Теперь общее — в renderDishImage и
+// uploadDishImage, а обёртки отличаются только таблицей, путём и статусом.
 
 export const STORAGE_BUCKET = "recipe-images";
 
-// Примерная стоимость одной генерации (gpt-image-1, low, 1024×1024) в USD.
-// Для оценки бюджета в админке — «примерная стоимость запуска». Число намеренно
-// с запасом; точная цена зависит от модели/тарифа.
-export const COST_PER_IMAGE_USD = 0.02;
+// ── Модель ───────────────────────────────────────────────────────────────────
+//
+// ВАЖНО, ПОЧЕМУ ЭТО В ENV. Прошлая модель (gpt-image-1) отключается 23.10.2026,
+// а фолбэк на dall-e-3, который тут был, отключён ещё 12.05.2026 — то есть
+// «аварийная» ветка была мертва задолго до того, как понадобилась бы. Имя
+// модели в переменной окружения означает, что следующее отключение — правка
+// настройки, а не деплой.
+//
+// Фолбэка на другую модель больше НЕТ намеренно: он создавал ложное чувство
+// надёжности. Сбой генерации виден в статусе (failed) и в error_reports.
+export const IMAGE_MODEL = (process.env.OPENAI_IMAGE_MODEL || "gpt-image-2").trim();
 
-// Глобальный суточный лимит генераций картинок («стоп-кран» расходов, этап 2).
-// Меняется через env; default 100. Резервирование слота — атомарно в БД
+// Качество: low | medium | high. Каталог «Идеи» принимают глазами по сетке
+// картинок, на low это видно, поэтому по умолчанию medium.
+export const IMAGE_QUALITY = (process.env.OPENAI_IMAGE_QUALITY || "medium").trim();
+
+// Цены за миллион токенов (image output / text input). Из них считается
+// фактическая стоимость КАЖДОЙ генерации по usage, который возвращает API, —
+// не по оценке «примерно два цента», которая устаревает вместе с прайсом.
+const USD_PER_M_IMAGE_OUTPUT = Number(process.env.OPENAI_IMAGE_OUTPUT_USD_PER_M || "30");
+const USD_PER_M_TEXT_INPUT = Number(process.env.OPENAI_IMAGE_INPUT_USD_PER_M || "5");
+
+// Запасная оценка стоимости одной картинки — для предупреждения «примерно
+// столько будет стоить прогон» ДО запуска, когда фактических usage ещё нет.
+//
+// Замеры на gpt-image-2 / medium: вертикаль 1024x1536 — $0.042, квадрат
+// 1024x1024 — $0.054. Берём БОЛЬШЕЕ: оценка расходов, которая занижает, —
+// это не оценка, а сюрприз в счёте.
+export const COST_PER_IMAGE_USD = Number(process.env.IMAGE_COST_ESTIMATE_USD || "0.054");
+
+// Глобальный суточный лимит генераций («стоп-кран» расходов). Меняется через
+// env; default 100. Резервирование слота — атомарно в БД
 // (reserve_image_generation), см. supabase_dish_cache.sql.
 export const IMAGE_DAILY_LIMIT = (() => {
   const raw = Number((process.env.IMAGE_DAILY_LIMIT || "").trim());
@@ -23,6 +57,27 @@ export const IMAGE_DAILY_LIMIT = (() => {
 })();
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// ── Размеры ──────────────────────────────────────────────────────────────────
+//
+// Квадрат и вертикаль. Вертикаль нужна ленте «Идей»: сетка в две колонки
+// разной высоты собирается из РАЗНЫХ пропорций, а не из кропа — одна и та же
+// картинка без обрезки показывается и в карточке, и на экране рецепта.
+// Подтверждено пробным вызовом: gpt-image-2 принимает оба размера.
+export type ImageAspect = "square" | "portrait";
+
+// Тип размера — литералами, а не string: иначе SDK не может выбрать перегрузку
+// images.generate и считает, что ответ может оказаться стримом.
+type ApiSize = "1024x1024" | "1024x1536";
+
+const ASPECT_SIZES: Record<ImageAspect, { api: ApiSize; width: number; height: number }> = {
+  square: { api: "1024x1024", width: 1024, height: 1024 },
+  portrait: { api: "1024x1536", width: 1024, height: 1536 },
+};
+
+export function normalizeAspect(value: unknown): ImageAspect {
+  return value === "portrait" ? "portrait" : "square";
+}
 
 // Санитизация названия блюда перед подстановкой в промт: убираем управляющие
 // символы, схлопываем пробелы, режем длину. Название приходит из БД (могло быть
@@ -40,74 +95,163 @@ function sanitizeTitle(raw: unknown): string {
 // 3–5 ключевых ингредиентов для промта: берём названия, чистим и ограничиваем.
 function keyIngredients(recipe: {
   detailed_ingredients?: { name?: string }[] | null;
-  ingredients?: string[] | null;
+  ingredients?: string[] | { name?: string }[] | null;
 }): string[] {
   const fromDetailed = (recipe.detailed_ingredients || [])
     .map((i) => (typeof i?.name === "string" ? i.name : ""))
     .filter(Boolean);
-  const source = fromDetailed.length ? fromDetailed : recipe.ingredients || [];
+  const plain = (recipe.ingredients || []).map((i) =>
+    typeof i === "string" ? i : typeof i?.name === "string" ? i.name : "",
+  );
+  const source = fromDetailed.length ? fromDetailed : plain;
   return source
     .map((i) => sanitizeTitle(i).slice(0, 40))
     .filter(Boolean)
     .slice(0, 5);
 }
 
+/**
+ * Промт. ЕДИНЫЙ СТИЛЬ ВСЕЙ ЛЕНТЫ — вся переменная часть это название блюда и
+ * 3–5 ингредиентов, остальное дословно одинаково у каждой картинки. Именно
+ * этим держится единство: восемьдесят снимков должны читаться как одна серия.
+ *
+ * Требования к стилю заданы основателем: домашняя еда на обычной тарелке,
+ * дневной свет, светлый стол, ракурс сверху-сбоку, никакой «ресторанной»
+ * подачи — блюдо должно выглядеть так, как его реально приготовит человек.
+ *
+ * Английский — для image-моделей надёжнее; название блюда идёт как есть.
+ */
 function buildPrompt(title: string, ingredients: string[]): string {
-  const ingLine = ingredients.length ? ` Key ingredients: ${ingredients.join(", ")}.` : "";
-  // Английский промт — надёжнее для image-моделей; название блюда как есть.
-  return (
-    `Appetizing professional food photography of the finished dish "${title}".${ingLine}` +
-    " Plated and ready to eat, natural soft lighting, shallow depth of field, close-up 45-degree angle." +
-    " Neutral solid background. No text, no captions, no watermark, no people, no hands, no logos, no brand names."
-  );
+  const ingLine = ingredients.length ? `\nKey ingredients: ${ingredients.join(", ")}.` : "";
+  return `Homemade food photography of the finished dish "${title}".${ingLine}
+
+Style, identical for every photo in this series:
+- everyday home cooking, served on a plain white ceramic plate;
+- plate stands on a light wooden kitchen table, plain background;
+- soft natural daylight from a window, no harsh shadows, no flash;
+- camera slightly above the plate, about a 45-degree angle, dish fills the frame;
+- the food looks exactly like an ordinary person cooked it at home:
+  honest generous portion, slightly uneven, real texture.
+
+Do NOT make it look like a restaurant: no fine-dining plating, no stacked
+towers, no sauce smears or dots, no microgreens or edible flowers, no tweezers
+styling, no props or styling clutter.
+
+No text, no captions, no watermark, no logo, no brand names,
+no hands, no people.`;
 }
 
-async function generateImageBase64(prompt: string): Promise<string> {
-  // gpt-image-1: минимально достаточное качество (low) и размер (1024).
-  // Всегда возвращает b64_json.
-  try {
-    const res = await openai.images.generate({
-      model: "gpt-image-1",
-      prompt,
-      size: "1024x1024",
-      quality: "low",
-      n: 1,
-    });
-    const b64 = res.data?.[0]?.b64_json;
-    if (b64) return b64;
-    throw new Error("gpt-image-1 returned no image data");
-  } catch (err: any) {
-    // Если модель недоступна на ключе — падаем на dall-e-3 (standard, 1024).
-    const msg = String(err?.message || err);
-    const modelUnavailable =
-      /model|not.*(found|available|exist|access)|403|404|permission/i.test(msg);
-    if (!modelUnavailable) throw err;
-    const res = await openai.images.generate({
-      model: "dall-e-3",
-      prompt,
-      size: "1024x1024",
-      quality: "standard",
-      response_format: "b64_json",
-      n: 1,
-    });
-    const b64 = res.data?.[0]?.b64_json;
-    if (b64) return b64;
-    throw new Error("dall-e-3 returned no image data");
-  }
+type Usage = {
+  input_tokens?: number;
+  output_tokens?: number;
+} | null | undefined;
+
+/** Фактическая стоимость генерации по usage из ответа API. */
+export function usageCostUsd(usage: Usage): number {
+  const out = Number(usage?.output_tokens ?? 0);
+  const inp = Number(usage?.input_tokens ?? 0);
+  const cost =
+    (out * USD_PER_M_IMAGE_OUTPUT) / 1_000_000 + (inp * USD_PER_M_TEXT_INPUT) / 1_000_000;
+  return Number.isFinite(cost) ? cost : 0;
 }
 
-// Конвертация в webp ~100–200 КБ, чтобы не просадить SSR. Подбираем качество
-// вниз, если после первой попытки файл больше 200 КБ.
-async function toWebp(pngBuffer: Buffer): Promise<Buffer> {
-  const base = sharp(pngBuffer).resize(1024, 1024, { fit: "cover" });
+async function generateImageBase64(
+  prompt: string,
+  aspect: ImageAspect,
+): Promise<{ b64: string; costUsd: number }> {
+  const res = await openai.images.generate({
+    model: IMAGE_MODEL,
+    prompt,
+    size: ASPECT_SIZES[aspect].api,
+    // Качество приходит из env строкой; SDK ждёт литерал. Значение проверяется
+    // самим API — неизвестное качество вернёт внятную ошибку, а не тихий сбой.
+    quality: IMAGE_QUALITY as "low" | "medium" | "high",
+    n: 1,
+  });
+
+  const b64 = res.data?.[0]?.b64_json;
+  if (!b64) throw new Error(`${IMAGE_MODEL} returned no image data`);
+  return { b64, costUsd: usageCostUsd(res.usage as Usage) };
+}
+
+/**
+ * Конвертация в webp. Размер берём ИЗ АСПЕКТА, а не фиксируем квадратом:
+ * раньше здесь стояло resize(1024, 1024, { fit: "cover" }), и вертикальная
+ * картинка молча обрезалась в квадрат — то есть весь смысл image_aspect
+ * пропадал бы по дороге.
+ *
+ * Качество подбираем вниз, пока файл не влезет в потолок: вертикаль тяжелее
+ * квадрата, потолок для неё соответственно выше.
+ */
+async function toWebp(pngBuffer: Buffer, aspect: ImageAspect): Promise<Buffer> {
+  const { width, height } = ASPECT_SIZES[aspect];
+  const maxBytes = (aspect === "portrait" ? 300 : 200) * 1024;
+  const base = sharp(pngBuffer).resize(width, height, { fit: "cover" });
   let quality = 72;
   let out = await base.clone().webp({ quality }).toBuffer();
-  while (out.byteLength > 200 * 1024 && quality > 45) {
+  while (out.byteLength > maxBytes && quality > 45) {
     quality -= 10;
     out = await base.clone().webp({ quality }).toBuffer();
   }
   return out;
 }
+
+/** Общее ядро: промт → генерация → webp. Ничего не знает про таблицы. */
+async function renderDishImage(
+  title: string,
+  ingredients: string[],
+  aspect: ImageAspect,
+): Promise<{ webp: Buffer; costUsd: number }> {
+  const prompt = buildPrompt(title, ingredients);
+  const { b64, costUsd } = await generateImageBase64(prompt, aspect);
+  const webp = await toWebp(Buffer.from(b64, "base64"), aspect);
+  return { webp, costUsd };
+}
+
+/** Общее ядро: загрузка в бакет и публичная ссылка. */
+async function uploadDishImage(
+  supabase: ReturnType<typeof createServiceRoleClient>,
+  path: string,
+  webp: Buffer,
+  opts: { cacheBuster?: boolean } = {},
+): Promise<string> {
+  const { error } = await supabase.storage
+    .from(STORAGE_BUCKET)
+    .upload(path, webp, { contentType: "image/webp", upsert: true });
+  if (error) throw new Error(`storage upload: ${error.message}`);
+
+  const { data: pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+  // Кэш-бастер нужен ТОЛЬКО там, где файл перезаписывается по тому же пути
+  // (recipes, dish_cache): CDN иначе отдаёт старую картинку. У «Идей» путь
+  // каждый раз новый, и параметр там лишний.
+  return opts.cacheBuster ? `${pub.publicUrl}?v=${Date.now()}` : pub.publicUrl;
+}
+
+async function logImageWarning(message: string): Promise<void> {
+  try {
+    const supabase = createServiceRoleClient();
+    await supabase.from("error_reports").insert({
+      message: message.slice(0, 2000),
+      url: "/admin (images)",
+      status: "new",
+    });
+  } catch {
+    // логирование не должно ронять вызывающий код
+  }
+}
+
+/** Резервирование слота суточного лимита. false — лимит исчерпан. */
+async function reserveDailySlot(
+  supabase: ReturnType<typeof createServiceRoleClient>,
+): Promise<boolean> {
+  const { data, error } = await supabase.rpc("reserve_image_generation", {
+    p_limit: IMAGE_DAILY_LIMIT,
+  });
+  if (error) throw new Error(`reserve slot: ${error.message}`);
+  return data === true;
+}
+
+// ── 1. Картинка к рецепту из истории (recipes) ───────────────────────────────
 
 type RecipeRow = {
   id: number;
@@ -118,12 +262,12 @@ type RecipeRow = {
 };
 
 export type GenerateResult =
-  | { ok: true; id: number; image_url: string; skipped?: boolean }
+  | { ok: true; id: number; image_url: string; skipped?: boolean; costUsd?: number }
   | { ok: false; id: number; error: string };
 
-// Основная функция. Идемпотентна: если у рецепта уже есть image_url и не задан
-// force — ничего не делаем. Ошибка → лог в error_reports, но НЕ бросаем
-// (батч в админке должен продолжаться на следующем рецепте).
+// Идемпотентна: если у рецепта уже есть image_url и не задан force — ничего не
+// делаем. Ошибка → лог в error_reports, но НЕ бросаем (батч в админке должен
+// продолжаться на следующем рецепте).
 export async function generateRecipeImage(
   recipeId: number,
   opts: { force?: boolean } = {},
@@ -145,20 +289,10 @@ export async function generateRecipeImage(
     const title = sanitizeTitle(data.title);
     if (!title) throw new Error("empty recipe title");
 
-    const prompt = buildPrompt(title, keyIngredients(data));
-    const b64 = await generateImageBase64(prompt);
-    const webp = await toWebp(Buffer.from(b64, "base64"));
-
-    const path = `${recipeId}.webp`;
-    const { error: uploadError } = await supabase.storage
-      .from(STORAGE_BUCKET)
-      .upload(path, webp, { contentType: "image/webp", upsert: true });
-    if (uploadError) throw new Error(`storage upload: ${uploadError.message}`);
-
-    const { data: pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
-    // Кэш-бастер: при перегенерации файл по тому же пути заменяется, но CDN
-    // отдаёт старый до истечения кэша. ?v=<ts> делает URL уникальным.
-    const publicUrl = `${pub.publicUrl}?v=${Date.now()}`;
+    const { webp, costUsd } = await renderDishImage(title, keyIngredients(data), "square");
+    const publicUrl = await uploadDishImage(supabase, `${recipeId}.webp`, webp, {
+      cacheBuster: true,
+    });
 
     const { error: updateError } = await supabase
       .from("recipes")
@@ -166,46 +300,20 @@ export async function generateRecipeImage(
       .eq("id", recipeId);
     if (updateError) throw new Error(`db update: ${updateError.message}`);
 
-    return { ok: true, id: recipeId, image_url: publicUrl };
+    return { ok: true, id: recipeId, image_url: publicUrl, costUsd };
   } catch (err: any) {
-    const message = `[image_generation_error] recipe #${recipeId}: ${String(
-      err?.message || err,
-    )}`.slice(0, 2000);
-    // Пишем сервисным ключом (в обход RLS) — это серверный контекст админки.
-    try {
-      await supabase.from("error_reports").insert({
-        message,
-        url: "/admin (images)",
-        status: "new",
-      });
-    } catch {
-      // не даём сбою логирования уронить батч
-    }
+    await logImageWarning(
+      `[image_generation_error] recipe #${recipeId}: ${String(err?.message || err)}`,
+    );
     return { ok: false, id: recipeId, error: String(err?.message || err) };
   }
 }
 
-// ── Этап 2: картинка для блюда из кэша (dish_cache) ──────────────────────────
-// Одна картинка на dish_cache (все варианты рецепта делят её). Переиспользует
-// тот же механизм (промт → gpt-image-1/dall-e-3 → webp → бакет recipe-images,
-// префикс dish-cache/). Отличия от рецептной картинки:
-//   • перед генерацией резервируем слот в суточном лимите (стоп-кран расходов);
-//   • статус пишем в dish_cache.image_status (generating → ready/failed/none).
-// Ошибки логируются в error_reports и НЕ бросаются (фоновый вызов не должен
-// уронить основной запрос).
-
-async function logImageWarning(message: string): Promise<void> {
-  try {
-    const supabase = createServiceRoleClient();
-    await supabase.from("error_reports").insert({
-      message: message.slice(0, 2000),
-      url: "/dish-cache (images)",
-      status: "new",
-    });
-  } catch {
-    // логирование не должно ронять вызывающий код
-  }
-}
+// ── 2. Картинка блюда из кэша (dish_cache) ───────────────────────────────────
+//
+// Одна картинка на dish_cache (все варианты рецепта делят её). Отличия от
+// рецептной: перед генерацией резервируем слот суточного лимита (вызов
+// фоновый, из пользовательского сценария), статус пишем в image_status.
 
 type DishCacheImageResult =
   | { ok: true; image_url: string; status: "ready" }
@@ -221,7 +329,12 @@ export async function generateDishCacheImage(
       .from("dish_cache")
       .select("id, display_title, image_url, image_status")
       .eq("id", dishCacheId)
-      .single<{ id: number; display_title: string | null; image_url: string | null; image_status: string }>();
+      .single<{
+        id: number;
+        display_title: string | null;
+        image_url: string | null;
+        image_status: string;
+      }>();
 
     if (cacheError || !cache) throw new Error(cacheError?.message || "dish_cache not found");
 
@@ -231,14 +344,8 @@ export async function generateDishCacheImage(
       return { ok: true, image_url: cache.image_url, status: "ready" };
     }
 
-    // Стоп-кран расходов: резервируем слот суточного лимита. Не резервируется —
-    // отдаём рецепт без картинки (status='none') и пишем предупреждение.
-    const { data: reserved, error: reserveError } = await supabase.rpc(
-      "reserve_image_generation",
-      { p_limit: IMAGE_DAILY_LIMIT },
-    );
-    if (reserveError) throw new Error(`reserve slot: ${reserveError.message}`);
-    if (reserved !== true) {
+    // Стоп-кран расходов: не резервируется — отдаём рецепт без картинки.
+    if (!(await reserveDailySlot(supabase))) {
       await supabase.from("dish_cache").update({ image_status: "none" }).eq("id", dishCacheId);
       await logImageWarning(
         `[image_daily_limit] dish_cache #${dishCacheId} ("${cache.display_title || ""}"): ` +
@@ -257,20 +364,15 @@ export async function generateDishCacheImage(
       .eq("dish_cache_id", dishCacheId)
       .order("variant_index", { ascending: true })
       .limit(1)
-      .maybeSingle<{ detailed_ingredients?: { name?: string }[] | null; ingredients?: string[] | null }>();
+      .maybeSingle<{
+        detailed_ingredients?: { name?: string }[] | null;
+        ingredients?: string[] | null;
+      }>();
 
-    const prompt = buildPrompt(title, keyIngredients(variant || {}));
-    const b64 = await generateImageBase64(prompt);
-    const webp = await toWebp(Buffer.from(b64, "base64"));
-
-    const path = `dish-cache/${dishCacheId}.webp`;
-    const { error: uploadError } = await supabase.storage
-      .from(STORAGE_BUCKET)
-      .upload(path, webp, { contentType: "image/webp", upsert: true });
-    if (uploadError) throw new Error(`storage upload: ${uploadError.message}`);
-
-    const { data: pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
-    const publicUrl = `${pub.publicUrl}?v=${Date.now()}`;
+    const { webp } = await renderDishImage(title, keyIngredients(variant || {}), "square");
+    const publicUrl = await uploadDishImage(supabase, `dish-cache/${dishCacheId}.webp`, webp, {
+      cacheBuster: true,
+    });
 
     const { error: updateError } = await supabase
       .from("dish_cache")
@@ -290,5 +392,100 @@ export async function generateDishCacheImage(
       `[dish_image_generation_error] dish_cache #${dishCacheId}: ${String(err?.message || err)}`,
     );
     return { ok: false, status: "failed", error: String(err?.message || err) };
+  }
+}
+
+// ── 3. Картинка рецепта каталога «Идеи» (idea_recipes) ───────────────────────
+
+export type IdeaImageResult =
+  | { ok: true; image_url: string; costUsd: number }
+  | { ok: false; error: string; limited?: boolean };
+
+/**
+ * Путь в бакете: ideas/<slug>-<версия>.webp.
+ *
+ * Версия — метка времени генерации, и это НЕ косметика: прямой DELETE из
+ * storage.objects у нас запрещён (42501), поэтому перегенерация не может
+ * заменить файл «на месте» без риска, что CDN отдаст старый. Новый путь
+ * решает и это, и вопрос кэша — параметр ?v= становится не нужен.
+ *
+ * Старые файлы остаются лежать. При восьмидесяти рецептах и паре переделок
+ * это единицы мегабайт — осознанная плата за то, что мы ничего не удаляем.
+ */
+function ideaImagePath(slug: string, now: number = Date.now()): string {
+  const safeSlug = (slug || "idea").replace(/[^a-z0-9-]/g, "").slice(0, 60) || "idea";
+  return `ideas/${safeSlug}-${now}.webp`;
+}
+
+export async function generateIdeaImage(
+  ideaId: string,
+  opts: { force?: boolean } = {},
+): Promise<IdeaImageResult> {
+  const supabase = createServiceRoleClient();
+  try {
+    const { data: idea, error } = await supabase
+      .from("idea_recipes")
+      .select("id, slug, title, ingredients, image_url, image_status, image_aspect")
+      .eq("id", ideaId)
+      .single<{
+        id: string;
+        slug: string;
+        title: string;
+        ingredients: { name?: string }[] | null;
+        image_url: string | null;
+        image_status: string;
+        image_aspect: string;
+      }>();
+
+    if (error || !idea) throw new Error(error?.message || "idea recipe not found");
+
+    if (!opts.force && idea.image_url && idea.image_status === "ready") {
+      return { ok: true, image_url: idea.image_url, costUsd: 0 };
+    }
+
+    // Стоп-кран расходов — тот же счётчик, что у кэша блюд: суточный лимит
+    // один на весь проект, иначе батч каталога мог бы выесть дневной бюджет
+    // пользовательских генераций.
+    if (!(await reserveDailySlot(supabase))) {
+      await logImageWarning(
+        `[image_daily_limit] idea_recipes ${ideaId}: суточный лимит ` +
+          `IMAGE_DAILY_LIMIT=${IMAGE_DAILY_LIMIT} исчерпан`,
+      );
+      return { ok: false, error: "Суточный лимит генераций исчерпан", limited: true };
+    }
+
+    // Статус ставим ДО вызова модели: по нему админка показывает «рисуется»,
+    // а зависший (если функцию убьют по таймауту) через пять минут читается
+    // как failed — см. effectiveImageStatus в lib/ideaRecipes.ts.
+    await supabase.from("idea_recipes").update({ image_status: "generating" }).eq("id", ideaId);
+
+    const title = sanitizeTitle(idea.title);
+    if (!title) throw new Error("empty idea title");
+
+    const aspect = normalizeAspect(idea.image_aspect);
+    const { webp, costUsd } = await renderDishImage(
+      title,
+      keyIngredients({ detailed_ingredients: idea.ingredients }),
+      aspect,
+    );
+    const publicUrl = await uploadDishImage(supabase, ideaImagePath(idea.slug), webp);
+
+    const { error: updateError } = await supabase
+      .from("idea_recipes")
+      .update({ image_url: publicUrl, image_status: "ready" })
+      .eq("id", ideaId);
+    if (updateError) throw new Error(`db update: ${updateError.message}`);
+
+    return { ok: true, image_url: publicUrl, costUsd };
+  } catch (err: any) {
+    try {
+      await supabase.from("idea_recipes").update({ image_status: "failed" }).eq("id", ideaId);
+    } catch {
+      // игнор
+    }
+    await logImageWarning(
+      `[idea_image_generation_error] idea_recipes ${ideaId}: ${String(err?.message || err)}`,
+    );
+    return { ok: false, error: String(err?.message || err) };
   }
 }

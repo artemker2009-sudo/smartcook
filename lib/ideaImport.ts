@@ -45,6 +45,7 @@ export type IdeaImportRow = {
   meals: string[];
   main_product: string;
   cook_method: string | null;
+  family: string | null;
   tags: string[];
   allergens: string[];
   image_aspect: string;
@@ -73,7 +74,7 @@ const SERVER_OWNED = new Set([
 const KNOWN_FIELDS = new Set([
   "slug", "title", "description", "servings", "cooking_time_minutes",
   "ingredients", "steps", "meals", "main_product", "cook_method",
-  "tags", "allergens", "image_aspect", "sort_weight",
+  "family", "tags", "allergens", "image_aspect", "sort_weight",
 ]);
 
 /**
@@ -185,6 +186,25 @@ function ingredientList(raw: unknown, field: string): IdeaIngredient[] {
   });
 }
 
+/**
+ * Семейство блюда. Формат тот же, что у slug (латиница, цифры, дефисы) —
+ * значение попадёт в адреса и параметры фильтров. Пусто/нет поля → null:
+ * у большинства рецептов семейства нет, и это нормальное состояние.
+ */
+function optionalFamily(raw: unknown): string | null {
+  if (raw === undefined || raw === null || raw === "") return null;
+  if (typeof raw !== "string") fail("family: ожидается строка или null");
+  const value = cleanText(raw).toLowerCase();
+  if (!value) return null;
+  if (value.length > IDEA_LIMITS.familyMax) {
+    fail(`family: ${value.length} символов, максимум ${IDEA_LIMITS.familyMax}`);
+  }
+  if (!IDEA_SLUG_RE.test(value)) {
+    fail("family: только латиница в нижнем регистре, цифры и дефисы");
+  }
+  return value;
+}
+
 function optionalDictValue(raw: unknown, field: string, dict: readonly string[]): string | null {
   if (raw === undefined || raw === null || raw === "") return null;
   if (typeof raw !== "string") fail(`${field}: ожидается строка или null`);
@@ -234,6 +254,7 @@ function parseOne(src: Record<string, unknown>): IdeaImportRow {
     meals: dictArray(src.meals, "meals", IDEA_MEALS, { min: 1, max: IDEA_MEALS.length }),
     main_product: mainProduct,
     cook_method: optionalDictValue(src.cook_method, "cook_method", IDEA_COOK_METHODS),
+    family: optionalFamily(src.family),
     tags:
       src.tags === undefined || src.tags === null
         ? []

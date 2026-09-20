@@ -167,12 +167,24 @@ begin
   -- <@ — «подмножество». Пустой массив подмножество ЛЮБОГО, поэтому отдельно
   -- требуем хотя бы один приём пищи: рецепт без него выпал бы из всех фильтров
   -- разом и не показался бы нигде.
+  --
+  -- ТОЛЬКО cardinality, НЕ array_length. Это та же NULL-ловушка, что ниже у
+  -- allergens, и она сработала бы молча: array_length('{}', 1) возвращает не 0,
+  -- а NULL; «NULL between 1 and 4» — тоже NULL; а CHECK пропускает всё, что не
+  -- FALSE. То есть пустой meals сохранился бы, и констрейнт выглядел бы
+  -- работающим. cardinality('{}') = 0 → FALSE → отказ. Проба на это стоит в
+  -- разделе 7 и падает, если кто-то вернёт array_length обратно.
+  --
+  -- array_position(meals, null) is null — «внутри нет NULL-элементов»
+  -- (в JSON это ["завтрак", null]). Сам по себе <@ такой массив тоже отбивает,
+  -- но правильность не должна держаться на тонкости чужого оператора.
   if not exists (select 1 from pg_constraint where conname = 'idea_recipes_meals_dict') then
     alter table public.idea_recipes
       add constraint idea_recipes_meals_dict
       check (
         meals <@ array['завтрак', 'обед', 'ужин', 'перекус']::text[]
-        and array_length(meals, 1) between 1 and 4
+        and cardinality(meals) between 1 and 4
+        and array_position(meals, null) is null
       );
   end if;
 
@@ -200,6 +212,7 @@ begin
           'молоко', 'яйца', 'глютен', 'орехи', 'арахис',
           'рыба', 'морепродукты', 'соя', 'кунжут', 'мёд'
         ]::text[]
+        and array_position(allergens, null) is null
       );
   end if;
 
@@ -240,16 +253,24 @@ begin
       );
   end if;
 
+  -- cardinality, а не coalesce(array_length(...), 0): результат тот же, но
+  -- читается как счётчик и не требует помнить, что у пустого массива
+  -- array_length отдаёт NULL. Словаря у тегов нет, поэтому NULL-элементы здесь
+  -- некому отбить — проверяем явно.
   if not exists (select 1 from pg_constraint where conname = 'idea_recipes_tags_size') then
     alter table public.idea_recipes
       add constraint idea_recipes_tags_size
-      check (coalesce(array_length(tags, 1), 0) <= 12 and pg_column_size(tags) <= 1024);
+      check (
+        cardinality(tags) <= 12
+        and array_position(tags, null) is null
+        and pg_column_size(tags) <= 1024
+      );
   end if;
 
   if not exists (select 1 from pg_constraint where conname = 'idea_recipes_allergens_size') then
     alter table public.idea_recipes
       add constraint idea_recipes_allergens_size
-      check (coalesce(array_length(allergens, 1), 0) <= 10);
+      check (cardinality(allergens) <= 10);
   end if;
 
   -- Опубликованный рецепт обязан иметь дату публикации: по ней сортируется
@@ -288,9 +309,16 @@ create index if not exists idea_recipes_published_idx
 -- ---------------------------------------------------------------------------
 -- Не клиент и не роут: часы машин врут, а по этому полю админка показывает,
 -- что правили последним.
+--
+-- set search_path = '' — требование линтера Supabase (function_search_path_
+-- mutable) и заодно правильная привычка: функция не должна зависеть от того,
+-- какой search_path у вызывающего. Тело от этого не страдает — now() живёт в
+-- pg_catalog, который подставляется всегда, а других объектов функция не
+-- трогает.
 create or replace function public.touch_idea_recipe()
 returns trigger
 language plpgsql
+set search_path = ''
 as $$
 begin
   new.updated_at := now();
@@ -342,13 +370,18 @@ using (is_published = true);
 -- ---------------------------------------------------------------------------
 -- 6. Привилегии — второй, независимый слой
 -- ---------------------------------------------------------------------------
--- Supabase по умолчанию выдаёт anon/authenticated полный набор DML-привилегий
+-- Supabase по умолчанию выдаёт anon/authenticated полный набор привилегий
 -- на новые таблицы public, а сдерживает их только RLS. Снимаем лишнее явно:
 -- тогда запись невозможна ДВАЖДЫ — и политикой, и привилегией.
 --
+-- Снимаем ALL, а не перечисление INSERT/UPDATE/DELETE: кроме них в наборе
+-- есть TRUNCATE, REFERENCES и TRIGGER, и после точечного revoke они остались
+-- бы висеть — самопроверка ниже честно показала бы лишние строки там, где
+-- ожидается только SELECT.
+--
 -- service_role не упоминаем: его привилегии не трогаем, админ-роут продолжает
 -- писать как писал.
-revoke insert, update, delete on public.idea_recipes from anon, authenticated;
+revoke all on public.idea_recipes from anon, authenticated;
 grant select on public.idea_recipes to anon, authenticated;
 
 comment on table public.idea_recipes is
@@ -360,8 +393,43 @@ comment on table public.idea_recipes is
 
 -- ============================================================================
 -- 7. Самопроверка — выполнится вместе с файлом.
--- Ожидаем: rls_enabled = true, policies = 1.
 -- ============================================================================
+
+-- 7.1. Проба NULL-ловушки: пустой meals ОБЯЗАН быть отбит.
+--
+-- Зачем проба на констрейнт, который вот тут же и написан: первая версия этого
+-- файла проверяла «array_length(meals, 1) between 1 and 4», и пустой массив
+-- проходил молча — array_length('{}', 1) это NULL, сравнение даёт NULL, а CHECK
+-- пропускает всё, кроме FALSE. Текст выглядел правильным, и отличить рабочий
+-- констрейнт от нерабочего можно было только попыткой вставки. Она и стоит
+-- здесь — чтобы правка в эту сторону упала при Run, а не всплыла на рецепте,
+-- который не показывается ни в одном фильтре.
+--
+-- Строка не остаётся в таблице ни в одном исходе: при отказе её не было вовсе,
+-- при (недопустимом) успехе raise откатывает вставку вместе с блоком.
+do $$
+begin
+  begin
+    insert into public.idea_recipes
+      (slug, title, description, servings, cooking_time_minutes,
+       ingredients, steps, meals, main_product)
+    values
+      ('proba-null-lovushka', 'Проба NULL-ловушки', 'Эта вставка обязана упасть',
+       1, 5, '[{"name":"проверка","amount":"1"}]'::jsonb, '["Проверка"]'::jsonb,
+       '{}'::text[], 'без мяса');
+
+    -- Досюда доходить нельзя: строка с пустым meals сохранилась.
+    raise exception
+      'ПРОВАЛ САМОПРОВЕРКИ: рецепт с пустым meals вставился. Констрейнт '
+      'idea_recipes_meals_dict не работает — проверьте, не вернулся ли в него '
+      'array_length вместо cardinality (NULL-ловушка).';
+  exception
+    when check_violation then
+      raise notice 'OK: пустой meals отбит констрейнтом (check_violation).';
+  end;
+end $$;
+
+-- 7.2. RLS и число политик. Ожидаем: rls_enabled = true, policies = 1.
 select
   c.relrowsecurity as rls_enabled,
   (select count(*) from pg_policies p
@@ -420,7 +488,9 @@ order by tablename, cmd, policyname;
 --   SB_URL="https://<project>.supabase.co"
 --   SB_KEY="<anon-key>"        # публичный ключ, он и так лежит в бандле
 --   USER_JWT="<access_token>"  # из localStorage браузера, ключ sb-*-auth-token
---   SR_KEY="<service-role-key>"  # ТОЛЬКО локально в терминале, никуда не класть
+--
+-- service-role ключ в терминале НЕ нужен: всё, что требует обхода RLS
+-- (шаги 0 и 6), делается в SQL Editor — он и так ходит service_role'ом.
 --
 -- ── Шаг 0. Две пробные строки (в SQL Editor, он ходит service_role'ом) ──────
 --   insert into public.idea_recipes

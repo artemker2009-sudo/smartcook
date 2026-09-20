@@ -4610,14 +4610,30 @@ body.has-addbar { padding-bottom: calc(var(--tab-bar-total) + 72px); }
 }
 
 /* Оттяжка вниз на ленте «Идеи».
-   Высоту задаёт жест инлайн-стилем; здесь только вид и поведение. */
+
+   Всё движение — ТОЛЬКО transform и opacity: ни одного свойства, которое
+   заставляет браузер пересчитывать раскладку. Иначе на каждом кадре жеста
+   пересобиралась бы вся сетка карточек, и о 60 кадрах можно было бы забыть. */
+.ideas-shift {
+  position: relative;
+  /* Возврат и закрытие — плавные; пока тянут пальцем, переход снимается,
+     иначе лента запаздывала бы за рукой. */
+  transition: transform 240ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  will-change: transform;
+}
+.ideas-shift.is-dragging { transition: none; }
+
+/* Индикатор висит НАД лентой и выезжает вместе с ней — собственной высоты не
+   занимает, поэтому появление не сдвигает ни одну карточку. */
 .ideas-pull {
+  position: absolute;
+  top: -44px;
+  left: 0;
+  right: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
-  /* Без перехода на самой высоте: она меняется за пальцем, и анимация тут
-     давала бы запаздывание вместо упругости. */
+  pointer-events: none;
 }
 .ideas-pull-dot {
   width: 22px;
@@ -4628,7 +4644,15 @@ body.has-addbar { padding-bottom: calc(var(--tab-bar-total) + 72px); }
 }
 .ideas-pull-dot.is-spinning { animation: ideas-pull-spin 700ms linear infinite; }
 @keyframes ideas-pull-spin { to { transform: rotate(360deg); } }
+
+/* Мягкая подмена карточек: гаснут, меняются, проявляются. Мгновенная подмена
+   читается как сбой отрисовки, а не как обновление. */
+.ideas-content { transition: opacity 200ms ease-out; }
+.ideas-content.is-faded { opacity: 0; }
+
 @media (prefers-reduced-motion: reduce) {
+  .ideas-shift,
+  .ideas-content { transition: none; }
   .ideas-pull-dot.is-spinning { animation: none; }
 }
 

@@ -4608,3 +4608,36 @@ body.has-addbar { padding-bottom: calc(var(--tab-bar-total) + 72px); }
 @media (min-width: 1024px) {
   .ideas-grid { grid-template-columns: repeat(4, 1fr); }
 }
+
+/* Оттяжка вниз на ленте «Идеи».
+   Высоту задаёт жест инлайн-стилем; здесь только вид и поведение. */
+.ideas-pull {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  /* Без перехода на самой высоте: она меняется за пальцем, и анимация тут
+     давала бы запаздывание вместо упругости. */
+}
+.ideas-pull-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-accent);
+}
+.ideas-pull-dot.is-spinning { animation: ideas-pull-spin 700ms linear infinite; }
+@keyframes ideas-pull-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .ideas-pull-dot.is-spinning { animation: none; }
+}
+
+/* Пока открыта лента — гасим встроенную оттяжку-обновление Chrome и цепную
+   прокрутку. Свойство живёт на ДОКУМЕНТЕ, потому что скроллится он, а не
+   контейнер ленты; класс снимается при уходе со страницы, поэтому остальные
+   экраны правила не видят. В iOS 15 свойство не поддерживается — там жест
+   держится на preventDefault в обработчике. */
+html.ideas-no-overscroll,
+html.ideas-no-overscroll body {
+  overscroll-behavior-y: contain;
+}

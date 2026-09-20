@@ -10,7 +10,9 @@ import {
   hasAnyFilter,
   orderCards,
   parseFilters,
+  BACKGROUND_RESET_MS,
   reuseOrder,
+  shouldStartNewVisit,
   spaceOutFamilies,
   splitIntoColumns,
   toIdeaCard,
@@ -215,6 +217,64 @@ describe("reuseOrder — заморозка порядка на заход", () 
     expect(reuseOrder(cards, ["r-0", "r-1"])).toBeNull();
     expect(reuseOrder(cards, ["r-0", "r-1", "r-2", "r-3", "нет-такого"])).toBeNull();
     expect(reuseOrder(cards, null)).toBeNull();
+  });
+});
+
+describe("shouldStartNewVisit — что считать новым заходом", () => {
+  // ПОЙМАНО ПРИЁМКОЙ НА ТЕЛЕФОНЕ. Прежнее правило («сид живёт 6 часов»)
+  // не срабатывало никогда: в приложении человек не перезагружает документ,
+  // он сворачивает и разворачивает его, а для sessionStorage это не новый
+  // заход. Лента не обновлялась вообще.
+  it("обычное открытие и перезагрузка — новый заход", () => {
+    for (const navigationType of ["navigate", "reload", "prerender", null, undefined]) {
+      expect(
+        shouldStartNewVisit({ isFirstMountInDocument: true, navigationType }),
+        String(navigationType),
+      ).toBe(true);
+    }
+  });
+
+  it("кнопка «назад» — порядок сохраняем", () => {
+    expect(
+      shouldStartNewVisit({ isFirstMountInDocument: true, navigationType: "back_forward" }),
+    ).toBe(false);
+  });
+
+  // Тип навигации описывает ЗАГРУЗКУ ДОКУМЕНТА и при мягком переходе не
+  // меняется. Без флага первого монтирования возврат из рецепта считался бы
+  // новым заходом и перемешивал ленту под пальцем — то есть мы бы сломали то,
+  // что чинили прошлым PR.
+  it("мягкий переход внутри приложения порядок не трогает", () => {
+    expect(
+      shouldStartNewVisit({ isFirstMountInDocument: false, navigationType: "navigate" }),
+    ).toBe(false);
+    expect(
+      shouldStartNewVisit({ isFirstMountInDocument: false, navigationType: "reload" }),
+    ).toBe(false);
+  });
+
+  it("возврат из фона дольше получаса — новый заход", () => {
+    expect(
+      shouldStartNewVisit({ isFirstMountInDocument: false, hiddenMs: BACKGROUND_RESET_MS + 1 }),
+    ).toBe(true);
+    expect(
+      shouldStartNewVisit({ isFirstMountInDocument: false, hiddenMs: BACKGROUND_RESET_MS }),
+    ).toBe(true);
+  });
+
+  it("короткая отлучка — тот же заход", () => {
+    expect(shouldStartNewVisit({ isFirstMountInDocument: false, hiddenMs: 60_000 })).toBe(false);
+    expect(shouldStartNewVisit({ isFirstMountInDocument: false, hiddenMs: null })).toBe(false);
+  });
+
+  it("долгий фон сильнее «назад»: вернулся через час — лента свежая", () => {
+    expect(
+      shouldStartNewVisit({
+        isFirstMountInDocument: true,
+        navigationType: "back_forward",
+        hiddenMs: BACKGROUND_RESET_MS + 1,
+      }),
+    ).toBe(true);
   });
 });
 

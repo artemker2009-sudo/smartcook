@@ -7,6 +7,7 @@ import { Home, Lightbulb, Search, ShoppingCart, User } from "lucide-react";
 import { reachGoal } from "@/lib/metrika";
 import { isChromeHidden } from "@/lib/layoutGate";
 import { FEATURE_IDEAS } from "@/lib/features";
+import { TAB_RESELECT_EVENT, type TabReselectDetail } from "@/lib/tabBarEvents";
 
 // Основная навигация по четырём разделам. Мобайл — фиксированный таб-бар снизу
 // (safe-area для PWA/iOS), десктоп — те же пункты в верхней шапке (через CSS).
@@ -42,6 +43,15 @@ type Tab = {
   icon: typeof Home;
   goal: string;
   isActive: (p: string) => boolean;
+  /**
+   * Реагирует ли раздел на повторный тап по уже активной вкладке.
+   *
+   * Только у тех, кто это слушает. Иначе перехват превратился бы в «тап по
+   * активной вкладке не делает ничего» для остальных разделов — а, например,
+   * «Поиск» активен и на /search?recipeId=…, откуда тап обязан возвращать на
+   * чистый /search.
+   */
+  reselectable?: boolean;
 };
 
 const TABS: Tab[] = [
@@ -54,6 +64,7 @@ const TABS: Tab[] = [
           icon: Lightbulb,
           goal: "nav_ideas",
           isActive: (p: string) => p.startsWith("/ideas"),
+          reselectable: true,
         },
       ]
     : []),
@@ -119,7 +130,20 @@ export default function TabBar() {
             key={t.href}
             href={t.href}
             className={`tab-item${active ? " tab-item-active" : ""}`}
-            onClick={() => reachGoal(t.goal)}
+            onClick={(event) => {
+              reachGoal(t.goal);
+              // Повторный тап по УЖЕ активной вкладке — не навигация, а
+              // «вернуться в начало раздела и обновить его», как в любом
+              // приложении с таб-баром. Переход отменяем: Next на тот же
+              // адрес ничего бы не перерисовал, и тап остался бы без ответа.
+              if (!active || !t.reselectable) return;
+              event.preventDefault();
+              window.dispatchEvent(
+                new CustomEvent<TabReselectDetail>(TAB_RESELECT_EVENT, {
+                  detail: { href: t.href },
+                }),
+              );
+            }}
             aria-current={active ? "page" : undefined}
           >
             <span className="tab-icon">

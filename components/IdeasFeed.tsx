@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { reachGoal } from "@/lib/metrika";
 import { ALLERGIES_KEY, DISLIKES_KEY } from "@/lib/tasteProfile";
 import { buildTasteMatcher, type TasteMatcher } from "@/lib/ideasTaste";
+import { TAB_RESELECT_EVENT } from "@/lib/tabBarEvents";
 import {
   EMPTY_FILTERS,
   MAIN_BY_PARAM,
@@ -14,15 +15,17 @@ import {
   QUICK_MAX_MINUTES,
   SCROLLED_AFTER_CARD,
   SCROLLED_GOAL_KEY,
+  PULL_THRESHOLD_PX,
   SEED_KEY,
-  SEED_TTL_MS,
   SEEN_KEY,
   applyFilters,
   filtersToQuery,
   hasAnyFilter,
   orderCards,
+  newSeed,
   parseFilters,
   reuseOrder,
+  shouldStartNewVisit,
   splitIntoColumns,
   type IdeaCard,
   type IdeaFilters,
@@ -63,24 +66,40 @@ function readJson<T>(storage: Storage | null, key: string, fallback: T): T {
 }
 
 /**
- * Сид захода.
+ * Было ли это ПЕРВОЕ монтирование ленты в текущем документе.
  *
- * sessionStorage: мягкая навигация (возврат из рецепта) сид не трогает, полная
- * перезагрузка — трогает. Плюс срок годности: в установленном PWA вкладка
- * живёт сутками, и без него лента не перемешалась бы НИКОГДА.
+ * Модульная переменная живёт ровно столько же, сколько документ: переживает
+ * мягкие переходы (возврат из рецепта) и обнуляется при перезагрузке. Именно
+ * этим отличается «человек вернулся назад» от «человек открыл ленту заново» —
+ * тип навигации такой разницы не знает.
  */
-function readOrCreateSeed(): number {
-  const fresh = () => Math.floor(Math.random() * 0xffffffff);
-  if (typeof window === "undefined") return 0;
+let mountedInThisDocument = false;
+
+function navigationType(): string | null {
   try {
-    const saved = readJson<{ seed?: number; at?: number } | null>(sessionStorage, SEED_KEY, null);
-    if (saved?.seed && saved.at && Date.now() - saved.at < SEED_TTL_MS) return saved.seed;
-    const seed = fresh();
-    sessionStorage.setItem(SEED_KEY, JSON.stringify({ seed, at: Date.now() }));
-    return seed;
+    const entry = performance.getEntriesByType("navigation")[0] as
+      | (PerformanceEntry & { type?: string })
+      | undefined;
+    return entry?.type ?? null;
   } catch {
-    // Приватный режим: сид на память, лента просто перемешается ещё раз.
-    return fresh();
+    return null;
+  }
+}
+
+function persistVisit(seed: number, slugs: string[]): void {
+  try {
+    sessionStorage.setItem(SEED_KEY, JSON.stringify({ seed, at: Date.now() }));
+    sessionStorage.setItem(ORDER_KEY, JSON.stringify(slugs));
+  } catch {
+    // Приватный режим: порядок переживёт только текущее монтирование.
+  }
+}
+
+function prefersReducedMotion(): boolean {
+  try {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  } catch {
+    return false;
   }
 }
 
@@ -146,13 +165,37 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
   const [taste, setTaste] = useState<TasteMatcher | null>(null);
   const seenRef = useRef<Set<string>>(new Set());
 
-  // Порядок считается ОДИН РАЗ за заход и живёт в sessionStorage.
+  /**
+   * Перемешать ленту заново.
+   *
+   * Снимок открытых берётся ЗАНОВО из localStorage: только что открытые
+   * рецепты должны уехать в конец — ради этого обновление и нужно.
+   */
+  const reshuffle = useCallback(
+    (how: "pull" | "tab" | "resume", scrollTop: boolean) => {
+      const seen = readJson<string[]>(localStorage, SEEN_KEY, []);
+      seenRef.current = new Set(seen);
+      const seed = newSeed();
+      const next = orderCards(initialCards, { seed, seen });
+      persistVisit(seed, next.map((c) => c.slug));
+      setOrdered(next);
+      reachGoal("ideas_refresh", { how });
+      if (scrollTop) {
+        window.scrollTo({
+          top: 0,
+          behavior: prefersReducedMotion() ? "auto" : "smooth",
+        });
+      }
+    },
+    [initialCards],
+  );
+
+  // Порядок захода. Считается один раз и живёт в sessionStorage, но ТОЛЬКО
+  // пока заход продолжается.
   //
-  // Замораживаем именно ПОРЯДОК, а не «снимок просмотренных». Возврат из
-  // рецепта размонтирует ленту и монтирует заново — значит любой пересчёт
-  // здесь выполнится повторно, уже с обновлённым списком открытых, и карточка
-  // только что открытого рецепта уедет в конец прямо под пальцем. Поймано
-  // живым прогоном: скролл вставал в чужое место.
+  // Что считается новым заходом, а что продолжением — в shouldStartNewVisit.
+  // Коротко: возврат назад и мягкий переход внутри приложения порядок
+  // сохраняют, обычное открытие и перезагрузка — нет.
   useIsoLayoutEffect(() => {
     const seen = readJson<string[]>(localStorage, SEEN_KEY, []);
     seenRef.current = new Set(seen);
@@ -161,23 +204,157 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
     // рецепта (возврат размонтирует ленту, эффект выполнится заново).
     setFiltersState(parseFilters(new URLSearchParams(window.location.search)));
 
-    const saved = reuseOrder(initialCards, readJson<string[] | null>(sessionStorage, ORDER_KEY, null));
-    const next = saved ?? orderCards(initialCards, { seed: readOrCreateSeed(), seen });
+    const freshVisit = shouldStartNewVisit({
+      isFirstMountInDocument: !mountedInThisDocument,
+      navigationType: navigationType(),
+    });
+    mountedInThisDocument = true;
 
-    if (!saved) {
-      try {
-        sessionStorage.setItem(ORDER_KEY, JSON.stringify(next.map((c) => c.slug)));
-      } catch {
-        // Приватный режим: порядок переживёт только текущее монтирование.
-      }
+    const saved = freshVisit
+      ? null
+      : reuseOrder(initialCards, readJson<string[] | null>(sessionStorage, ORDER_KEY, null));
+
+    if (saved) {
+      setOrdered(saved);
+    } else {
+      const seed = newSeed();
+      const next = orderCards(initialCards, { seed, seen });
+      persistVisit(seed, next.map((c) => c.slug));
+      setOrdered(next);
     }
 
-    setOrdered(next);
     setColumns(columnsForWidth(window.innerWidth));
     // Намеренно один раз за монтирование: список с сервера в рамках захода
     // не меняется.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Возврат из фона. Свёрнутое приложение документ не перезагружает, поэтому
+  // длинная пауза — единственный признак того, что человек пришёл заново.
+  useEffect(() => {
+    let hiddenAt: number | null = null;
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        hiddenAt = Date.now();
+        return;
+      }
+      const hiddenMs = hiddenAt === null ? null : Date.now() - hiddenAt;
+      hiddenAt = null;
+      if (shouldStartNewVisit({ isFirstMountInDocument: false, hiddenMs })) {
+        reshuffle("resume", true);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [reshuffle]);
+
+  // ── Оттяжка вниз ──────────────────────────────────────────────────────────
+  //
+  // Своими руками, без библиотек. Три условия, чтобы жест не мешал жить:
+  //   • только когда лента уже в самом верху (scrollY === 0);
+  //   • только если палец идёт вниз И вертикаль заметно больше горизонтали —
+  //     иначе жест перехватывал бы боковую прокрутку чипов;
+  //   • preventDefault на touchmove, чтобы не тянулась «резинка» браузера.
+  //     Слушатель обязан быть НЕ пассивным, иначе preventDefault игнорируется.
+  //
+  // Нативная прокрутка страницы не трогается: пока условия не сошлись, мы
+  // вообще ничего не делаем.
+  const [pull, setPull] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const pullState = useRef<{ startY: number; startX: number; active: boolean } | null>(null);
+
+  useEffect(() => {
+    const onStart = (e: TouchEvent) => {
+      if (window.scrollY > 0 || refreshing) return;
+      // Горизонтальная лента чипов живёт своей жизнью.
+      if ((e.target as HTMLElement | null)?.closest?.(".ideas-chips-scroll")) return;
+      const t = e.touches[0];
+      pullState.current = { startY: t.clientY, startX: t.clientX, active: false };
+    };
+
+    const onMove = (e: TouchEvent) => {
+      const st = pullState.current;
+      if (!st) return;
+      const t = e.touches[0];
+      const dy = t.clientY - st.startY;
+      const dx = Math.abs(t.clientX - st.startX);
+
+      if (!st.active) {
+        // Решаем один раз: это оттяжка или обычный жест.
+        if (dy <= 0 || dy < 8) return;
+        if (dx > dy) {
+          pullState.current = null;
+          return;
+        }
+        st.active = true;
+      }
+
+      if (window.scrollY > 0) {
+        pullState.current = null;
+        setPull(0);
+        return;
+      }
+
+      e.preventDefault();
+      // Затухание: палец уходит вниз быстрее, чем индикатор, — так жест
+      // ощущается упругим и не улетает на пол-экрана.
+      setPull(Math.min(PULL_THRESHOLD_PX * 1.6, dy * 0.5));
+    };
+
+    const onEnd = () => {
+      const st = pullState.current;
+      pullState.current = null;
+      if (!st?.active) {
+        setPull(0);
+        return;
+      }
+      setPull((current) => {
+        if (current >= PULL_THRESHOLD_PX * 0.5) {
+          setRefreshing(true);
+          // Перемешиваем на следующем кадре: индикатор успевает показаться, и
+          // обновление не выглядит мгновенным «морганием».
+          window.setTimeout(() => {
+            reshuffle("pull", false);
+            setRefreshing(false);
+            setPull(0);
+          }, prefersReducedMotion() ? 0 : 260);
+          return PULL_THRESHOLD_PX * 0.5;
+        }
+        return 0;
+      });
+    };
+
+    window.addEventListener("touchstart", onStart, { passive: true });
+    window.addEventListener("touchmove", onMove, { passive: false });
+    window.addEventListener("touchend", onEnd, { passive: true });
+    window.addEventListener("touchcancel", onEnd, { passive: true });
+    return () => {
+      window.removeEventListener("touchstart", onStart);
+      window.removeEventListener("touchmove", onMove);
+      window.removeEventListener("touchend", onEnd);
+      window.removeEventListener("touchcancel", onEnd);
+    };
+  }, [reshuffle, refreshing]);
+
+  // Гасим встроенную оттяжку-обновление Chrome и цепную прокрутку — ТОЛЬКО
+  // пока открыта лента. Свойство ставится на документ (скроллится именно он, а
+  // не контейнер ленты), поэтому обязательно снимаем при уходе со страницы,
+  // иначе правило утекло бы на остальные экраны.
+  useEffect(() => {
+    document.documentElement.classList.add("ideas-no-overscroll");
+    return () => document.documentElement.classList.remove("ideas-no-overscroll");
+  }, []);
+
+  // Повторный тап по активной вкладке «Идеи» — как в любом приложении с
+  // таб-баром: наверх и обновить.
+  useEffect(() => {
+    const onReselect = (e: Event) => {
+      const href = (e as CustomEvent<{ href?: string }>).detail?.href ?? "";
+      if (href.startsWith("/ideas")) reshuffle("tab", true);
+    };
+    window.addEventListener(TAB_RESELECT_EVENT, onReselect);
+    return () => window.removeEventListener(TAB_RESELECT_EVENT, onReselect);
+  }, [reshuffle]);
 
   // Профиль вкуса — в эффекте, а не в layout: он влияет только на видимость
   // чипа и на фильтр, а не на первый кадр.
@@ -253,6 +430,12 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
 
   return (
     <>
+      {/* Индикатор оттяжки. Высота управляется жестом, поэтому инлайн-стиль —
+          это не вкусовщина, а единственное место, где значение известно. */}
+      <div className="ideas-pull" style={{ height: `${pull}px` }} aria-hidden={pull === 0}>
+        <span className={`ideas-pull-dot${refreshing ? " is-spinning" : ""}`} />
+      </div>
+
       <div className="ideas-chips ideas-chips-meal">
         {MEAL_CHIPS.map((chip) => {
           const value = chip.param ? MEAL_BY_PARAM[chip.param] : null;

@@ -3,51 +3,81 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
-import { Camera, Home, ShoppingCart, User } from "lucide-react";
+import { Camera, Home, Lightbulb, ShoppingCart, User } from "lucide-react";
 import { reachGoal } from "@/lib/metrika";
 import { isChromeHidden } from "@/lib/layoutGate";
+import { FEATURE_IDEAS } from "@/lib/features";
 
 // Основная навигация по четырём разделам. Мобайл — фиксированный таб-бар снизу
 // (safe-area для PWA/iOS), десктоп — те же пункты в верхней шапке (через CSS).
 // Переходы — next/link (реальная смена маршрута → авто-хит Метрики из
 // YandexMetrika по usePathname). onClick дополнительно шлёт цель nav_*.
 //
-// Порядок (этап H11): Главная — По фото — Покупки — Профиль. «По фото» ведёт в
-// тот же /search с фокусом на зоне загрузки, что и главная кнопка Главной, и
-// шлёт СТАРУЮ цель nav_search: на ней собрана воронка входа в поиск, переименование
-// разорвало бы месячные ряды. «Профиль» — новый пункт и новая цель nav_profile;
-// он заменил аватарку-вход в root-layout (ProfileEntry), чтобы вход в кабинет
-// был ровно один.
+// Порядок: Главная — Идеи — Поиск — Покупки — Профиль.
+//
+// «Поиск» (бывшая «По фото») ведёт на чистый /search и шлёт СТАРУЮ цель
+// nav_search: на ней собрана воронка входа в поиск, переименование разорвало бы
+// месячные ряды. Раньше пункт назывался «По фото» и открывал /search?focus=photo
+// (сразу зона загрузки фото) — теперь раздел заявлен шире, и открывается он
+// обычным экраном поиска. Главная кнопка Главной по-прежнему ведёт с focus=photo,
+// её не трогаем.
+//
+// «Профиль» — цель nav_profile; он заменил аватарку-вход в root-layout
+// (ProfileEntry), чтобы вход в кабинет был ровно один.
+//
+// «Идеи» — каталог рецептов, который наполняем мы сами. Пункт появляется только
+// при FEATURE_IDEAS: пока раздел не наполнен, /ideas отдаёт 404, и вести туда
+// человека нельзя. Цель nav_ideas новая — её надо завести в Метрике, иначе
+// клики по вкладке просто не считаются.
 //
 // Подписи — одно короткое слово (iOS-стиль), чтобы не переносились на узких
 // экранах; в контенте раздел зовётся «Найти рецепт» — это не трогаем.
 // «Банкеты» и «Лента» в таб-баре не живут: за месяц ноль кликов и ноль
 // публикаций. Ссылки на них остались в личном кабинете, прямые /parties,
 // /party/<id> и /feed работают как раньше.
-const TABS = [
-  { href: "/", label: "Главная", icon: Home, goal: "nav_home", isActive: (p: string) => p === "/" },
+type Tab = {
+  href: string;
+  label: string;
+  icon: typeof Home;
+  goal: string;
+  isActive: (p: string) => boolean;
+};
+
+const TABS: Tab[] = [
+  { href: "/", label: "Главная", icon: Home, goal: "nav_home", isActive: (p) => p === "/" },
+  ...(FEATURE_IDEAS
+    ? [
+        {
+          href: "/ideas",
+          label: "Идеи",
+          icon: Lightbulb,
+          goal: "nav_ideas",
+          isActive: (p: string) => p.startsWith("/ideas"),
+        },
+      ]
+    : []),
   {
-    href: "/search?focus=photo",
-    label: "По фото",
+    href: "/search",
+    label: "Поиск",
     icon: Camera,
     goal: "nav_search",
-    isActive: (p: string) => p.startsWith("/search"),
+    isActive: (p) => p.startsWith("/search"),
   },
   {
     href: "/shopping",
     label: "Покупки",
     icon: ShoppingCart,
     goal: "nav_shopping",
-    isActive: (p: string) => p.startsWith("/shopping"),
+    isActive: (p) => p.startsWith("/shopping"),
   },
   {
     href: "/profile",
     label: "Профиль",
     icon: User,
     goal: "nav_profile",
-    isActive: (p: string) => p.startsWith("/profile"),
+    isActive: (p) => p.startsWith("/profile"),
   },
-] as const;
+];
 
 export default function TabBar() {
   const pathname = usePathname() || "/";
@@ -71,7 +101,15 @@ export default function TabBar() {
   if (hidden) return null;
 
   return (
-    <nav className="tab-bar" aria-label="Основная навигация">
+    <nav
+      // Пять пунктов не влезают в десктопную пилюлю шапки (max-width 480px —
+      // рассчитана на четыре): последняя подпись подрезается. Модификатор
+      // расширяет ТОЛЬКО этот случай, поэтому вид с четырьмя вкладками (прод
+      // при выключенном FEATURE_IDEAS) не меняется. На мобиле бар во всю
+      // ширину, и модификатор там ничего не делает.
+      className={`tab-bar${TABS.length > 4 ? " tab-bar-wide" : ""}`}
+      aria-label="Основная навигация"
+    >
       {TABS.map((t) => {
         const active = t.isActive(pathname);
         const Icon = t.icon;

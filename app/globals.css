@@ -2167,6 +2167,11 @@ button.daily-teaser { width: 100%; font: inherit; text-align: left; }
     padding-bottom: 0;
     height: auto;
   }
+  /* Пять пунктов (появляется «Идеи»): по 120px на пункт — ровно столько
+     занимает самая длинная подпись с иконкой в строку. С 480px последняя
+     подпись подрезалась краем пилюли. Модификатор ставит TabBar только когда
+     пунктов больше четырёх. */
+  .tab-bar-wide { max-width: 600px; }
   .tab-item { flex-direction: row; gap: 8px; font-size: var(--font-size-caption); padding: 12px; }
   /* На десктопе иконка и подпись в строку — пилюля должна плотно облегать иконку. */
   .tab-icon { width: auto; height: auto; padding: 4px 8px; }

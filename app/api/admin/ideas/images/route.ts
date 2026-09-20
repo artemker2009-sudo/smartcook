@@ -50,7 +50,11 @@ export async function GET(req: Request) {
     generatedToday,
     remainingToday: Math.max(0, IMAGE_DAILY_LIMIT - generatedToday),
     costPerImageUsd: COST_PER_IMAGE_USD,
-    spentTodayUsd: Number((generatedToday * COST_PER_IMAGE_USD).toFixed(2)),
+    // ОЦЕНКА СВЕРХУ, не факт: счётчик знает число зарезервированных слотов, а
+    // слот резервируется ДО вызова модели — значит в него попадают и неудачные
+    // попытки. Имя поля говорит это прямо, чтобы никто не принял его за
+    // потраченную сумму.
+    spentAtMostTodayUsd: Number((generatedToday * COST_PER_IMAGE_USD).toFixed(2)),
   });
 }
 

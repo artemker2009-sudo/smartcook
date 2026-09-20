@@ -3,6 +3,12 @@ import OpenAI from "openai";
 import sharp from "sharp";
 import { createServiceRoleClient } from "@/lib/supabaseAdmin";
 import { buildDishPrompt, pickDishware, pickScene } from "@/lib/dishPrompt";
+import {
+  UPLOAD_ATTEMPTS,
+  UPLOAD_DELAYS_MS,
+  retryAsync,
+  uploadFailureMessage,
+} from "@/lib/retry";
 
 // Серверная генерация картинок блюд. Ключ OpenAI — только на сервере, в клиент
 // не течёт. Запуск — исключительно из админ-роутов (app/api/admin/images,
@@ -206,17 +212,39 @@ async function renderDishImage(
   return { webp, costUsd };
 }
 
-/** Общее ядро: загрузка в бакет и публичная ссылка. */
+/**
+ * Общее ядро: загрузка в бакет и публичная ссылка.
+ *
+ * ПОВТОРЯЕМ ЗАГРУЗКУ, А НЕ ГЕНЕРАЦИЮ. К этому моменту картинка уже создана
+ * моделью и оплачена, и лежит в памяти — повторная попытка положить тот же
+ * буфер стоит ноль, а потеря стоит целой генерации. На приёмке каталога
+ * четыре вызова из двадцати упали ровно здесь, на мигнувшей сети.
+ *
+ * Если не вышло за три попытки — сообщение об ошибке прямо говорит, что
+ * генерация оплачена: в error_reports это должно отличаться от «не смогли
+ * нарисовать», потому что чинить эти две поломки надо по-разному.
+ */
 async function uploadDishImage(
   supabase: ReturnType<typeof createServiceRoleClient>,
   path: string,
   webp: Buffer,
   opts: { cacheBuster?: boolean } = {},
 ): Promise<string> {
-  const { error } = await supabase.storage
-    .from(STORAGE_BUCKET)
-    .upload(path, webp, { contentType: "image/webp", upsert: true });
-  if (error) throw new Error(`storage upload: ${error.message}`);
+  await retryAsync(
+    async () => {
+      // supabase-js на сетевом сбое то возвращает error, то бросает —
+      // приводим оба случая к исключению, чтобы повтор видел их одинаково.
+      const { error } = await supabase.storage
+        .from(STORAGE_BUCKET)
+        .upload(path, webp, { contentType: "image/webp", upsert: true });
+      if (error) throw new Error(error.message);
+    },
+    {
+      attempts: UPLOAD_ATTEMPTS,
+      delaysMs: UPLOAD_DELAYS_MS,
+      describeFailure: uploadFailureMessage,
+    },
+  );
 
   const { data: pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
   // Кэш-бастер нужен ТОЛЬКО там, где файл перезаписывается по тому же пути

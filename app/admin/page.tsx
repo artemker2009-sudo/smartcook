@@ -19,6 +19,7 @@ import {
   IDEA_MAIN_PRODUCTS,
   IDEA_MEALS,
   effectiveImageStatus,
+  spentAtMostLabel,
   type IdeaRecipeAdmin,
 } from "@/lib/ideaRecipes";
 
@@ -172,7 +173,8 @@ type IdeaImagesStatus = {
   generatedToday: number;
   remainingToday: number;
   costPerImageUsd: number;
-  spentTodayUsd: number;
+  /** Оценка СВЕРХУ: счётчик считает резервы слотов, включая неудачные попытки. */
+  spentAtMostTodayUsd: number;
 };
 
 // Отчёт импорта каталога. Структуру задаёт /api/admin/ideas (op=import).
@@ -3026,8 +3028,10 @@ export default function AdminPage() {
                   <p className="font-semibold text-zinc-900">Картинки блюд</p>
                   {ideaImages ? (
                     <p className="mt-1 text-xs text-zinc-500">
-                      Сегодня сгенерировано {ideaImages.generatedToday} из {ideaImages.dailyLimit}
-                      {" · "}примерно ${ideaImages.spentTodayUsd.toFixed(2)}
+                      Сегодня израсходовано слотов: {ideaImages.generatedToday} из{" "}
+                      {ideaImages.dailyLimit}
+                      {" · "}
+                      {spentAtMostLabel(ideaImages.generatedToday, ideaImages.costPerImageUsd)}
                       {" · "}модель {ideaImages.model} / {ideaImages.quality}
                       {" · "}≈${ideaImages.costPerImageUsd.toFixed(3)} за картинку
                     </p>

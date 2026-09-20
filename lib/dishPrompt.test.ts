@@ -134,6 +134,27 @@ describe("pickScene", () => {
     }
   });
 
+  // Каша под 45° показывает борт миски, а не еду. Правило жёсткое: миска —
+  // только сверху, при любом варианте перегенерации.
+  it("каша в миске снимается строго сверху, сколько ни перегенерируй", () => {
+    for (const variant of [0, 1, 2, 3, 4, 5]) {
+      const kasha = pickScene({ slug: `kasha-${variant}`, title: "Овсяная каша с яблоком", variant });
+      expect(kasha.angle, `variant ${variant}`).toBe("top-down");
+    }
+  });
+
+  it("супу верхний ракурс не навязывают — в нём есть что показать сбоку", () => {
+    // Один и тот же рецепт с разными вариантами: ракурс обязан меняться.
+    // Раньше тест брал РАЗНЫЕ slug, и совпадение чётности хэшей делало его
+    // зелёным или красным случайно — проверял он при этом не то, что нужно.
+    const angles = new Set(
+      [0, 1, 2, 3].map(
+        (variant) => pickScene({ slug: "kurinyy-sup", title: "Куриный суп", variant }).angle,
+      ),
+    );
+    expect(angles).toEqual(new Set(["top-down", "three-quarter"]));
+  });
+
   it("высокому блюду не дают строго верхний ракурс", () => {
     for (const variant of [0, 1, 2, 3, 4]) {
       const cakes = pickScene({ slug: `syrniki-${variant}`, title: "Сырники", variant });
@@ -202,7 +223,7 @@ describe("buildDishPrompt", () => {
     expect(prompt).toContain("Сырники со сметаной");
     expect(prompt).toContain("творог, яйцо");
     expect(prompt).toContain("dinner plate");
-    expect(prompt).toContain("dark walnut");
+    expect(prompt).toContain("walnut table");
     expect(prompt).toContain("close to table level");
     expect(prompt).toContain("a wedge of fresh lemon");
   });

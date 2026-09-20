@@ -105,12 +105,18 @@ export const SURFACES = [
 ] as const;
 export type Surface = (typeof SURFACES)[number];
 
+// Формулировки НАРОЧНО разведены по светлоте и фактуре. На первой версии
+// белая столешница, серый камень и светлое дерево на карточке шириной 163 px
+// читались как одно и то же светлое пятно, и лента снова выглядела «одним
+// фоном» — то есть разнообразие было в коде, но не на экране. Набор
+// поверхностей тот же, разной сделана их выразительность.
 const SURFACE_PHRASE: Record<Surface, string> = {
-  "light-wood": "a light wooden kitchen table with visible wood grain",
-  "dark-wood": "a dark walnut wooden table with visible wood grain",
-  "white-counter": "a plain white kitchen countertop",
-  "linen": "a plain natural linen tablecloth, softly wrinkled, no pattern",
-  "grey-stone": "a light grey stone countertop with subtle texture",
+  "light-wood": "a pale birch wooden table, warm and light, with clearly visible wood grain",
+  "dark-wood": "a very dark, almost black walnut table with strong visible wood grain",
+  "white-counter": "a bright white marble countertop with subtle grey veining",
+  "linen":
+    "a deep olive-green linen tablecloth, clearly wrinkled, matte woven fabric texture, no pattern",
+  "grey-stone": "a dark charcoal-grey slate surface, matte, with rough visible texture",
 };
 
 export const ANGLES = ["top-down", "three-quarter", "close-side"] as const;
@@ -155,6 +161,12 @@ const ANGLES_FOR_SHAPE: Record<DishShape, readonly Angle[]> = {
   flat: ["top-down", "three-quarter"],
   tall: ["three-quarter", "close-side"],
 };
+
+// Каша и рагу в миске — ВСЕГДА строго сверху, без вариантов. Под 45° видно
+// главным образом борт миски, а само блюдо превращается в полоску у дальнего
+// края. Супу это не мешает (в нём есть что показать сбоку — гуща, лапша), а
+// однородной каше — мешает.
+const BOWL_ANGLES: readonly Angle[] = ["top-down"];
 
 /**
  * Реквизит-продукты. Кладём рядом ТОЛЬКО то, что есть в рецепте — иначе
@@ -256,14 +268,20 @@ export function pickScene(input: {
 
   const surface = SURFACES[base % SURFACES.length];
 
+  // Посуду считаем здесь же, если её не передали: от неё зависят и ракурс
+  // (каша в миске — только сверху), и прибор.
+  const dishware =
+    input.dishware ??
+    pickDishware({ title: input.title, tags: input.tags });
+
   const shape = pickDishShape({ title: input.title, tags: input.tags });
-  const allowed = ANGLES_FOR_SHAPE[shape];
+  const allowed = dishware === "bowl" ? BOWL_ANGLES : ANGLES_FOR_SHAPE[shape];
   const angle = allowed[(sceneHash(input.slug) + variant) % allowed.length];
 
   // Ложка супу и каше, вилка остальному — иначе на снимке лежит вилка рядом с
   // бульоном, и это первое, за что цепляется глаз.
   const cutlery: "fork" | "spoon" =
-    input.dishware === "deep-bowl" || input.dishware === "bowl" ? "spoon" : "fork";
+    dishware === "deep-bowl" || dishware === "bowl" ? "spoon" : "fork";
 
   return {
     surface,

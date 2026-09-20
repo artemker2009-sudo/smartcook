@@ -2,6 +2,7 @@ import "server-only";
 import OpenAI from "openai";
 import sharp from "sharp";
 import { createServiceRoleClient } from "@/lib/supabaseAdmin";
+import { buildDishPrompt, pickDishware } from "@/lib/dishPrompt";
 
 // Серверная генерация картинок блюд. Ключ OpenAI — только на сервере, в клиент
 // не течёт. Запуск — исключительно из админ-роутов (app/api/admin/images,
@@ -110,37 +111,6 @@ function keyIngredients(recipe: {
     .slice(0, 5);
 }
 
-/**
- * Промт. ЕДИНЫЙ СТИЛЬ ВСЕЙ ЛЕНТЫ — вся переменная часть это название блюда и
- * 3–5 ингредиентов, остальное дословно одинаково у каждой картинки. Именно
- * этим держится единство: восемьдесят снимков должны читаться как одна серия.
- *
- * Требования к стилю заданы основателем: домашняя еда на обычной тарелке,
- * дневной свет, светлый стол, ракурс сверху-сбоку, никакой «ресторанной»
- * подачи — блюдо должно выглядеть так, как его реально приготовит человек.
- *
- * Английский — для image-моделей надёжнее; название блюда идёт как есть.
- */
-function buildPrompt(title: string, ingredients: string[]): string {
-  const ingLine = ingredients.length ? `\nKey ingredients: ${ingredients.join(", ")}.` : "";
-  return `Homemade food photography of the finished dish "${title}".${ingLine}
-
-Style, identical for every photo in this series:
-- everyday home cooking, served on a plain white ceramic plate;
-- plate stands on a light wooden kitchen table, plain background;
-- soft natural daylight from a window, no harsh shadows, no flash;
-- camera slightly above the plate, about a 45-degree angle, dish fills the frame;
-- the food looks exactly like an ordinary person cooked it at home:
-  honest generous portion, slightly uneven, real texture.
-
-Do NOT make it look like a restaurant: no fine-dining plating, no stacked
-towers, no sauce smears or dots, no microgreens or edible flowers, no tweezers
-styling, no props or styling clutter.
-
-No text, no captions, no watermark, no logo, no brand names,
-no hands, no people.`;
-}
-
 type Usage = {
   input_tokens?: number;
   output_tokens?: number;
@@ -196,13 +166,27 @@ async function toWebp(pngBuffer: Buffer, aspect: ImageAspect): Promise<Buffer> {
   return out;
 }
 
-/** Общее ядро: промт → генерация → webp. Ничего не знает про таблицы. */
+/**
+ * Общее ядро: промт → генерация → webp. Ничего не знает про таблицы.
+ *
+ * Посуду выводим из названия, тегов и способа приготовления (lib/dishPrompt.ts):
+ * суп в глубокой тарелке, каша в миске, запечённое — в форме. Новых полей в
+ * БД для этого не заводили: тип посуды — следствие того, что уже написано в
+ * рецепте, а не отдельное решение, которое кто-то будет принимать руками для
+ * каждого из восьмидесяти блюд.
+ */
 async function renderDishImage(
   title: string,
   ingredients: string[],
   aspect: ImageAspect,
+  hints: { tags?: string[] | null; cookMethod?: string | null } = {},
 ): Promise<{ webp: Buffer; costUsd: number }> {
-  const prompt = buildPrompt(title, ingredients);
+  const prompt = buildDishPrompt({
+    title,
+    ingredients,
+    aspect,
+    dishware: pickDishware({ title, tags: hints.tags, cookMethod: hints.cookMethod }),
+  });
   const { b64, costUsd } = await generateImageBase64(prompt, aspect);
   const webp = await toWebp(Buffer.from(b64, "base64"), aspect);
   return { webp, costUsd };
@@ -425,13 +409,15 @@ export async function generateIdeaImage(
   try {
     const { data: idea, error } = await supabase
       .from("idea_recipes")
-      .select("id, slug, title, ingredients, image_url, image_status, image_aspect")
+      .select("id, slug, title, ingredients, tags, cook_method, image_url, image_status, image_aspect")
       .eq("id", ideaId)
       .single<{
         id: string;
         slug: string;
         title: string;
         ingredients: { name?: string }[] | null;
+        tags: string[] | null;
+        cook_method: string | null;
         image_url: string | null;
         image_status: string;
         image_aspect: string;
@@ -467,6 +453,7 @@ export async function generateIdeaImage(
       title,
       keyIngredients({ detailed_ingredients: idea.ingredients }),
       aspect,
+      { tags: idea.tags, cookMethod: idea.cook_method },
     );
     const publicUrl = await uploadDishImage(supabase, ideaImagePath(idea.slug), webp);
 

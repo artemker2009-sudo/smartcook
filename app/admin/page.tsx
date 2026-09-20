@@ -18,6 +18,8 @@ import {
   IDEA_IMAGE_ASPECTS,
   IDEA_MAIN_PRODUCTS,
   IDEA_MEALS,
+  effectiveImageStatus,
+  spentAtMostLabel,
   type IdeaRecipeAdmin,
 } from "@/lib/ideaRecipes";
 
@@ -158,6 +160,22 @@ type TabId = "management" | "analytics" | "purchases" | "news" | "articles" | "i
 // утра с мёртвой кукой. Без этого сообщения запись просто «не срабатывала»:
 // роут отвечал 401, а интерфейс показывал общее «не удалось сохранить».
 const ADMIN_SESSION_EXPIRED = "Сессия админки истекла — войдите заново.";
+
+// Сколько картинок каталога генерим за один запуск батча. Столько же, сколько
+// у картинок рецептов: защита от случайного слива бюджета одним кликом.
+const MAX_IDEA_IMAGE_BATCH = 30;
+
+// Состояние генерации картинок каталога — отдаёт /api/admin/ideas/images.
+type IdeaImagesStatus = {
+  model: string;
+  quality: string;
+  dailyLimit: number;
+  generatedToday: number;
+  remainingToday: number;
+  costPerImageUsd: number;
+  /** Оценка СВЕРХУ: счётчик считает резервы слотов, включая неудачные попытки. */
+  spentAtMostTodayUsd: number;
+};
 
 // Отчёт импорта каталога. Структуру задаёт /api/admin/ideas (op=import).
 type IdeaImportReport = {
@@ -428,6 +446,11 @@ export default function AdminPage() {
   const [ideaEditingId, setIdeaEditingId] = useState<string | null>(null);
   // Ссылка на форму правки — по ней её показывают (см. эффект ниже).
   const ideaFormRef = useRef<HTMLFormElement>(null);
+  const [ideaImages, setIdeaImages] = useState<IdeaImagesStatus | null>(null);
+  const [ideaImageBusyId, setIdeaImageBusyId] = useState<string | null>(null);
+  const [ideaBatch, setIdeaBatch] = useState<{ done: number; total: number; failed: number } | null>(
+    null,
+  );
   const [ideaForm, setIdeaForm] = useState({
     slug: "",
     title: "",
@@ -441,6 +464,7 @@ export default function AdminPage() {
     allergens: [] as string[],
     image_aspect: "square",
     sort_weight: "0",
+    family: "",
     ingredients: "",
     steps: "",
   });
@@ -529,6 +553,7 @@ export default function AdminPage() {
   useEffect(() => {
     if (isAuthenticated && activeTab === "ideas" && ideas.length === 0 && !ideasLoading && !ideaError) {
       void loadIdeas();
+      void loadIdeaImagesStatus();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, activeTab]);
@@ -1358,6 +1383,7 @@ export default function AdminPage() {
       allergens: item.allergens ?? [],
       image_aspect: item.image_aspect || "square",
       sort_weight: String(item.sort_weight ?? 0),
+      family: item.family ?? "",
       ingredients: ingredientsToText(item.ingredients ?? []),
       steps: (item.steps ?? []).join("\n"),
     });
@@ -1426,6 +1452,7 @@ export default function AdminPage() {
             allergens: ideaForm.allergens,
             image_aspect: ideaForm.image_aspect,
             sort_weight: Number(ideaForm.sort_weight),
+            family: ideaForm.family || null,
             ingredients: textToIngredients(ideaForm.ingredients),
             steps: ideaForm.steps.split("\n").map((s) => s.trim()).filter(Boolean),
           },
@@ -1523,6 +1550,113 @@ export default function AdminPage() {
     } finally {
       setIdeaImporting(false);
     }
+  };
+
+  // --- Картинки каталога ---
+
+  const loadIdeaImagesStatus = async () => {
+    try {
+      const response = await fetch("/api/admin/ideas/images", { cache: "no-store" });
+      if (response.status === 401) {
+        handleAdminUnauthorized();
+        return;
+      }
+      if (!response.ok) return;
+      setIdeaImages((await response.json()) as IdeaImagesStatus);
+    } catch {
+      // Счётчик — справочная величина: его недоступность не должна мешать
+      // работать с каталогом.
+    }
+  };
+
+  /**
+   * Генерация одной картинки. Возвращает true при успехе — на этом батч ниже
+   * считает «сделано», а на 429 (суточный лимит) останавливается целиком.
+   */
+  const generateIdeaImage = async (id: string, force: boolean): Promise<"ok" | "fail" | "limit"> => {
+    try {
+      const response = await fetch("/api/admin/ideas/images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, force }),
+      });
+      if (response.status === 401) {
+        handleAdminUnauthorized();
+        return "fail";
+      }
+      if (response.status === 429) {
+        const data = await response.json().catch(() => null);
+        setIdeaError(data?.error || "Суточный лимит генераций исчерпан");
+        return "limit";
+      }
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        setIdeaError(data?.error || "Не удалось сгенерировать картинку");
+        return "fail";
+      }
+      return "ok";
+    } catch (error) {
+      setIdeaError(error instanceof Error ? error.message : "Не удалось сгенерировать картинку");
+      return "fail";
+    }
+  };
+
+  const handleIdeaImage = async (item: IdeaRecipeAdmin, force: boolean) => {
+    // Перегенерация — это деньги: спрашиваем и называем цену.
+    if (force) {
+      const price = ideaImages ? ` Примерно $${ideaImages.costPerImageUsd.toFixed(3)}.` : "";
+      if (!confirm(`Перерисовать картинку для «${item.title}»?${price}`)) return;
+    }
+    setIdeaImageBusyId(item.id);
+    setIdeaError("");
+    try {
+      await generateIdeaImage(item.id, force);
+      await loadIdeas();
+      await loadIdeaImagesStatus();
+    } finally {
+      setIdeaImageBusyId(null);
+    }
+  };
+
+  /**
+   * Батч по рецептам без картинки — ПОСЛЕДОВАТЕЛЬНО, по одной за запрос.
+   *
+   * Параллелить нельзя: одна генерация занимает около минуты и стоит денег,
+   * а суточный лимит резервируется атомарно в базе. Последовательный проход
+   * позволяет остановиться на первом же отказе лимита, не заплатив за хвост.
+   */
+  const handleGenerateAllMissing = async () => {
+    const pending = ideas.filter(
+      (item) => effectiveImageStatus(item.image_status, item.updated_at) !== "ready",
+    );
+    const batch = pending.slice(0, MAX_IDEA_IMAGE_BATCH);
+    if (batch.length === 0) return;
+
+    const price = ideaImages
+      ? ` Примерно $${(batch.length * ideaImages.costPerImageUsd).toFixed(2)}.`
+      : "";
+    const tail =
+      pending.length > batch.length
+        ? `\n\nБез картинки всего ${pending.length}; за один запуск берём не больше ${MAX_IDEA_IMAGE_BATCH}.`
+        : "";
+    if (!confirm(`Сгенерировать картинки для ${batch.length} рецептов?${price}${tail}`)) return;
+
+    setIdeaError("");
+    setIdeaBatch({ done: 0, total: batch.length, failed: 0 });
+    let failed = 0;
+    for (let i = 0; i < batch.length; i++) {
+      const outcome = await generateIdeaImage(batch[i].id, false);
+      if (outcome === "limit") {
+        setIdeaBatch({ done: i, total: batch.length, failed });
+        break;
+      }
+      if (outcome === "fail") failed += 1;
+      setIdeaBatch({ done: i + 1, total: batch.length, failed });
+    }
+    await loadIdeas();
+    await loadIdeaImagesStatus();
+    // Итог остаётся на экране: человек должен увидеть, сколько не вышло.
+    setTimeout(() => setIdeaBatch(null), 10000);
   };
 
   // Отчёт целиком текстом — чтобы отправить директору на исправление файла,
@@ -2566,7 +2700,8 @@ export default function AdminPage() {
                 <p className="mt-2 text-sm text-zinc-500">
                   Рецепты раздела «Идеи». Заливаются файлом, публикуются вручную после
                   вычитки: импорт создаёт только черновики и никогда не перезаписывает
-                  то, что уже в каталоге. Картинки блюд — отдельный раздел, позже.
+                  то, что уже в каталоге. Опубликовать можно только рецепт с готовой
+                  картинкой.
                 </p>
               </div>
 
@@ -2677,6 +2812,21 @@ export default function AdminPage() {
                       Закрыть
                     </button>
                   </div>
+
+                  {/* Картинка блюда. Вычитка текста без картинки перед глазами
+                      неполна: половина решения «годится ли рецепт в ленту» —
+                      это как он выглядит. */}
+                  {(() => {
+                    const current = ideas.find((r) => r.id === ideaEditingId);
+                    if (!current?.image_url) return null;
+                    return (
+                      <img
+                        src={current.image_url}
+                        alt=""
+                        className="w-full max-w-[220px] rounded-xl border border-zinc-200 object-cover"
+                      />
+                    );
+                  })()}
 
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="text-xs font-medium text-zinc-600">
@@ -2819,13 +2969,22 @@ export default function AdminPage() {
                     />
                   </label>
 
-                  <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
                     <label className="text-xs font-medium text-zinc-600">
                       Теги (через запятую)
                       <input
                         value={ideaForm.tags}
                         onChange={(e) => setIdeaForm((f) => ({ ...f, tags: e.target.value }))}
                         className="mt-1 w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-900"
+                      />
+                    </label>
+                    <label className="text-xs font-medium text-zinc-600">
+                      Семейство (варианты одного блюда)
+                      <input
+                        value={ideaForm.family}
+                        onChange={(e) => setIdeaForm((f) => ({ ...f, family: e.target.value }))}
+                        placeholder="syrniki"
+                        className="mt-1 w-full rounded-xl border border-zinc-300 px-3 py-2 font-mono text-sm outline-none focus:border-zinc-900"
                       />
                     </label>
                     <label className="text-xs font-medium text-zinc-600">
@@ -2862,6 +3021,39 @@ export default function AdminPage() {
                   </button>
                 </form>
               ) : null}
+
+              {/* Картинки: счётчик и батч */}
+              <div className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-sm text-zinc-600">
+                  <p className="font-semibold text-zinc-900">Картинки блюд</p>
+                  {ideaImages ? (
+                    <p className="mt-1 text-xs text-zinc-500">
+                      Сегодня израсходовано слотов: {ideaImages.generatedToday} из{" "}
+                      {ideaImages.dailyLimit}
+                      {" · "}
+                      {spentAtMostLabel(ideaImages.generatedToday, ideaImages.costPerImageUsd)}
+                      {" · "}модель {ideaImages.model} / {ideaImages.quality}
+                      {" · "}≈${ideaImages.costPerImageUsd.toFixed(3)} за картинку
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-xs text-zinc-400">Счётчик недоступен</p>
+                  )}
+                  {ideaBatch ? (
+                    <p className="mt-1 text-xs font-semibold text-zinc-700">
+                      Батч: {ideaBatch.done} из {ideaBatch.total}
+                      {ideaBatch.failed > 0 ? ` · не вышло: ${ideaBatch.failed}` : ""}
+                    </p>
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleGenerateAllMissing}
+                  disabled={ideaBatch !== null || ideaImageBusyId !== null}
+                  className="shrink-0 rounded-full bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:opacity-50"
+                >
+                  {ideaBatch ? "Рисуем…" : "Сгенерировать всем без картинки"}
+                </button>
+              </div>
 
               {/* Поиск и фильтр */}
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -2923,6 +3115,11 @@ export default function AdminPage() {
                       </p>
                       {visible.map((item) => {
                         const published = item.is_published === true;
+                        // Статус с поправкой на зависшую генерацию — ровно тот
+                        // же расчёт, что на сервере в гейте публикации.
+                        const imageStatus = effectiveImageStatus(item.image_status, item.updated_at);
+                        const hasImage = imageStatus === "ready" && !!item.image_url;
+                        const drawing = imageStatus === "generating";
                         return (
                           <article
                             key={item.id}
@@ -2931,7 +3128,21 @@ export default function AdminPage() {
                             }`}
                           >
                             <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
+                              {/* Миниатюра: без неё список из восьмидесяти
+                                  строк не даёт понять, у кого картинка уже
+                                  есть, а у кого нет. */}
+                              {item.image_url ? (
+                                <img
+                                  src={item.image_url}
+                                  alt=""
+                                  className="h-16 w-16 shrink-0 rounded-xl border border-zinc-200 object-cover"
+                                />
+                              ) : (
+                                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-dashed border-zinc-300 text-[10px] text-zinc-400">
+                                  нет фото
+                                </div>
+                              )}
+                              <div className="min-w-0 flex-1">
                                 <p className="text-xs text-zinc-400">/ideas/{item.slug}</p>
                                 <p className="font-semibold text-zinc-900">{item.title}</p>
                                 <p className="mt-1 text-xs text-zinc-500">
@@ -2940,6 +3151,7 @@ export default function AdminPage() {
                                   {(item.allergens ?? []).length > 0
                                     ? ` · аллергены: ${item.allergens.join(", ")}`
                                     : ""}
+                                  {item.family ? ` · семейство: ${item.family}` : ""}
                                 </p>
                               </div>
                               <div className="flex shrink-0 flex-col items-end gap-1">
@@ -2953,11 +3165,11 @@ export default function AdminPage() {
                                   {published ? "Опубликовано" : "Черновик"}
                                 </span>
                                 <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-600">
-                                  {item.image_status === "ready"
+                                  {imageStatus === "ready"
                                     ? "картинка есть"
-                                    : item.image_status === "generating"
+                                    : imageStatus === "generating"
                                       ? "картинка рисуется"
-                                      : item.image_status === "failed"
+                                      : imageStatus === "failed"
                                         ? "картинка не вышла"
                                         : "без картинки"}
                                 </span>
@@ -2971,10 +3183,35 @@ export default function AdminPage() {
                               >
                                 Редактировать
                               </button>
+                              {/* Генерация картинки. Разные слова для разных
+                                  случаев: «Перерисовать» — это деньги и
+                                  подтверждение, «Сгенерировать» — нет. */}
+                              <button
+                                type="button"
+                                onClick={() => handleIdeaImage(item, hasImage)}
+                                disabled={ideaImageBusyId !== null || ideaBatch !== null || drawing}
+                                className="rounded-full bg-violet-600 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-violet-500 disabled:opacity-50"
+                              >
+                                {ideaImageBusyId === item.id
+                                  ? "Рисуем…"
+                                  : drawing
+                                    ? "Рисуется…"
+                                    : hasImage
+                                      ? "Перерисовать"
+                                      : "Сгенерировать"}
+                              </button>
+                              {/* Гейт публикации: кнопка неактивна без готовой
+                                  картинки. Это подсказка, а не защита — то же
+                                  правило проверяет сервер. */}
                               <button
                                 type="button"
                                 onClick={() => handleIdeaPublished(item.id, !published)}
-                                disabled={ideaBusyId === item.id}
+                                disabled={ideaBusyId === item.id || (!published && !hasImage)}
+                                title={
+                                  !published && !hasImage
+                                    ? "Сначала сгенерируйте картинку блюда"
+                                    : undefined
+                                }
                                 className={`rounded-full px-4 py-1.5 text-xs font-semibold transition disabled:opacity-50 ${
                                   published
                                     ? "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"

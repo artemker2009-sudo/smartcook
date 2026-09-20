@@ -168,3 +168,40 @@ describe("parseIdeaRecipe — правка в админке", () => {
     expect(result.ok).toBe(false);
   });
 });
+
+describe("parseIdeasImport — семейство блюда (family)", () => {
+  it("без поля — null, это нормальное состояние", () => {
+    const result = parseIdeasImport([recipe()]);
+    expect(result.rows[0].family).toBeNull();
+  });
+
+  it("принимает и приводит к нижнему регистру", () => {
+    const result = parseIdeasImport([recipe({ family: "Syrniki" })]);
+    expect(result.rows[0].family).toBe("syrniki");
+  });
+
+  it("два рецепта одного семейства — это НЕ дубль", () => {
+    const result = parseIdeasImport([
+      recipe({ slug: "syrniki-klassicheskie", family: "syrniki" }),
+      recipe({ slug: "syrniki-s-bananom", family: "syrniki" }),
+    ]);
+    expect(result.skipped).toEqual([]);
+    expect(result.rows.map((r) => r.family)).toEqual(["syrniki", "syrniki"]);
+  });
+
+  it("пустая строка — это null, а не ошибка", () => {
+    expect(parseIdeasImport([recipe({ family: "" })]).rows[0].family).toBeNull();
+    expect(parseIdeasImport([recipe({ family: null })]).rows[0].family).toBeNull();
+  });
+
+  it("кириллица отбивается — значение уйдёт в адрес", () => {
+    const result = parseIdeasImport([recipe({ family: "сырники" })]);
+    expect(result.rows).toEqual([]);
+    expect(result.skipped[0].reason).toContain("латиница");
+  });
+
+  it("слишком длинное значение — отказ с числом", () => {
+    const result = parseIdeasImport([recipe({ family: "a".repeat(61) })]);
+    expect(result.skipped[0].reason).toContain("61");
+  });
+});

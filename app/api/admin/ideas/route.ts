@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/adminAuth";
 import { createServiceRoleClient } from "@/lib/supabaseAdmin";
-import { IDEA_ADMIN_COLUMNS } from "@/lib/ideaRecipes";
+import { IDEA_ADMIN_COLUMNS, effectiveImageStatus } from "@/lib/ideaRecipes";
 import {
   MAX_IMPORT_BYTES,
   MAX_IMPORT_RECIPES,
@@ -227,6 +227,33 @@ export async function POST(req: Request) {
     const patch: Record<string, unknown> = { is_published: published };
 
     if (published) {
+      // ГЕЙТ: публикуем только рецепт с готовой картинкой.
+      //
+      // Проверка здесь, на сервере, а не только в кнопке. Кнопка — это
+      // подсказка человеку, а правило должно держаться само: запрос к роуту
+      // можно отправить и мимо интерфейса.
+      //
+      // Зависший `generating` читаем тем же effectiveImageStatus, что и
+      // админка: иначе рецепт с убитой по таймауту генерацией навсегда
+      // застрял бы между «нельзя публиковать» и «нельзя перегенерировать».
+      const { data: current } = await supabase
+        .from("idea_recipes")
+        .select("image_status, image_url, updated_at")
+        .eq("id", id)
+        .maybeSingle<{ image_status: string; image_url: string | null; updated_at: string }>();
+
+      const status = current
+        ? effectiveImageStatus(current.image_status, current.updated_at)
+        : "none";
+
+      if (status !== "ready" || !current?.image_url) {
+        return badRequest(
+          status === "generating"
+            ? "Картинка ещё рисуется — опубликуйте, когда будет готова"
+            : "Нельзя опубликовать рецепт без картинки: сначала сгенерируйте её",
+        );
+      }
+
       // Дата публикации проставляется ОДИН раз, при первой публикации: по ней
       // сортируется лента. Снятие с публикации дату не трогает (и констрейнт
       // idea_recipes_published_at_set это разрешает), поэтому «снял → поправил

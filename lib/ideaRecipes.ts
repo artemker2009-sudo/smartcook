@@ -53,7 +53,13 @@ export const IDEA_LIMITS = {
   tagsMax: 12,
   tagMax: 40,
   imageUrlMax: 2000,
+  familyMax: 60,
 } as const;
+
+// Сколько ждём генерацию картинки, прежде чем считать её сорванной.
+// Одна картинка у gpt-image-2 на medium занимает около минуты, поэтому пять —
+// это с запасом, но заметно меньше, чем «висит вечно».
+export const IDEA_IMAGE_STUCK_MS = 5 * 60 * 1000;
 
 /** Латиница, цифры и дефисы — как у articles.slug и как в CHECK миграции. */
 export const IDEA_SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -64,6 +70,8 @@ export type IdeaIngredient = { name: string; amount: string };
 export type IdeaRecipeAdmin = {
   id: string;
   slug: string;
+  /** Семейство блюда: у «Сырников классических» и «Сырников с бананом» оно одно. */
+  family: string | null;
   title: string;
   description: string;
   servings: number;
@@ -96,6 +104,7 @@ export type IdeaRecipeAdmin = {
 export const IDEA_ADMIN_COLUMNS = [
   "id",
   "slug",
+  "family",
   "title",
   "description",
   "servings",
@@ -116,3 +125,55 @@ export const IDEA_ADMIN_COLUMNS = [
   "created_at",
   "updated_at",
 ].join(",");
+
+/**
+ * Статус картинки с поправкой на зависшую генерацию.
+ *
+ * Генерация идёт в одном запросе и статус ставится прямо перед вызовом модели.
+ * Если функцию убили по таймауту или упал процесс, в базе навсегда остаётся
+ * `generating`, и рецепт становится неремонтируемым: кнопки «Сгенерировать»
+ * у него уже нет, а «Опубликовать» не пускает гейт по ready.
+ *
+ * Поэтому старый `generating` читаем как `failed` — и в админке, и на сервере,
+ * одной и той же функцией, чтобы кнопка и проверка не разошлись.
+ *
+ * Время берём из updated_at: отдельной колонки «начало генерации» нет, а
+ * заводить её ради этого — лишняя миграция. Плата за это: правка рецепта в
+ * момент генерации обновит updated_at и «омолодит» зависший статус. На
+ * практике не совпадает (правят и генерят не одновременно), а цена ошибки —
+ * лишние пять минут ожидания.
+ */
+export function effectiveImageStatus(
+  status: string | null | undefined,
+  updatedAt: string | null | undefined,
+  now: number = Date.now(),
+): IdeaImageStatus {
+  const known = (IDEA_IMAGE_STATUSES as readonly string[]).includes(status ?? "")
+    ? (status as IdeaImageStatus)
+    : "none";
+  if (known !== "generating") return known;
+
+  const started = updatedAt ? Date.parse(updatedAt) : NaN;
+  // Дата не разобралась — считаем генерацию живой: лучше подождать лишнего,
+  // чем запустить вторую генерацию поверх идущей и заплатить дважды.
+  if (!Number.isFinite(started)) return "generating";
+
+  return now - started > IDEA_IMAGE_STUCK_MS ? "failed" : "generating";
+}
+
+/**
+ * Подпись к расходам за сегодня — ОЦЕНКА СВЕРХУ, и это сказано прямым текстом.
+ *
+ * Считать нечем иначе: суточный счётчик (image_gen_counter) знает число
+ * ЗАРЕЗЕРВИРОВАННЫХ слотов, а не фактическую цену. Слот резервируется до
+ * вызова модели, поэтому в счётчик попадают и неудачные попытки — на приёмке
+ * каталога из-за этого оценка разошлась с фактом вдвое ($1.03 против $0.53).
+ *
+ * Хранить фактическую сумму — значит заводить колонку и миграцию. Решение
+ * основателя: миграцию не делаем, а подпись не должна врать. «Не больше $X»
+ * честно: реальные расходы всегда меньше или равны.
+ */
+export function spentAtMostLabel(generatedToday: number, costPerImageUsd: number): string {
+  const max = generatedToday * costPerImageUsd;
+  return `не больше $${max.toFixed(2)} (оценка сверху, с учётом неудачных попыток)`;
+}

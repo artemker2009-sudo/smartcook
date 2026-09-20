@@ -28,6 +28,7 @@ function card(slug: string, extra: Partial<IdeaCard> = {}): IdeaCard {
     meals: ["обед"],
     mainProduct: "курица",
     allergens: [],
+    tags: [],
     family: null,
     imageUrl: `https://example/${slug}.webp`,
     imageAspect: "square",

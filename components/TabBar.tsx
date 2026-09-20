@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
-import { Camera, Home, Lightbulb, ShoppingCart, User } from "lucide-react";
+import { Home, Lightbulb, Search, ShoppingCart, User } from "lucide-react";
 import { reachGoal } from "@/lib/metrika";
 import { isChromeHidden } from "@/lib/layoutGate";
 import { FEATURE_IDEAS } from "@/lib/features";
@@ -20,7 +20,8 @@ import { FEATURE_IDEAS } from "@/lib/features";
 // месячные ряды. Раньше пункт назывался «По фото» и открывал /search?focus=photo
 // (сразу зона загрузки фото) — теперь раздел заявлен шире, и открывается он
 // обычным экраном поиска. Главная кнопка Главной по-прежнему ведёт с focus=photo,
-// её не трогаем.
+// её не трогаем. Иконка — лупа, а не камера: «Поиск» при камере читается как
+// «фотографировать», а наша аудитория 35–65 разгадывать такие ребусы не должна.
 //
 // «Профиль» — цель nav_profile; он заменил аватарку-вход в root-layout
 // (ProfileEntry), чтобы вход в кабинет был ровно один.
@@ -59,7 +60,7 @@ const TABS: Tab[] = [
   {
     href: "/search",
     label: "Поиск",
-    icon: Camera,
+    icon: Search,
     goal: "nav_search",
     isActive: (p) => p.startsWith("/search"),
   },

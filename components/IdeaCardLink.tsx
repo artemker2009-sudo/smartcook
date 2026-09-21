@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useState } from "react";
 import type { IdeaCard } from "@/lib/ideasFeed";
+import { displayImageUrl } from "@/lib/imageUrl";
 
 /**
  * Карточка каталога «Идеи». ОДНА на ленту и на блоки «Другие варианты» /
@@ -43,7 +44,7 @@ export default function IdeaCardLink({
     >
       <img
         ref={setRef}
-        src={card.imageUrl}
+        src={displayImageUrl(card.imageUrl)}
         alt={card.title}
         width={1024}
         height={portrait ? 1536 : 1024}

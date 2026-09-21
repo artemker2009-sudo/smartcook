@@ -7,6 +7,7 @@
 // серверный компонент заглушкой, и PostgREST отвечал бы 400.
 
 import { hidesCard, type TasteMatcher } from "./ideasTaste";
+import { thumbMatchesImage } from "./ideaThumbPath";
 
 /** Карточка ленты — ровно то, что нужно сетке и фильтрам, ни поля больше. */
 export type IdeaCard = {
@@ -25,6 +26,12 @@ export type IdeaCard = {
    */
   tags: string[];
   imageUrl: string;
+  /**
+   * Миниатюра 540 px для карточки (lib/ideaThumb.ts). null — ещё не
+   * досоздана: тогда карточка показывает оригинал. Обложка рецепта и og
+   * берут ТОЛЬКО imageUrl.
+   */
+  thumbUrl: string | null;
   imageAspect: string;
   sortWeight: number;
   publishedAt: string | null;
@@ -51,6 +58,7 @@ export const IDEA_FEED_COLUMNS = [
   "allergens",
   "family",
   "image_url",
+  "thumb_url",
   "image_aspect",
   "sort_weight",
   "published_at",
@@ -74,6 +82,7 @@ type RawRow = {
   family: string | null;
   tags?: string[] | null;
   image_url: string | null;
+  thumb_url?: string | null;
   image_aspect: string | null;
   sort_weight: number | null;
   published_at: string | null;
@@ -95,6 +104,8 @@ export function toIdeaCard(row: RawRow): IdeaCard | null {
     family: row.family,
     tags: row.tags ?? [],
     imageUrl: row.image_url,
+    // Миниатюра только если она от ЭТОЙ картинки — см. thumbMatchesImage.
+    thumbUrl: thumbMatchesImage(row.image_url, row.thumb_url) ? row.thumb_url ?? null : null,
     imageAspect: row.image_aspect === "portrait" ? "portrait" : "square",
     sortWeight: row.sort_weight ?? 0,
     publishedAt: row.published_at,

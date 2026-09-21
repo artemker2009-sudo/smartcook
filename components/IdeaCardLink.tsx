@@ -35,6 +35,11 @@ export default function IdeaCardLink({
   }, []);
 
   const portrait = card.imageAspect === "portrait";
+  // Карточка грузит ТОЛЬКО миниатюру; оригинал 1024 — только на экране
+  // рецепта. Нет миниатюры (ещё не досоздана) — показываем оригинал, без
+  // попытки «сначала миниатюру, потом оригинал»: запрос всегда один.
+  const src = card.thumbUrl ?? card.imageUrl;
+  const size = card.thumbUrl ? 540 : 1024;
 
   return (
     <Link
@@ -44,10 +49,10 @@ export default function IdeaCardLink({
     >
       <img
         ref={setRef}
-        src={displayImageUrl(card.imageUrl)}
+        src={displayImageUrl(src)}
         alt={card.title}
-        width={1024}
-        height={portrait ? 1536 : 1024}
+        width={size}
+        height={portrait ? size * 1.5 : size}
         loading={eager ? "eager" : "lazy"}
         decoding="async"
         fetchPriority={eager ? "high" : "auto"}

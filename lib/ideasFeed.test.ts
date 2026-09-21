@@ -16,6 +16,7 @@ import {
   spaceOutFamilies,
   splitIntoColumns,
   toIdeaCard,
+  IDEA_FEED_COLUMNS,
   type IdeaCard,
 } from "./ideasFeed";
 import { buildTasteMatcher } from "./ideasTaste";
@@ -31,6 +32,7 @@ function card(slug: string, extra: Partial<IdeaCard> = {}): IdeaCard {
     tags: [],
     family: null,
     imageUrl: `https://example/${slug}.webp`,
+    thumbUrl: null,
     imageAspect: "square",
     sortWeight: 0,
     publishedAt: "2026-09-20T00:00:00Z",
@@ -351,5 +353,34 @@ describe("раскладка по колонкам", () => {
     const cols = splitIntoColumns(many(2), 4);
     expect(cols.flat()).toHaveLength(2);
     expect(cols.filter((c) => c.length === 0)).toHaveLength(2);
+  });
+});
+
+describe("миниатюра в карточке ленты", () => {
+  const SB = "https://yjfqwwiqwoighjdlkodg.supabase.co/storage/v1/object/public/recipe-images";
+  const base = {
+    slug: "tefteli", title: "Тефтели", cooking_time_minutes: 50, meals: ["обед"], main_product: "мясо",
+    allergens: [], family: null, image_aspect: "square", sort_weight: 0, published_at: null, ingredients: [],
+    image_url: `${SB}/ideas/tefteli-1789918526569.webp`,
+  };
+
+  it("колонка thumb_url в явном списке ленты", () => {
+    expect(IDEA_FEED_COLUMNS.split(",")).toContain("thumb_url");
+  });
+
+  it("миниатюра от этой картинки попадает в карточку", () => {
+    const card = toIdeaCard({ ...base, thumb_url: `${SB}/ideas/thumb/tefteli-1789918526569.webp` });
+    expect(card?.thumbUrl).toBe(`${SB}/ideas/thumb/tefteli-1789918526569.webp`);
+    expect(card?.imageUrl).toBe(base.image_url);
+  });
+
+  it("миниатюра от прежней картинки отбрасывается — карточка покажет оригинал", () => {
+    const card = toIdeaCard({ ...base, thumb_url: `${SB}/ideas/thumb/tefteli-1700000000000.webp` });
+    expect(card?.thumbUrl).toBeNull();
+  });
+
+  it("миниатюры нет — null, не undefined", () => {
+    expect(toIdeaCard({ ...base, thumb_url: null })?.thumbUrl).toBeNull();
+    expect(toIdeaCard(base)?.thumbUrl).toBeNull();
   });
 });

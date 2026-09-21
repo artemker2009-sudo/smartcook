@@ -13,6 +13,7 @@ import { shareUrl } from "@/lib/site";
 import { addNamesToDefaultList } from "@/lib/shoppingLists";
 import type { IdeaCard } from "@/lib/ideasFeed";
 import type { IdeaRecipeData } from "@/lib/ideaRecipe";
+import { displayImageUrl } from "@/lib/imageUrl";
 import {
   SERVINGS_MAX,
   SERVINGS_MIN,
@@ -173,7 +174,7 @@ export default function IdeaRecipe({
     <div className="idea-page">
       <div className="idea-hero">
         <img
-          src={recipe.imageUrl}
+          src={displayImageUrl(recipe.imageUrl)}
           alt={recipe.title}
           width={1024}
           height={portrait ? 1536 : 1024}

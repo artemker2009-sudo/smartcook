@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import SharedRecipe from "@/components/SharedRecipe";
 import type { RecipeData } from "@/lib/types";
-import { siteUrl } from "@/lib/site";
+import { SITE_URL, siteUrl } from "@/lib/site";
+import { absoluteImageUrl } from "@/lib/imageUrl";
 import { readRows } from "@/lib/supabaseRead";
 
 // Выделенный маршрут расшаренного рецепта (задача T, P0). Раньше share-ссылка
@@ -62,7 +63,13 @@ export async function generateMetadata({
   // нет, отдаём брендовую /og-image-v2.png (1200×630): размеры разные, поэтому и
   // width/height подставляем свои, а не одни на оба случая.
   const image = recipe.image_url
-    ? { url: recipe.image_url, width: 1024, height: 1024, alt: recipe.title }
+    ? {
+        // Через наш домен: превью ссылки в мессенджере тоже грузится из России.
+        url: absoluteImageUrl(recipe.image_url, SITE_URL),
+        width: 1024,
+        height: 1024,
+        alt: recipe.title,
+      }
     : {
         url: "/og-image-v2.png",
         width: 1200,
@@ -109,7 +116,7 @@ function buildRecipeJsonLd(recipe: RecipeData, id: string) {
     url: siteUrl(`/recipe/${id}`),
   };
 
-  if (recipe.image_url) jsonLd.image = recipe.image_url;
+  if (recipe.image_url) jsonLd.image = absoluteImageUrl(recipe.image_url, SITE_URL);
   if (recipe.description) jsonLd.description = recipe.description;
 
   // recipeIngredient — список строк «количество + название». Пустые записи и

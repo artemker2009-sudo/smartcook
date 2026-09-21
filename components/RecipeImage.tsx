@@ -1,4 +1,5 @@
 import React from "react";
+import { displayImageUrl } from "@/lib/imageUrl";
 
 /**
  * Сгенерированная ИИ картинка блюда + ОБЯЗАТЕЛЬНАЯ плашка «Изображение: ИИ».
@@ -34,7 +35,8 @@ export default function RecipeImage({
   }
   return (
     <div className="recipe-image" style={style}>
-      <img src={src} alt={alt} loading="lazy" decoding="async" width={1024} height={640} />
+      {/* Через наш домен (/img/…), а не напрямую с Supabase: см. lib/imageUrl.ts. */}
+      <img src={displayImageUrl(src)} alt={alt} loading="lazy" decoding="async" width={1024} height={640} />
       <span className="recipe-image-badge" aria-label="Изображение сгенерировано искусственным интеллектом">
         Изображение: ИИ
       </span>

@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import IdeaRecipe from "@/components/IdeaRecipe";
 import { FEATURE_IDEAS, IDEAS_INDEXABLE } from "@/lib/features";
-import { siteUrl } from "@/lib/site";
+import { SITE_URL, siteUrl } from "@/lib/site";
+import { absoluteImageUrl } from "@/lib/imageUrl";
 import { IDEA_RECIPE_CATALOG_COLUMNS, toIdeaCard, type IdeaCard } from "@/lib/ideasFeed";
 import {
   IDEA_RECIPE_COLUMNS,
@@ -85,7 +86,8 @@ export async function generateMetadata({
   // Размеры превью берём из пропорций самой картинки: у портретной 1024×1536,
   // и подставить сюда квадрат значит отдать мессенджеру неверный размер.
   const image = {
-    url: recipe.imageUrl,
+    // Через наш домен: превью ссылки в мессенджере тоже грузится из России.
+    url: absoluteImageUrl(recipe.imageUrl, SITE_URL),
     width: 1024,
     height: recipe.imageAspect === "portrait" ? 1536 : 1024,
     alt: recipe.title,
@@ -110,7 +112,7 @@ function buildJsonLd(recipe: IdeaRecipeData) {
     "@type": "Recipe",
     name: recipe.title,
     url: siteUrl(`/ideas/${recipe.slug}`),
-    image: recipe.imageUrl,
+    image: absoluteImageUrl(recipe.imageUrl, SITE_URL),
     recipeYield: `${recipe.servings}`,
     recipeIngredient: recipe.ingredients
       .map((ing) => [ing.amount, ing.name].filter(Boolean).join(" ").trim())

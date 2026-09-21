@@ -56,6 +56,17 @@ export function parseFavorites(raw: string | null | undefined): string[] {
   }
 }
 
+/**
+ * Сколько сохранённых рецептов показать на кнопке «Избранное». Считаем только
+ * те, что есть в каталоге: снятый с публикации рецепт в хранилище остаётся, и
+ * иначе кнопка обещала бы «3», а фильтр показывал бы два.
+ */
+export function countFavorites(favorites: ReadonlySet<string>, catalog: readonly { slug: string }[]): number {
+  let count = 0;
+  for (const card of catalog) if (favorites.has(card.slug)) count++;
+  return count;
+}
+
 export function createFavoritesStore(
   getEnv: () => FavoritesEnv,
   onWriteFailure?: (reason: string, bytes: number) => void,

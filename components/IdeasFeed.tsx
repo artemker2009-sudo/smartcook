@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Heart } from "lucide-react";
+import IdeaCardLink from "@/components/IdeaCardLink";
 import { reachGoal } from "@/lib/metrika";
+import { useIdeaFavorites } from "@/lib/useIdeaFavorites";
 import { ALLERGIES_KEY, DISLIKES_KEY } from "@/lib/tasteProfile";
 import { buildTasteMatcher, type TasteMatcher } from "@/lib/ideasTaste";
 import { TAB_RESELECT_EVENT } from "@/lib/tabBarEvents";
@@ -124,41 +126,6 @@ function columnsForWidth(width: number): number {
   return 2;
 }
 
-/**
- * Картинка карточки.
- *
- * Место под неё зарезервировано через aspect-ratio ДО загрузки — ноль прыжков
- * вёрстки. Проявление по onLoad, но с оговоркой: если картинка уже в кэше
- * браузера, она бывает готова ДО того, как React повесит обработчик, и onLoad
- * не случится никогда. Поэтому в ref-колбэке проверяем complete — иначе
- * закэшированные карточки остались бы прозрачными навсегда.
- */
-function CardImage({ card, eager }: { card: IdeaCard; eager: boolean }) {
-  const [loaded, setLoaded] = useState(false);
-  const setRef = useCallback((el: HTMLImageElement | null) => {
-    if (el?.complete) setLoaded(true);
-  }, []);
-
-  const portrait = card.imageAspect === "portrait";
-
-  return (
-    <img
-      ref={setRef}
-      src={card.imageUrl}
-      alt={card.title}
-      width={portrait ? 1024 : 1024}
-      height={portrait ? 1536 : 1024}
-      loading={eager ? "eager" : "lazy"}
-      decoding="async"
-      fetchPriority={eager ? "high" : "auto"}
-      onLoad={() => setLoaded(true)}
-      className={`ideas-card-img${portrait ? " ideas-card-img-portrait" : ""}${
-        loaded ? " is-loaded" : ""
-      }`}
-    />
-  );
-}
-
 export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }) {
   const router = useRouter();
 
@@ -194,6 +161,15 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
     offsetRef.current = value;
     setOffsetState(value);
   }, []);
+  // Избранное — фильтр, но НЕ в адресе: оно хранится на устройстве, и ссылка
+  // «моё избранное», отправленная другому человеку, показала бы ему пустоту.
+  const [favOnly, setFavOnly] = useState(false);
+  // Подписка, а не копия. Раньше избранное читалось ОДИН РАЗ при монтировании,
+  // и лента, возвращённая Safari из bfcache без перемонтирования, показывала
+  // «Пока пусто» при закрашенном сердечке на рецепте. Подробно — в
+  // lib/ideasFavorites.ts.
+  const favorites = useIdeaFavorites();
+
   const [dragging, setDragging] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [faded, setFaded] = useState(false);
@@ -451,10 +427,10 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  const visible = useMemo(
-    () => applyFilters(ordered ?? initialCards, filters, taste),
-    [ordered, initialCards, filters, taste],
-  );
+  const visible = useMemo(() => {
+    const filtered = applyFilters(ordered ?? initialCards, filters, taste);
+    return favOnly ? filtered.filter((card) => favorites.has(card.slug)) : filtered;
+  }, [ordered, initialCards, filters, taste, favOnly, favorites]);
 
   const columnCards = useMemo(() => splitIntoColumns(visible, columns), [visible, columns]);
 
@@ -532,6 +508,28 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
         />
       </div>
 
+      <header className="ideas-header">
+        <div className="ideas-header-text">
+          <h1 className="ideas-title">Идеи</h1>
+          <p className="ideas-subtitle">Подборка SmartCook. Картинки блюд созданы ИИ.</p>
+        </div>
+        <button
+          type="button"
+          className={`idea-round idea-round-flat${favOnly ? " is-on" : ""}`}
+          aria-pressed={favOnly}
+          aria-label={favOnly ? "Показать все" : "Показать избранное"}
+          onClick={() => {
+            const next = !favOnly;
+            setFavOnly(next);
+            // Сердечко — тот же фильтр, и цель у него та же: иначе воронка
+            // фильтров в Метрике развалится на две несравнимые.
+            reachGoal("ideas_filter", { filter: next ? "fav" : "fav_off" });
+          }}
+        >
+          <Heart size={20} fill={favOnly ? "currentColor" : "none"} />
+        </button>
+      </header>
+
       <div className="ideas-chips ideas-chips-meal">
         {MEAL_CHIPS.map((chip) => {
           const value = chip.param ? MEAL_BY_PARAM[chip.param] : null;
@@ -598,8 +596,12 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
       <div className={`ideas-content${faded ? " is-faded" : ""}`}>
       {visible.length === 0 ? (
         <div className="feed-empty">
-          <p className="feed-empty-text">Таких блюд пока нет</p>
-          {hasAnyFilter(filters) && (
+          <p className="feed-empty-text">
+            {favOnly
+              ? "Пока пусто. Нажмите на сердечко в рецепте — и он появится здесь"
+              : "Таких блюд пока нет"}
+          </p>
+          {!favOnly && hasAnyFilter(filters) && (
             <button
               type="button"
               className="btn-primary feed-empty-cta"
@@ -616,21 +618,16 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
               {column.map((card) => {
                 const index = flatIndex.get(card.slug) ?? 0;
                 return (
-                  <Link
+                  <IdeaCardLink
                     key={card.slug}
-                    href={`/ideas/${card.slug}`}
-                    className="ideas-card"
-                    onClick={() => openCard(card)}
+                    card={card}
+                    eager={index < EAGER_IMAGES}
+                    onOpen={openCard}
                   >
-                    <CardImage card={card} eager={index < EAGER_IMAGES} />
-                    <div className="ideas-card-body">
-                      <span className="ideas-card-title">{card.title}</span>
-                      <span className="ideas-card-time">{card.cookingTimeMinutes} мин</span>
-                    </div>
                     {index === SCROLLED_AFTER_CARD && (
                       <div ref={scrollMarkerRef} className="ideas-scroll-marker" aria-hidden />
                     )}
-                  </Link>
+                  </IdeaCardLink>
                 );
               })}
             </div>

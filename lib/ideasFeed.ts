@@ -17,6 +17,13 @@ export type IdeaCard = {
   mainProduct: string;
   allergens: string[];
   family: string | null;
+  /**
+   * Свободные теги. Нужны ТОЛЬКО блоку «Похожие идеи» на экране рецепта, и
+   * лента их не запрашивает — в карточках ленты здесь пустой массив. Тащить
+   * теги в пейлоад каждой из восьмидесяти карточек незачем: см.
+   * IDEA_RECIPE_CATALOG_COLUMNS, экран рецепта просит их отдельно.
+   */
+  tags: string[];
   imageUrl: string;
   imageAspect: string;
   sortWeight: number;
@@ -50,6 +57,13 @@ export const IDEA_FEED_COLUMNS = [
   "ingredients",
 ].join(",");
 
+/**
+ * Колонки для каталога, который читает ЭКРАН РЕЦЕПТА: те же, что у ленты, плюс
+ * теги — по ним считается блок «Похожие идеи». Лента их не просит, и её
+ * пейлоад не меняется.
+ */
+export const IDEA_RECIPE_CATALOG_COLUMNS = `${IDEA_FEED_COLUMNS},tags`;
+
 type RawRow = {
   slug: string;
   title: string;
@@ -58,6 +72,7 @@ type RawRow = {
   main_product: string;
   allergens: string[] | null;
   family: string | null;
+  tags?: string[] | null;
   image_url: string | null;
   image_aspect: string | null;
   sort_weight: number | null;
@@ -78,6 +93,7 @@ export function toIdeaCard(row: RawRow): IdeaCard | null {
     mainProduct: row.main_product,
     allergens: row.allergens ?? [],
     family: row.family,
+    tags: row.tags ?? [],
     imageUrl: row.image_url,
     imageAspect: row.image_aspect === "portrait" ? "portrait" : "square",
     sortWeight: row.sort_weight ?? 0,

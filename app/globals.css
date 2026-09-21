@@ -4502,7 +4502,14 @@ body.has-addbar { padding-bottom: calc(var(--tab-bar-total) + 72px); }
   margin: 0 auto;
   padding: 0 var(--space-2h) var(--space-5);
 }
-.ideas-header { margin: var(--space-3) 0 var(--space-3); }
+.ideas-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 var(--space-3);
+}
+.ideas-header-text { min-width: 0; }
 .ideas-title {
   font-size: var(--font-size-title);
   font-weight: var(--font-weight-semibold);
@@ -4664,4 +4671,255 @@ body.has-addbar { padding-bottom: calc(var(--tab-bar-total) + 72px); }
 html.ideas-no-overscroll,
 html.ideas-no-overscroll body {
   overscroll-behavior-y: contain;
+}
+
+
+/* ── Экран рецепта каталога «Идеи» ──────────────────────────────────────── */
+
+.idea-page {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0 var(--space-2h) var(--space-6);
+}
+
+/* Картинка на всю ширину с полями, ТЕХ ЖЕ пропорций, что в карточке ленты, и
+   без кропа: одно и то же блюдо не должно выглядеть по-разному в ленте и на
+   своей странице. Кнопки лежат поверх неё, поэтому контейнеру нужен relative. */
+.idea-hero {
+  position: relative;
+  margin-top: var(--space-2);
+}
+.idea-hero-img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 24px;
+  background: var(--color-bg-subtle);
+}
+.idea-hero-img-portrait { aspect-ratio: 2 / 3; }
+
+.idea-hero-actions {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  display: flex;
+  gap: var(--space-2);
+}
+/* Круглая кнопка поверх картинки. 44px — минимальная зона нажатия по HIG.
+   Подложка обязательна: на светлом блюде белая иконка исчезает, а на тёмном
+   исчезала бы тёмная. Блюр вместо сплошного фона — чтобы кнопка не выглядела
+   наклейкой поверх снимка. */
+.idea-round {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.82);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  color: var(--color-text);
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
+}
+.idea-round-back {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+}
+.idea-round.is-on { color: var(--color-accent); }
+/* Сердечко в шапке ленты — та же кнопка, но не поверх картинки: ни подложки,
+   ни тени там не нужно. */
+.idea-round-flat {
+  background: transparent;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  color: var(--color-text-secondary);
+}
+
+.idea-hero-note {
+  margin: var(--space-1) 0 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.idea-title {
+  margin: var(--space-3) 0 var(--space-2);
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  line-height: 1.25;
+}
+
+.idea-badges { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.idea-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--color-bg-subtle);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-secondary);
+}
+
+.idea-description {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+/* Порции. Кнопки 44px, число между ними фиксированной ширины — иначе «10
+   порций» двигало бы плюс и минус под пальцем. */
+.idea-servings {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+}
+.idea-step-btn {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  background: var(--color-bg);
+  color: var(--color-text);
+  cursor: pointer;
+}
+.idea-step-btn:disabled { opacity: 0.4; cursor: default; }
+.idea-servings-value {
+  min-width: 110px;
+  text-align: center;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.idea-section { margin-top: var(--space-5); }
+.idea-h2 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--font-size-heading);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+.idea-hint {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-secondary);
+}
+
+.idea-products { list-style: none; margin: 0; padding: 0; }
+.idea-product + .idea-product { border-top: 1px solid var(--color-border); }
+/* Три колонки: галочка, название, количество. Количества выровнены в ОДНУ
+   колонку справа сеткой, а не пробелами — иначе длинное название сдвигает
+   свою строку и колонка перестаёт быть колонкой. */
+.idea-product-label {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: var(--space-1) 0;
+  cursor: pointer;
+}
+.idea-product-check {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+.idea-product-name { color: var(--color-text); line-height: 1.35; }
+.idea-product-qty {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  white-space: nowrap;
+}
+.idea-product.is-have .idea-product-name,
+.idea-product.is-have .idea-product-qty {
+  text-decoration: line-through;
+  color: var(--color-text-secondary);
+}
+
+.idea-add { width: 100%; margin-top: var(--space-3); }
+.idea-add:disabled { opacity: 0.5; cursor: default; }
+.idea-added {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-card);
+  background: var(--color-bg-subtle);
+  font-size: var(--font-size-caption);
+  color: var(--color-text);
+}
+.idea-added-link {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--color-accent);
+  font-size: inherit;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.idea-steps { list-style: none; margin: 0; padding: 0; }
+.idea-step {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+}
+.idea-step + .idea-step { border-top: 1px solid var(--color-border); }
+.idea-step-num {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--color-bg-subtle);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+.idea-step-text { color: var(--color-text); line-height: 1.5; }
+
+.idea-cook {
+  width: 100%;
+  margin-top: var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+}
+.idea-disclaimer { margin-top: var(--space-3); }
+
+/* «Другие варианты» и «Похожие идеи» — те же карточки, что в ленте, в две
+   колонки. Раскладки по накопленной высоте здесь нет намеренно: карточек до
+   шести, и разнобой высот на таком количестве не мешает. */
+.idea-related {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-2h);
+  align-items: start;
+}
+@media (min-width: 768px) {
+  .idea-page { padding: 0 var(--space-4) var(--space-6); }
+  .idea-related { grid-template-columns: repeat(3, 1fr); }
 }

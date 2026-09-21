@@ -7,7 +7,7 @@ import { Home, Lightbulb, Search, ShoppingCart, User } from "lucide-react";
 import { reachGoal } from "@/lib/metrika";
 import { isChromeHidden } from "@/lib/layoutGate";
 import { FEATURE_IDEAS } from "@/lib/features";
-import { TAB_RESELECT_EVENT, type TabReselectDetail } from "@/lib/tabBarEvents";
+import { TAB_RESELECT_EVENT, isTabReselect, type TabReselectDetail } from "@/lib/tabBarEvents";
 
 // Основная навигация по четырём разделам. Мобайл — фиксированный таб-бар снизу
 // (safe-area для PWA/iOS), десктоп — те же пункты в верхней шапке (через CSS).
@@ -136,7 +136,9 @@ export default function TabBar() {
               // «вернуться в начало раздела и обновить его», как в любом
               // приложении с таб-баром. Переход отменяем: Next на тот же
               // адрес ничего бы не перерисовал, и тап остался бы без ответа.
-              if (!active || !t.reselectable) return;
+              // Только на корне раздела: на /ideas/<slug> вкладка подсвечена,
+              // но тап по ней обязан увести в ленту (см. isTabReselect).
+              if (!t.reselectable || !isTabReselect(pathname, t.href)) return;
               event.preventDefault();
               window.dispatchEvent(
                 new CustomEvent<TabReselectDetail>(TAB_RESELECT_EVENT, {

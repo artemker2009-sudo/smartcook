@@ -12,6 +12,11 @@
 //
 // ЧИСТЫЕ функции отделены от доступа к localStorage: тестируется логика
 // (вытеснение, переключение), а не браузерное хранилище.
+//
+// Чтение и запись ИЗБРАННОГО живут в lib/ideasFavorites.ts — с подпиской на
+// изменения. Здесь остались ключ и чистое переключение.
+
+import { browserStorage, reportStorageFailure, verifiedWrite } from "./storageWrite";
 
 export const FAV_KEY = "sc_ideas_fav_v1";
 export const HAVE_KEY = "sc_ideas_have_v1";
@@ -67,7 +72,7 @@ export function putHave(
 
 function readJson<T>(key: string, fallback: T): T {
   try {
-    const raw = localStorage.getItem(key);
+    const raw = browserStorage()?.getItem(key) ?? null;
     if (!raw) return fallback;
     const parsed = JSON.parse(raw);
     return parsed ?? fallback;
@@ -77,28 +82,19 @@ function readJson<T>(key: string, fallback: T): T {
   }
 }
 
-function writeJson(key: string, value: unknown): void {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // Квота кончилась. Терять экран из-за этого нельзя.
-  }
-}
-
-export function readFavorites(): string[] {
-  const list = readJson<string[]>(FAV_KEY, []);
-  return Array.isArray(list) ? list.filter((s) => typeof s === "string") : [];
-}
-
-export function writeFavorites(list: string[]): void {
-  writeJson(FAV_KEY, list);
-}
-
 export function readHave(): HaveMap {
   const map = readJson<HaveMap>(HAVE_KEY, {});
   return map && typeof map === "object" && !Array.isArray(map) ? map : {};
 }
 
+/**
+ * Запомнить отметки «есть дома». Сбой записи НЕ глотается молча: он уходит в
+ * error_reports. Человеку при этом ничего не показываем — галочка на экране
+ * уже стоит, пропадёт она только при следующем заходе, и тост на каждое
+ * нажатие был бы хуже самой потери.
+ */
 export function writeHave(map: HaveMap): void {
-  writeJson(HAVE_KEY, map);
+  const value = JSON.stringify(map);
+  const result = verifiedWrite(browserStorage(), HAVE_KEY, value);
+  if (!result.ok) reportStorageFailure(HAVE_KEY, result.reason, value.length);
 }

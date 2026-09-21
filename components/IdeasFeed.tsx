@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Heart } from "lucide-react";
 import IdeaCardLink from "@/components/IdeaCardLink";
 import { reachGoal } from "@/lib/metrika";
-import { readFavorites } from "@/lib/ideasLocal";
+import { useIdeaFavorites } from "@/lib/useIdeaFavorites";
 import { ALLERGIES_KEY, DISLIKES_KEY } from "@/lib/tasteProfile";
 import { buildTasteMatcher, type TasteMatcher } from "@/lib/ideasTaste";
 import { TAB_RESELECT_EVENT } from "@/lib/tabBarEvents";
@@ -164,7 +164,11 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
   // Избранное — фильтр, но НЕ в адресе: оно хранится на устройстве, и ссылка
   // «моё избранное», отправленная другому человеку, показала бы ему пустоту.
   const [favOnly, setFavOnly] = useState(false);
-  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  // Подписка, а не копия. Раньше избранное читалось ОДИН РАЗ при монтировании,
+  // и лента, возвращённая Safari из bfcache без перемонтирования, показывала
+  // «Пока пусто» при закрашенном сердечке на рецепте. Подробно — в
+  // lib/ideasFavorites.ts.
+  const favorites = useIdeaFavorites();
 
   const [dragging, setDragging] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -238,9 +242,6 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
   useIsoLayoutEffect(() => {
     const seen = readJson<string[]>(localStorage, SEEN_KEY, []);
     seenRef.current = new Set(seen);
-    // Перечитываем на КАЖДОМ монтировании: человек мог нажать сердечко на
-    // экране рецепта и вернуться назад, и лента обязана это уже знать.
-    setFavorites(new Set(readFavorites()));
 
     // Фильтры из адреса — здесь же: и при первом заходе, и при возврате из
     // рецепта (возврат размонтирует ленту, эффект выполнится заново).

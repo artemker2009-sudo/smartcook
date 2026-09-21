@@ -26,6 +26,14 @@
 // работает полностью). Для них же и держим осторожность с обновлениями ниже.
 
 // @ts-ignore
+import { BUCKET_PATH, IMG_PATH_PATTERN, IMMUTABLE_PATH_PATTERN } from "./lib/imageUrl";
+
+// Origin Supabase для rewrite картинок. Хост жёстко один — наш проект; путь
+// жёстко один — бакет recipe-images (см. lib/imageUrl.ts).
+const SUPABASE_ORIGIN = new URL(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "https://yjfqwwiqwoighjdlkodg.supabase.co",
+).origin;
+
 const withPWA = require("@ducanh2912/next-pwa").default({
   dest: "public",
   cacheOnFrontEndNav: true,
@@ -145,6 +153,34 @@ const withPWA = require("@ducanh2912/next-pwa").default({
           ],
         },
       },
+      // Картинки блюд с нашего домена (/img/, lib/imageUrl.ts) — СВОЙ кэш,
+      // до общего правила картинок. Без него они попали бы в sc-images и
+      // вытесняли бы иконки шелла.
+      //
+      // Размер ограничен ЧИСЛОМ: Workbox не умеет лимит в байтах, поэтому
+      // 60 записей × до ~160 КБ (самый тяжёлый файл бакета) ≈ 10 МБ в худшем
+      // случае. purgeOnQuotaError: браузер упёрся в квоту — кэш картинок
+      // сносится первым, а не списки покупок в соседнем хранилище.
+      //
+      // StaleWhileRevalidate, а не CacheFirst: часть файлов перезаписывается
+      // на месте (dish-cache/2.webp), и CacheFirst держал бы старую картинку
+      // до вытеснения. Фоновая проверка при этом почти всегда бесплатна — её
+      // обслуживает HTTP-кэш браузера (Cache-Control из headers() ниже).
+      {
+        urlPattern: ({ url, sameOrigin }: { url: URL; sameOrigin: boolean }) =>
+          sameOrigin && url.pathname.startsWith("/img/"),
+        handler: "StaleWhileRevalidate",
+        options: {
+          cacheName: "sc-img",
+          expiration: {
+            maxEntries: 60,
+            maxAgeSeconds: 30 * 24 * 60 * 60,
+            purgeOnQuotaError: true,
+          },
+          // Только настоящие ответы: 404 или ошибку прокси в кэш не кладём.
+          cacheableResponse: { statuses: [200] },
+        },
+      },
       // Иконки/картинки шелла — SWR.
       {
         urlPattern: ({ request }: { request: Request }) => request.destination === "image",
@@ -231,6 +267,56 @@ const nextConfig = {
       {
         source: "/.well-known/assetlinks.json",
         destination: "/api/assetlinks",
+      },
+      // Картинки блюд через наш домен: /img/<путь> → бакет recipe-images.
+      //
+      // НЕ ОТКРЫТЫЙ ПРОКСИ: хост назначения зашит (наш проект Supabase), путь
+      // зашит (один бакет, публичное ЧТЕНИЕ), а <путь> обязан пройти строгий
+      // шаблон — без точек внутри, без «..», только расширения картинок. Всё
+      // остальное под /img/ — обычный 404 Next. Query уходит только в этот
+      // зашитый адрес и сменить хост, бакет или путь не может. Методы кроме
+      // GET/HEAD доходят до эндпоинта /object/public/, который умеет только
+      // читать, а своих ключей rewrite не добавляет.
+      {
+        source: `/img/:path(${IMG_PATH_PATTERN})`,
+        destination: `${SUPABASE_ORIGIN}${BUCKET_PATH}:path`,
+      },
+    ];
+  },
+  async headers() {
+    const safety = [
+      // Отдаём чужие по происхождению файлы со СВОЕГО origin. Даже если в
+      // бакет однажды попадёт HTML или SVG со скриптом, он не выполнится в
+      // контексте smartcook.pro: sandbox и default-src 'none', плюс браузеру
+      // запрещено угадывать тип. Заголовки проставляются здесь, потому что
+      // proxy.ts на /img/ не работает — его matcher пропускает пути с точкой.
+      { key: "X-Content-Type-Options", value: "nosniff" },
+      { key: "Content-Security-Policy", value: "default-src 'none'; sandbox" },
+      // Проект создан до 06.04.2026: внешние rewrite Vercel по умолчанию НЕ
+      // кэширует, нужно явное включение (docs: Caching rewrites to external
+      // origins).
+      { key: "x-vercel-enable-rewrite-caching", value: "1" },
+    ];
+    return [
+      // Перезаписываемые на месте файлы (dish-cache/2.webp?v=…): сутки. Дальше
+      // браузер переспросит по ETag — через наш домен это дёшево.
+      {
+        source: "/img/:path*",
+        headers: [
+          ...safety,
+          { key: "Cache-Control", value: "public, max-age=86400" },
+          { key: "CDN-Cache-Control", value: "max-age=86400" },
+        ],
+      },
+      // Файлы с меткой времени в имени (картинки «Идей») не меняются никогда:
+      // год и immutable. Правило ПОСЛЕ общего — у Next при совпадении ключа
+      // побеждает последнее.
+      {
+        source: `/img/:path(${IMMUTABLE_PATH_PATTERN})`,
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+          { key: "CDN-Cache-Control", value: "max-age=31536000" },
+        ],
       },
     ];
   },

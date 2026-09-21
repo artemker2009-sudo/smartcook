@@ -21,14 +21,9 @@ import {
   ingredientLine,
   scaleIdeaAmount,
 } from "@/lib/ideaServings";
-import {
-  putHave,
-  readFavorites,
-  readHave,
-  toggleInList,
-  writeFavorites,
-  writeHave,
-} from "@/lib/ideasLocal";
+import { putHave, readHave, writeHave } from "@/lib/ideasLocal";
+import { favoritesStore } from "@/lib/ideasFavorites";
+import { useIdeaFavorites } from "@/lib/useIdeaFavorites";
 
 // Имя списка для человека, у которого нет ни одного. Молча, без вопросов: на
 // экране рецепта диалог «как назвать список» — лишний шаг ни о чём. То же имя,
@@ -57,19 +52,26 @@ export default function IdeaRecipe({
   // быть чистыми, React выполняет их повторно. Поэтому ref.
   const servingsRef = useRef(recipe.servings);
   const [have, setHave] = useState<Set<string>>(new Set());
-  const [favorite, setFavorite] = useState(false);
   const [addedListId, setAddedListId] = useState<string | null>(null);
   const [cooking, setCooking] = useState(false);
 
-  // Всё, что ниже, читается из localStorage, то есть НА СЕРВЕРЕ неизвестно.
-  // Первый клиентский рендер обязан совпасть с серверным, иначе React выбросит
-  // разметку целиком. Поэтому «смонтировано» — отдельный флаг, и до него
-  // сердечко пустое, а галочки сняты.
+  // Галочки «есть дома» читаются из localStorage, то есть НА СЕРВЕРЕ
+  // неизвестны. Первый клиентский рендер обязан совпасть с серверным, иначе
+  // React выбросит разметку целиком. Поэтому «смонтировано» — отдельный флаг,
+  // и до него галочки сняты.
   const [mounted, setMounted] = useState(false);
+
+  // Избранное — НЕ копия в состоянии, а подписка на хранилище. Раньше здесь
+  // был useState, и сердечко показывало то, что сказал обработчик нажатия, а
+  // не то, что реально записалось: при упавшей записи оно закрашивалось, а
+  // в хранилище не было ничего. Теперь сердечко закрашено ровно тогда, когда
+  // рецепт действительно лежит в избранном. Гидрацию хук держит сам: до неё
+  // снимок пустой, как на сервере.
+  const favorites = useIdeaFavorites();
+  const favorite = favorites.has(recipe.slug);
 
   useEffect(() => {
     setHave(new Set(readHave()[recipe.slug] ?? []));
-    setFavorite(readFavorites().includes(recipe.slug));
     setMounted(true);
     reachGoal("ideas_recipe_view", { slug: recipe.slug });
   }, [recipe.slug]);
@@ -107,12 +109,16 @@ export default function IdeaRecipe({
   };
 
   const toggleFavorite = () => {
-    const next = toggleInList(readFavorites(), recipe.slug);
-    writeFavorites(next);
-    const on = next.includes(recipe.slug);
-    setFavorite(on);
-    reachGoal("ideas_fav", { on: on ? 1 : 0 });
-    toast.success(on ? "Добавлено в избранное" : "Убрано из избранного");
+    const result = favoritesStore.toggle(recipe.slug);
+    if (!result.ok) {
+      // Отчёт в error_reports уже ушёл из хранилища. Человеку говорим честно:
+      // успехом притворяться нельзя, иначе он найдёт пустое избранное потом
+      // и решит, что оно сломано вообще.
+      toast.error("Не удалось сохранить избранное на этом устройстве");
+      return;
+    }
+    reachGoal("ideas_fav", { on: result.on ? 1 : 0 });
+    toast.success(result.on ? "Добавлено в избранное" : "Убрано из избранного");
   };
 
   const addToList = () => {

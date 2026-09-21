@@ -9,6 +9,7 @@ import {
   retryAsync,
   uploadFailureMessage,
 } from "@/lib/retry";
+import { makeThumb, thumbPathFor } from "@/lib/ideaThumb";
 
 // Серверная генерация картинок блюд. Ключ OpenAI — только на сервере, в клиент
 // не течёт. Запуск — исключительно из админ-роутов (app/api/admin/images,
@@ -428,7 +429,7 @@ export async function generateDishCacheImage(
 // ── 3. Картинка рецепта каталога «Идеи» (idea_recipes) ───────────────────────
 
 export type IdeaImageResult =
-  | { ok: true; image_url: string; costUsd: number }
+  | { ok: true; image_url: string; thumb_url: string | null; costUsd: number }
   | { ok: false; error: string; limited?: boolean };
 
 /**
@@ -497,7 +498,7 @@ export async function generateIdeaImage(
     const { data: idea, error } = await supabase
       .from("idea_recipes")
       .select(
-        "id, slug, title, ingredients, tags, cook_method, family, image_url, image_status, image_aspect",
+        "id, slug, title, ingredients, tags, cook_method, family, image_url, thumb_url, image_status, image_aspect",
       )
       .eq("id", ideaId)
       .single<{
@@ -509,6 +510,7 @@ export async function generateIdeaImage(
         cook_method: string | null;
         family: string | null;
         image_url: string | null;
+        thumb_url: string | null;
         image_status: string;
         image_aspect: string;
       }>();
@@ -516,7 +518,7 @@ export async function generateIdeaImage(
     if (error || !idea) throw new Error(error?.message || "idea recipe not found");
 
     if (!opts.force && idea.image_url && idea.image_status === "ready") {
-      return { ok: true, image_url: idea.image_url, costUsd: 0 };
+      return { ok: true, image_url: idea.image_url, thumb_url: idea.thumb_url, costUsd: 0 };
     }
 
     // Стоп-кран расходов — тот же счётчик, что у кэша блюд: суточный лимит
@@ -564,15 +566,29 @@ export async function generateIdeaImage(
         variant,
       },
     );
-    const publicUrl = await uploadDishImage(supabase, ideaImagePath(idea.slug), webp);
+    // Миниатюра для ленты (lib/ideaThumb.ts). Путь с ТОЙ ЖЕ меткой, что у
+    // оригинала, поэтому метка считается один раз.
+    //
+    // ПОРЯДОК: миниатюра → оригинал → одна запись в базу с обоими адресами.
+    // Не загрузилась миниатюра — падает вся генерация и повторяется. Так
+    // правило «есть image_url — есть и thumb_url» держится по построению, и
+    // лента никогда не остаётся без миниатюры у свежей картинки. Делаем её из
+    // того же WebP 1024, что и скрипт досоздания для старых картинок, —
+    // качество у всех миниатюр одинаковое.
+    const originalPath = ideaImagePath(idea.slug);
+    const thumbPath = thumbPathFor(originalPath);
+    if (!thumbPath) throw new Error(`thumb path for ${originalPath}`);
+    const thumb = await makeThumb(webp, aspect);
+    const thumbUrl = await uploadDishImage(supabase, thumbPath, thumb.buffer);
+    const publicUrl = await uploadDishImage(supabase, originalPath, webp);
 
     const { error: updateError } = await supabase
       .from("idea_recipes")
-      .update({ image_url: publicUrl, image_status: "ready" })
+      .update({ image_url: publicUrl, thumb_url: thumbUrl, image_status: "ready" })
       .eq("id", ideaId);
     if (updateError) throw new Error(`db update: ${updateError.message}`);
 
-    return { ok: true, image_url: publicUrl, costUsd };
+    return { ok: true, image_url: publicUrl, thumb_url: thumbUrl, costUsd };
   } catch (err: any) {
     try {
       await supabase.from("idea_recipes").update({ image_status: "failed" }).eq("id", ideaId);

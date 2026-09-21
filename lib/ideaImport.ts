@@ -66,8 +66,10 @@ export type ImportParseResult = {
 // игнорируем: выгрузка из другого места могла притащить их без злого умысла,
 // и ругаться тут не на что. А вот принимать их нельзя ни в коем случае:
 // is_published из файла означал бы публикацию в обход вычитки.
+// thumb_url — тоже сервер: миниатюру делает генерация картинки или скрипт
+// досоздания (lib/ideaThumb.ts), импорт её не задаёт.
 const SERVER_OWNED = new Set([
-  "id", "image_url", "image_status", "is_published", "published_at",
+  "id", "image_url", "thumb_url", "image_status", "is_published", "published_at",
   "created_at", "updated_at",
 ]);
 

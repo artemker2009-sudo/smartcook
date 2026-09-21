@@ -173,6 +173,17 @@ describe("parseIdeaRecipe — правка в админке", () => {
     expect(Object.keys(result.row)).not.toContain("image_status");
   });
 
+  it("миниатюру задаёт сервер: thumb_url из файла не берётся и не считается неизвестным полем", () => {
+    const edit = parseIdeaRecipe(recipe({ thumb_url: "https://evil.test/x.webp" }));
+    expect(edit.ok).toBe(true);
+    if (edit.ok) expect(Object.keys(edit.row)).not.toContain("thumb_url");
+
+    const batch = parseIdeasImport([recipe({ thumb_url: "https://evil.test/x.webp" })]);
+    expect(batch.rows).toHaveLength(1);
+    expect(Object.keys(batch.rows[0])).not.toContain("thumb_url");
+    expect(batch.warnings.join(" ")).not.toContain("thumb_url");
+  });
+
 
   it("принимает годный рецепт", () => {
     const result = parseIdeaRecipe(recipe());

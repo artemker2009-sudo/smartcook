@@ -5,17 +5,13 @@ import ArticleLikeButton from "@/components/ArticleLikeButton";
 import { renderMarkdown } from "@/lib/markdown";
 import { coverTone } from "@/lib/articleCover";
 import { siteUrl } from "@/lib/site";
+import { readRows } from "@/lib/supabaseRead";
 
 // Страница «Кухонной заметки» (задача Y). SSR (правила T/W): статья читается
 // ОДНИМ серверным запросом и попадает в HTML сразу — это наш первый контент,
 // который может приводить людей из поиска, поэтому важны и скорость, и OG-теги.
 // Источник — публичный view articles_public (только опубликованные, не отдаёт
 // список лайкнувших). Тело рендерим безопасным markdown-подмножеством на сервере.
-
-const SUPABASE_URL =
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "https://yjfqwwiqwoighjdlkodg.supabase.co";
-const SUPABASE_KEY =
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "sb_publishable_E7Fj9ZiOZTyNHAQQKo7Y0A_E8-ExX6Z";
 
 type FullArticle = {
   id: string;
@@ -34,24 +30,17 @@ async function getArticle(slug: string): Promise<FullArticle | null> {
   // slug приходит из URL — валидируем по тому же формату, что БД-констрейнт,
   // прежде чем подставлять в запрос.
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) return null;
-  try {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/articles_public?select=${ARTICLE_FIELDS}&slug=eq.${slug}`,
-      {
-        headers: {
-          apikey: SUPABASE_KEY,
-          Authorization: `Bearer ${SUPABASE_KEY}`,
-          Accept: "application/vnd.pgrst.object+json",
-        },
-        next: { revalidate: 300 },
-      },
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data && data.title ? (data as FullArticle) : null;
-  } catch {
-    return null;
-  }
+  // Массив с limit=1, а не Accept: object. С object-заголовком «строки нет»
+  // и «база упала» оба приходят как не-200, и отличить их можно только
+  // разбором кода ошибки. С массивом всё прямо: [] — заметки нет, сбой —
+  // исключение (lib/supabaseRead.ts), и живая заметка больше не показывается
+  // «не найденной» из-за секундного сбоя Supabase.
+  const rows = await readRows<FullArticle>(
+    `articles_public?select=${ARTICLE_FIELDS}&slug=eq.${slug}&limit=1`,
+    { revalidate: 300 },
+  );
+  const article = rows[0];
+  return article && article.title ? article : null;
 }
 
 export async function generateMetadata({

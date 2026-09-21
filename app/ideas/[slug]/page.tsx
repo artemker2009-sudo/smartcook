@@ -11,6 +11,7 @@ import {
   type IdeaRecipeData,
 } from "@/lib/ideaRecipe";
 import { relatedIdeas } from "@/lib/ideasRelated";
+import { readRows } from "@/lib/supabaseRead";
 
 // Экран рецепта каталога «Идеи».
 //
@@ -24,32 +25,20 @@ import { relatedIdeas } from "@/lib/ideasRelated";
 // в самом запросе, поэтому неопубликованный рецепт и несуществующий slug дают
 // один и тот же 404 — снаружи не отличить, есть у нас такой черновик или нет.
 
-const SUPABASE_URL =
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "https://yjfqwwiqwoighjdlkodg.supabase.co";
-const SUPABASE_KEY =
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "sb_publishable_E7Fj9ZiOZTyNHAQQKo7Y0A_E8-ExX6Z";
-
 const REVALIDATE_SECONDS = 300;
 
 async function getRecipe(slug: string): Promise<IdeaRecipeData | null> {
   // Slug приходит из адреса. В запрос он попадает только после проверки
   // формата — иначе в строку PostgREST уедет что угодно.
   if (!isValidIdeaSlug(slug)) return null;
-  try {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/idea_recipes?select=${IDEA_RECIPE_COLUMNS}` +
-        `&slug=eq.${slug}&is_published=eq.true&limit=1`,
-      {
-        headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
-        next: { revalidate: REVALIDATE_SECONDS },
-      },
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    return Array.isArray(data) && data.length > 0 ? toIdeaRecipe(data[0]) : null;
-  } catch {
-    return null;
-  }
+  // null — ТОЛЬКО когда база ответила и строки нет (черновик или выдуманный
+  // slug) → 404. Сбой запроса — исключение: живой рецепт не должен
+  // показываться несуществующим из-за секундного сбоя Supabase.
+  const rows = await readRows<Record<string, unknown>>(
+    `idea_recipes?select=${IDEA_RECIPE_COLUMNS}&slug=eq.${slug}&is_published=eq.true&limit=1`,
+    { revalidate: REVALIDATE_SECONDS },
+  );
+  return rows.length > 0 ? toIdeaRecipe(rows[0]) : null;
 }
 
 /**
@@ -59,21 +48,21 @@ async function getRecipe(slug: string): Promise<IdeaRecipeData | null> {
  * у ленты (значит тот же кэш на edge), а считать похожесть по тегам фильтрами
  * PostgREST — это три запроса вместо одного и логика, размазанная по строке
  * адреса.
+ *
+ * ЕДИНСТВЕННОЕ место, где сбой намеренно гасится. Страница рецепта
+ * динамическая: целиком она не кэшируется, а в data cache Next кладёт только
+ * ответы 200 — значит, пустой блок проживёт ровно один запрос и ничего не
+ * закэширует. Ронять из-за второстепенного блока весь рецепт, который уже
+ * успешно прочитан, было бы хуже, чем на один показ остаться без «Похожих».
  */
 async function getCatalog(): Promise<IdeaCard[]> {
   try {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/idea_recipes?select=${IDEA_RECIPE_CATALOG_COLUMNS}` +
+    const rows = await readRows<Parameters<typeof toIdeaCard>[0]>(
+      `idea_recipes?select=${IDEA_RECIPE_CATALOG_COLUMNS}` +
         `&is_published=eq.true&order=sort_weight.desc,published_at.desc&limit=300`,
-      {
-        headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
-        next: { revalidate: REVALIDATE_SECONDS },
-      },
+      { revalidate: REVALIDATE_SECONDS },
     );
-    if (!res.ok) return [];
-    const data = await res.json();
-    if (!Array.isArray(data)) return [];
-    return data.map(toIdeaCard).filter((c): c is IdeaCard => c !== null);
+    return rows.map(toIdeaCard).filter((c): c is IdeaCard => c !== null);
   } catch {
     return [];
   }

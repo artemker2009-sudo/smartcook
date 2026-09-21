@@ -3,6 +3,7 @@ import Link from "next/link";
 import SharedRecipe from "@/components/SharedRecipe";
 import type { RecipeData } from "@/lib/types";
 import { siteUrl } from "@/lib/site";
+import { readRows } from "@/lib/supabaseRead";
 
 // Выделенный маршрут расшаренного рецепта (задача T, P0). Раньше share-ссылка
 // вела на /search?recipeId=… — это монтировало ВЕСЬ SearchApp (~800 КБ JS,
@@ -11,11 +12,6 @@ import { siteUrl } from "@/lib/site";
 // Здесь рецепт читается ОДНИМ серверным запросом и попадает в HTML сразу; бандл
 // маршрута — только SharedRecipe, а не монолит. Пока сервер читает — loading.tsx
 // показывает скелет рецепта.
-
-const SUPABASE_URL =
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "https://yjfqwwiqwoighjdlkodg.supabase.co";
-const SUPABASE_KEY =
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "sb_publishable_E7Fj9ZiOZTyNHAQQKo7Y0A_E8-ExX6Z";
 
 // Публичное чтение recipes разрешено RLS (supabase_recipes_social_rls.sql).
 // ВАЖНО (CLAUDE.md, чек-лист): выбираем ТОЛЬКО поля для отображения, без select=*.
@@ -27,26 +23,20 @@ const RECIPE_FIELDS =
   "id,title,description,time,cooking_time_minutes,calories,image_url,steps,detailed_ingredients,missing_ingredients";
 
 // revalidate=60 — рецепт неизменен, кэшируем на edge: повторные открытия мгновенны.
+//
+// null — ТОЛЬКО когда база ответила и рецепта нет. Сбой запроса —
+// исключение (lib/supabaseRead.ts): раньше он превращался в «Рецепт не
+// найден, ссылка устарела», и живую ссылку из мессенджера человек закрывал
+// как битую. Массив с limit=1 вместо Accept: object — чтобы «нет строки» и
+// «база упала» не приходили одинаковым не-200.
 async function getRecipe(id: string): Promise<RecipeData | null> {
   if (!/^\d+$/.test(id)) return null;
-  try {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/recipes?select=${RECIPE_FIELDS}&id=eq.${id}`,
-      {
-        headers: {
-          apikey: SUPABASE_KEY,
-          Authorization: `Bearer ${SUPABASE_KEY}`,
-          Accept: "application/vnd.pgrst.object+json",
-        },
-        next: { revalidate: 60 },
-      },
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data && data.title ? (data as RecipeData) : null;
-  } catch {
-    return null;
-  }
+  const rows = await readRows<RecipeData>(
+    `recipes?select=${RECIPE_FIELDS}&id=eq.${id}&limit=1`,
+    { revalidate: 60 },
+  );
+  const recipe = rows[0];
+  return recipe && recipe.title ? recipe : null;
 }
 
 export async function generateMetadata({

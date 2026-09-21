@@ -4,6 +4,7 @@ import type { FeedPhoto } from "@/components/HomeFeed";
 import { feedWindowStartISO } from "@/lib/feedWindow";
 import { type DemoChip, filterAvailableChips } from "@/lib/demoChips";
 import { SITE_URL, siteUrl } from "@/lib/site";
+import { readRows } from "@/lib/supabaseRead";
 
 // Каноникал Главной — apex-корень. title/description/og наследуются из корневого
 // layout (у Главной они и есть дефолтные), здесь добавляем только canonical.
@@ -24,23 +25,12 @@ export const metadata: Metadata = {
 // SSR-запрос к tips. Админка советов и таблица tips НЕ тронуты: вернуть блок =
 // вернуть getTip() и одну строку рендера в HomeContent.
 
-const SUPABASE_URL =
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "https://yjfqwwiqwoighjdlkodg.supabase.co";
-const SUPABASE_KEY =
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "sb_publishable_E7Fj9ZiOZTyNHAQQKo7Y0A_E8-ExX6Z";
-
-async function sbFetch<T>(path: string, revalidate: number): Promise<T[]> {
-  try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
-      next: { revalidate },
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return Array.isArray(data) ? (data as T[]) : [];
-  } catch {
-    return [];
-  }
+// Сбой запроса — исключение, а не пустой блок (lib/supabaseRead.ts). Пустая
+// витрина или пропавшие демо-чипы после секундного сбоя Supabase держались бы
+// до следующего окна ревалидации; теперь перегенерация падает, и отдаётся
+// прежняя Главная.
+function sbFetch<T>(path: string, revalidate: number): Promise<T[]> {
+  return readRows<T>(path, { revalidate });
 }
 
 // Блок «Новости проекта» снят с Главной (только UI + этот SSR-запрос). Админка

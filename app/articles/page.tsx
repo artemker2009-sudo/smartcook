@@ -3,17 +3,13 @@ import Link from "next/link";
 import { BookOpen } from "lucide-react";
 import ArticlesBoard from "@/components/ArticlesBoard";
 import { type Article, ARTICLE_COLUMNS } from "@/lib/articles";
+import { readRows } from "@/lib/supabaseRead";
 
 // Список всех «Кухонных заметок» (задача Y). SSR по правилам T/W: контент
 // читается на сервере и попадает в HTML сразу (наш первый контент под поиск —
 // важно, чтобы индексировался и грузился быстро). articles_public публичен,
 // отдаёт только опубликованные и НЕ раскрывает список лайкнувших. body в список
 // не тянем — только read_minutes.
-
-const SUPABASE_URL =
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "https://yjfqwwiqwoighjdlkodg.supabase.co";
-const SUPABASE_KEY =
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "sb_publishable_E7Fj9ZiOZTyNHAQQKo7Y0A_E8-ExX6Z";
 
 export const metadata: Metadata = {
   title: "Кухонные заметки — SmartCook",
@@ -29,20 +25,12 @@ export const metadata: Metadata = {
 };
 
 async function getArticles(): Promise<Article[]> {
-  try {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/articles_public?select=${ARTICLE_COLUMNS}&limit=50`,
-      {
-        headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
-        next: { revalidate: 300 },
-      },
-    );
-    if (!res.ok) return [];
-    const data = await res.json();
-    return Array.isArray(data) ? (data as Article[]) : [];
-  } catch {
-    return [];
-  }
+  // Сбой запроса — исключение, а не пустой список: иначе перегенерация на
+  // сбое Supabase закэшировала бы «Заметки скоро появятся» на пять минут.
+  // Настоящий пустой список (база ответила []) показываем как пустой.
+  return readRows<Article>(`articles_public?select=${ARTICLE_COLUMNS}&limit=50`, {
+    revalidate: 300,
+  });
 }
 
 export default async function ArticlesPage() {

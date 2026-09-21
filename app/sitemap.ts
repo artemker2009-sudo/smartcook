@@ -1,32 +1,22 @@
 import { MetadataRoute } from 'next'
 import { FEATURE_BANQUETS, FEATURE_COMMUNITY_FEED } from '@/lib/features'
 import { SITE_URL, siteUrl } from '@/lib/site'
+import { readRows } from '@/lib/supabaseRead'
 
 // Заметки — наш первый контент под поисковый трафик, поэтому добавляем и
 // раздел /articles, и каждую опубликованную статью в карту сайта. Slug и
 // published_at читаем из публичного view articles_public (только опубликованные).
-const SUPABASE_URL =
-  process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://yjfqwwiqwoighjdlkodg.supabase.co'
-const SUPABASE_KEY =
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_E7Fj9ZiOZTyNHAQQKo7Y0A_E8-ExX6Z'
+//
+// Сбой запроса — исключение, а не пустой список (lib/supabaseRead.ts). Для
+// карты сайта это особенно важно: закэшированная на час пустая карта говорит
+// поисковику, что все рецепты и заметки пропали.
 
 type ArticleRef = { slug: string; published_at: string | null; created_at: string }
 
 async function getArticleRefs(): Promise<ArticleRef[]> {
-  try {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/articles_public?select=slug,published_at,created_at&limit=1000`,
-      {
-        headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
-        next: { revalidate: 3600 },
-      },
-    )
-    if (!res.ok) return []
-    const data = await res.json()
-    return Array.isArray(data) ? (data as ArticleRef[]) : []
-  } catch {
-    return []
-  }
+  return readRows<ArticleRef>('articles_public?select=slug,published_at,created_at&limit=1000', {
+    revalidate: 3600,
+  })
 }
 
 // Страницы рецептов — канал №1 SEO-стратегии, поэтому каждая публичная
@@ -40,20 +30,10 @@ async function getArticleRefs(): Promise<ArticleRef[]> {
 type RecipeRef = { id: number; created_at: string; image_url: string | null }
 
 async function getRecipeRefs(): Promise<RecipeRef[]> {
-  try {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/recipes?select=id,created_at,image_url&title=not.is.null&steps=not.is.null&order=created_at.desc&limit=5000`,
-      {
-        headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
-        next: { revalidate: 3600 },
-      },
-    )
-    if (!res.ok) return []
-    const data = await res.json()
-    return Array.isArray(data) ? (data as RecipeRef[]) : []
-  } catch {
-    return []
-  }
+  return readRows<RecipeRef>(
+    'recipes?select=id,created_at,image_url&title=not.is.null&steps=not.is.null&order=created_at.desc&limit=5000',
+    { revalidate: 3600 },
+  )
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {

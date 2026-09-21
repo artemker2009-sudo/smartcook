@@ -12,6 +12,7 @@ function card(over: Partial<IdeaCard> & { slug: string }): IdeaCard {
     family: null,
     tags: [],
     imageUrl: `https://example.test/${over.slug}.webp`,
+    thumbUrl: null,
     imageAspect: "square",
     sortWeight: 0,
     publishedAt: "2026-09-19T12:00:00Z",

@@ -4497,69 +4497,213 @@ body.has-addbar { padding-bottom: calc(var(--tab-bar-total) + 72px); }
    Никаких рамок, теней и градиентов: в ленте работает сама еда. Цвета, шрифты
    и отступы — только токены. */
 .ideas-page {
+  /* Цвета шапки ленты — из утверждённого макета. Заведены здесь, а не в
+     :root: за пределами ленты их пока нет. */
+  --ideas-gutter: var(--space-3);
+  --ideas-ink: #141413;
+  --ideas-line: #DCDCD6;
+  --ideas-line-soft: #E6E6E1;
+  --ideas-muted: #6B6B66;
+  --ideas-green: #0E8A60;
+  --ideas-bar-bg: rgba(247, 247, 244, 0.96);
   width: 100%;
   max-width: 1100px;
   margin: 0 auto;
-  padding: 0 var(--space-2h) var(--space-5);
+  /* Сверху — вырез, но не меньше 12px: без выреза заголовок иначе лёг бы
+     вплотную к краю окна. */
+  padding: max(var(--safe-top), 12px) var(--ideas-gutter) var(--space-5);
 }
-.ideas-header {
+.ideas-header { margin: 0; }
+.ideas-header-top {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  margin: var(--space-3) 0 var(--space-3);
 }
-.ideas-header-text { min-width: 0; }
 .ideas-title {
-  font-size: var(--font-size-title);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text);
-  margin: 0 0 var(--space-1) 0;
+  margin: 0;
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.4px;
+  color: var(--ideas-ink);
 }
 .ideas-subtitle {
-  margin: 0;
-  font-size: var(--font-size-caption);
-  color: var(--color-text-secondary);
+  margin: 2px 0 0;
+  font-size: 13px;
+  line-height: 1.3;
+  color: var(--ideas-muted);
+}
+/* Пометку про ИИ сокращать нельзя, а при 13px она занимает ~321px и на
+   экранах уже ~353px уходит на вторую строку (на 320 доступно 288). 12px —
+   ~299px, тоже мало; влезает 11px (~277px). Переносить всё равно разрешено:
+   шрифт устройства может оказаться шире, и перенос лучше обрезки. */
+@media (max-width: 352px) {
+  .ideas-subtitle { font-size: 11px; }
 }
 
-.ideas-chips { display: flex; gap: var(--space-2); margin-bottom: var(--space-2h); }
-.ideas-chips-meal { flex-wrap: wrap; }
-/* Второй ряд не переносится, а скроллится: пять чипов в перенос съедают
-   половину первого экрана, а лента должна начинаться сразу. */
-.ideas-chips-scroll {
-  overflow-x: auto;
-  flex-wrap: nowrap;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-  /* Чтобы крайние чипы не липли к краю при прокрутке. */
-  padding-bottom: var(--space-1);
-}
-.ideas-chips-scroll::-webkit-scrollbar { display: none; }
-.ideas-chip {
+/* Кнопка «Избранное» — фильтр ленты, как раньше сердечко. Включённое
+   состояние видно не только цветом: сердце становится залитым, рамка — тёмной. */
+.ideas-fav {
+  position: relative;
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
-  /* 44px — минимальная зона нажатия по HIG. Ровно столько, не меньше. */
-  min-height: 44px;
-  padding: 0 var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-full);
-  background: var(--color-surface);
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-medium);
+  gap: 6px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--ideas-line);
+  border-radius: 999px;
+  background: #FFFFFF;
+  color: var(--ideas-ink);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
 }
-/* Активный чип отличается заливкой, а не только цветом текста: одного оттенка
-   на светлом фоне не видно на солнце. */
-.ideas-chip-active {
-  background: var(--color-text);
-  border-color: var(--color-text);
-  color: var(--color-surface);
+.ideas-fav svg { color: var(--ideas-green); flex: 0 0 auto; }
+.ideas-fav.is-on { border-color: var(--ideas-ink); }
+/* Зона нажатия 44px при видимой высоте 36. */
+.ideas-fav::after { content: ""; position: absolute; inset: -4px 0; }
+.ideas-fav-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: var(--ideas-green);
+  color: #FFFFFF;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
+
+/* Строки чипов. Обе — в одну линию с горизонтальной прокруткой, от края до
+   края экрана: чипы уезжают под край, а не обрываются на отступе. */
+.ideas-chips-row {
+  position: relative;
+  margin: 0 calc(-1 * var(--ideas-gutter));
+  --ideas-fade-bg: var(--color-bg);
+}
+.ideas-chips {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--space-2);
+}
+.ideas-chips-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  padding: var(--ideas-hit, 0px) var(--ideas-gutter);
+  margin: calc(-1 * var(--ideas-hit, 0px)) 0;
+}
+.ideas-chips-scroll::-webkit-scrollbar { display: none; }
+.ideas-chips-fade {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 56px;
+  background: linear-gradient(to right, transparent, var(--ideas-fade-bg));
+  pointer-events: none;
+}
+.ideas-chips-fade[hidden] { display: none; }
+
+.ideas-chip {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--ideas-line);
+  border-radius: 999px;
+  color: var(--ideas-ink);
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+/* Видимая высота чипов 32–34px по макету, зона нажатия добирается невидимым
+   слоем в зазоры между строками (--ideas-hit). Прокрутчик отдаёт под него
+   собственные поля, иначе overflow обрезал бы слой. */
+.ideas-chip::after {
+  content: "";
+  position: absolute;
+  inset: calc(-1 * var(--ideas-hit, 0px)) 0;
+}
+.ideas-chips-meal { --ideas-hit: 5px; }
+.ideas-chips-meal .ideas-chip {
+  height: 34px;
+  padding: 0 14px;
+  background: #FFFFFF;
+  font-size: 15px;
+  font-weight: 600;
+}
+.ideas-chips-more { --ideas-hit: 4px; margin-top: 0; margin-bottom: 16px; }
+.ideas-chips-more .ideas-chip {
+  height: 32px;
+  padding: 0 12px;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 500;
+}
+/* Активный — заливка И рамка: тёмная рамка остаётся различимой даже без
+   цвета (оттенки серого, яркое солнце). */
+.ideas-chips .ideas-chip-active {
+  background: var(--ideas-ink);
+  border-color: var(--ideas-ink);
+  color: #FFFFFF;
+}
+.ideas-chip:focus-visible,
+.ideas-fav:focus-visible {
+  outline: 2px solid var(--ideas-green);
+  outline-offset: 2px;
+}
+
+/* Строка приёмов пищи прилипает к верху при прокрутке ленты. Высота строки
+   и отступы вокруг неё в прилипшем виде не меняются — меняются только фон и
+   рамка, поэтому прилипание не дёргает сетку.
+
+   Фон и рамка — псевдоэлемент во всю ширину окна (100vw по центру) и вверх
+   под вырез: сама строка шириной с колонку ленты, и на десктопе полоса короче
+   окна смотрелась бы обрывком. При обычной полосе прокрутки 100vw шире окна
+   на её ширину — лишнее отрезает overflow-x: clip на html.ideas-no-overscroll
+   (класс висит только пока открыта лента). */
+.ideas-meal-bar {
+  position: sticky;
+  top: var(--safe-top);
+  z-index: 5;
+  margin-top: 6px;
+  padding: 8px 0;
+}
+.ideas-meal-bar::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: calc(-1 * var(--safe-top));
+  bottom: 0;
+  left: calc(50% - 50vw);
+  width: 100vw;
+  background: var(--ideas-bar-bg);
+  border-bottom: 1px solid var(--ideas-line-soft);
+  opacity: 0;
+  pointer-events: none;
+}
+.ideas-meal-bar.is-stuck::before { opacity: 1; }
+/* С 1024px таб-бар стоит сверху (см. .has-tabbar: padding-top 60px) —
+   строка прилипает под ним, а не уезжает под него. */
+@media (min-width: 1024px) {
+  .ideas-meal-bar { top: calc(var(--safe-top) + 60px); }
+}
+.ideas-meal-bar.is-stuck .ideas-chips-row { --ideas-fade-bg: rgb(247, 247, 244); }
+
 .ideas-note {
-  margin: 0 0 var(--space-2h) 0;
+  margin: -8px 0 16px 0;
   font-size: var(--font-size-caption);
   color: var(--color-text-muted);
 }
@@ -4608,7 +4752,7 @@ body.has-addbar { padding-bottom: calc(var(--tab-bar-total) + 72px); }
 .ideas-scroll-marker { width: 1px; height: 1px; }
 
 @media (min-width: 768px) {
-  .ideas-page { padding: 0 var(--space-4) var(--space-6); }
+  .ideas-page { --ideas-gutter: var(--space-4); padding-bottom: var(--space-6); }
   .ideas-grid { grid-template-columns: repeat(3, 1fr); gap: var(--space-3); }
   .ideas-column { gap: var(--space-3); }
 }
@@ -4672,6 +4816,9 @@ html.ideas-no-overscroll,
 html.ideas-no-overscroll body {
   overscroll-behavior-y: contain;
 }
+/* clip, а не hidden: hidden сделал бы документ контейнером прокрутки по обеим
+   осям, а clip прокрутку не создаёт и прилипание строки чипов не ломает. */
+html.ideas-no-overscroll { overflow-x: clip; }
 
 
 /* ── Экран рецепта каталога «Идеи» ──────────────────────────────────────── */

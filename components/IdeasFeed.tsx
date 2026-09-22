@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Heart } from "lucide-react";
+import { Clock, Heart } from "lucide-react";
 import IdeaCardLink from "@/components/IdeaCardLink";
 import { reachGoal } from "@/lib/metrika";
 import { useIdeaFavorites } from "@/lib/useIdeaFavorites";
+import { countFavorites } from "@/lib/ideasFavorites";
+import { useChipsFade } from "@/lib/useChipsFade";
 import { ALLERGIES_KEY, DISLIKES_KEY } from "@/lib/tasteProfile";
 import { buildTasteMatcher, type TasteMatcher } from "@/lib/ideasTaste";
 import { TAB_RESELECT_EVENT } from "@/lib/tabBarEvents";
@@ -126,6 +128,26 @@ function columnsForWidth(width: number): number {
   return 2;
 }
 
+/**
+ * Строка чипов в одну линию с горизонтальной прокруткой и затуханием справа.
+ * Затухание — только когда правда есть что крутить (см. lib/chipsFade.ts).
+ *
+ * Класс ideas-chips-scroll — метка для оттяжки ленты: жест, начатый на
+ * строке чипов, оттяжкой не считается.
+ */
+function ChipRow({ label, className, children }: { label: string; className: string; children: ReactNode }) {
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const fade = useChipsFade(scrollerRef);
+  return (
+    <div className={`ideas-chips-row ${className}`}>
+      <div ref={scrollerRef} className="ideas-chips ideas-chips-scroll" role="group" aria-label={label}>
+        {children}
+      </div>
+      <div className="ideas-chips-fade" hidden={!fade} aria-hidden />
+    </div>
+  );
+}
+
 export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }) {
   const router = useRouter();
 
@@ -169,6 +191,13 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
   // «Пока пусто» при закрашенном сердечке на рецепте. Подробно — в
   // lib/ideasFavorites.ts.
   const favorites = useIdeaFavorites();
+  const favCount = useMemo(() => countFavorites(favorites, initialCards), [favorites, initialCards]);
+
+  // Прилипла ли строка приёмов пищи. Фон и рамка у неё — только в прилипшем
+  // виде: наверху ленты шапка должна выглядеть одним куском, без полосы.
+  const stickSentinelRef = useRef<HTMLDivElement | null>(null);
+  const mealBarRef = useRef<HTMLDivElement | null>(null);
+  const [mealStuck, setMealStuck] = useState(false);
 
   const [dragging, setDragging] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -427,6 +456,32 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
+  // Прилипание считаем по метке перед строкой: её верх ушёл выше линии, на
+  // которой строка держится (top у .ideas-meal-bar, он же вырез сверху), —
+  // значит, строка прилипла. Прокрутка через rAF: не чаще кадра.
+  useEffect(() => {
+    const sentinel = stickSentinelRef.current;
+    const bar = mealBarRef.current;
+    if (!sentinel || !bar) return;
+    let frame = 0;
+    const check = () => {
+      frame = 0;
+      const stickTop = parseFloat(getComputedStyle(bar).top) || 0;
+      setMealStuck(sentinel.getBoundingClientRect().top < stickTop - 0.5);
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(check);
+    };
+    check();
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+    };
+  }, []);
+
   const visible = useMemo(() => {
     const filtered = applyFilters(ordered ?? initialCards, filters, taste);
     return favOnly ? filtered.filter((card) => favorites.has(card.slug)) : filtered;
@@ -509,62 +564,67 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
       </div>
 
       <header className="ideas-header">
-        <div className="ideas-header-text">
+        <div className="ideas-header-top">
           <h1 className="ideas-title">Идеи</h1>
-          <p className="ideas-subtitle">Подборка SmartCook. Картинки блюд созданы ИИ.</p>
-        </div>
-        <button
-          type="button"
-          className={`idea-round idea-round-flat${favOnly ? " is-on" : ""}`}
-          aria-pressed={favOnly}
-          aria-label={favOnly ? "Показать все" : "Показать избранное"}
-          onClick={() => {
-            const next = !favOnly;
-            setFavOnly(next);
-            // Сердечко — тот же фильтр, и цель у него та же: иначе воронка
-            // фильтров в Метрике развалится на две несравнимые.
-            reachGoal("ideas_filter", { filter: next ? "fav" : "fav_off" });
-          }}
-        >
-          <Heart size={20} fill={favOnly ? "currentColor" : "none"} />
-        </button>
-      </header>
-
-      <div className="ideas-chips ideas-chips-meal">
-        {MEAL_CHIPS.map((chip) => {
-          const value = chip.param ? MEAL_BY_PARAM[chip.param] : null;
-          const active = filters.meal === value;
-          return (
-            <button
-              key={chip.param || "all"}
-              type="button"
-              className={`ideas-chip${active ? " ideas-chip-active" : ""}`}
-              aria-pressed={active}
-              onClick={() => setFilters({ ...filters, meal: value }, chip.param || "all")}
-            >
-              {chip.label}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="ideas-chips ideas-chips-scroll">
-        {showFitChip && (
           <button
             type="button"
-            className={`ideas-chip${filters.fit ? " ideas-chip-active" : ""}`}
-            aria-pressed={filters.fit}
-            onClick={() => setFilters({ ...filters, fit: !filters.fit }, "fit")}
+            className={`ideas-fav${favOnly ? " is-on" : ""}`}
+            aria-pressed={favOnly}
+            // Число — часть подписи: без него VoiceOver прочитал бы «Избранное,
+            // 3» как два несвязанных слова.
+            aria-label={favCount > 0 ? `Избранное, сохранено ${favCount}` : "Избранное"}
+            onClick={() => {
+              const next = !favOnly;
+              setFavOnly(next);
+              // Кнопка — тот же фильтр, что было сердечко, и цель у неё та же:
+              // иначе воронка фильтров в Метрике развалится на две несравнимые.
+              reachGoal("ideas_filter", { filter: next ? "fav" : "fav_off" });
+            }}
           >
-            Подходит мне
+            <Heart size={16} strokeWidth={2.25} fill={favOnly ? "currentColor" : "none"} aria-hidden />
+            <span>Избранное</span>
+            {favCount > 0 && (
+              <span className="ideas-fav-count" aria-hidden>
+                {favCount}
+              </span>
+            )}
           </button>
-        )}
+        </div>
+        {/* Обязательная пометка про ИИ-картинки. Не убирать и не сокращать. */}
+        <p className="ideas-subtitle">Подборка SmartCook · картинки блюд созданы ИИ</p>
+      </header>
+
+      {/* Метка естественного положения строки приёмов пищи: ушла выше линии
+          прилипания — строка прилипла, и у неё появляются фон и рамка. */}
+      <div ref={stickSentinelRef} aria-hidden />
+      <div ref={mealBarRef} className={`ideas-meal-bar${mealStuck ? " is-stuck" : ""}`}>
+        <ChipRow label="Приём пищи" className="ideas-chips-meal">
+          {MEAL_CHIPS.map((chip) => {
+            const value = chip.param ? MEAL_BY_PARAM[chip.param] : null;
+            const active = filters.meal === value;
+            return (
+              <button
+                key={chip.param || "all"}
+                type="button"
+                className={`ideas-chip${active ? " ideas-chip-active" : ""}`}
+                aria-pressed={active}
+                onClick={() => setFilters({ ...filters, meal: value }, chip.param || "all")}
+              >
+                {chip.label}
+              </button>
+            );
+          })}
+        </ChipRow>
+      </div>
+
+      <ChipRow label="Уточнить" className="ideas-chips-more">
         <button
           type="button"
           className={`ideas-chip${filters.quick ? " ideas-chip-active" : ""}`}
           aria-pressed={filters.quick}
           onClick={() => setFilters({ ...filters, quick: !filters.quick }, "quick")}
         >
+          <Clock size={14} strokeWidth={2.25} aria-hidden />
           До {QUICK_MAX_MINUTES} минут
         </button>
         {MAIN_CHIPS.map((chip) => {
@@ -584,7 +644,17 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
             </button>
           );
         })}
-      </div>
+        {showFitChip && (
+          <button
+            type="button"
+            className={`ideas-chip${filters.fit ? " ideas-chip-active" : ""}`}
+            aria-pressed={filters.fit}
+            onClick={() => setFilters({ ...filters, fit: !filters.fit }, "fit")}
+          >
+            Подходит мне
+          </button>
+        )}
+      </ChipRow>
 
       {/* Мягкая формулировка: это подбор по составу, который написали мы, а не
           гарантия безопасности. Предупреждение про аллергены на экране рецепта

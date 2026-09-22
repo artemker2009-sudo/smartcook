@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { FAV_CHANGE_EVENT, createFavoritesStore, parseFavorites } from "./ideasFavorites";
+import { FAV_CHANGE_EVENT, countFavorites, createFavoritesStore, parseFavorites } from "./ideasFavorites";
 import { FAV_KEY } from "./ideasLocal";
 
 // Хранилище в памяти. dropWrites — Safari, у которого setItem не бросает, но
@@ -150,5 +150,34 @@ describe("снимок и разбор", () => {
     expect(parseFavorites("{не json")).toEqual([]);
     expect(parseFavorites('{"a":1}')).toEqual([]);
     expect(parseFavorites('["a", 5, null, "b"]')).toEqual(["a", "b"]);
+  });
+});
+
+describe("число на кнопке «Избранное»", () => {
+  const catalog = [{ slug: "tefteli" }, { slug: "syrniki" }, { slug: "omlet" }];
+  // Тот же путь, что у useIdeaFavorites: снимок → разбор → множество.
+  const countNow = (store: ReturnType<typeof createFavoritesStore>) =>
+    countFavorites(new Set(parseFavorites(store.snapshot())), catalog);
+
+  it("обновляется после pageshow: сохранили на рецепте, лента вернулась из bfcache", () => {
+    const e = env(memoryStorage());
+    const store = createFavoritesStore(() => e);
+    const notify = vi.fn();
+    store.subscribe(notify);
+    expect(countNow(store)).toBe(0);
+
+    e.storage.data.set(FAV_KEY, JSON.stringify(["tefteli", "syrniki"]));
+    e.target.dispatchEvent(new Event("pageshow"));
+
+    expect(notify).toHaveBeenCalled();
+    expect(countNow(store)).toBe(2);
+  });
+
+  it("считает только рецепты из каталога: снятый с публикации не обещает лишнего", () => {
+    expect(countFavorites(new Set(["tefteli", "snyat-s-publikatsii"]), catalog)).toBe(1);
+  });
+
+  it("пусто — ноль, кружок не показывается", () => {
+    expect(countFavorites(new Set(), catalog)).toBe(0);
   });
 });

@@ -11,6 +11,12 @@ import {
   type ImportSkip,
   type IdeaImportRow,
 } from "@/lib/ideaImport";
+import {
+  parseBulkIds,
+  planBulkPublish,
+  type BulkPublishRow,
+  type BulkSkip,
+} from "@/lib/ideaBulkPublish";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,14 +26,15 @@ export const dynamic = "force-dynamic";
 // anon/authenticated, ни соответствующих привилегий (supabase_idea_recipes.sql),
 // поэтому другого пути записи просто не существует.
 //
-// Операции: list (GET) / update / setPublished / delete / import (POST).
+// Операции: list (GET) / update / setPublished / setPublishedMany / delete /
+// import (POST).
 // Создание рецепта руками не предусмотрено намеренно: рецепты готовит директор
 // файлом, а форма в админке — для вычитки и правки уже залитого.
 //
 // ПУБЛИКАЦИЯ ВСЕГДА ОТДЕЛЬНЫМ ДЕЙСТВИЕМ. Ни импорт, ни правка не могут
 // выставить is_published: при импорте поле не входит в набор вставляемых
 // колонок вовсе, при правке — вырезано из патча. Опубликовать можно только
-// явным setPublished, то есть руками после вычитки.
+// явным setPublished или setPublishedMany, то есть руками после вычитки.
 
 /** PostgREST про отсутствующую таблицу отвечает PGRST205, а не 42P01. */
 function isMissingTable(error: { code?: string; message?: string } | null): boolean {
@@ -49,13 +56,16 @@ function isDuplicateKey(error: { code?: string } | null): boolean {
  * «Опубликовать», пошёл смотреть — и не увидел ничего. Пять минут тишины
  * выглядят как «не работает».
  *
- * Путь рецепта сбрасываем тоже: экран /ideas/<slug> появится следующим PR, но
- * забыть про него потом легче, чем добавить сейчас.
+ * Экран рецепта и карту сайта сбрасываем тоже. В карте «Идей» пока нет
+ * (IDEAS_INDEXABLE), но когда раздел откроют поиску, забытый сброс означал
+ * бы час без новых рецептов в карте — а публикация редкая, сброс дешёвый.
  */
-function revalidateIdeas(slug?: string | null): void {
+function revalidateIdeas(slugs?: string | null | readonly string[]): void {
+  const list = slugs == null ? [] : typeof slugs === "string" ? [slugs] : slugs;
   try {
     revalidatePath("/ideas");
-    if (slug) revalidatePath(`/ideas/${slug}`);
+    revalidatePath("/sitemap.xml");
+    for (const slug of list) revalidatePath(`/ideas/${slug}`);
   } catch {
     // Сброс кэша не должен ронять операцию: данные уже записаны.
   }
@@ -209,7 +219,94 @@ async function handleImport(supabase: SupabaseClient, b: Record<string, unknown>
 }
 
 // ---------------------------------------------------------------------------
-// POST — update / setPublished / delete / import
+// Массовая публикация
+// ---------------------------------------------------------------------------
+
+/**
+ * Опубликовать выбранные черновики. План (кого можно) — в
+ * lib/ideaBulkPublish.ts; здесь чтение, запись и отчёт.
+ *
+ * Условия плана ПОВТОРЕНЫ в самом UPDATE (is_published=false, картинка
+ * готова, published_at пуст — для первой публикации). Между чтением и
+ * записью кто-то мог перерисовать картинку или опубликовать рецепт с другой
+ * вкладки; тогда строка просто не попадёт под фильтр. Какие строки реально
+ * изменились — берём из ответа UPDATE, а не из плана: запись, которую не
+ * пропустил фильтр, выглядит как успех (CLAUDE.md, 3.2).
+ */
+async function handlePublishMany(supabase: SupabaseClient, b: Record<string, unknown>) {
+  const parsedIds = parseBulkIds(b.ids);
+  if (!parsedIds.ok) return badRequest(parsedIds.error);
+  const ids = parsedIds.ids;
+
+  const { data: rows, error: readError } = await supabase
+    .from("idea_recipes")
+    .select("id, slug, title, is_published, image_status, image_url, updated_at, published_at")
+    .in("id", ids);
+  if (readError) {
+    return NextResponse.json({ error: "Не удалось прочитать выбранные рецепты" }, { status: 500 });
+  }
+
+  const plan = planBulkPublish(ids, (rows ?? []) as BulkPublishRow[]);
+  const skipped: BulkSkip[] = [...plan.skipped];
+  const published: { id: string; slug: string; title: string }[] = [];
+  let writeFailed = false;
+
+  const write = async (group: BulkPublishRow[], firstTime: boolean) => {
+    if (group.length === 0) return;
+    const patch: Record<string, unknown> = { is_published: true };
+    let query = supabase
+      .from("idea_recipes")
+      .update(firstTime ? { ...patch, published_at: new Date().toISOString() } : patch)
+      .in("id", group.map((r) => r.id))
+      .eq("is_published", false)
+      .eq("image_status", "ready")
+      .not("image_url", "is", null);
+    // Дата публикации — один раз, как у одиночной публикации: по ней
+    // сортируется лента, и «снял → поправил → вернул» не должно поднимать
+    // рецепт наверх как новый.
+    query = firstTime ? query.is("published_at", null) : query.not("published_at", "is", null);
+    const { data, error } = await query.select("id, slug, title");
+    if (error) {
+      writeFailed = true;
+      for (const row of group) {
+        skipped.push({ id: row.id, slug: row.slug, title: row.title, reason: "база отклонила запись" });
+      }
+      return;
+    }
+    const done = new Set(((data ?? []) as { id: string }[]).map((r) => r.id));
+    for (const row of group) {
+      if (done.has(row.id)) {
+        published.push({ id: row.id, slug: row.slug, title: row.title });
+      } else {
+        skipped.push({
+          id: row.id,
+          slug: row.slug,
+          title: row.title,
+          reason: "изменился во время публикации — обновите список",
+        });
+      }
+    }
+  };
+
+  await write(plan.firstTime, true);
+  await write(plan.again, false);
+
+  if (published.length > 0) revalidateIdeas(published.map((r) => r.slug));
+
+  return NextResponse.json(
+    {
+      success: !writeFailed,
+      published: published.map(({ slug, title }) => ({ slug, title })),
+      skipped,
+    },
+    // Частичный успех — всё равно 200 с отчётом: часть рецептов уже в ленте,
+    // и человеку нужен список, а не общая ошибка.
+    { status: writeFailed && published.length === 0 ? 500 : 200 },
+  );
+}
+
+// ---------------------------------------------------------------------------
+// POST — update / setPublished / setPublishedMany / delete / import
 // ---------------------------------------------------------------------------
 export async function POST(req: Request) {
   if (!requireAdminSession(req)) {
@@ -224,6 +321,7 @@ export async function POST(req: Request) {
   const supabase = createServiceRoleClient();
 
   if (op === "import") return handleImport(supabase, b);
+  if (op === "setPublishedMany") return handlePublishMany(supabase, b);
 
   const id = b.id;
   if (typeof id !== "string" || !id.trim()) return badRequest("Не хватает ID");

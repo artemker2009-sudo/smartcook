@@ -56,7 +56,11 @@ export const metadata: Metadata = {
   // iOS для домашнего экрана берёт apple-touch-icon (НЕ манифест). Он должен
   // быть НЕПРОЗРАЧНЫМ 180×180 — иначе на iOS иконка рендерится белым квадратом.
   icons: {
+    // /favicon.ico ищут боты (Яндекс.Вебмастер) и старые браузеры по
+    // фиксированному адресу, без чтения <head>. Лежит в public/, а не в app/:
+    // иконки здесь задаются явно, файловая конвенция app/ их не дополняет.
     icon: [
+      { url: "/favicon.ico", sizes: "32x32", type: "image/x-icon" },
       { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
       { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
     ],

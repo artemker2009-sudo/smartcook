@@ -4843,11 +4843,21 @@ html.ideas-no-overscroll { overflow-x: clip; }
 
 /* ── Экран рецепта каталога «Идеи» ──────────────────────────────────────── */
 
+/* Верхний отступ — ровно вырез. Экран рецепта начинается фотографией во всю
+   ширину, и без этого отступа снимок залезал под часы и Dynamic Island: часы
+   читались поверх еды, а выглядело это как недоделка, а не как приём. Теперь
+   над фотографией остаётся полоса фона страницы, ровно как на остальных
+   экранах приложения (.container делает то же самое своим padding).
+
+   --safe-top это env(safe-area-inset-top, 0px). Где выреза нет — Android, TWA
+   из RuStore, iPhone SE/8, десктоп — он равен нулю, и отступ остаётся прежним
+   нулевым: вид не меняется ни на пиксель. Боковые поля и скругление снимка
+   не трогаем. */
 .idea-page {
   width: 100%;
   max-width: 720px;
   margin: 0 auto;
-  padding: 0 var(--space-2h) var(--space-6);
+  padding: var(--safe-top) var(--space-2h) var(--space-6);
 }
 
 /* Картинка на всю ширину с полями, ТЕХ ЖЕ пропорций, что в карточке ленты, и
@@ -4867,20 +4877,12 @@ html.ideas-no-overscroll { overflow-x: clip; }
 }
 .idea-hero-img-portrait { aspect-ratio: 2 / 3; }
 
-/* Три круглые кнопки лежат ПОВЕРХ картинки, а картинка начинается у самого
-   верха окна. На iPhone с вырезом или Dynamic Island это ровно та полоса, в
-   которой стоят часы и сам островок: «назад», «поделиться» и сердечко уезжали
-   под них, и нажать «назад» было нельзя (поймано снимком с iPhone 15).
-   Поэтому к обычному отступу прибавляется вырез — тем же приёмом, что в шапке
-   ленты «Идей».
-
-   --safe-top это env(safe-area-inset-top, 0px). Где выреза нет — Android, TWA
-   из RuStore, iPhone SE/8, десктоп — он равен нулю, и calc() даёт РОВНО
-   прежние var(--space-2): вид не меняется ни на пиксель. Саму картинку не
-   трогаем, она по-прежнему идёт от верха. */
+/* Кнопки отсчитываются ОТ ФОТОГРАФИИ, а не от окна, и вырез в них не входит
+   НАМЕРЕННО: его уже отработала .idea-page своим padding-top, и второе
+   слагаемое опустило бы кнопки на высоту выреза дважды. */
 .idea-hero-actions {
   position: absolute;
-  top: calc(var(--safe-top) + var(--space-2));
+  top: var(--space-2);
   right: var(--space-2);
   display: flex;
   gap: var(--space-2);
@@ -4905,10 +4907,10 @@ html.ideas-no-overscroll { overflow-x: clip; }
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
 }
-/* «Назад» — та же поправка на вырез, что и у пары справа (см. выше). */
+/* «Назад» — тот же отсчёт от фотографии, что и у пары справа (см. выше). */
 .idea-round-back {
   position: absolute;
-  top: calc(var(--safe-top) + var(--space-2));
+  top: var(--space-2);
   left: var(--space-2);
 }
 .idea-round.is-on { color: var(--color-accent); }
@@ -5099,6 +5101,6 @@ html.ideas-no-overscroll { overflow-x: clip; }
   align-items: start;
 }
 @media (min-width: 768px) {
-  .idea-page { padding: 0 var(--space-4) var(--space-6); }
+  .idea-page { padding: var(--safe-top) var(--space-4) var(--space-6); }
   .idea-related { grid-template-columns: repeat(3, 1fr); }
 }

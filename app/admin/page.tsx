@@ -13,6 +13,13 @@ import {
 } from "lucide-react";
 import { renderMarkdown } from "@/lib/markdown";
 import {
+  MAX_BULK_PUBLISH,
+  bulkPublishConfirmText,
+  canBulkPublish,
+  recipesWord,
+  type BulkSkip,
+} from "@/lib/ideaBulkPublish";
+import {
   IDEA_ALLERGENS,
   IDEA_COOK_METHODS,
   IDEA_IMAGE_ASPECTS,
@@ -182,6 +189,13 @@ type IdeaImportReport = {
   added: { slug: string; title: string }[];
   skipped: { slug: string; reason: string }[];
   warnings: string[];
+};
+
+// Отчёт массовой публикации. Структуру задаёт /api/admin/ideas
+// (op=setPublishedMany).
+type IdeaBulkReport = {
+  published: { slug: string; title: string }[];
+  skipped: BulkSkip[];
 };
 
 // Предложения пользователей («что добавить, а что убрать»). Личность автора
@@ -441,6 +455,13 @@ export default function AdminPage() {
   const [ideaFilter, setIdeaFilter] = useState<"all" | "draft" | "published">("all");
   const [ideaImporting, setIdeaImporting] = useState(false);
   const [ideaReport, setIdeaReport] = useState<IdeaImportReport | null>(null);
+  // Массовая публикация: выбранные черновики и отчёт последнего прогона.
+  // Выбор хранит id; при отрисовке пересекается с тем, что СЕЙЧАС можно
+  // публиковать, — после перезагрузки списка опубликованные и удалённые
+  // выпадают сами.
+  const [ideaSelected, setIdeaSelected] = useState<Set<string>>(() => new Set());
+  const [ideaBulkBusy, setIdeaBulkBusy] = useState(false);
+  const [ideaBulkReport, setIdeaBulkReport] = useState<IdeaBulkReport | null>(null);
   // Форма правки. Открывается только для существующего рецепта: создавать
   // руками нечего — рецепты приезжают файлом.
   const [ideaEditingId, setIdeaEditingId] = useState<string | null>(null);
@@ -1492,6 +1513,38 @@ export default function AdminPage() {
       setIdeaError(error instanceof Error ? error.message : "Не удалось обновить статус");
     } finally {
       setIdeaBusyId(null);
+    }
+  };
+
+  const handlePublishSelected = async (ids: string[]) => {
+    if (ids.length === 0) return;
+    if (!confirm(bulkPublishConfirmText(ids.length))) return;
+    setIdeaBulkBusy(true);
+    setIdeaError("");
+    setIdeaBulkReport(null);
+    try {
+      const response = await fetch("/api/admin/ideas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ op: "setPublishedMany", ids }),
+      });
+      if (response.status === 401) {
+        handleAdminUnauthorized();
+        return;
+      }
+      const data = await response.json().catch(() => null);
+      // Отчёт показываем и при частичном сбое: часть рецептов уже в ленте,
+      // и важнее список «что прошло, что нет», чем общая ошибка.
+      if (!data || !Array.isArray(data.published)) {
+        throw new Error(data?.error || "Не удалось опубликовать");
+      }
+      setIdeaBulkReport({ published: data.published, skipped: data.skipped ?? [] });
+      setIdeaSelected(new Set());
+      await loadIdeas();
+    } catch (error) {
+      setIdeaError(error instanceof Error ? error.message : "Не удалось опубликовать");
+    } finally {
+      setIdeaBulkBusy(false);
     }
   };
 
@@ -3100,16 +3153,116 @@ export default function AdminPage() {
                     return true;
                   });
 
+                  // Кого сейчас вообще можно выбрать — по всему каталогу, а
+                  // не только по видимому: «Выбрать все» не должно зависеть
+                  // от того, что набрано в поиске.
+                  const eligibleIds = ideas.filter((item) => canBulkPublish(item)).map((item) => item.id);
+                  const eligibleSet = new Set(eligibleIds);
+                  const selectedIds = [...ideaSelected].filter((id) => eligibleSet.has(id));
+                  const overLimit = selectedIds.length > MAX_BULK_PUBLISH;
+
+                  const bulkPanel =
+                    eligibleIds.length > 0 || ideaBulkReport ? (
+                      <div className="space-y-3 rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm">
+                        {eligibleIds.length > 0 ? (
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-700">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  // Больше потолка за раз не выбираем: иначе
+                                  // кнопка обещала бы то, что сервер отклонит.
+                                  setIdeaSelected(new Set(eligibleIds.slice(0, MAX_BULK_PUBLISH)))
+                                }
+                                disabled={ideaBulkBusy}
+                                className="rounded-full bg-zinc-100 px-4 py-1.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-200 disabled:opacity-50"
+                              >
+                                Выбрать все черновики с картинкой ({Math.min(eligibleIds.length, MAX_BULK_PUBLISH)})
+                              </button>
+                              {selectedIds.length > 0 ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setIdeaSelected(new Set())}
+                                  disabled={ideaBulkBusy}
+                                  className="rounded-full px-3 py-1.5 text-xs font-semibold text-zinc-500 transition hover:text-zinc-900 disabled:opacity-50"
+                                >
+                                  Снять выбор
+                                </button>
+                              ) : null}
+                              {eligibleIds.length > MAX_BULK_PUBLISH ? (
+                                <span className="text-xs text-zinc-500">
+                                  Готовых черновиков {eligibleIds.length} — за раз не больше {MAX_BULK_PUBLISH}
+                                </span>
+                              ) : null}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => void handlePublishSelected(selectedIds)}
+                              disabled={ideaBulkBusy || selectedIds.length === 0 || overLimit}
+                              className="shrink-0 rounded-full bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
+                            >
+                              {ideaBulkBusy ? "Публикуем…" : `Опубликовать выбранные (${selectedIds.length})`}
+                            </button>
+                          </div>
+                        ) : null}
+                        {overLimit ? (
+                          <p className="text-xs text-red-600">
+                            Выбрано {selectedIds.length} — за раз можно не больше {MAX_BULK_PUBLISH}
+                          </p>
+                        ) : null}
+
+                        {ideaBulkReport ? (
+                          <div className="space-y-2 border-t border-zinc-100 pt-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-sm font-semibold text-zinc-900">Отчёт публикации</p>
+                              <button
+                                type="button"
+                                onClick={() => setIdeaBulkReport(null)}
+                                className="rounded-full bg-zinc-100 px-4 py-1.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-200"
+                              >
+                                Закрыть
+                              </button>
+                            </div>
+                            <p className="text-sm text-emerald-700">
+                              Опубликовано: {ideaBulkReport.published.length}{" "}
+                              {recipesWord(ideaBulkReport.published.length)}
+                            </p>
+                            {ideaBulkReport.published.length > 0 ? (
+                              <ul className="space-y-0.5 text-xs text-zinc-600">
+                                {ideaBulkReport.published.map((r) => (
+                                  <li key={r.slug}>+ {r.title}</li>
+                                ))}
+                              </ul>
+                            ) : null}
+                            <p className="text-sm text-amber-700">Пропущено: {ideaBulkReport.skipped.length}</p>
+                            {ideaBulkReport.skipped.length > 0 ? (
+                              <ul className="space-y-0.5 text-xs text-zinc-600">
+                                {ideaBulkReport.skipped.map((r) => (
+                                  <li key={r.id}>
+                                    {r.title ?? <span className="font-mono text-zinc-500">{r.id}</span>} — {r.reason}
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null;
+
                   if (visible.length === 0) {
                     return (
-                      <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-12 text-center text-sm text-zinc-500 shadow-sm">
-                        {ideas.length === 0 ? "Каталог пуст — загрузите файл." : "Ничего не нашлось."}
-                      </div>
+                      <>
+                        {bulkPanel}
+                        <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-12 text-center text-sm text-zinc-500 shadow-sm">
+                          {ideas.length === 0 ? "Каталог пуст — загрузите файл." : "Ничего не нашлось."}
+                        </div>
+                      </>
                     );
                   }
 
                   return (
                     <>
+                      {bulkPanel}
                       <p className="text-xs text-zinc-400">
                         Показано {visible.length} из {ideas.length}
                       </p>
@@ -3128,6 +3281,28 @@ export default function AdminPage() {
                             }`}
                           >
                             <div className="flex items-start justify-between gap-3">
+                              {/* Чекбокс — только у черновиков. Без готовой
+                                  картинки он неактивен, как и одиночная кнопка
+                                  «Опубликовать»; сервер проверяет то же самое. */}
+                              {!published ? (
+                                <input
+                                  type="checkbox"
+                                  aria-label={`Выбрать «${item.title}» для публикации`}
+                                  title={canBulkPublish(item) ? undefined : "Сначала сгенерируйте картинку блюда"}
+                                  checked={ideaSelected.has(item.id) && canBulkPublish(item)}
+                                  disabled={!canBulkPublish(item) || ideaBulkBusy}
+                                  onChange={(e) => {
+                                    const on = e.target.checked;
+                                    setIdeaSelected((current) => {
+                                      const next = new Set(current);
+                                      if (on) next.add(item.id);
+                                      else next.delete(item.id);
+                                      return next;
+                                    });
+                                  }}
+                                  className="mt-6 h-5 w-5 shrink-0 accent-emerald-600 disabled:opacity-30"
+                                />
+                              ) : null}
                               {/* Миниатюра: без неё список из восьмидесяти
                                   строк не даёт понять, у кого картинка уже
                                   есть, а у кого нет. */}

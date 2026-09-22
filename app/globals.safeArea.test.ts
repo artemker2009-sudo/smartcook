@@ -204,3 +204,102 @@ describe("соседние полноэкранные раскладки не т
     expect(declaration(selector, "padding")).toContain("env(safe-area-inset-top)");
   });
 });
+
+/**
+ * Первый экран Главной v2 (.home-hero): то же правило выреза, что у экрана
+ * рецепта «Идей», и те же числа под ним.
+ *
+ * ЧТО СТОРОЖИМ. Вырез ПРИБАВЛЯЕТСЯ к высоте снимка (`height: calc(var(--safe-top)
+ * + …)`), а внутри него только одно слагаемое с вырезом — отступ названия
+ * сверху. Всё остальное прижато к НИЖНЕЙ кромке снимка (justify-content:
+ * flex-end) и про вырез не знает вовсе. Отсюда два свойства, ради которых тест
+ * и написан:
+ *   • при вырезе 0 (Android, TWA из RuStore, iPhone SE, десктоп) раскладка
+ *     ровно такая, как нарисована в макете: снимок 468px на экране 390,
+ *     название на 62px от верха;
+ *   • при вырезе 59px (iPhone 15/16/17 с Dynamic Island) ВСЁ съезжает вниз
+ *     ровно на 59 — ни больше (кнопка не уедет за кромку снимка), ни меньше
+ *     (название не окажется под часами).
+ *
+ * jsdom не считает ни env(), ни calc(), ни clamp() — поэтому здесь, как и
+ * выше, считается само правило, а не последствие.
+ */
+
+/** Ширина экрана → clamp(min, Nvw, max) в пикселях. */
+function clampVw(value: string, viewportWidth: number): number {
+  const parts = value.match(/^clamp\(\s*([\d.]+)px\s*,\s*([\d.]+)vw\s*,\s*([\d.]+)px\s*\)$/);
+  if (!parts) throw new Error(`Ожидался clamp(<px>, <vw>, <px>), а тут: ${value}`);
+  const [min, vw, max] = [Number(parts[1]), (Number(parts[2]) * viewportWidth) / 100, Number(parts[3])];
+  return Math.min(Math.max(vw, min), max);
+}
+
+/** Высота снимка без выреза при данной ширине экрана. */
+function photoHeight(viewportWidth: number): number {
+  return clampVw(declaration(".home-hero", "--home-hero-photo-h"), viewportWidth);
+}
+
+/** Всё, что на первом экране зависит от выреза, при данном вырезе и ширине. */
+function heroLayout(safeTopPx: number, viewportWidth = 390) {
+  const photo = photoHeight(viewportWidth);
+  // Токен --home-hero-photo-h хранит clamp(), который px() считать не умеет:
+  // подставляем уже посчитанную высоту снимка и дальше идёт обычная сумма.
+  const heroHeight = px(
+    declaration(".home-hero", "height").replace("var(--home-hero-photo-h)", `${photo}px`),
+    safeTopPx,
+  );
+  const brandTop = px(declaration(".home-hero-brand", "top"), safeTopPx);
+  return {
+    heroHeight,
+    brandTop,
+    /** Низо́к названия: под ним начинается свободное поле до текста внизу. */
+    brandBottom: brandTop + 46,
+    /** Высота светлого проявления снимка сверху. */
+    topFade: px(declaration(".home-hero-top-fade", "height"), safeTopPx),
+  };
+}
+
+describe("первый экран Главной: вырез прибавляется к снимку, а не съедает его", () => {
+  it("снимок ~470px на экране 390 и не выходит за границы clamp", () => {
+    expect(photoHeight(390)).toBe(468);
+    // 320 (iPhone SE 1-го поколения в вебе) и 430 (iPhone 17 Pro Max).
+    expect(photoHeight(320)).toBe(420);
+    expect(photoHeight(430)).toBe(480);
+  });
+
+  it("высота снимка растёт ровно на вырез", () => {
+    expect(heroLayout(0).heroHeight).toBe(468);
+    expect(heroLayout(ISLAND).heroHeight).toBe(468 + ISLAND);
+    expect(heroLayout(ISLAND).heroHeight - heroLayout(0).heroHeight).toBe(ISLAND);
+  });
+
+  it("название стоит под часами, а не под ними же", () => {
+    expect(heroLayout(0).brandTop).toBe(62);
+    expect(heroLayout(ISLAND).brandTop).toBe(ISLAND + 62);
+    // Ключевое: название начинается НИЖЕ безопасной зоны, а не внутри неё.
+    expect(heroLayout(ISLAND).brandTop).toBeGreaterThan(ISLAND);
+  });
+
+  it("проявление снимка сверху накрывает и вырез", () => {
+    // Иначе на iPhone светлая полоса кончалась бы ровно там, где стоит
+    // название, и зелёное слово легло бы на тёмную еду.
+    expect(heroLayout(0).topFade).toBe(150);
+    expect(heroLayout(ISLAND).topFade).toBe(ISLAND + 150);
+  });
+
+  it("текст и кнопка прижаты к нижней кромке снимка и вырез не повторяют", () => {
+    // Второе слагаемое с вырезом опустило бы кнопку на 59px дважды — ровно та
+    // ловушка, на которой попались кнопки экрана рецепта (#156).
+    expect(declaration(".home-hero", "justify-content")).toBe("flex-end");
+    expect(declaration(".home-hero-copy", "padding")).not.toContain("safe-top");
+    expect(declaration(".home-hero-copy", "padding")).not.toContain("safe-area");
+  });
+
+  it("на самом узком экране между названием и текстом остаётся место", () => {
+    // Замер живым прогоном: на 320px блок «заголовок + подзаголовок + кнопка +
+    // ссылка» занимает 269px. Свободного поля под названием при вырезе любого
+    // размера столько же, сколько при нулевом — оно от выреза не зависит.
+    const free = photoHeight(320) - heroLayout(0).brandBottom;
+    expect(free).toBe(photoHeight(320) - heroLayout(ISLAND).brandBottom + ISLAND);
+    expect(free).toBeGreaterThanOrEqual(280);
+  });
+});

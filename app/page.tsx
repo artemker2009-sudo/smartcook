@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import HomeContent from "@/components/HomeContent";
-import type { FeedPhoto } from "@/components/HomeFeed";
-import { feedWindowStartISO } from "@/lib/feedWindow";
-import { type DemoChip, filterAvailableChips } from "@/lib/demoChips";
+import { FEATURE_IDEAS } from "@/lib/features";
+import { HOME_IDEAS_COUNT, mskDateKey, pickDailyIdeas } from "@/lib/homeIdeas";
+import { IDEA_FEED_COLUMNS, toIdeaCard, type IdeaCard } from "@/lib/ideasFeed";
 import { SITE_URL, siteUrl } from "@/lib/site";
 import { readRows } from "@/lib/supabaseRead";
 
@@ -12,54 +12,20 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
 };
 
-// Главная (/). Серверный компонент (этап 10 W): контент блоков читается на
-// СЕРВЕРЕ и попадает в HTML сразу — раньше блоки грузились клиентом после
-// гидрации (тот же класс проблемы, что T) и появлялись с задержкой.
-// Интерактив и рецепт дня — в клиентском HomeContent.
+// Главная (/). Серверный компонент: контент блоков читается на СЕРВЕРЕ и
+// попадает в HTML сразу — карточки «Идей» видны и без JS.
 //
-// Кэш-ревалидация: кэш блюд под демо-чипы меняется редко → 5 минут; витрина
-// живее (новые фото за день) → 60 сек. explicit columns (CLAUDE.md): без
-// session_id/user_ref/is_visible в пейлоаде.
+// Окно ревалидации задано ЯВНО, а не выведено из запросов: набор «Идей на
+// сегодня» меняется в полночь по МСК, и от этого числа зависит, как быстро
+// закэшированная Главная подхватит новый набор. Пять минут — тот же бакет, что
+// у ленты «Идей» (значит тот же кэш на edge), и дольше пяти минут вчерашняя
+// четвёрка после полуночи не живёт.
 //
-// Блок «Совет дня» снят с Главной (этап H11) — вместе с ним ушёл и его
-// SSR-запрос к tips. Админка советов и таблица tips НЕ тронуты: вернуть блок =
-// вернуть getTip() и одну строку рендера в HomeContent.
-
-// Сбой запроса — исключение, а не пустой блок (lib/supabaseRead.ts). Пустая
-// витрина или пропавшие демо-чипы после секундного сбоя Supabase держались бы
-// до следующего окна ревалидации; теперь перегенерация падает, и отдаётся
-// прежняя Главная.
-function sbFetch<T>(path: string, revalidate: number): Promise<T[]> {
-  return readRows<T>(path, { revalidate });
-}
-
-// Блок «Новости проекта» снят с Главной (только UI + этот SSR-запрос). Админка
-// «Новости» и таблица news НЕ тронуты — компонент NewsBoard тоже на месте, так
-// что вернуть блок = вернуть getNews() и одну строку рендера в HomeContent.
-
-async function getFeed(): Promise<FeedPhoto[]> {
-  // feed_photos_public уже отсортирован (created_at desc) и не отдаёт user_ref.
-  // Тянем окно витрины (последние FEED_WINDOW_DAYS суток по МСК); режим
-  // «сегодня»/«на этой неделе» и скрытие пустого блока решает клиент по факту
-  // наполнения (lib/feedWindow.ts). recipe_id → кнопка «К рецепту» в карточке.
-  const since = encodeURIComponent(feedWindowStartISO());
-  return sbFetch<FeedPhoto>(
-    `feed_photos_public?select=id,created_at,user_name,recipe_title,recipe_id,photo_url,likes_count,liked_by_me&created_at=gte.${since}&order=created_at.desc&limit=20`,
-    60,
-  );
-}
-
-async function getDemoChips(): Promise<DemoChip[]> {
-  // Демо-чипы H8: читаем прогретые ключи блюд из публичного dish_cache и
-  // оставляем только те чипы-кандидаты, что реально есть в кэше. Таблица
-  // небольшая — тянем ключи целиком и пересекаем в памяти (без хрупкого
-  // in.()-фильтра с кириллицей). Кэш живёт долго → ревалидация 5 минут.
-  const rows = await sbFetch<{ query_key: string }>(
-    "dish_cache?select=query_key&limit=500",
-    300,
-  );
-  return filterAvailableChips(new Set(rows.map((r) => r.query_key)));
-}
+// Блоки, снятые с Главной вместе с их SSR-запросами (компоненты и таблицы НЕ
+// тронуты, вернуть = вернуть функцию-запрос и строку рендера):
+//   • витрина «Приготовили сегодня» — запрос к feed_photos_public;
+//   • демо-чипы H8 «магия без фото» — запрос к dish_cache.
+export const revalidate = 300;
 
 // JSON-LD Главной: WebSite (с кириллическим alternateName для брендовых
 // запросов «смарткук») + Organization. Помогает поисковику связать бренд
@@ -88,8 +54,32 @@ const JSON_LD = {
   ],
 };
 
+/**
+ * Четыре карточки блока «Идеи на сегодня».
+ *
+ * Читаем ВЕСЬ опубликованный каталог (он маленький, сотня-две строк) тем же
+ * запросом, что и лента «Идей»: одна строка запроса — один кэш на edge, и
+ * Главная не заводит собственного обращения к базе. Набор дня выбирается уже в
+ * памяти, детерминированно по дате (lib/homeIdeas.ts), поэтому у всех в один
+ * день он одинаковый и серверная разметка совпадает с клиентской.
+ *
+ * Сбой запроса — исключение, а не пустой блок (lib/supabaseRead.ts): иначе
+ * секундный сбой Supabase закэшировал бы Главную без «Идей» на пять минут для
+ * всех. Раздел выключен флагом — блока нет вовсе (на /ideas всё равно 404).
+ */
+async function getHomeIdeas(): Promise<IdeaCard[]> {
+  if (!FEATURE_IDEAS) return [];
+  const rows = await readRows<Parameters<typeof toIdeaCard>[0]>(
+    `idea_recipes?select=${IDEA_FEED_COLUMNS}` +
+      `&is_published=eq.true&order=sort_weight.desc,published_at.desc&limit=300`,
+    { revalidate },
+  );
+  const cards = rows.map(toIdeaCard).filter((c): c is IdeaCard => c !== null);
+  return pickDailyIdeas(cards, mskDateKey(), HOME_IDEAS_COUNT);
+}
+
 export default async function Home() {
-  const [feed, demoChips] = await Promise.all([getFeed(), getDemoChips()]);
+  const ideas = await getHomeIdeas();
   return (
     <>
       {/* Преднагрузка фотографии первого экрана — это LCP-кадр Главной.
@@ -108,7 +98,7 @@ export default async function Home() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
       />
-      <HomeContent feed={feed} demoChips={demoChips} />
+      <HomeContent ideas={ideas} />
     </>
   );
 }

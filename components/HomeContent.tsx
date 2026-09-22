@@ -1,48 +1,38 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Flame } from "lucide-react";
-import HeroLanding from "@/components/HeroLanding";
-import HowItWorks from "@/components/HowItWorks";
-import ShoppingEntryCard from "@/components/ShoppingEntryCard";
-import SuggestCard from "@/components/SuggestCard";
+import HomeHero from "@/components/home/HomeHero";
+import HomeCookResume from "@/components/home/HomeCookResume";
+import HomeIdeas from "@/components/home/HomeIdeas";
+import HomeShoppingCard from "@/components/home/HomeShoppingCard";
 import RuStoreBadge from "@/components/RuStoreBadge";
-import HomeFeed, { type FeedPhoto } from "@/components/HomeFeed";
-import type { DemoChip } from "@/lib/demoChips";
-import type { DailyRecipeType } from "@/lib/types";
+import type { IdeaCard } from "@/lib/ideasFeed";
 
-// Клиентская оболочка Главной (H11 «одно обещание, одна кнопка»). Порядок
-// блоков сверху вниз:
-//   1. первый экран — обещание + одна кнопка (весь viewport телефона)
-//   2. «Как это работает» + демо-чипы H8
-//   3. компактный вход в список покупок
-//   4. рецепт дня
-//   5. витрина «Приготовили сегодня»
-//   6. «Что добавить, а что убрать?»
+// Клиентская оболочка Главной (v2, утверждённый макет). Порядок блоков сверху
+// вниз — и больше на Главной ничего нет:
+//   1. первый экран: фотография продуктов, название, обещание, одна кнопка;
+//   2. «Вы собирались приготовить …» — только у вернувшегося;
+//   3. «Идеи на сегодня»: четыре карточки каталога + «Больше идей»;
+//   4. «Список покупок»: что это и кнопка в раздел;
+//   5. плашка RuStore (только Android в браузере — решает сам компонент) и
+//      подвал, который рисует LayoutGate в root-layout.
 //
-// Что снято с Главной в этом этапе (компоненты и роуты НЕ удалены, вернуть =
-// одна строка рендера): плавающий хамбургер (дублировал таб-бар и тащил на
-// Главную банкеты с лентой; позже снят и с остальных страниц — компонент
-// AppNavigation удалён), ProcessAnimation, ShoppingPromoBanner,
-// ShoppingFeatureCard (заменён компактным ShoppingEntryCard), «Совет дня»
-// (вместе с SSR-запросом tips в app/page.tsx), ссылка «Смотреть все блюда в
-// ленте». Раньше отсюда же уехали «Кухонные заметки» (/articles) и «Новости».
+// Что снято с Главной в этом этапе. Компоненты и роуты НЕ удалены — вернуть
+// каждый значит вернуть одну строку рендера:
+//   • HowItWorks («Сфотографируйте → Выберите → Готовьте») вместе с чипами H8
+//     и SSR-запросом к dish_cache;
+//   • «Рецепт дня» вместе с клиентским запросом /api/daily;
+//   • витрина «Приготовили сегодня» (HomeFeed) вместе с SSR-запросом к
+//     feed_photos — её место заняли «Идеи»;
+//   • ShoppingEntryCard («Мой список покупок») — заменён карточкой раздела;
+//   • SuggestCard («Что добавить, а что убрать?») — переехал в Профиль, вниз.
+// Раньше отсюда же уехали «Совет дня», «Кухонные заметки» и «Новости».
 //
-// Тяжёлый контент (первые фото витрины, доступные демо-чипы) приходит готовым
-// пропом из серверного app/page.tsx — он в HTML сразу, без запроса после
-// гидрации. Рецепт дня остаётся клиентским (генерится через OpenAI с кэшом по
-// дате — блокировать им SSR Главной нельзя), у него скелет фиксированной
-// высоты — без прыжка макета.
-export default function HomeContent({
-  feed,
-  demoChips,
-}: {
-  feed: FeedPhoto[];
-  demoChips: DemoChip[];
-}) {
+// Весь контент блоков приходит готовым пропом из серверного app/page.tsx — он
+// в HTML сразу, без единого запроса после гидрации.
+export default function HomeContent({ ideas }: { ideas: IdeaCard[] }) {
   const router = useRouter();
-  const [daily, setDaily] = useState<DailyRecipeType | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -55,68 +45,16 @@ export default function HomeContent({
     }
   }, [router]);
 
-  useEffect(() => {
-    let alive = true;
-    fetch("/api/daily")
-      .then((res) => res.json())
-      .then((json) => {
-        if (alive && json && json.title && !json.error) setDaily(json);
-      })
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, []);
-
   return (
     <div className="container container-home">
-      <HeroLanding />
-
-      <HowItWorks demoChips={demoChips} />
-
-      <ShoppingEntryCard />
-
-      {/* Рецепт дня. Клик ведёт в полноэкранный вид на /search. */}
-      <button
-        type="button"
-        className={`daily-teaser${daily ? " daily-teaser-in" : ""}`}
-        onClick={() => router.push("/search?daily=true")}
-        aria-label="Открыть рецепт дня"
-      >
-        <div style={{ background: "var(--color-accent-subtle)", padding: "var(--space-2)", borderRadius: "var(--radius-sm)" }}>
-          <Flame color="var(--color-accent)" size={24} />
-        </div>
-        <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: "2px" }}>
-            <span className="daily-today-badge">Рецепт дня</span>
-            {daily?.date && (
-              <span style={{ fontSize: "var(--font-size-caption)", color: "var(--color-text-muted)", fontWeight: "var(--font-weight-medium)" }}>
-                {daily.date}
-              </span>
-            )}
-          </div>
-          {daily ? (
-            <div style={{ fontWeight: "var(--font-weight-semibold)", fontSize: "var(--font-size-body)", color: "var(--color-text)" }}>
-              {daily.title}
-            </div>
-          ) : (
-            <div className="sc-skel" style={{ height: "18px", width: "70%", marginTop: "var(--space-1)" }} />
-          )}
-        </div>
-      </button>
-
-      {/* Витрина «Приготовили сегодня». Ссылка «Смотреть все блюда в ленте»
-          (home_feed_open) с Главной снята — вход в ленту остался в профиле. */}
-      <HomeFeed initialItems={feed} />
-
-      {/* Обратная связь — последний блок Главной, прямо перед футером: просьба
-          рассказать, чего не хватает, уместна после того, как человек
-          посмотрел, что уже есть. */}
-      <SuggestCard />
+      <HomeHero />
+      <HomeCookResume />
+      <HomeIdeas cards={ideas} />
+      <HomeShoppingCard />
 
       {/* Плашка «Скачайте в RuStore» — только Android и только вне
-          установленного приложения (логика внутри компонента). Уехала сюда с
-          первого экрана: он теперь про одно обещание и одну кнопку. */}
+          установленного приложения (логика внутри компонента). Внизу, перед
+          подвалом: это точка входа в установку, а установка = возврат. */}
       <div className="home-store-badge">
         <RuStoreBadge />
       </div>

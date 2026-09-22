@@ -185,6 +185,18 @@ export function hasAnyFilter(filters: IdeaFilters): boolean {
   return !!filters.meal || !!filters.mainProduct || filters.quick || filters.fit;
 }
 
+/**
+ * Какое пустое состояние показать, когда в ленте ноль карточек.
+ *
+ * Два разных случая избранного нельзя склеивать: «ничего не сохранено» зовёт
+ * сохранить и выйти ко всем идеям, а «сохранённое есть, но фильтры его
+ * отсеяли» — сбросить фильтры. Раньше оба показывали «нажмите сердечко», и
+ * человек с тремя сохранёнными рецептами читал, что у него пусто.
+ */
+export function feedEmptyKind(state: { favOnly: boolean; favCount: number }): "fav-none" | "no-match" {
+  return state.favOnly && state.favCount === 0 ? "fav-none" : "no-match";
+}
+
 export function applyFilters(
   cards: IdeaCard[],
   filters: IdeaFilters,

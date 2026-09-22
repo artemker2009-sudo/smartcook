@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Clock, Heart } from "lucide-react";
+import { Clock, Heart, X } from "lucide-react";
 import IdeaCardLink from "@/components/IdeaCardLink";
 import { reachGoal } from "@/lib/metrika";
 import { useIdeaFavorites } from "@/lib/useIdeaFavorites";
@@ -23,6 +23,7 @@ import {
   SEED_KEY,
   SEEN_KEY,
   applyFilters,
+  feedEmptyKind,
   filtersToQuery,
   hasAnyFilter,
   orderCards,
@@ -500,6 +501,13 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
     router.replace(query ? `/ideas?${query}` : "/ideas", { scroll: false });
   };
 
+  // Выход из избранного — кнопкой, строкой «Показать все» и из пустого
+  // состояния. Цель одна на все три, как и была у сердечка.
+  const exitFavorites = () => {
+    setFavOnly(false);
+    reachGoal("ideas_filter", { filter: "fav_off" });
+  };
+
   const openCard = (card: IdeaCard) => {
     reachGoal("ideas_card_open", { slug: card.slug });
     // Помечаем открытым — повлияет на порядок СЛЕДУЮЩЕГО захода.
@@ -566,6 +574,8 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
       <header className="ideas-header">
         <div className="ideas-header-top">
           <h1 className="ideas-title">Идеи</h1>
+          {/* Включённое избранное — залитая кнопка с крестиком: сразу видно,
+              что лента сужена, и понятно, чем это снять. */}
           <button
             type="button"
             className={`ideas-fav${favOnly ? " is-on" : ""}`}
@@ -574,14 +584,21 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
             // 3» как два несвязанных слова.
             aria-label={favCount > 0 ? `Избранное, сохранено ${favCount}` : "Избранное"}
             onClick={() => {
-              const next = !favOnly;
-              setFavOnly(next);
+              if (favOnly) {
+                exitFavorites();
+                return;
+              }
+              setFavOnly(true);
               // Кнопка — тот же фильтр, что было сердечко, и цель у неё та же:
               // иначе воронка фильтров в Метрике развалится на две несравнимые.
-              reachGoal("ideas_filter", { filter: next ? "fav" : "fav_off" });
+              reachGoal("ideas_filter", { filter: "fav" });
             }}
           >
-            <Heart size={16} strokeWidth={2.25} fill={favOnly ? "currentColor" : "none"} aria-hidden />
+            {favOnly ? (
+              <X size={16} strokeWidth={2.5} aria-hidden />
+            ) : (
+              <Heart size={16} strokeWidth={2.25} aria-hidden />
+            )}
             <span>Избранное</span>
             {favCount > 0 && (
               <span className="ideas-fav-count" aria-hidden>
@@ -601,14 +618,26 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
         <ChipRow label="Приём пищи" className="ideas-chips-meal">
           {MEAL_CHIPS.map((chip) => {
             const value = chip.param ? MEAL_BY_PARAM[chip.param] : null;
-            const active = filters.meal === value;
+            const isAll = !chip.param;
+            // «Все» не горит, пока включено избранное: иначе человек видит
+            // активное «Все» и не понимает, почему лента короткая.
+            const active = isAll ? filters.meal === null && !favOnly : filters.meal === value;
             return (
               <button
                 key={chip.param || "all"}
                 type="button"
                 className={`ideas-chip${active ? " ideas-chip-active" : ""}`}
                 aria-pressed={active}
-                onClick={() => setFilters({ ...filters, meal: value }, chip.param || "all")}
+                onClick={() => {
+                  if (isAll) {
+                    // «Все» — сброс ВСЕГО: приёма пищи, второй строки и
+                    // избранного. Цель прежняя — "all".
+                    setFavOnly(false);
+                    setFilters(EMPTY_FILTERS, "all");
+                    return;
+                  }
+                  setFilters({ ...filters, meal: value }, chip.param);
+                }}
               >
                 {chip.label}
               </button>
@@ -656,6 +685,24 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
         )}
       </ChipRow>
 
+      {favOnly && (
+        <p className="ideas-fav-note" role="status">
+          Показаны только сохранённые ·{" "}
+          {/* Ссылка, а не кнопка: ведёт на тот же адрес, что лента без
+              избранного (оно в адресе не живёт), — открывается и в новой
+              вкладке. В этой вкладке просто снимаем фильтр без перехода. */}
+          <a
+            href={filtersToQuery(filters) ? `/ideas?${filtersToQuery(filters)}` : "/ideas"}
+            onClick={(e) => {
+              e.preventDefault();
+              exitFavorites();
+            }}
+          >
+            Показать все
+          </a>
+        </p>
+      )}
+
       {/* Мягкая формулировка: это подбор по составу, который написали мы, а не
           гарантия безопасности. Предупреждение про аллергены на экране рецепта
           остаётся в любом случае. */}
@@ -665,13 +712,19 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
 
       <div className={`ideas-content${faded ? " is-faded" : ""}`}>
       {visible.length === 0 ? (
+        feedEmptyKind({ favOnly, favCount }) === "fav-none" ? (
+          <div className="feed-empty">
+            <p className="feed-empty-text">
+              Пока ничего не сохранено. Нажмите сердечко на рецепте — он появится здесь
+            </p>
+            <button type="button" className="btn-primary feed-empty-cta" onClick={exitFavorites}>
+              Ко всем идеям
+            </button>
+          </div>
+        ) : (
         <div className="feed-empty">
-          <p className="feed-empty-text">
-            {favOnly
-              ? "Пока пусто. Нажмите на сердечко в рецепте — и он появится здесь"
-              : "Таких блюд пока нет"}
-          </p>
-          {!favOnly && hasAnyFilter(filters) && (
+          <p className="feed-empty-text">Таких блюд пока нет</p>
+          {hasAnyFilter(filters) && (
             <button
               type="button"
               className="btn-primary feed-empty-cta"
@@ -681,6 +734,7 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
             </button>
           )}
         </div>
+        )
       ) : (
         <div className="ideas-grid" style={{ ["--ideas-columns" as string]: String(columns) }}>
           {columnCards.map((column, columnIndex) => (

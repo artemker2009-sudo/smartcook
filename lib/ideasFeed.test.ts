@@ -18,6 +18,7 @@ import {
   toIdeaCard,
   IDEA_FEED_COLUMNS,
   type IdeaCard,
+  feedEmptyKind,
 } from "./ideasFeed";
 import { buildTasteMatcher } from "./ideasTaste";
 
@@ -382,5 +383,17 @@ describe("миниатюра в карточке ленты", () => {
   it("миниатюры нет — null, не undefined", () => {
     expect(toIdeaCard({ ...base, thumb_url: null })?.thumbUrl).toBeNull();
     expect(toIdeaCard(base)?.thumbUrl).toBeNull();
+  });
+});
+
+describe("пустое состояние ленты", () => {
+  it("избранное включено и ничего не сохранено — зовём сохранить и ко всем идеям", () => {
+    expect(feedEmptyKind({ favOnly: true, favCount: 0 })).toBe("fav-none");
+  });
+  it("сохранённое есть, но фильтры его отсеяли — это «таких блюд нет», а не «пусто»", () => {
+    expect(feedEmptyKind({ favOnly: true, favCount: 3 })).toBe("no-match");
+  });
+  it("без избранного — обычное «таких блюд нет»", () => {
+    expect(feedEmptyKind({ favOnly: false, favCount: 0 })).toBe("no-match");
   });
 });

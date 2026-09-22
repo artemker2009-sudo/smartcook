@@ -4563,7 +4563,15 @@ body.has-addbar { padding-bottom: calc(var(--tab-bar-total) + 72px); }
   cursor: pointer;
 }
 .ideas-fav svg { color: var(--ideas-green); flex: 0 0 auto; }
-.ideas-fav.is-on { border-color: var(--ideas-ink); }
+/* Включено: заливка + крестик вместо сердца. Состояние читается и без
+   цвета — по форме значка. */
+.ideas-fav.is-on {
+  background: var(--ideas-green);
+  border-color: var(--ideas-green);
+  color: #FFFFFF;
+}
+.ideas-fav.is-on svg { color: #FFFFFF; }
+.ideas-fav.is-on .ideas-fav-count { background: #FFFFFF; color: var(--ideas-green); }
 /* Зона нажатия 44px при видимой высоте 36. */
 .ideas-fav::after { content: ""; position: absolute; inset: -4px 0; }
 .ideas-fav-count {
@@ -4702,6 +4710,18 @@ body.has-addbar { padding-bottom: calc(var(--tab-bar-total) + 72px); }
 }
 .ideas-meal-bar.is-stuck .ideas-chips-row { --ideas-fade-bg: rgb(247, 247, 244); }
 
+.ideas-fav-note {
+  margin: -8px 0 16px 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ideas-muted);
+}
+.ideas-fav-note a {
+  color: var(--ideas-green);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 .ideas-note {
   margin: -8px 0 16px 0;
   font-size: var(--font-size-caption);

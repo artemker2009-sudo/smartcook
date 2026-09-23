@@ -273,8 +273,8 @@ describe("первый экран Главной: вырез прибавляе�
   });
 
   it("название стоит под часами, а не под ними же", () => {
-    expect(heroLayout(0).brandTop).toBe(62);
-    expect(heroLayout(ISLAND).brandTop).toBe(ISLAND + 62);
+    expect(heroLayout(0).brandTop).toBe(44);
+    expect(heroLayout(ISLAND).brandTop).toBe(ISLAND + 44);
     // Ключевое: название начинается НИЖЕ безопасной зоны, а не внутри неё.
     expect(heroLayout(ISLAND).brandTop).toBeGreaterThan(ISLAND);
   });
@@ -282,8 +282,17 @@ describe("первый экран Главной: вырез прибавляе�
   it("проявление снимка сверху накрывает и вырез", () => {
     // Иначе на iPhone светлая полоса кончалась бы ровно там, где стоит
     // название, и зелёное слово легло бы на тёмную еду.
-    expect(heroLayout(0).topFade).toBe(150);
-    expect(heroLayout(ISLAND).topFade).toBe(ISLAND + 150);
+    expect(heroLayout(0).topFade).toBe(100);
+    expect(heroLayout(ISLAND).topFade).toBe(ISLAND + 100);
+  });
+
+  it("название целиком лежит внутри светлого проявления", () => {
+    // Полоса проявления короче, чем была, поэтому связь «название внутри
+    // неё» перестала быть очевидной из чисел и сторожится отдельно — при
+    // обоих вырезах, чтобы правку одного из двух слагаемых было видно.
+    for (const inset of [0, ISLAND]) {
+      expect(heroLayout(inset).brandBottom).toBeLessThanOrEqual(heroLayout(inset).topFade);
+    }
   });
 
   it("текст и кнопка прижаты к нижней кромке снимка и вырез не повторяют", () => {

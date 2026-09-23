@@ -1,0 +1,58 @@
+import { NextResponse } from "next/server";
+
+import { createServiceRoleClient } from "@/lib/supabaseAdmin";
+import { isTrustedOrigin, originBlockedResponse } from "@/lib/originGuard";
+import { parsePlatform, parseVisitorKind } from "@/lib/platform";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+/**
+ * Отметка о заходе: платформа (сайт / приложение iOS / приложение RuStore) и
+ * первый ли это раз на устройстве. Пишет components/PlatformHit — один раз за
+ * сеанс, не на каждый экран.
+ *
+ * ПОЧЕМУ РОУТ, А НЕ ПРЯМАЯ ВСТАВКА АНОНИМНЫМ КЛЮЧОМ. Таблица analytics_events
+ * открыта анониму на INSERT — это осознанное решение для событий банкета
+ * (supabase_admin_tables_rls.sql), и аудит из CLAUDE.md её ожидает в выдаче.
+ * Но добавлять туда ещё и статистику платформ по тому же пути значит отдать
+ * её на подделку любому, у кого есть ключ из бандла: одна страница в цикле — и
+ * доля iOS какая угодно. Здесь вставка идёт сервис-ролью, значения проверены
+ * по списку, а лишних полей в запись не попадает.
+ *
+ * ЧЕГО ЗДЕСЬ НЕТ НАМЕРЕННО: никакого идентификатора устройства. «Новый или
+ * вернувшийся» приходит готовым словом — отметку о том, что устройство уже
+ * было, держит у себя клиент. Сервер не заводит ни cookie, ни ключа, по
+ * которому два захода можно связать между собой.
+ */
+export async function POST(req: Request) {
+  if (!isTrustedOrigin(req)) return originBlockedResponse();
+
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Некорректный запрос" }, { status: 400 });
+  }
+
+  const raw = body as { platform?: unknown; visitor?: unknown };
+  const platform = parsePlatform(raw.platform);
+  const visitor = parseVisitorKind(raw.visitor);
+  if (!platform || !visitor) {
+    return NextResponse.json({ error: "Некорректные данные" }, { status: 400 });
+  }
+
+  const supabase = createServiceRoleClient();
+  const { error } = await supabase
+    .from("analytics_events")
+    .insert([{ event_type: "visit", platform, visitor }]);
+
+  if (error) {
+    // Статистика не должна ронять заход. Пишем в лог и отвечаем «принято»:
+    // клиент всё равно не станет повторять — см. PlatformHit.
+    console.error("[platformHit] insert failed", error.message);
+    return NextResponse.json({ ok: false }, { status: 202 });
+  }
+
+  return NextResponse.json({ ok: true });
+}

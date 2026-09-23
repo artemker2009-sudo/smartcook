@@ -75,6 +75,28 @@ type ResetRequest = {
   status?: string | null;
 };
 
+// Заходы по платформам. null — «посчитать не удалось», почти всегда это
+// непрогнанная миграция supabase_analytics_platform.sql. Отличать этот случай
+// от нуля заходов обязательно: раздел с нулями читается как «приложениями
+// никто не пользуется», а это совсем другой вывод.
+type PlatformRow = {
+  platform: "web" | "ios_app" | "android_twa";
+  visits: number;
+  newVisitors: number;
+  returning: number;
+};
+
+type PlatformStats = {
+  days7: PlatformRow[];
+  days30: PlatformRow[];
+};
+
+const PLATFORM_LABELS: Record<PlatformRow["platform"], string> = {
+  web: "Сайт",
+  ios_app: "Приложение iOS",
+  android_twa: "Приложение Android (RuStore)",
+};
+
 const EMPTY_STATS: DashboardStats = {
   parties: [],
   recentEvents: [],
@@ -160,7 +182,7 @@ type ImagesStatus = {
   maxBatch: number;
 };
 
-type TabId = "management" | "analytics" | "purchases" | "news" | "articles" | "ideas" | "tips" | "feed" | "images" | "warmup" | "requests" | "errors" | "reports" | "suggestions";
+type TabId = "management" | "analytics" | "platforms" | "purchases" | "news" | "articles" | "ideas" | "tips" | "feed" | "images" | "warmup" | "requests" | "errors" | "reports" | "suggestions";
 
 // Что показать, когда сервер ответил 401. Админ-сессия живёт 12 часов
 // (lib/adminAuth.ts), и вкладка, оставленная открытой на ночь, доживает до
@@ -247,6 +269,7 @@ type CommunityReport = {
 const TABS = [
   { id: "management" as TabId, label: "⚙️ Управление", hint: "Статус сайта и техработы" },
   { id: "analytics" as TabId, label: "📊 Аналитика", hint: "Живые метрики и события" },
+  { id: "platforms" as TabId, label: "📱 Платформы", hint: "Откуда заходят: сайт, iOS, RuStore" },
   { id: "purchases" as TabId, label: "💳 История покупок", hint: "Только оплаченные банкеты" },
   { id: "news" as TabId, label: "📰 Новости", hint: "Новости проекта на главной" },
   { id: "articles" as TabId, label: "📝 Заметки", hint: "Кухонные заметки на главной" },
@@ -380,6 +403,7 @@ export default function AdminPage() {
   const [actingReportId, setActingReportId] = useState<string | null>(null);
   // Заявки на восстановление доступа (вкладка «Заявки на доступ»).
   const [resetRequests, setResetRequests] = useState<ResetRequest[]>([]);
+  const [platformStats, setPlatformStats] = useState<PlatformStats | null>(null);
   const [issuingRequestId, setIssuingRequestId] = useState<string | null>(null);
   const [closingRequestId, setClosingRequestId] = useState<string | null>(null);
   const [requestsError, setRequestsError] = useState("");
@@ -525,6 +549,7 @@ export default function AdminPage() {
         parties: (data.parties as PartyRecord[] | null) ?? [],
         recentEvents: (data.recentEvents as AnalyticsEvent[] | null) ?? [],
       });
+      setPlatformStats((data.platforms as PlatformStats | null) ?? null);
       setErrorReports((data.errorReports as ErrorReport[] | null) ?? []);
       setResetRequests((data.resetRequests as ResetRequest[] | null) ?? []);
       setFeedPhotos((data.feedPhotos as FeedPhoto[] | null) ?? []);
@@ -2202,6 +2227,80 @@ export default function AdminPage() {
               </div>
 
             </section>
+          ) : null}
+
+          {activeTab === "platforms" ? (
+            <div className="space-y-8">
+              {platformStats === null ? (
+                <section className="rounded-[2rem] border border-amber-200 bg-amber-50 px-6 py-5">
+                  <h3 className="text-lg font-semibold text-amber-900">Данные ещё не собираются</h3>
+                  <p className="mt-2 text-sm leading-6 text-amber-800">
+                    {isAnalyticsLoading
+                      ? "Загружаю…"
+                      : "Не удалось посчитать заходы по платформам. Чаще всего это значит, что миграция supabase_analytics_platform.sql ещё не прогнана — в таблице нет колонок platform и visitor. Это НЕ «ноль заходов»: пока миграции нет, платформа просто никуда не записывается."}
+                  </p>
+                </section>
+              ) : (
+                <>
+                  <section className="rounded-[2rem] border border-zinc-200 bg-white px-6 py-5 shadow-sm">
+                    <h3 className="text-2xl font-semibold tracking-tight text-zinc-950">Откуда заходят</h3>
+                    <p className="mt-2 text-sm leading-6 text-zinc-600">
+                      Один заход = один сеанс, а не экран. Новый или вернувшийся определяется отметкой
+                      на устройстве: человек с очищенным хранилищем посчитается новым ещё раз.
+                    </p>
+                  </section>
+
+                  {([
+                    { title: "За 7 дней", rows: platformStats.days7 },
+                    { title: "За 30 дней", rows: platformStats.days30 },
+                  ] as const).map(({ title, rows }) => {
+                    const total = rows.reduce((sum, r) => sum + r.visits, 0);
+                    return (
+                      <section
+                        key={title}
+                        className="overflow-hidden rounded-[2rem] border border-zinc-200 bg-white shadow-sm"
+                      >
+                        <div className="flex items-center justify-between gap-4 border-b border-zinc-200 px-6 py-5">
+                          <h3 className="text-xl font-semibold tracking-tight text-zinc-950">{title}</h3>
+                          <p className="text-sm text-zinc-500">Всего заходов: {total}</p>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-sm">
+                            <thead className="bg-zinc-50 text-xs uppercase tracking-wider text-zinc-500">
+                              <tr>
+                                <th className="px-6 py-3 font-semibold">Платформа</th>
+                                <th className="px-6 py-3 font-semibold">Заходов</th>
+                                <th className="px-6 py-3 font-semibold">Доля</th>
+                                <th className="px-6 py-3 font-semibold">Новые</th>
+                                <th className="px-6 py-3 font-semibold">Вернувшиеся</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-zinc-100">
+                              {rows.map((row) => (
+                                <tr key={row.platform}>
+                                  <td className="px-6 py-4 font-medium text-zinc-900">
+                                    {PLATFORM_LABELS[row.platform]}
+                                  </td>
+                                  <td className="px-6 py-4 tabular-nums text-zinc-700">{row.visits}</td>
+                                  <td className="px-6 py-4 tabular-nums text-zinc-700">
+                                    {/* Ноль заходов — прочерк, а не «0%»: доля от нуля
+                                        не определена, и рисовать её числом значит
+                                        показывать результат там, где его нет. */}
+                                    {total === 0 ? "—" : `${Math.round((row.visits / total) * 100)}%`}
+                                  </td>
+                                  <td className="px-6 py-4 tabular-nums text-zinc-700">{row.newVisitors}</td>
+                                  <td className="px-6 py-4 tabular-nums text-zinc-700">{row.returning}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </section>
+                    );
+                  })}
+                </>
+              )}
+            </div>
           ) : null}
 
           {activeTab === "analytics" ? (

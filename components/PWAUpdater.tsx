@@ -43,15 +43,69 @@ import { toast } from "sonner";
  *
  * Сам сервис-воркер этот файл НЕ ТРОГАЕТ: ни одной настройки workbox, ни строки
  * в public/sw.js. Здесь только отправка сообщения уже существующему воркеру.
+ *
+ * КОГДА ПЛАШКА ПОЯВЛЯЕТСЯ — И ТОЛЬКО ТОГДА:
+ *   1. в очереди реально стоит новый воркер (reg.waiting либо только что
+ *      доустановившийся installing), И
+ *   2. страницу уже контролирует воркер (controller !== null) — иначе это
+ *      первая установка, и обновлять нечего, И
+ *   3. про эту версию человеку ещё не говорили (см. OFFERED_KEY ниже).
+ * В нативной оболочке не появляется никогда: воркера в WKWebView нет вовсе, да
+ * и компонент до этого места не доходит (обёртка внизу файла).
  */
 
 // Один и тот же id — sonner не покажет два предложения, если обновление
 // заметили и на загрузке, и при возврате в приложение.
 const TOAST_ID = "sw-update-available";
 
+// ПОЧЕМУ ПЛАШКА ПОЯВЛЯЛАСЬ СЛИШКОМ ЧАСТО.
+//
+// Флаг «уже предлагали» был обычным ref — он живёт ровно столько, сколько живёт
+// страница. А новая версия с skipWaiting: false стоит в очереди до тех пор,
+// пока не закроется ПОСЛЕДНИЙ клиент на старой; в установленном приложении
+// документ замораживается, а не закрывается, и очередь может стоять сутками.
+// Получалось: человек закрыл предложение — и видел его снова при каждом
+// открытии и каждой перезагрузке, про одну и ту же версию.
+//
+// Теперь отметка о показе переживает перезагрузку и привязана к ВЕРСИИ, на
+// которой человек сидит: сказали про обновление один раз — и молчим, пока он не
+// обновится. После обновления метка сборки другая, и о следующей версии снова
+// можно сказать. Отметку ставим в момент показа: и «Обновить», и закрытие
+// крестиком одинаково означают, что человек про обновление уже знает.
+const OFFERED_KEY = "sc_sw_update_offered";
+// Метку подставляет сборка (next.config.ts → env.NEXT_PUBLIC_BUILD_ID): на
+// Vercel это SHA коммита.
+const BUILD_ID = process.env.NEXT_PUBLIC_BUILD_ID || "dev";
+
+function alreadyOfferedForThisVersion(): boolean {
+  try {
+    return localStorage.getItem(OFFERED_KEY) === BUILD_ID;
+  } catch {
+    // Приватный режим — отметку не сохранить. Тогда работает хотя бы ref в
+    // пределах страницы: предложим один раз за заход, а не ни разу.
+    return false;
+  }
+}
+
+function rememberOffered(): void {
+  try {
+    localStorage.setItem(OFFERED_KEY, BUILD_ID);
+  } catch {
+    /* см. выше */
+  }
+}
+
+// Как часто вообще спрашивать сервер про новую версию. Проверка висела на
+// КАЖДОМ возврате в приложение — то есть на каждом переключении между
+// приложениями уходил запрос за sw.js. Пятнадцати минут хватает, чтобы
+// починка доехала за тот же заход, и достаточно, чтобы перестать дёргать сеть
+// на каждое пробуждение экрана.
+const CHECK_INTERVAL_MS = 15 * 60 * 1000;
+
 function PWAUpdaterInner() {
   // Предложение показываем один раз за жизнь страницы: человек либо нажал, либо
-  // сознательно закрыл, и навязываться второй раз — это уже мигание.
+  // сознательно закрыл, и навязываться второй раз — это уже мигание. Второй
+  // заслон, переживающий перезагрузку, — отметка в localStorage (OFFERED_KEY).
   const offered = useRef(false);
   // Защита от двойной перезагрузки: controllerchange и страховочный таймер
   // могут сработать оба.
@@ -83,8 +137,9 @@ function PWAUpdaterInner() {
 
   const offerUpdate = useCallback(
     (waiting: ServiceWorker) => {
-      if (offered.current) return;
+      if (offered.current || alreadyOfferedForThisVersion()) return;
       offered.current = true;
+      rememberOffered();
 
       toast("Доступна новая версия", {
         id: TOAST_ID,
@@ -132,7 +187,13 @@ function PWAUpdaterInner() {
       });
     };
 
-    const checkForUpdate = () => {
+    // Время последнего похода за sw.js. Ноль — ещё не ходили.
+    let lastCheck = 0;
+
+    const checkForUpdate = (force: boolean) => {
+      const now = Date.now();
+      if (!force && now - lastCheck < CHECK_INTERVAL_MS) return;
+      lastCheck = now;
       navigator.serviceWorker
         .getRegistration()
         .then((reg) => {
@@ -145,10 +206,10 @@ function PWAUpdaterInner() {
         });
     };
 
-    checkForUpdate();
+    checkForUpdate(true);
 
     const onVisibility = () => {
-      if (document.visibilityState === "visible") checkForUpdate();
+      if (document.visibilityState === "visible") checkForUpdate(false);
     };
     document.addEventListener("visibilitychange", onVisibility);
 

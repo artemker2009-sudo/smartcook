@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import IdeasFeed from "@/components/IdeasFeed";
+import AppPromoStrip from "@/components/AppPromoStrip";
 import { FEATURE_IDEAS, IDEAS_INDEXABLE } from "@/lib/features";
 import { IDEA_FEED_COLUMNS, toIdeaCard, type IdeaCard } from "@/lib/ideasFeed";
 import { readRows } from "@/lib/supabaseRead";
@@ -48,6 +49,12 @@ export default async function IdeasPage() {
 
   return (
     <div className="ideas-page">
+      {/* Строка «Удобнее в приложении» — только Android в браузере, сама решает,
+          показываться ли (см. AppPromoStrip). Стоит ВЫШЕ ленты и вне
+          IdeasFeed: внутри она уезжала бы вместе с жестом «потянуть, чтобы
+          обновить», который двигает всю ленту трансформом. */}
+      <AppPromoStrip />
+
       {/* Заголовок ленты живёт ВНУТРИ IdeasFeed: рядом с ним стоит кнопка
           «Избранное», переключающая фильтр избранного, а фильтры — состояние ленты, из
           серверного компонента его не достать. На SSR это не влияет: клиентский

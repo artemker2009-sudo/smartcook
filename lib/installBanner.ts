@@ -10,6 +10,19 @@ export type InstallPlatform = "ios" | "android" | "other";
 // «ушёл в стор» — различаются они только длиной паузы.
 export const SNOOZE_KEY = "sc_install_banner_snoozed_until";
 
+/**
+ * Пауза компактной строки «Удобнее в приложении» на /shopping и /ideas.
+ *
+ * Ключ СВОЙ, а не общий с большой плашкой, и это осознанно: строка и плашка
+ * живут на разных экранах и закрываются по разным поводам. Общий ключ означал
+ * бы, что крестик на строке в покупках заодно выключает приглашение на поиске —
+ * человек закрыл одно, а замолчало другое.
+ */
+export const APP_STRIP_KEY = "sc_app_strip_snoozed_until";
+
+/** Крестик на компактной строке: молчим 30 дней. */
+export const APP_STRIP_DAYS = 30;
+
 /** Крестик: человек сказал «не сейчас» — молчим две недели. */
 export const DISMISS_DAYS = 14;
 /**
@@ -51,21 +64,26 @@ export function snoozeValue(now: number, days: number): string {
   return String(now + days * DAY_MS);
 }
 
-/** Читает паузу из localStorage. Приватный режим → считаем, что паузы нет. */
-export function isSnoozedNow(): boolean {
+/**
+ * Читает паузу из localStorage. Приватный режим → считаем, что паузы нет.
+ *
+ * Ключ параметром, потому что пауз у нас две и они независимы: большая плашка
+ * (SNOOZE_KEY) и компактная строка (APP_STRIP_KEY).
+ */
+export function isSnoozedNow(key: string = SNOOZE_KEY): boolean {
   if (typeof window === "undefined") return true;
   try {
-    return isSnoozed(localStorage.getItem(SNOOZE_KEY), Date.now());
+    return isSnoozed(localStorage.getItem(key), Date.now());
   } catch {
     return false;
   }
 }
 
 /** Ставит паузу на указанное число дней. */
-export function snooze(days: number): void {
+export function snooze(days: number, key: string = SNOOZE_KEY): void {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(SNOOZE_KEY, snoozeValue(Date.now(), days));
+    localStorage.setItem(key, snoozeValue(Date.now(), days));
   } catch {
     // Приватный режим / переполнение: пауза не сохранится, плашка появится в
     // следующий раз. Ломать интерфейс из-за этого нельзя.

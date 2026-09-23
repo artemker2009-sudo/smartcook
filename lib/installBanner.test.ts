@@ -5,6 +5,9 @@ import {
   snoozeValue,
   DISMISS_DAYS,
   CLICK_DAYS,
+  APP_STRIP_DAYS,
+  APP_STRIP_KEY,
+  SNOOZE_KEY,
 } from "./installBanner";
 
 const NOW = 1_756_000_000_000; // фиксированный «сейчас», тесты не зависят от часов
@@ -77,5 +80,19 @@ describe("snoozeValue", () => {
     const dismissed = Number(snoozeValue(NOW, DISMISS_DAYS));
     const clicked = Number(snoozeValue(NOW, CLICK_DAYS));
     expect(clicked).toBeGreaterThan(dismissed);
+  });
+});
+
+describe("пауза компактной строки «Удобнее в приложении»", () => {
+  it("крестик молчит ровно 30 дней", () => {
+    const raw = snoozeValue(NOW, APP_STRIP_DAYS);
+    expect(isSnoozed(raw, NOW + 29 * DAY)).toBe(true);
+    expect(isSnoozed(raw, NOW + 31 * DAY)).toBe(false);
+  });
+
+  // Ключи обязаны быть РАЗНЫМИ: общий означал бы, что крестик на строке в
+  // покупках заодно выключает большую плашку на поиске, и наоборот.
+  it("хранится отдельно от паузы большой плашки", () => {
+    expect(APP_STRIP_KEY).not.toBe(SNOOZE_KEY);
   });
 });

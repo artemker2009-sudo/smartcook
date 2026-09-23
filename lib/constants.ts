@@ -17,6 +17,13 @@ export const DONATE_URL = "https://pay.cloudtips.ru/p/6f66d8e3";
 // (pro.smart_cook.twa), и «очевидная» сборка pro.smartcook.twa даёт 404.
 export const RUSTORE_URL = "https://www.rustore.ru/catalog/app/pro.smart_cook.twa";
 
+// Идентификатор приложения SmartCook в App Store. Нужен ровно одному тегу —
+// <meta name="apple-itunes-app">, по которому Safari на iPhone сам рисует свой
+// Smart App Banner поверх страницы. Своей плашки для iOS мы не рисуем: у
+// системной есть то, чего у нашей быть не может — «Открыть» вместо «Загрузить»
+// у тех, кто уже поставил приложение.
+export const APPLE_ITUNES_APP_ID = "6811547293";
+
 // CPA-партнёрка «Купер» (доставка продуктов) — блок «Нужно купить» на экране
 // рецепта. Ссылка сгенерирована в кабинете партнёра, токен ОРД уже вшит в неё
 // параметром erid. ВАЖНО: строку НЕ модифицировать и не пересобирать —

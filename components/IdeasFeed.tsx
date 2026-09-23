@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Clock, Heart, X } from "lucide-react";
+import { ArrowRight, Clock, Heart, Search, X } from "lucide-react";
 import IdeaCardLink from "@/components/IdeaCardLink";
 import { reachGoal } from "@/lib/metrika";
 import { useIdeaFavorites } from "@/lib/useIdeaFavorites";
@@ -24,8 +24,8 @@ import {
   SEEN_KEY,
   applyFilters,
   feedEmptyKind,
-  filtersToQuery,
   hasAnyFilter,
+  ideasUrl,
   orderCards,
   newSeed,
   parseFilters,
@@ -35,6 +35,12 @@ import {
   type IdeaCard,
   type IdeaFilters,
 } from "@/lib/ideasFeed";
+import {
+  MAX_IDEAS_QUERY_LENGTH,
+  buildSearchEntries,
+  sanitizeIdeasQuery,
+  searchCards,
+} from "@/lib/ideasSearch";
 
 // Лента «Идеи». Сервер отдал весь опубликованный каталог в каноническом
 // порядке; здесь решаются три вещи: порядок захода, фильтры и раскладка.
@@ -54,6 +60,11 @@ const MAIN_CHIPS = Object.entries(MAIN_BY_PARAM).map(([param, value]) => ({
   param,
   label: value.charAt(0).toUpperCase() + value.slice(1),
 }));
+
+// Сколько ждём после последней буквы, прежде чем отправить цель поиска в
+// Метрику. Полсекунды мало (человек делает паузу посреди слова), две — много:
+// он успевает уйти в рецепт, и цель не уйдёт вовсе.
+const SEARCH_GOAL_DELAY_MS = 900;
 
 // Сколько картинок грузим сразу. Первый экран — это четыре карточки в две
 // колонки; остальное lazy, иначе восемьдесят картинок стартуют одновременно.
@@ -162,6 +173,11 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
   // Теперь сервер отдаёт полный грид без фильтров, а клиент применяет фильтры
   // в layout-эффекте, то есть до отрисовки кадра.
   const [filters, setFiltersState] = useState<IdeaFilters>(EMPTY_FILTERS);
+  // Поисковый запрос. Живёт в адресе рядом с чипами (?q=), поэтому ссылку на
+  // «идеи с рукколой» можно отправить. В IdeaFilters не кладём: чипы это
+  // закрытый список значений, а это свободный текст, и общего у них только
+  // место в адресе.
+  const [query, setQueryState] = useState("");
 
   // Порядок захода. null = ещё не считали, показываем канонический порядок
   // сервера — он корректен сам по себе, просто не перемешан.
@@ -275,7 +291,9 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
 
     // Фильтры из адреса — здесь же: и при первом заходе, и при возврате из
     // рецепта (возврат размонтирует ленту, эффект выполнится заново).
-    setFiltersState(parseFilters(new URLSearchParams(window.location.search)));
+    const params = new URLSearchParams(window.location.search);
+    setFiltersState(parseFilters(params));
+    setQueryState(sanitizeIdeasQuery(params.get("q")));
 
     const freshVisit = shouldStartNewVisit({
       isFirstMountInDocument: !mountedInThisDocument,
@@ -483,23 +501,54 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
     };
   }, []);
 
+  // Разбор каталога на основы — один раз на набор карточек, а не на каждую
+  // букву в поле.
+  const searchEntries = useMemo(() => buildSearchEntries(initialCards), [initialCards]);
+  const searching = query.trim().length > 0;
+
   const visible = useMemo(() => {
     const filtered = applyFilters(ordered ?? initialCards, filters, taste);
-    return favOnly ? filtered.filter((card) => favorites.has(card.slug)) : filtered;
-  }, [ordered, initialCards, filters, taste, favOnly, favorites]);
+    const byFav = favOnly ? filtered.filter((card) => favorites.has(card.slug)) : filtered;
+    if (!searching) return byFav;
+    // Поиск идёт ПОСЛЕ чипов и по-своему: он не фильтрует ленту, а строит
+    // собственный порядок — от самых близких совпадений. Поэтому отбираем
+    // среди уже отфильтрованного, но порядок берём поисковый.
+    const allowed = new Set(byFav.map((c) => c.slug));
+    return searchCards(searchEntries, query).filter((card) => allowed.has(card.slug));
+  }, [ordered, initialCards, filters, taste, favOnly, favorites, searchEntries, query, searching]);
 
   const columnCards = useMemo(() => splitIntoColumns(visible, columns), [visible, columns]);
 
   const setFilters = (next: IdeaFilters, goal: string) => {
     reachGoal("ideas_filter", { filter: goal });
     setFiltersState(next);
-    const query = filtersToQuery(next);
     // replace, а не push: иначе «назад» после трёх чипов отматывает фильтры по
     // одному вместо выхода из раздела. Адрес с фильтрами при этом остаётся в
     // текущей записи истории, поэтому возврат из рецепта восстанавливает и
     // фильтр, и позицию. scroll: false — чтобы смена чипа не бросала наверх.
-    router.replace(query ? `/ideas?${query}` : "/ideas", { scroll: false });
+    router.replace(ideasUrl(next, query), { scroll: false });
   };
+
+  const setQuery = (next: string) => {
+    const value = sanitizeIdeasQuery(next);
+    setQueryState(value);
+    router.replace(ideasUrl(filters, value), { scroll: false });
+  };
+
+  // Цель уходит ОДИН раз на устоявшийся запрос, а не на каждую букву: иначе
+  // «руккола» дала бы семь целей подряд и в отчёте остались бы «р», «ру», «рук».
+  // Число найденного берём из ref — иначе эффект перезапускался бы на каждом
+  // пересчёте ленты и таймер не доживал бы до конца.
+  const resultsRef = useRef(0);
+  resultsRef.current = visible.length;
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (!trimmed) return;
+    const timer = setTimeout(() => {
+      reachGoal("ideas_search", { q: trimmed, results: resultsRef.current });
+    }, SEARCH_GOAL_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [query]);
 
   // Выход из избранного — кнопкой, строкой «Показать все» и из пустого
   // состояния. Цель одна на все три, как и была у сердечка.
@@ -609,6 +658,34 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
         </div>
         {/* Обязательная пометка про ИИ-картинки. Не убирать и не сокращать. */}
         <p className="ideas-subtitle">Подборка SmartCook · картинки блюд созданы ИИ</p>
+
+        {/* Поиск по подборке. Ищет по названию, продуктам и тегам, работает
+            вместе с чипами и без сети: весь каталог уже здесь. type="search"
+            даёт на телефоне крестик очистки и правильную клавиатуру. */}
+        <div className="ideas-search">
+          <Search size={18} strokeWidth={2} className="ideas-search-icon" aria-hidden />
+          <input
+            type="search"
+            className="ideas-search-input"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Блюдо или продукт"
+            aria-label="Поиск по подборке"
+            maxLength={MAX_IDEAS_QUERY_LENGTH}
+            enterKeyHint="search"
+            autoComplete="off"
+          />
+          {query && (
+            <button
+              type="button"
+              className="ideas-search-clear"
+              onClick={() => setQuery("")}
+              aria-label="Очистить поиск"
+            >
+              <X size={18} strokeWidth={2.25} />
+            </button>
+          )}
+        </div>
       </header>
 
       {/* Метка естественного положения строки приёмов пищи: ушла выше линии
@@ -692,7 +769,7 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
               избранного (оно в адресе не живёт), — открывается и в новой
               вкладке. В этой вкладке просто снимаем фильтр без перехода. */}
           <a
-            href={filtersToQuery(filters) ? `/ideas?${filtersToQuery(filters)}` : "/ideas"}
+            href={ideasUrl(filters, query)}
             onClick={(e) => {
               e.preventDefault();
               exitFavorites();
@@ -710,8 +787,28 @@ export default function IdeasFeed({ initialCards }: { initialCards: IdeaCard[] }
         <p className="ideas-note">Скрыли блюда с вашими аллергиями и нелюбимыми продуктами</p>
       )}
 
+      {/* Счётчик — только при поиске: в обычной ленте число карточек человеку
+          не нужно, а при поиске это единственный способ понять, что нашлось
+          мало и стоит написать иначе. */}
+      {searching && visible.length > 0 && (
+        <p className="ideas-found" role="status">
+          Нашли {visible.length}
+        </p>
+      )}
+
       <div className={`ideas-content${faded ? " is-faded" : ""}`}>
       {visible.length === 0 ? (
+        searching ? (
+          // Пусто по запросу — это не тупик: подборку мы наполняем сами, и
+          // чего-то в ней просто нет. Уводим туда, где рецепт составят по
+          // этому же слову, с уже вписанным запросом.
+          <div className="feed-empty">
+            <p className="feed-empty-text">В подборке нет блюд с «{query.trim()}»</p>
+            <a className="btn-primary feed-empty-cta ideas-empty-link" href={`/search?q=${encodeURIComponent(query.trim())}`}>
+              Составить рецепт <ArrowRight size={18} strokeWidth={2.25} aria-hidden />
+            </a>
+          </div>
+        ) :
         feedEmptyKind({ favOnly, favCount }) === "fav-none" ? (
           <div className="feed-empty">
             <p className="feed-empty-text">

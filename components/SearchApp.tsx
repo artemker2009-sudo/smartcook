@@ -363,6 +363,22 @@ export default function SearchApp() {
         }, 350);
         window.history.replaceState({}, '', '/search');
       }
+      // Пустой поиск по подборке «Идеи» (/search?q=руккола): слово уже вписано
+      // в поле, режим текстовый, поле в фокусе. Поиск САМ НЕ ЗАПУСКАЕТСЯ — это
+      // генерация рецепта, то есть деньги и ожидание; нажимает человек.
+      const prefill = params.get('q');
+      if (prefill) {
+        setSearchMode('text');
+        setActiveView('service');
+        setTextQuery(prefill.slice(0, 100));
+        setTimeout(() => {
+          const input = document.querySelector<HTMLInputElement>('.text-search-input');
+          if (!input) return;
+          input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          input.focus();
+        }, 350);
+        window.history.replaceState({}, '', '/search');
+      }
       // Ссылка «или найти рецепт по названию» с Главной (/search?focus=text):
       // включаем режим текстового поиска, скроллим к полю и ставим в него фокус —
       // человек сразу может печатать название блюда.

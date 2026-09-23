@@ -13,6 +13,7 @@ import TabBar from "@/components/TabBar";
 import LayoutGate from "@/components/LayoutGate";
 import AppToaster from "@/components/ui/AppToaster";
 import { SITE_URL } from "@/lib/site";
+import { APPLE_ITUNES_APP_ID } from "@/lib/constants";
 import { Suspense } from "react"; // Импортируем Suspense для корректной работы
 
 // 1. Настройки внешнего вида (PWA, цвета, масштаб)
@@ -128,6 +129,16 @@ export const metadata: Metadata = {
     google: "Zj2IsXQieBJAGeYeNtqhr861awpdkbCsRa1URaoXKbA",
   },
   other: {
+    // Smart App Banner Safari: на iPhone браузер сам показывает сверху плашку
+    // App Store с кнопкой «Загрузить» — или «Открыть», если приложение уже
+    // стоит. Своей iOS-плашки мы не рисуем, потому что второе состояние
+    // («уже установлено») веб-странице недоступно в принципе.
+    //
+    // Тег стоит в КОРНЕВОМ layout — значит на всех страницах сайта: ни одна
+    // страница не переопределяет metadata.other, а Next наследует поле целиком.
+    // На Android и десктопе тег не делает ничего, внутри WKWebView нашей
+    // iOS-оболочки — тоже: Smart App Banner рисует Safari, а не WebKit.
+    "apple-itunes-app": `app-id=${APPLE_ITUNES_APP_ID}`,
     // Верификационный мета-тег партнёрской сети Admitad (как yandex-verification):
     // ничего не грузит и не исполняет, нужен только для подтверждения владения сайтом.
     "verify-admitad": "b6c816ac6b",

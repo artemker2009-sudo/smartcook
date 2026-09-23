@@ -34,6 +34,7 @@ import {
   type SharedListPointer,
   type SharedSnapshot,
 } from "@/lib/sharedShoppingList";
+import AppPromoStrip from "@/components/AppPromoStrip";
 import HubRow, { type HubEntry } from "@/components/shopping/HubRow";
 import {
   DeleteListModal,
@@ -394,6 +395,11 @@ export default function ShoppingApp() {
 
   return (
     <main className="container">
+      {/* Только Android в браузере: компонент сам проверяет платформу, среду и
+          паузу после крестика. На iPhone эту роль играет Smart App Banner
+          Safari (meta apple-itunes-app в app/layout.tsx). */}
+      <AppPromoStrip />
+
       <h1 className="sh-hub-head">
         <ShoppingCart size={26} color="var(--color-accent)" aria-hidden /> Покупки
       </h1>

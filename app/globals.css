@@ -4049,6 +4049,7 @@ html.sh-kb-open .tab-bar { visibility: hidden; }
   /* По центру поля по вертикали, как и группа иконок: прижатая к низу
      кнопка 44px не влезала в поле и сидела ниже середины. */
   align-self: center;
+  position: relative;
   width: 40px;
   height: 40px;
   display: flex;
@@ -4059,6 +4060,19 @@ html.sh-kb-open .tab-bar { visibility: hidden; }
   background: var(--color-accent);
   color: #fff;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+/* Ловит промах мимо круга. Нарисованные 40px — меньше пальца, а вокруг них
+   свободно: 6px до краёв поля сверху и снизу и 8px отступа поля справа. Вниз
+   и вправо область растягиваем, ВЛЕВО не лезем — там текст, и попадание в
+   букву должно ставить курсор, а не отправлять список. */
+.sh-field-send::after {
+  content: "";
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  bottom: -6px;
+  left: 0;
 }
 .sh-field-send:disabled { opacity: 0.6; }
 .sh-bar-hint {

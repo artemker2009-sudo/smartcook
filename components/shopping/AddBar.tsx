@@ -204,16 +204,64 @@ export default function AddBar({ onAdd, busy = false }: Props) {
     };
   }, []);
 
+  // Добавление одной позиции. Зовётся из трёх мест: стрелка, Enter с
+  // физической клавиатуры и клавиша действия экранной клавиатуры.
+  //
+  // Фокус ВОЗВРАЩАЕМ в поле всегда: человек добавляет продукты подряд, и
+  // закрывшаяся после каждого клавиатура превращает список из десяти позиций
+  // в десять заходов в поле. Вызов у уже сфокусированного поля — пустая
+  // операция, страницу он не двигает.
   const handleAdd = () => {
     if (!input.trim() || busy) return;
     const names = parseNames(input);
     setInput("");
     resetHeight();
+    inputRef.current?.focus();
     if (names.length > 0) {
       onAdd(names);
       markHintSeen();
     }
   };
+
+  // Что последним пришло в keydown. Нужно, чтобы отличить «перенос строки,
+  // который человек попросил сам» (Shift+Enter — тогда в keydown был честный
+  // key === "Enter") от клавиши действия экранной клавиатуры, которая на
+  // мобильных приходит в keydown как "Unidentified"/"Process" (клавиатура
+  // работает через IME-композицию) и до обработчика Enter просто не доходит.
+  const lastKeyRef = useRef<string>("");
+
+  // Тап по стрелке уже добавил позицию — следующий click по ней же надо
+  // проглотить. Время, а не булев флаг: click после preventDefault на
+  // pointerdown приходит не во всех браузерах, и флаг остался бы висеть.
+  const pointerAddAtRef = useRef(0);
+
+  // Клавиша действия ЭКРАННОЙ клавиатуры («Готово» на iOS, «Отправить» на
+  // Android) до обработчика Enter не доходит: пока работает автоподбор слова,
+  // мобильные клавиатуры шлют keydown с key === "Unidentified" — Enter в нём
+  // не опознать. В поле вместо добавления продукта падал перенос строки:
+  // проверено в симуляторе iOS 26 на русской раскладке, поле молча вырастало
+  // до двух строк.
+  //
+  // Слушатель именно НАТИВНЫЙ: React-овский onBeforeInput — своя синтетика
+  // поверх textInput, в ней нет inputType и она не приходит на перенос строки
+  // вовсе.
+  //
+  // Намеренный перенос строки (Shift+Enter с физической клавиатуры) сюда тоже
+  // приходит, но у него в keydown был честный "Enter" — такой пропускаем.
+  // Обычный Enter до beforeinput не доживает: его гасит onKeyDown.
+  const handleAddRef = useRef(() => {});
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    const onBeforeInput = (e: InputEvent) => {
+      if (e.inputType !== "insertLineBreak" && e.inputType !== "insertParagraph") return;
+      if (lastKeyRef.current === "Enter") return;
+      e.preventDefault();
+      handleAddRef.current();
+    };
+    el.addEventListener("beforeinput", onBeforeInput);
+    return () => el.removeEventListener("beforeinput", onBeforeInput);
+  }, []);
 
   // Голосовой ввод: браузерный Web Speech API (никакого сервера/OpenAI). Если
   // API не поддерживается — voice.supported=false, кнопку микрофона не рисуем.
@@ -333,6 +381,12 @@ export default function AddBar({ onAdd, busy = false }: Props) {
     markHintSeen();
   };
 
+  // Нативный слушатель beforeinput живёт один на всю жизнь компонента, а
+  // handleAdd замыкается на текущий input — держим ссылку свежей.
+  useEffect(() => {
+    handleAddRef.current = handleAdd;
+  });
+
   const hasText = input.trim().length > 0;
 
   return (
@@ -419,7 +473,23 @@ export default function AddBar({ onAdd, busy = false }: Props) {
         {/* Одно поле на всю ширину, иконки внутри него — как строка ввода в
             мессенджере. Раньше это были три отдельных кружка в воздухе: поле и
             рядом два круга, которые читались как чужие кнопки поверх экрана. */}
-        <div className="sh-field">
+        <div
+          className="sh-field"
+          // Промах по кнопке не должен стоить человеку клавиатуры. Поле —
+          // 52px высотой, кнопка внутри — круг 40px: палец легко попадает в
+          // поля вокруг неё, а это уже пустое место контейнера. Тап по нему
+          // закрывал клавиатуру и не делал ровно ничего — со стороны
+          // неотличимо от «кнопка не работает».
+          //
+          // Поэтому тап по пустому месту рамки оставляет фокус в поле. Тапы по
+          // самому полю и по кнопкам внутри не трогаем: им нужно и обычное
+          // поведение, и свой click.
+          onPointerDown={(e) => {
+            if (e.target !== e.currentTarget) return;
+            e.preventDefault();
+            inputRef.current?.focus();
+          }}
+        >
           <Plus size={22} className="sh-field-plus" aria-hidden />
 
           <textarea
@@ -431,6 +501,7 @@ export default function AddBar({ onAdd, busy = false }: Props) {
               autoGrow();
             }}
             onKeyDown={(e) => {
+              lastKeyRef.current = e.key;
               // Enter — добавить (главный сценарий). Shift+Enter — новая строка,
               // если человек набирает список руками.
               if (e.key === "Enter" && !e.shiftKey) {
@@ -448,7 +519,12 @@ export default function AddBar({ onAdd, busy = false }: Props) {
             // человек читал один раз, а место они занимали всегда.
             placeholder="Добавить продукт"
             aria-label="Добавить продукт"
-            enterKeyHint="done"
+            // «Отправить», а не «Готово»: IME_ACTION_DONE на Android закрывает
+            // клавиатуру сразу после нажатия, и следующий продукт приходится
+            // начинать с нового тапа по полю. Действие «отправить» клавиатуру
+            // оставляет открытой — ровно то, что нужно для списка из десяти
+            // позиций подряд.
+            enterKeyHint="send"
             className="sh-field-input"
           />
 
@@ -459,13 +535,29 @@ export default function AddBar({ onAdd, busy = false }: Props) {
           {hasText ? (
             <button
               type="button"
-              // Кнопка НЕ забирает фокус у поля. Иначе первое нажатие на iOS
-              // уходило в blur: клавиатура закрывалась, панель съезжала вниз,
-              // и сам тап приходился уже мимо кнопки — добавлялось только со
-              // второго раза. Заодно поле остаётся в фокусе для следующего
-              // продукта.
-              onPointerDown={(e) => e.preventDefault()}
-              onClick={handleAdd}
+              // Кнопка НЕ забирает фокус у поля: иначе тап уходил в blur,
+              // клавиатура закрывалась, панель съезжала вниз — и сам тап
+              // приходился уже мимо кнопки.
+              //
+              // С пальца добавляем ПРЯМО ЗДЕСЬ, а не в onClick: preventDefault
+              // на pointerdown отменяет и совместимостные события касания, а
+              // click в WebKit — одно из них, и до кнопки он может не дойти
+              // вовсе. Ровно так и выглядел отчёт: клавиатура прячется,
+              // продукт не добавляется. Мышь оставляем на onClick — там
+              // нажатие можно ещё отменить, отведя курсор.
+              onPointerDown={(e) => {
+                if (e.pointerType === "mouse" && e.button !== 0) return;
+                e.preventDefault();
+                if (e.pointerType === "mouse") return;
+                pointerAddAtRef.current = Date.now();
+                handleAdd();
+              }}
+              onClick={() => {
+                // Браузеры, которые click всё-таки прислали (Android), не
+                // должны добавить позицию второй раз.
+                if (Date.now() - pointerAddAtRef.current < 700) return;
+                handleAdd();
+              }}
               disabled={busy}
               className="sh-field-send"
               aria-label="Добавить в список"

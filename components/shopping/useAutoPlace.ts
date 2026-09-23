@@ -13,6 +13,7 @@ import {
   type DepartmentIndex,
   type Placement,
 } from "@/lib/shoppingDepartments";
+import { applyPins } from "@/lib/shoppingDepartmentPins";
 import { loadLists } from "@/lib/shoppingLists";
 
 // Серия добавлений подряд («молоко», «хлеб», «хурма» за пять секунд) — один
@@ -42,6 +43,16 @@ type Options = {
   /** Человек смотрит по отделам. Без этого ничего не делаем и не тратим. */
   active: boolean;
   /**
+   * Исправления, сделанные руками («переместить в отдел…»). Спрашиваются
+   * раньше словаря и применяются ПОВЕРХ готовой раскладки — в том числе
+   * поверх только что посчитанной моделью, иначе полный пересчёт вернул бы
+   * позицию обратно в тот отдел, откуда её убрали.
+   *
+   * Необязательные: у общего (семейного) списка раскладка общая на всех
+   * участников, и переносить её в одиночку нельзя.
+   */
+  pins?: DepartmentIndex | null;
+  /**
    * Дописать раскладку: сохранить найденное в словаре и спросить модель про
    * незнакомое. Возвращает группы, которые пришли от модели, — их отделы
    * запоминаются в словарь устройства.
@@ -68,7 +79,7 @@ type Options = {
  * Лимиты не ослаблены: запрос идёт через тот же роут с тем же лимитером, и
  * только за тем, чего нет в словаре.
  */
-export function useAutoPlace({ names, syncNames, cache, active, sync }: Options): SortCache | null {
+export function useAutoPlace({ names, syncNames, cache, active, pins, sync }: Options): SortCache | null {
   const [learned, setLearned] = useState<DepartmentIndex | null>(null);
   // Что уже отправляли в этой сессии экрана. Без этого неудачный запрос
   // (лимит, нет сети) повторялся бы каждые две секунды.
@@ -104,13 +115,18 @@ export function useAutoPlace({ names, syncNames, cache, active, sync }: Options)
   const effective = useMemo<SortCache | null>(() => {
     if (!active || !cache) return cache;
     const missing = uncoveredNames(cache.groups, names);
-    if (missing.length === 0) return cache;
     const placements = missing.map((name) => ({
       name,
-      department: lookupDepartment(name, learned) ?? OTHER_DEPARTMENT,
+      department: lookupDepartment(name, learned, pins) ?? OTHER_DEPARTMENT,
     }));
-    return { sig: signatureFromNames(names), groups: placeNames(cache.groups, placements) };
-  }, [active, cache, names, learned]);
+    const base =
+      placements.length === 0
+        ? cache
+        : { sig: signatureFromNames(names), groups: placeNames(cache.groups, placements) };
+    // Исправления человека — последним слоем, поверх всего остального.
+    const groups = applyPins(base.groups, names, pins ?? null);
+    return groups === base.groups ? base : { ...base, groups };
+  }, [active, cache, names, learned, pins]);
 
   // Ключ того, что ещё не сохранено. Меняется — таймер начинается заново.
   const pendingKey = useMemo(() => {
@@ -126,7 +142,7 @@ export function useAutoPlace({ names, syncNames, cache, active, sync }: Options)
       const batch = pendingKey.split("\n");
       setAttempted((prev) => new Set([...prev, ...batch.map(nameKey)]));
 
-      const lookup = (name: string) => lookupDepartment(name, learned);
+      const lookup = (name: string) => lookupDepartment(name, learned, pins);
       const known: Placement[] = [];
       const unknown: string[] = [];
       for (const name of batch) {
@@ -146,7 +162,7 @@ export function useAutoPlace({ names, syncNames, cache, active, sync }: Options)
       );
     }, SYNC_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [pendingKey, learned]);
+  }, [pendingKey, learned, pins]);
 
   return effective;
 }

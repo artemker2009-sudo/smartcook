@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import type { ShoppingGroup } from "@/lib/shoppingList";
+import type { ShoppingDepartment, ShoppingGroup } from "@/lib/shoppingList";
 
 /**
  * Позиция в том виде, в каком её рисует экран списка.
@@ -54,6 +54,18 @@ export type ListScreenSort = {
    * а не автоматика: это вызов модели, и он должен быть по нажатию.
    */
   onRecompute: () => void;
+  /**
+   * Перенести позицию в другой отдел (долгое нажатие → «Переместить в
+   * отдел…»). Исправление запоминается: в следующий раз этот продукт встаёт
+   * туда сам.
+   *
+   * Необязательный: у общего (семейного) списка раскладка живёт на сервере и
+   * общая для всех участников — переносить её в одиночку нельзя, поэтому там
+   * ручки и пункта меню нет вовсе. «Нет» честнее, чем «есть, но не работает».
+   */
+  onMove?: (name: string, department: ShoppingDepartment) => void;
+  /** Новый порядок позиций внутри одного отдела (перетаскивание за ручку). */
+  onReorder?: (department: ShoppingDepartment, orderedNames: string[]) => void;
 };
 
 /**

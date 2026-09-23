@@ -3742,6 +3742,11 @@ a.news-card:hover { transform: translateY(-2px); }
   text-align: left;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  /* Долгое нажатие по строке открывает меню позиции — системное выделение
+     текста и всплывающая подсказка iOS поверх него не нужны. */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 .sh-check {
   flex-shrink: 0;
@@ -3794,6 +3799,35 @@ a.news-card:hover { transform: translateY(-2px); }
   align-items: center;
   justify-content: center;
   cursor: pointer;
+}
+
+/* Ручка перетаскивания — только в режиме «по отделам». touch-action: none
+   обязателен: без него браузер считает жест прокруткой страницы и pointermove
+   до нас просто не доходит. Уже 44px крестика: тащат прицельно, а промах по
+   ручке ничего не делает (в отличие от промаха по крестику). */
+.sh-row-grip {
+  flex-shrink: 0;
+  width: 36px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.sh-row-grip:active { cursor: grabbing; }
+/* Соседи расступаются плавно, а строка под пальцем — мгновенно: без отмены
+   перехода она тянулась бы за пальцем с задержкой. */
+.sh-row { transition: transform 0.16s ease; }
+.sh-row-dragging {
+  position: relative;
+  z-index: 2;
+  transition: none;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
 }
 
 /* Купленное — свёрнутой группой внизу. */
@@ -4168,6 +4202,9 @@ body.has-addbar { padding-bottom: calc(var(--tab-bar-total) + 72px); }
 }
 .sl-sheet-btn:hover { background: var(--color-bg-subtle); }
 .sl-sheet-danger { color: var(--color-danger); }
+/* Место иконки у пункта без иконки: в меню отделов галочка стоит только у
+   текущего, а названия обязаны выстроиться в один столбик. */
+.sl-sheet-gap { display: block; width: 20px; height: 20px; }
 /* Черта перед опасным пунктом («Удалить список»): удаление стоит последним и
    отдельно, чтобы в него не попадали, целясь в «Поделиться». */
 .sl-sheet-sep {

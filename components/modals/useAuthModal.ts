@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { syncShoppingListsAfterAuth } from "@/lib/shoppingSync";
+import { syncDepartmentPinsAfterAuth } from "@/lib/shoppingDepartmentSync";
 import { claimGuestRecipesToAccount } from "@/lib/claimRecipes";
 import { mergeTasteProfileIntoAccount } from "@/lib/tasteProfile";
 import {
@@ -106,6 +107,9 @@ export function useAuthModal(options: Options = {}) {
     await mergeTasteProfileIntoAccount(user);
     void claimGuestRecipesToAccount(user.id);
     syncShoppingListsAfterAuth();
+    // Исправленные отделы — тем же порядком и по той же причине: подключённое
+    // к одному экрану молча не срабатывает у тех, кто входит с другого.
+    syncDepartmentPinsAfterAuth();
   };
 
   const finish = (outcome: AuthOutcome) => {

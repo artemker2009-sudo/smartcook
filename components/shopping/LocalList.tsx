@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Copy, Pencil, Send, Trash2, Users } from "lucide-react";
 
@@ -12,11 +12,21 @@ import {
   groupsToText,
   itemsToText,
   listSignature,
+  type ShoppingDepartment,
   type ShoppingGroup,
   type ShoppingItem,
   type SortCache,
 } from "@/lib/shoppingList";
-import { departmentsFromGroups, nameKey, placeNames, uncoveredNames } from "@/lib/shoppingDepartments";
+import {
+  departmentsFromGroups,
+  nameKey,
+  placeNames,
+  reorderWithinDepartment,
+  uncoveredNames,
+  type DepartmentIndex,
+} from "@/lib/shoppingDepartments";
+import { loadPinsIndex, pinDepartment } from "@/lib/shoppingDepartmentPins";
+import { syncDepartmentPins } from "@/lib/shoppingDepartmentSync";
 import { listDisplayName, type ShoppingListRecord } from "@/lib/shoppingLists";
 import ListScreen from "@/components/shopping/ListScreen";
 import PartnerFooter from "@/components/shopping/PartnerFooter";
@@ -82,6 +92,18 @@ export default function LocalList({
   const items = list.items;
   const names = useMemo(() => items.map((it) => it.name), [items]);
 
+  // Исправления отделов, сделанные руками. Читаются с устройства сразу, а у
+  // залогиненных ещё и подтягиваются из аккаунта — молча и без ожидания: до
+  // ответа сервера работает то, что есть на телефоне.
+  const [pins, setPins] = useState<DepartmentIndex | null>(null);
+  useEffect(() => {
+    const init = () => {
+      setPins(loadPinsIndex());
+      void syncDepartmentPins("list").then(() => setPins(loadPinsIndex()));
+    };
+    init();
+  }, []);
+
   // Дописывание раскладки заканчивается ПОСЛЕ сетевого запроса, а за это время
   // человек мог добавить ещё что-то. Сохранять надо поверх самого свежего
   // списка, а не того, что был при старте таймера.
@@ -94,6 +116,7 @@ export default function LocalList({
     names,
     cache: list.sort ?? null,
     active: grouped,
+    pins,
     sync: async ({ unknown, lookup }) => {
       let fromModel: ShoppingGroup[] = [];
       let failure: unknown = null;
@@ -137,6 +160,41 @@ export default function LocalList({
       onSortChange({ sig: listSignature(items), groups });
     },
   });
+
+  /**
+   * Перенос позиции в другой отдел.
+   *
+   * Две записи, и обе обязательны. Раскладка этого списка — чтобы позиция
+   * переехала прямо сейчас; исправление — чтобы она вставала туда же в
+   * следующий раз, в том числе в других списках и после полного пересчёта
+   * моделью.
+   *
+   * Подпись (sig) НЕ трогаем: набор позиций не изменился, изменилось только
+   * то, где они лежат. Тронуть её значило бы объявить раскладку устаревшей и
+   * предложить человеку заново оплатить вызов модели сразу после того, как он
+   * поправил её руками.
+   */
+  const handleMove = (name: string, department: ShoppingDepartment) => {
+    if (!sort.groups) return;
+    pinDepartment(name, department);
+    setPins(loadPinsIndex());
+    onSortChange({ sig: listSignature(items), groups: placeNames(sort.groups, [{ name, department }], names) });
+    // Отправка в аккаунт — после локальной записи и молча: не долетит, значит
+    // исправление останется на устройстве.
+    void syncDepartmentPins("move");
+  };
+
+  /**
+   * Новый порядок внутри отдела. Исправление НЕ запоминаем: человек сказал,
+   * в каком порядке обходить полку, а не к какому отделу относится продукт.
+   */
+  const handleReorder = (department: ShoppingDepartment, orderedNames: string[]) => {
+    if (!sort.groups) return;
+    onSortChange({
+      sig: listSignature(items),
+      groups: reorderWithinDepartment(sort.groups, department, orderedNames),
+    });
+  };
 
   // Подпись «для «Борщ»» — только у продуктов, приехавших с экрана рецепта.
   // Без неё через день непонятно, зачем это куплено. noteGroup склеивает
@@ -210,7 +268,7 @@ export default function LocalList({
       title={listDisplayName(list.name)}
       onRename={onRename}
       items={rows}
-      sort={sort}
+      sort={{ ...sort, onMove: handleMove, onReorder: handleReorder }}
       onToggle={(id) => onItemsChange(items.map((it) => (it.id === id ? { ...it, checked: !it.checked } : it)))}
       onRemove={(id) => onItemsChange(items.filter((it) => it.id !== id))}
       onAddNames={handleAddNames}

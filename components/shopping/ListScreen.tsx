@@ -3,12 +3,15 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUpDown, Check, Loader2 } from "lucide-react";
 
+import { SHOPPING_DEPARTMENTS, type ShoppingDepartment } from "@/lib/shoppingList";
 import { splitQuantity } from "@/lib/shoppingQuantity";
 import AddBar from "@/components/shopping/AddBar";
 import CheckedGroup from "@/components/shopping/CheckedGroup";
+import DepartmentList from "@/components/shopping/DepartmentList";
 import ItemRow from "@/components/shopping/ItemRow";
 import ListHeader from "@/components/shopping/ListHeader";
-import type { ListScreenSort, RowItem } from "@/components/shopping/types";
+import MenuSheet from "@/components/shopping/MenuSheet";
+import type { ListScreenSort, MenuAction, RowItem } from "@/components/shopping/types";
 
 type Props = {
   title: string;
@@ -67,6 +70,8 @@ export default function ListScreen({
   // отмечают чекбоксом и его можно вернуть, а удаление необратимо, поэтому оно
   // спрашивает.
   const [removeTarget, setRemoveTarget] = useState<RowItem | null>(null);
+  // Позиция, для которой открыто меню «Переместить в отдел…».
+  const [moveTarget, setMoveTarget] = useState<RowItem | null>(null);
 
   const pending = useMemo(() => items.filter((it) => !it.checked), [items]);
   const checked = useMemo(() => items.filter((it) => it.checked), [items]);
@@ -96,20 +101,39 @@ export default function ListScreen({
   // порядке, в котором строки РИСУЮТСЯ: внутри отдела своя нумерация, и первая
   // позиция рецепта в каждом отделе снова получает подпись — иначе в разделе
   // «Молочное» стояла бы позиция рецепта без всякого объяснения.
-  const renderRows = (rows: RowItem[]) =>
-    rows.map((it, i) => {
-      const prev = i > 0 ? rows[i - 1] : null;
-      const grouped = Boolean(it.noteGroup) && prev?.noteGroup === it.noteGroup;
-      return (
-        <ItemRow
-          key={it.id}
-          item={it}
-          onToggle={onToggle}
-          onRemove={() => setRemoveTarget(it)}
-          showNote={!grouped}
-        />
-      );
-    });
+  const showNote = (rows: RowItem[]) => (it: RowItem, i: number) => {
+    const prev = i > 0 ? rows[i - 1] : null;
+    return !(Boolean(it.noteGroup) && prev?.noteGroup === it.noteGroup);
+  };
+
+  const renderRows = (rows: RowItem[]) => {
+    const note = showNote(rows);
+    return rows.map((it, i) => (
+      <ItemRow key={it.id} item={it} onToggle={onToggle} onRemove={() => setRemoveTarget(it)} showNote={note(it, i)} />
+    ));
+  };
+
+  // Отдел, в котором позиция лежит сейчас: в меню он отмечен галочкой и не
+  // предлагается как цель переноса.
+  const departmentOf = (item: RowItem): ShoppingDepartment | null =>
+    groups?.find((g) => g.items.some((x) => x.id === item.id))?.department ?? null;
+
+  const moveActions = (item: RowItem): MenuAction[] => {
+    const current = departmentOf(item);
+    return SHOPPING_DEPARTMENTS.map((department) => ({
+      key: department,
+      label: department,
+      // Галочка у текущего отдела — единственный способ понять, откуда
+      // переносим: в списке отделов заголовок группы уже не виден.
+      icon: department === current ? <Check size={20} /> : <span className="sl-sheet-gap" aria-hidden />,
+      onSelect:
+        department === current
+          ? undefined
+          : () => {
+              sort.onMove?.(item.name, department);
+            },
+    }));
+  };
 
   return (
     <>
@@ -182,7 +206,15 @@ export default function ListScreen({
             groups.map((group) => (
               <section key={group.department} className="sh-group">
                 <h2 className="sh-group-title">{group.department}</h2>
-                <ul className="sh-list">{renderRows(group.items)}</ul>
+                <DepartmentList
+                  department={group.department}
+                  items={group.items}
+                  onToggle={onToggle}
+                  onRemove={setRemoveTarget}
+                  showNote={showNote(group.items)}
+                  onOpenItemMenu={sort.onMove ? setMoveTarget : undefined}
+                  onReorder={sort.onReorder}
+                />
               </section>
             ))
           ) : (
@@ -210,6 +242,16 @@ export default function ListScreen({
       )}
 
       <AddBar onAdd={onAddNames} busy={busy} />
+
+      {/* Меню позиции. Открывается долгим нажатием по строке и нажатием на
+          ручку. Отделов девять — они и есть всё меню, лишних пунктов тут нет. */}
+      {moveTarget && (
+        <MenuSheet
+          title={`Переместить «${splitQuantity(moveTarget.name).label}»`}
+          actions={moveActions(moveTarget)}
+          onClose={() => setMoveTarget(null)}
+        />
+      )}
 
       {/* Удаление позиции. Отменить его нельзя, а крестик стоит в каждой
           строке в двух сантиметрах от чекбокса — без вопроса продукт исчезал

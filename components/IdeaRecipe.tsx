@@ -24,6 +24,7 @@ import {
 } from "@/lib/ideaServings";
 import { putHave, readHave, writeHave } from "@/lib/ideasLocal";
 import { favoritesStore } from "@/lib/ideasFavorites";
+import { rememberIdeaIntent } from "@/lib/ideasIntent";
 import { useIdeaFavorites } from "@/lib/useIdeaFavorites";
 
 // Имя списка для человека, у которого нет ни одного. Молча, без вопросов: на
@@ -135,6 +136,11 @@ export default function IdeaRecipe({
     }
 
     reachGoal("ideas_add_to_list", { count: result.added });
+    // Человек собрал продукты и уйдёт в магазин. Запоминаем блюдо: Главная
+    // встретит его плашкой «Вы собирались приготовить …» (lib/ideasIntent.ts).
+    // Сбой записи гасится внутри — ради плашки ломать добавление в список
+    // нельзя.
+    rememberIdeaIntent({ slug: recipe.slug, title: recipe.title, thumb: recipe.thumbUrl });
     setAddedListId(result.listId);
   };
 
@@ -144,6 +150,9 @@ export default function IdeaRecipe({
 
   const startCooking = () => {
     reachGoal("ideas_cook_start", { slug: recipe.slug });
+    // Готовку могут прервать на любом шаге — то же намерение, что у списка
+    // покупок: на Главной останется вход обратно в этот рецепт.
+    rememberIdeaIntent({ slug: recipe.slug, title: recipe.title, thumb: recipe.thumbUrl });
     setCooking(true);
   };
 

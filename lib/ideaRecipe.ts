@@ -3,6 +3,8 @@
 // ЧИСТЫЙ модуль, без "server-only" и без "use client": колонки нужны
 // серверной странице, тип — клиентскому экрану, разбор — тестам.
 
+import { thumbMatchesImage } from "./ideaThumbPath";
+
 /**
  * Явный список колонок. Никаких select=*.
  *
@@ -24,6 +26,7 @@ export const IDEA_RECIPE_COLUMNS = [
   "tags",
   "family",
   "image_url",
+  "thumb_url",
   "image_aspect",
 ].join(",");
 
@@ -43,6 +46,14 @@ export type IdeaRecipeData = {
   tags: string[];
   family: string | null;
   imageUrl: string;
+  /**
+   * Миниатюра 540 px (lib/ideaThumb.ts). Сам экран рецепта её НЕ показывает —
+   * обложка и og берут только imageUrl. Нужна плашке «Вы собирались
+   * приготовить» на Главной: она запоминается вместе с намерением, и на
+   * Главной для картинки 60 px тянуть оригинал 1024 было бы расточительно.
+   * null — миниатюра ещё не досоздана.
+   */
+  thumbUrl: string | null;
   imageAspect: "square" | "portrait";
 };
 
@@ -59,6 +70,7 @@ type RawRecipeRow = {
   tags?: unknown;
   family?: unknown;
   image_url?: unknown;
+  thumb_url?: unknown;
   image_aspect?: unknown;
 };
 
@@ -113,6 +125,12 @@ export function toIdeaRecipe(row: RawRecipeRow | null | undefined): IdeaRecipeDa
     tags: strings(row.tags),
     family: typeof row.family === "string" && row.family ? row.family : null,
     imageUrl,
+    // Миниатюра только если она от ЭТОЙ картинки: старый код генерации
+    // перезаписывал image_url, не трогая thumb_url, — см. thumbMatchesImage.
+    thumbUrl:
+      typeof row.thumb_url === "string" && thumbMatchesImage(imageUrl, row.thumb_url)
+        ? row.thumb_url
+        : null,
     imageAspect: row.image_aspect === "portrait" ? "portrait" : "square",
   };
 }

@@ -433,6 +433,366 @@ body {
 }
 .sc-card-glow { animation: scCardGlow 1.6s ease-out; }
 
+/* ==================== ГЛАВНАЯ v2: фото → идеи → покупки ====================
+   Утверждённый макет: первый экран целиком занимает фотография продуктов, на
+   ней название, обещание и одна кнопка; под ней «Идеи на сегодня», карточка
+   «Список покупок» и подвал. Плашка «Вы собирались приготовить …» появляется
+   только у вернувшегося.
+
+   Прежний первый экран (.hero-*, этап H11) остался в файле: компоненты
+   HeroLanding, BrandLogo и HowItWorks не удалены, вернуть их — одна строка
+   рендера в HomeContent.
+
+   ВЫРЕЗ. Правило то же, что у экрана рецепта «Идей» (#150, #156): вырез
+   ПРИБАВЛЯЕТСЯ к высоте снимка, а не съедает её. Ниже безопасной зоны
+   раскладка пиксель в пиксель совпадает с той, что видят Android, TWA и
+   iPhone SE (там вырез = 0), а на iPhone с Dynamic Island всё сдвигается вниз
+   ровно на 59px. Сторожится числами в app/globals.safeArea.test.ts. */
+.home-hero {
+  /* Высота снимка БЕЗ выреза. 120vw даёт ~470px на экране 390 — ровно
+     столько, чтобы на 844 под фотографией уже выглядывал заголовок «Идеи на
+     сегодня» и было видно, что страница продолжается. Границы clamp держат
+     кадр на узких (320) и широких (430) телефонах. */
+  --home-hero-photo-h: clamp(420px, 120vw, 480px);
+  position: relative;
+  /* Во всю ширину окна, поверх боковых полей контейнера: поля по краям дали бы
+     две вертикальные границы вдоль всего первого экрана. */
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-bottom: var(--space-4);
+  height: calc(var(--safe-top) + var(--home-hero-photo-h));
+  overflow: hidden;
+  /* Цвет под снимком, пока он не пришёл: тёмная зелень, на которой белый текст
+     читается так же, как на самой фотографии. */
+  background: #1f3a2e;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.home-hero-photo { position: absolute; inset: 0; }
+.home-hero-img { object-fit: cover; object-position: center 45%; }
+/* Сверху снимок мягко проявляется из цвета фона страницы — у фотографии нет
+   видимой верхней кромки, а название на светлом читается без плашки. Полоса
+   растёт вместе с вырезом: иначе на iPhone проявление кончалось бы ровно там,
+   где стоит название.
+
+   Было 150px с плотной зоной до 40% — еда показывалась слишком поздно, и над
+   названием оставалась широкая светлая полка. Теперь 100px, и плотная часть
+   кончается на четверти: снимок читается раньше, а переход остаётся тем же
+   мягким — никакой видимой кромки поперёк экрана. */
+.home-hero-top-fade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: calc(var(--safe-top) + 100px);
+  background: linear-gradient(
+    180deg,
+    var(--color-bg) 0%,
+    rgba(250, 249, 247, 0.92) 25%,
+    rgba(250, 249, 247, 0) 100%
+  );
+  pointer-events: none;
+}
+/* Снизу — затемнение под текстом. Начинается на 38% высоты: выше лежит еда, и
+   гасить её незачем. Именно оно держит контраст белого текста (не плашка). */
+.home-hero-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(12, 20, 16, 0) 0%,
+    rgba(12, 20, 16, 0) 38%,
+    rgba(12, 20, 16, 0.72) 58%,
+    rgba(12, 20, 16, 0.94) 100%
+  );
+  pointer-events: none;
+}
+.home-hero-brand {
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* Единственное место, где вырез прибавляется к отступу: ниже него всё
+     отсчитывается от НИЖНЕЙ кромки снимка и не двигается вовсе. 44px вместо
+     прежних 62: с укороченным проявлением сверху название иначе висело бы
+     под пустой светлой полкой. */
+  top: calc(var(--safe-top) + 44px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 0 var(--space-3);
+}
+.home-hero-mark {
+  display: block;
+  flex: none;
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+.home-hero-word {
+  font-size: 38px;
+  line-height: 42px;
+  font-weight: 800;
+  letter-spacing: -0.8px;
+  color: #0e8a60;
+  /* Мягкий белый контур: зелёное слово лежит на светлом проявлении снимка, и
+     контур отделяет его от всего, что может оказаться за буквами. */
+  text-shadow: 0 0 1px #ffffff, 0 0 2px #ffffff, 0 0 6px rgba(255, 255, 255, 0.95),
+    0 1px 10px rgba(255, 255, 255, 0.9);
+}
+.home-hero-copy {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 0 20px 20px;
+  text-align: center;
+}
+.home-hero-title {
+  margin: 0;
+  /* 32px на 390 и 28px на 320: на узком экране заголовок в 32px съедал строку
+     у подзаголовка, и кнопка подходила вплотную к кромке снимка. */
+  font-size: clamp(28px, 8.2vw, 32px);
+  line-height: 1.16;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  color: #ffffff;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.35);
+  text-wrap: balance;
+}
+.home-hero-sub {
+  margin: 0 0 6px;
+  max-width: 310px;
+  font-size: 16px;
+  line-height: 22px;
+  color: rgba(255, 255, 255, 0.94);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
+}
+.home-hero-cta {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 54px;
+  border: none;
+  border-radius: 16px;
+  background: #ffffff;
+  color: #141413;
+  font: inherit;
+  /* 17px по макету, но на 320 подпись «Сфотографировать продукты» в 17px
+     ломается на две строки, и иконка повисает слева от второй. Кегль тает
+     вместе с экраном: на 320 это 15px, и строка остаётся одной. */
+  font-size: clamp(15px, 4.3vw, 17px);
+  font-weight: 700;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.home-hero-cta:active { transform: translateY(1px); }
+/* Тихая вторая дорога: текстом вместо фото. Видимая строка 15px, а тап-цель —
+   44px по высоте. */
+.home-hero-textlink {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 var(--space-2);
+  border: none;
+  background: transparent;
+  color: #ffffff;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* --- «Вы собирались приготовить …» (только у вернувшегося) --- */
+.home-resume {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: var(--space-4);
+  padding: 12px;
+  border: 1px solid #e3e6e3;
+  border-radius: 18px;
+  background: var(--color-surface);
+  color: #141413;
+  text-decoration: none;
+}
+.home-resume-thumb {
+  flex: none;
+  display: block;
+  width: 60px;
+  height: 60px;
+  object-fit: cover;
+  border-radius: 12px;
+  background: var(--color-bg-subtle);
+}
+.home-resume-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.home-resume-kicker { font-size: 13px; line-height: 18px; color: #6b6b66; }
+.home-resume-title {
+  font-size: 16px;
+  line-height: 21px;
+  font-weight: 600;
+  /* Ровно две строки: длинное название не должно растягивать плашку. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.home-resume-cta {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 12px;
+  background: #0e8a60;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* --- «Идеи на сегодня» --- */
+.home-ideas { margin-bottom: var(--space-4); }
+.home-ideas-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.home-ideas-title {
+  margin: 0;
+  font-size: 22px;
+  line-height: 26px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  color: #141413;
+}
+.home-ideas-all {
+  flex: none;
+  font-size: 15px;
+  font-weight: 600;
+  color: #0e8a60;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.home-ideas-sub { margin: 2px 0 14px; font-size: 14px; line-height: 19px; color: #6b6b66; }
+/* Сетка — как в ленте «Идей»: две колонки, карточки в колонке стопкой.
+   Своя пара классов, а не .ideas-grid: у ленты на планшете и десктопе три и
+   четыре колонки, а здесь карточек всего четыре, и третья колонка осталась бы
+   пустой. */
+.home-ideas-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-2h); }
+.home-ideas-col { display: flex; flex-direction: column; gap: var(--space-2h); min-width: 0; }
+.home-ideas-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 50px;
+  margin-top: var(--space-3);
+  border-radius: 14px;
+  background: #141413;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+/* --- «Список покупок» --- */
+.home-shopping {
+  margin-bottom: var(--space-4);
+  padding: 18px 20px 20px;
+  border: 1px solid #e3e6e3;
+  border-radius: 20px;
+  background: var(--color-surface);
+}
+/* Заголовок и счётчик стоят в одну строку — на 390 они помещаются ровно, без
+   запаса (замерено: 42 + 10 + 154 + 99 при 316 доступных). Поэтому название не
+   переносится по словам (white-space: nowrap), а если строка всё же не влезла
+   — шире системный шрифт, длиннее счётчик, — переносится ЦЕЛИКОМ счётчик,
+   вторым рядом. Так ломается отступ, а не слово. */
+.home-shopping-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.home-shopping-icon {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  background: #e7f3ec;
+  color: #0e8a60;
+}
+.home-shopping-title {
+  margin: 0;
+  font-size: 19px;
+  line-height: 24px;
+  font-weight: 800;
+  letter-spacing: -0.2px;
+  color: #141413;
+  white-space: nowrap;
+}
+/* Счётчик главного списка. Появляется вторым кадром (списки в localStorage),
+   поэтому место ему отведено справа, где ничего не сдвинется. */
+.home-shopping-counts {
+  margin-left: auto;
+  flex: none;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0e8a60;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.home-shopping-text { margin: 12px 0 0; font-size: 15px; line-height: 21px; color: #3d3d3a; }
+.home-shopping-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 50px;
+  margin-top: 12px;
+  border-radius: 14px;
+  background: #0e8a60;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+/* Узкие экраны (320–380). */
+@media (max-width: 380px) {
+  /* На узком экране «Готовим!» рядом с текстом оставляет названию 90px: и
+     подпись, и название рассыпаются на три строки. Кнопка уходит на свою
+     строку во всю ширину — заодно становится крупнее как тап-цель. */
+  .home-resume { flex-wrap: wrap; }
+  .home-resume-cta { width: 100%; justify-content: center; }
+}
+
+/* От 560px окно уже шире контейнера (500px), и снимок во всю ширину окна
+   отрывался бы от остального контента. Фотография становится карточкой
+   контейнера — и заодно перестаёт растягиваться на широких экранах. */
+@media (min-width: 560px) {
+  .home-hero {
+    --home-hero-photo-h: 440px;
+    width: 100%;
+    margin-left: 0;
+    border-radius: var(--radius-md);
+  }
+}
+/* На десктопе таб-бар — верхняя шапка (см. .tab-bar), вырез равен нулю, и
+   первому экрану во всю высоту окна там делать нечего. */
+@media (min-width: 1024px) {
+  .container-home { padding-top: var(--space-4); }
+  .home-hero { --home-hero-photo-h: 420px; }
+}
+
 /* --- ЭКРАН ОБСЛУЖИВАНИЯ (maintenance) --- */
 .maint {
   min-height: 100vh;

@@ -4,6 +4,7 @@ import "./globals.css";
 import YandexMetrika from "@/components/YandexMetrika"; // Импортируем компонент Метрики
 import PWAUpdater from "@/components/PWAUpdater";
 import CacheKillSwitch from "@/components/CacheKillSwitch";
+import PlatformHit from "@/components/PlatformHit";
 import PWAInstall from "@/components/PWAInstall";
 import InstallBanner from "@/components/InstallBanner";
 import TelegramWebViewBanner from "@/components/TelegramWebViewBanner";
@@ -187,6 +188,8 @@ export default function RootLayout({
         <PWAUpdater />
         {/* Аварийный сброс кэша по метке из админки. localStorage не трогает. */}
         <CacheKillSwitch />
+        {/* Отметка о заходе: платформа и первый ли раз. Один раз за сеанс. */}
+        <PlatformHit />
         <PWAInstall />
         <InstallBanner />
         <TelegramWebViewBanner />

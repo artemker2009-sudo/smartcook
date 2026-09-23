@@ -65,12 +65,9 @@ export default function HomeShoppingCard() {
       <Link
         href="/shopping"
         className="home-shopping-cta"
-        onClick={() => {
-          // home_shopping_open — новая цель Главной v2. shopping_feature_open
-          // остаётся: на ней собрана прежняя воронка входа в раздел с Главной.
-          reachGoal("home_shopping_open");
-          reachGoal("shopping_feature_open");
-        }}
+        // Цель прежняя: на shopping_feature_open собрана воронка входа в
+        // раздел с Главной, и своей цели у карточки v2 нет.
+        onClick={() => reachGoal("shopping_feature_open")}
       >
         Открыть список
       </Link>

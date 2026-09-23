@@ -40,10 +40,10 @@ export default function HomeHero() {
   };
 
   const handleTextClick = () => {
-    // home_text_click — новая цель Главной v2. Прежние две остаются: на
-    // cta_text_click собрана история этой же ссылки, а nav_search — общая цель
-    // входа в поиск (её же шлёт таб-бар).
-    reachGoal("home_text_click");
+    // Цели прежние, своей у Главной v2 здесь нет: на cta_text_click собрана
+    // история этой же ссылки, nav_search — общая цель входа в поиск (её же
+    // шлёт таб-бар). Заводить рядом третью значило бы делить одну воронку
+    // надвое ради того же самого нажатия.
     reachGoal("cta_text_click");
     reachGoal("nav_search");
     router.push("/search?focus=text");

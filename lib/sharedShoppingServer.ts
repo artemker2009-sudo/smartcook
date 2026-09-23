@@ -1,5 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { MAX_SHOPPING_ITEM_LENGTH, sanitizeShoppingName } from "./shoppingList";
+import {
+  MAX_SHOPPING_ITEM_LENGTH,
+  buildGroups,
+  sanitizeShoppingName,
+  signatureFromNames,
+  type ShoppingGroup,
+} from "./shoppingList";
+import { departmentsFromGroups, nameKey } from "./shoppingDepartments";
 import { sanitizeListName } from "./shoppingLists";
 
 // Общие серверные проверки для роутов /api/shopping/shared/*.
@@ -152,4 +159,66 @@ export function isUuid(value: string): boolean {
 export function sharedSortFromRow(row: SharedListRow): { sig: string; groups: unknown[] } | null {
   if (!row.sort_sig || !Array.isArray(row.sort_groups)) return null;
   return { sig: row.sort_sig, groups: row.sort_groups };
+}
+
+/**
+ * Стартовый набор позиций для «Сделать общим»: название + отметка «куплено».
+ *
+ * Раньше клиент присылал просто массив строк, и галочки терялись на границе —
+ * человек отмечал купленное, делал список общим и получал его заново
+ * неотмеченным. Строки по-прежнему принимаем: в кэше сервис-воркера может
+ * лежать старый бандл, и его запрос обязан продолжать работать.
+ */
+export type StartItem = { name: string; checked: boolean };
+
+export function startItemsForDb(raw: unknown[], limit: number): StartItem[] {
+  const items: StartItem[] = [];
+  for (const candidate of raw) {
+    const source =
+      typeof candidate === "string"
+        ? { name: candidate, checked: false }
+        : ((candidate ?? {}) as { name?: unknown; checked?: unknown });
+    const name = sanitizeItemNameForDb(source.name);
+    if (!name) continue;
+    if (items.some((it) => it.name.toLowerCase() === name.toLowerCase())) continue;
+    items.push({ name, checked: source.checked === true });
+    if (items.length >= limit) break;
+  }
+  return items;
+}
+
+/**
+ * Раскладка по отделам, принесённая клиентом при «Сделать общим».
+ *
+ * Клиенту не верим — но и терять раскладку нельзя: она стоила вызова модели, а
+ * человек уже разложил список и ждёт его в том же виде. Поэтому из присланного
+ * берём ТОЛЬКО соответствие «название → отдел», а сами группы собираем заново
+ * через buildGroups из тех названий, что реально легли в базу. Подсунуть лишнюю
+ * позицию, переименовать существующую или выдумать отдел через это нельзя —
+ * ровно та же защита, что стоит на ответе модели в /api/shopping/sort.
+ *
+ * Подпись считаем сами. Не совпала с присланной — набор позиций по дороге
+ * изменился (дедуп, обрезка длины), раскладка к нему уже не относится: не
+ * переносим, и экран честно предложит разложить заново. Названия, для которых
+ * отдела не нашлось, падают в «Прочее» — это лучше, чем не показать позицию
+ * вовсе.
+ */
+export function startSortForDb(
+  raw: unknown,
+  names: string[],
+): { sig: string; groups: ShoppingGroup[] } | null {
+  if (!raw || typeof raw !== "object") return null;
+  const sig = (raw as { sig?: unknown }).sig;
+  const groups = (raw as { groups?: unknown }).groups;
+  if (typeof sig !== "string" || !Array.isArray(groups) || names.length === 0) return null;
+
+  const ourSig = signatureFromNames(names);
+  if (ourSig !== sig) return null;
+
+  const byName = departmentsFromGroups(groups as ShoppingGroup[]);
+  const rebuilt = buildGroups(
+    names,
+    names.map((name) => byName.get(nameKey(name))),
+  );
+  return rebuilt.length > 0 ? { sig: ourSig, groups: rebuilt } : null;
 }

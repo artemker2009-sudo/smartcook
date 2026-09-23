@@ -3,13 +3,14 @@ import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabaseAdmin";
 import { isTrustedOrigin, originBlockedResponse } from "@/lib/originGuard";
 import { checkAndConsumeSharedListCreateRateLimit, sharedListRateLimitResponse } from "@/lib/rateLimit";
-import { MAX_SHOPPING_ITEMS, sameName } from "@/lib/shoppingList";
+import { MAX_SHOPPING_ITEMS } from "@/lib/shoppingList";
 import { defaultListName } from "@/lib/shoppingLists";
 import {
-  sanitizeItemNameForDb,
   sanitizeMemberName,
   sanitizeMemberRef,
   sanitizeSharedListName,
+  startItemsForDb,
+  startSortForDb,
 } from "@/lib/sharedShoppingServer";
 
 export const runtime = "nodejs";
@@ -22,6 +23,11 @@ export const dynamic = "force-dynamic";
  * Стартовые позиции приходят снимком с клиента («Сделать общим» для локального
  * списка). Локальный список при этом НЕ трогается и НЕ удаляется: дальше это
  * две независимые сущности.
+ *
+ * Снимок переносит СОСТОЯНИЕ, а не только названия: отметки «куплено» и
+ * раскладку по отделам. Раньше уезжали одни названия — человек раскладывал
+ * список, отмечал купленное, делал список общим и получал его заново: без
+ * отделов и без галочек. И то и другое здесь же и терялось.
  */
 export async function POST(req: Request) {
   if (!isTrustedOrigin(req)) return originBlockedResponse();
@@ -33,7 +39,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Некорректный запрос" }, { status: 400 });
   }
 
-  const raw = body as { name?: unknown; items?: unknown; ownerRef?: unknown; ownerName?: unknown };
+  const raw = body as {
+    name?: unknown;
+    items?: unknown;
+    sort?: unknown;
+    ownerRef?: unknown;
+    ownerName?: unknown;
+  };
   const ownerRef = sanitizeMemberRef(raw.ownerRef);
   const ownerName = sanitizeMemberName(raw.ownerName);
   if (!ownerRef || !ownerName) {
@@ -55,14 +67,7 @@ export async function POST(req: Request) {
 
   // Санитайз + дедуп теми же правилами, что у локального списка. Клиент это уже
   // сделал — проверяем заново, ему не верим.
-  const names: string[] = [];
-  for (const candidate of rawItems) {
-    const clean = sanitizeItemNameForDb(candidate);
-    if (!clean) continue;
-    if (names.some((n) => sameName(n, clean))) continue;
-    names.push(clean);
-    if (names.length >= MAX_SHOPPING_ITEMS) break;
-  }
+  const startItems = startItemsForDb(rawItems, MAX_SHOPPING_ITEMS);
 
   const rateLimit = await checkAndConsumeSharedListCreateRateLimit(req);
   if (!rateLimit.ok) return sharedListRateLimitResponse(rateLimit);
@@ -97,10 +102,22 @@ export async function POST(req: Request) {
   }
 
   let items: { id: string; name: string; checked: boolean }[] = [];
-  if (names.length > 0) {
+  let sortSaved: { sig: string; groups: unknown[] } | null = null;
+  if (startItems.length > 0) {
     const { data: insertedItems, error: itemsError } = await supabase
       .from("shared_list_items")
-      .insert(names.map((itemName) => ({ shared_list_id: list.id, name: itemName, created_by: ownerRef })))
+      .insert(
+        startItems.map((it) => ({
+          shared_list_id: list.id,
+          name: it.name,
+          created_by: ownerRef,
+          // Отметку переносим вместе с позицией. checked_by — тот, кто делает
+          // список общим: другого участника на этот момент просто нет, а в
+          // интерфейсе под галочкой подписано, кто её поставил.
+          checked: it.checked,
+          ...(it.checked ? { checked_by: ownerRef } : {}),
+        })),
+      )
       .select("id,name,checked");
     if (itemsError) {
       // Список уже создан и рабочий — не роняем создание из-за стартовых
@@ -108,6 +125,23 @@ export async function POST(req: Request) {
       console.error("[sharedShopping] create initial items failed", itemsError.message);
     } else {
       items = insertedItems ?? [];
+
+      // Раскладку переносим только к тем позициям, которые ДЕЙСТВИТЕЛЬНО легли
+      // в базу: если вставка упала, раскладывать нечего.
+      const sort = startSortForDb(raw.sort, items.map((it) => it.name));
+      if (sort) {
+        const { error: sortError } = await supabase
+          .from("shared_lists")
+          .update({ sort_sig: sort.sig, sort_groups: sort.groups })
+          .eq("id", list.id);
+        if (sortError) {
+          // Не роняем создание: список рабочий, просто без отделов — их можно
+          // разложить кнопкой на экране.
+          console.error("[sharedShopping] create initial sort failed", sortError.message);
+        } else {
+          sortSaved = sort;
+        }
+      }
     }
   }
 
@@ -118,6 +152,7 @@ export async function POST(req: Request) {
     updatedAt: list.updated_at,
     joined: true,
     items,
+    sort: sortSaved,
     members: [{ memberRef: member.member_ref, name: member.member_name, joinedAt: member.joined_at }],
   });
 }

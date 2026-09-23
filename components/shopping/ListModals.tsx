@@ -188,7 +188,12 @@ export function MakeSharedModal({
       const ownerRef = newMemberRef();
       const snap = await createSharedList({
         name: list.name,
-        items: list.items.map((it) => it.name),
+        // Снимок целиком: названия, отметки «куплено» и раскладка по отделам.
+        // Раньше уезжали одни названия — и обещание абзацем ниже («позиции и
+        // отметки перенесутся») не выполнялось, а разложенный список
+        // возвращался кучей.
+        items: list.items.map((it) => ({ name: it.name, checked: it.checked })),
+        sort: list.sort,
         ownerRef,
         ownerName: name,
       });

@@ -305,9 +305,18 @@ async function parseError(res: Response, fallback: string): Promise<never> {
   );
 }
 
+/**
+ * Создаёт общий список из снимка локального.
+ *
+ * items — с отметками, а не одни названия: человек, который отметил купленное и
+ * только потом позвал семью, не должен получить список заново неотмеченным.
+ * sort — раскладка по отделам оттуда же; сервер её перепроверяет и собирает
+ * группы заново (см. startSortForDb).
+ */
 export async function createSharedList(input: {
   name: string;
-  items: string[];
+  items: Array<{ name: string; checked: boolean }>;
+  sort?: { sig: string; groups: unknown[] } | null;
   ownerRef: string;
   ownerName: string;
 }): Promise<SharedSnapshot> {

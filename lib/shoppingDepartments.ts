@@ -149,48 +149,83 @@ const BASE_INDEX = buildDepartmentIndex(
 /** Размер базового словаря — для теста и для честного числа в описании PR. */
 export const BASE_DICTIONARY_SIZE = Object.values(BASE).reduce((n, names) => n + names.length, 0);
 
+/** Отдел по ОДНОМУ индексу: точное название, затем все слова по основам. */
+export function lookupInIndex(name: string, index: DepartmentIndex | null | undefined): ShoppingDepartment | null {
+  if (!index) return null;
+  const words = contentWords(name);
+  if (words.length === 0) return null;
+  return index.exact.get(exactKey(words)) ?? index.stems.get(stemsKey(words)) ?? null;
+}
+
+/** Любая пара слов по основам: «перец чёрный молотый» → «перец чёрный». */
+function lookupPairs(index: DepartmentIndex | null | undefined, words: string[]): ShoppingDepartment | null {
+  if (!index) return null;
+  for (let i = 0; i < words.length; i++) {
+    for (let j = i + 1; j < words.length; j++) {
+      const hit = index.stems.get(stemsKey([words[i], words[j]]));
+      if (hit) return hit;
+    }
+  }
+  return null;
+}
+
+/** Одно слово по основе, существительные раньше прилагательных. */
+function lookupSingle(index: DepartmentIndex | null | undefined, words: string[]): ShoppingDepartment | null {
+  if (!index) return null;
+  const ordered = [...words.filter((w) => !looksLikeAdjective(w)), ...words.filter((w) => looksLikeAdjective(w))];
+  for (const word of ordered) {
+    const hit = index.stems.get(stem(word));
+    if (hit) return hit;
+  }
+  return null;
+}
+
 /**
  * Отдел для позиции или null, если уверенно сказать нельзя.
  *
- * Порядок проверок — от точного к грубому, и «выученное» на каждом шаге
- * раньше базового: раскладка, которую уже сделала модель для ЭТОГО человека,
- * знает его продукты лучше общего словаря.
+ * Порядок проверок — от точного к грубому, и на каждом шаге сначала то, что
+ * ближе к этому человеку:
+ *   pinned  — исправления, сделанные РУКАМИ («переместить в отдел…»). Сильнее
+ *             всего остального, включая модель: это решение, а не догадка;
+ *   learned — отделы из уже сделанных раскладок на этом устройстве;
+ *   базовый — общий словарь частых продуктов.
+ *
+ * Шаги:
  *   1. точное название («сметана 20%» → «сметана»);
  *   2. все слова по основам в любом порядке («подсолнечное масло»);
  *   3. любая пара слов по основам («перец чёрный молотый» → «перец чёрный»);
  *   4. одно слово по основе, существительные раньше прилагательных
  *      («куриное филе» → «филе»).
+ *
+ * На грубых шагах 3–4 участвуют только исправления и базовый словарь.
+ * «Выученное» там намеренно не спрашиваем: это догадка модели об одной
+ * конкретной позиции, и растягивать её на однокоренные — способ разнести
+ * ошибку по всему списку. Исправление человека растягиваем: «хумус» в Бакалее
+ * означает, что и «хумус классический» туда же.
  */
-export function lookupDepartment(name: string, learned?: DepartmentIndex | null): ShoppingDepartment | null {
+export function lookupDepartment(
+  name: string,
+  learned?: DepartmentIndex | null,
+  pinned?: DepartmentIndex | null,
+): ShoppingDepartment | null {
   const words = contentWords(name);
   if (words.length === 0) return null;
-  const indexes = learned ? [learned, BASE_INDEX] : [BASE_INDEX];
 
-  const exact = exactKey(words);
-  for (const index of indexes) {
-    const hit = index.exact.get(exact);
-    if (hit) return hit;
-  }
-
-  const all = stemsKey(words);
-  for (const index of indexes) {
-    const hit = index.stems.get(all);
+  for (const index of [pinned, learned, BASE_INDEX]) {
+    const hit = lookupInIndex(name, index);
     if (hit) return hit;
   }
 
   if (words.length > 2) {
-    for (let i = 0; i < words.length; i++) {
-      for (let j = i + 1; j < words.length; j++) {
-        const hit = BASE_INDEX.stems.get(stemsKey([words[i], words[j]]));
-        if (hit) return hit;
-      }
+    for (const index of [pinned, BASE_INDEX]) {
+      const hit = lookupPairs(index, words);
+      if (hit) return hit;
     }
   }
 
   if (words.length > 1) {
-    const ordered = [...words.filter((w) => !looksLikeAdjective(w)), ...words.filter((w) => looksLikeAdjective(w))];
-    for (const word of ordered) {
-      const hit = BASE_INDEX.stems.get(stem(word));
+    for (const index of [pinned, BASE_INDEX]) {
+      const hit = lookupSingle(index, words);
       if (hit) return hit;
     }
   }
@@ -259,6 +294,41 @@ export function placeNames(
   return SHOPPING_DEPARTMENTS.map((department) => ({ department, items: byDept.get(department) ?? [] })).filter(
     (group) => group.items.length > 0,
   );
+}
+
+/**
+ * Меняет порядок ЧАСТИ позиций внутри одного отдела, не двигая остальные.
+ *
+ * orderedNames — новый порядок тех строк, которые человек перетаскивал (в
+ * списке это некупленные позиции этого отдела: купленные лежат в своей группе
+ * внизу и в отделах не показываются). Позиции, которых в orderedNames нет,
+ * остаются на СВОИХ местах в массиве: иначе купленная позиция после снятия
+ * галочки всплывала бы в конце отдела без всякой причины.
+ *
+ * Строки в orderedNames должны быть теми же, что в группе (перетаскивание их
+ * оттуда и берёт). Всё, что не совпало по nameKey, игнорируется — порядок
+ * пришёл от интерфейса, и подменить им состав отдела нельзя.
+ */
+export function reorderWithinDepartment(
+  groups: ShoppingGroup[],
+  department: ShoppingDepartment,
+  orderedNames: string[],
+): ShoppingGroup[] {
+  const wanted = new Set(orderedNames.map(nameKey));
+  return (Array.isArray(groups) ? groups : []).map((group) => {
+    if (group.department !== department || !Array.isArray(group.items)) return group;
+
+    // Берём из orderedNames только то, что реально лежит в отделе, — в
+    // присланном порядке.
+    const inGroup = new Set(group.items.filter((it) => typeof it === "string").map(nameKey));
+    const queue = orderedNames.filter((name) => inGroup.has(nameKey(name)));
+
+    let next = 0;
+    const items = group.items.map((item) =>
+      typeof item === "string" && wanted.has(nameKey(item)) && next < queue.length ? queue[next++] : item,
+    );
+    return { ...group, items };
+  });
 }
 
 /** Отдел каждой позиции из готовой раскладки (ключ — nameKey). */

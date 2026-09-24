@@ -8,6 +8,12 @@ import type { MenuAction } from "@/components/shopping/types";
 type Props = {
   actions: MenuAction[];
   onClose: () => void;
+  /**
+   * Заголовок верхнего уровня. У меню списка его нет — пункты говорят сами за
+   * себя; у меню позиции есть, иначе девять отделов подряд выглядят как список
+   * неизвестно чего.
+   */
+  title?: string;
 };
 
 /**
@@ -20,8 +26,11 @@ type Props = {
  * Опасный пункт отделён чертой и стоит последним: частое и безопасное —
  * сверху, под большим пальцем; удаление — там, куда случайно не попадают.
  */
-export default function MenuSheet({ actions, onClose }: Props) {
-  const [level, setLevel] = useState<{ title: string | null; actions: MenuAction[] }>({ title: null, actions });
+export default function MenuSheet({ actions, onClose, title }: Props) {
+  const [level, setLevel] = useState<{ title: string | null; actions: MenuAction[] }>({
+    title: title ?? null,
+    actions,
+  });
 
   return (
     <div className="sl-overlay" onClick={onClose}>

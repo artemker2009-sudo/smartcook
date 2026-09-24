@@ -5,8 +5,10 @@ import {
   buildDepartmentIndex,
   lookupDepartment,
   placeNames,
+  reorderWithinDepartment,
   uncoveredNames,
 } from "./shoppingDepartments";
+import { signatureFromNames } from "./shoppingList";
 import type { ShoppingGroup } from "./shoppingList";
 
 describe("lookupDepartment", () => {
@@ -96,5 +98,60 @@ describe("uncoveredNames", () => {
   it("возвращает то, чего нет в раскладке, без учёта регистра", () => {
     const groups: ShoppingGroup[] = [{ department: "Молочное", items: ["Молоко"] }];
     expect(uncoveredNames(groups, ["молоко ", "Сметана", "сметана"])).toEqual(["Сметана"]);
+  });
+});
+
+describe("reorderWithinDepartment", () => {
+  const groups: ShoppingGroup[] = [
+    { department: "Овощи-фрукты", items: ["Огурцы", "Бананы", "Укроп"] },
+    { department: "Молочное", items: ["Кефир", "Сметана"] },
+  ];
+
+  it("меняет порядок только в своём отделе", () => {
+    const next = reorderWithinDepartment(groups, "Овощи-фрукты", ["Укроп", "Огурцы", "Бананы"]);
+    expect(next).toEqual([
+      { department: "Овощи-фрукты", items: ["Укроп", "Огурцы", "Бананы"] },
+      { department: "Молочное", items: ["Кефир", "Сметана"] },
+    ]);
+  });
+
+  it("не двигает позиции, которых нет в присланном порядке", () => {
+    // Купленные позиции в отделе не показываются, значит и не перетаскиваются:
+    // «Бананы» обязаны остаться на своём месте, а не всплыть в конец.
+    const next = reorderWithinDepartment(groups, "Овощи-фрукты", ["Укроп", "Огурцы"]);
+    expect(next[0]).toEqual({ department: "Овощи-фрукты", items: ["Укроп", "Бананы", "Огурцы"] });
+  });
+
+  it("чужие названия из интерфейса не меняют состав отдела", () => {
+    const next = reorderWithinDepartment(groups, "Молочное", ["Сметана", "Ананас", "Кефир"]);
+    expect(next[1]).toEqual({ department: "Молочное", items: ["Сметана", "Кефир"] });
+  });
+
+  it("неизвестный отдел ничего не ломает", () => {
+    expect(reorderWithinDepartment(groups, "Хлеб", ["Батон"])).toEqual(groups);
+  });
+});
+
+// Ради этого требования (#161) раскладку правим на месте, а не пересчитываем:
+// после переноса и перетаскивания список обязан остаться разложенным, а
+// галочки — на своих позициях (они живут в позициях, а не в раскладке).
+describe("правка раскладки не делает её устаревшей", () => {
+  const names = ["Огурцы", "Бананы", "Кефир"];
+  const groups: ShoppingGroup[] = [
+    { department: "Овощи-фрукты", items: ["Огурцы", "Бананы"] },
+    { department: "Молочное", items: ["Кефир"] },
+  ];
+
+  it("перенос в другой отдел не меняет ни подпись, ни покрытие", () => {
+    const moved = placeNames(groups, [{ name: "Бананы", department: "Молочное" }], names);
+    expect(uncoveredNames(moved, names)).toEqual([]);
+    // Состав раскладки прежний — значит и подпись та же, и чип не предложит
+    // «обновить отделы» сразу после того, как человек поправил их руками.
+    expect(signatureFromNames(moved.flatMap((g) => g.items))).toBe(signatureFromNames(names));
+  });
+
+  it("перестановка внутри отдела не меняет покрытие", () => {
+    const next = reorderWithinDepartment(groups, "Овощи-фрукты", ["Бананы", "Огурцы"]);
+    expect(uncoveredNames(next, names)).toEqual([]);
   });
 });

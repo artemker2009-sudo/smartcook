@@ -107,6 +107,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
           },
         ]
       : []),
+    // «Премиум» и оферта в карте сайта ВСЕГДА, независимо от FEATURE_PREMIUM:
+    // обе страницы работают при выключенном флаге, их открывает и проверяет
+    // платёжный сервис, и «Премиум» — коммерческая страница сервиса.
+    {
+      url: siteUrl('/premium'),
+      lastModified: new Date(),
+      changeFrequency: 'monthly',
+      priority: 0.7,
+    },
+    {
+      url: siteUrl('/oferta'),
+      lastModified: new Date(),
+      changeFrequency: 'yearly',
+      priority: 0.3,
+    },
     {
       url: siteUrl('/about'),
       lastModified: new Date(),

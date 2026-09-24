@@ -3,6 +3,8 @@ import React from "react";
 interface DocPageProps {
   title: string;
   updated?: string;
+  /** Подпись перед датой. «Обновлено» для документов, «Редакция от» для оферты. */
+  updatedLabel?: string;
   children: React.ReactNode;
 }
 
@@ -11,7 +13,12 @@ interface DocPageProps {
  * Навигация — общий таб-бар из layout, футер добавляется туда же автоматически.
  * Всё на токенах: тёплый фон страницы, карточная типографика через .doc-body.
  */
-export default function DocPage({ title, updated, children }: DocPageProps) {
+export default function DocPage({
+  title,
+  updated,
+  updatedLabel = "Обновлено:",
+  children,
+}: DocPageProps) {
   return (
     <>
       <main className="container" style={{ paddingBottom: "var(--space-5)" }}>
@@ -35,7 +42,7 @@ export default function DocPage({ title, updated, children }: DocPageProps) {
               margin: "0 0 var(--space-4) 0",
             }}
           >
-            Обновлено: {updated}
+            {updatedLabel} {updated}
           </p>
         )}
         <div className="doc-body">{children}</div>

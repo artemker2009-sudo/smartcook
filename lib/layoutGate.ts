@@ -34,3 +34,16 @@ export function isPartyRoom(pathname: string): boolean {
 export function isChromeHidden(pathname: string): boolean {
   return isAdminRoute(pathname) || isPartyRoom(pathname);
 }
+
+/**
+ * Скрыт ли ТОЛЬКО футер (таб-бар остаётся). Пока это «Премиум» и её экраны
+ * оплаты: страница сделана по утверждённому макету и заканчивается собственным
+ * блоком реквизитов. Общий футер под ним повторял бы те же ФИО, ИНН, почту и
+ * телефон второй раз подряд — ровно на той странице, которую открывает
+ * проверяющий платёжного сервиса.
+ *
+ * Таб-бар не трогаем: уйти со страницы человек должен уметь.
+ */
+export function isFooterHidden(pathname: string): boolean {
+  return isChromeHidden(pathname) || pathname === "/premium" || pathname.startsWith("/premium/");
+}

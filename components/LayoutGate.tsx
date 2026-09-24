@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 
 import Footer from "@/components/Footer";
 import OnboardingModal from "@/components/modals/OnboardingModal";
-import { isAdminRoute, isChromeHidden } from "@/lib/layoutGate";
+import { isAdminRoute, isFooterHidden } from "@/lib/layoutGate";
 import { SHOW_WELCOME } from "@/lib/features";
 
 /**
@@ -35,7 +35,7 @@ export default function LayoutGate() {
 
   return (
     <>
-      {!isChromeHidden(pathname) && <Footer />}
+      {!isFooterHidden(pathname) && <Footer />}
       {SHOW_WELCOME && !isAdminRoute(pathname) && <OnboardingModal />}
     </>
   );

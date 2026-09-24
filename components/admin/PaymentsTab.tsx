@@ -31,6 +31,16 @@ const PLAN_LABELS: Record<string, string> = {
 
 const rub = (value: number) => `${value.toLocaleString("ru-RU")} ₽`;
 
+/** «1 оплата», «3 оплаты», «5 оплат». */
+const plural = (n: number) => {
+  const mod100 = n % 100;
+  const mod10 = mod100 % 10;
+  if (mod100 >= 11 && mod100 <= 14) return "оплат";
+  if (mod10 === 1) return "оплата";
+  if (mod10 >= 2 && mod10 <= 4) return "оплаты";
+  return "оплат";
+};
+
 const formatDateTime = (iso: string) => {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
@@ -90,7 +100,7 @@ export default function PaymentsTab({ onUnauthorized }: { onUnauthorized: () => 
               {tile ? rub(tile.sum) : "—"}
             </p>
             <p className="mt-1 text-sm text-zinc-500">
-              {tile ? `${tile.count} ${tile.count === 1 ? "оплата" : "оплат"}` : ""}
+              {tile ? `${tile.count} ${plural(tile.count)}` : ""}
             </p>
           </div>
         ))}
@@ -114,15 +124,23 @@ export default function PaymentsTab({ onUnauthorized }: { onUnauthorized: () => 
           {(data?.chart ?? []).map((day) => (
             <div
               key={day.date}
-              className="group relative flex flex-1 flex-col items-center justify-end"
+              // h-full ОБЯЗАТЕЛЕН: без него у колонки высота auto, и проценты
+              // на самом столбике не от чего считать — все дни рисовались
+              // одинаковыми ниточками у нижнего края.
+              className="group relative flex h-full flex-1 flex-col items-center justify-end"
               // Подпись под столбиком — число оплат, высота — сумма (SPEC 3.6).
               title={`${formatDay(day.date)}: ${rub(day.sum)}, оплат ${day.count}`}
             >
               <div
                 className="w-full rounded-t bg-emerald-500/80 transition-colors group-hover:bg-emerald-600"
-                style={{ height: `${Math.round((day.sum / maxSum) * 100)}%`, minHeight: day.sum > 0 ? 3 : 1 }}
+                // Проценты считаем от места ПОД подписью (она занимает 14px),
+                // иначе самый высокий столбик вылезает за карточку.
+                style={{
+                  height: `calc(${Math.round((day.sum / maxSum) * 100)}% - 14px)`,
+                  minHeight: day.sum > 0 ? 3 : 1,
+                }}
               />
-              <span className="mt-1 text-[10px] leading-none text-zinc-400">
+              <span className="mt-1 h-[10px] text-[10px] leading-none text-zinc-400">
                 {day.count > 0 ? day.count : ""}
               </span>
             </div>

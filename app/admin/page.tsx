@@ -12,6 +12,9 @@ import {
   Wrench,
 } from "lucide-react";
 import { renderMarkdown } from "@/lib/markdown";
+import PaymentsTab from "@/components/admin/PaymentsTab";
+import PremiumUsersTab from "@/components/admin/PremiumUsersTab";
+import { FEATURE_PREMIUM } from "@/lib/features";
 import {
   MAX_BULK_PUBLISH,
   bulkPublishConfirmText,
@@ -182,7 +185,7 @@ type ImagesStatus = {
   maxBatch: number;
 };
 
-type TabId = "management" | "analytics" | "platforms" | "purchases" | "news" | "articles" | "ideas" | "tips" | "feed" | "images" | "warmup" | "requests" | "errors" | "reports" | "suggestions";
+type TabId = "management" | "analytics" | "platforms" | "payments" | "users" | "purchases" | "news" | "articles" | "ideas" | "tips" | "feed" | "images" | "warmup" | "requests" | "errors" | "reports" | "suggestions";
 
 // Что показать, когда сервер ответил 401. Админ-сессия живёт 12 часов
 // (lib/adminAuth.ts), и вкладка, оставленная открытой на ночь, доживает до
@@ -270,7 +273,18 @@ const TABS = [
   { id: "management" as TabId, label: "⚙️ Управление", hint: "Статус сайта и техработы" },
   { id: "analytics" as TabId, label: "📊 Аналитика", hint: "Живые метрики и события" },
   { id: "platforms" as TabId, label: "📱 Платформы", hint: "Откуда заходят: сайт, iOS, RuStore" },
-  { id: "purchases" as TabId, label: "💳 История покупок", hint: "Только оплаченные банкеты" },
+  // «Платежи» и «Пользователи» — Премиум. Прячем их при выключенном флаге:
+  // разделы, в которых заведомо пусто, только мешают искать нужное.
+  ...(FEATURE_PREMIUM
+    ? [
+        { id: "payments" as TabId, label: "💎 Платежи", hint: "Оплаты Премиума: суммы и график" },
+        { id: "users" as TabId, label: "👥 Пользователи", hint: "Премиум, подборы, выдача вручную" },
+      ]
+    : []),
+  // Не путать с «Платежами»: там Премиум, здесь банкеты. Раздел банкетов
+  // скрыт флагом FEATURE_BANQUETS, поэтому новых строк тут не появляется —
+  // но старые никуда не делись, и сам раздел мы не трогаем.
+  { id: "purchases" as TabId, label: "💳 Банкеты: оплаты", hint: "Оплаченные банкеты (раздел скрыт флагом)" },
   { id: "news" as TabId, label: "📰 Новости", hint: "Новости проекта на главной" },
   { id: "articles" as TabId, label: "📝 Заметки", hint: "Кухонные заметки на главной" },
   { id: "ideas" as TabId, label: "🍳 Каталог", hint: "Рецепты раздела «Идеи»" },
@@ -2433,6 +2447,10 @@ export default function AdminPage() {
               </section>
             </div>
           ) : null}
+
+          {activeTab === "payments" ? <PaymentsTab onUnauthorized={handleAdminUnauthorized} /> : null}
+
+          {activeTab === "users" ? <PremiumUsersTab onUnauthorized={handleAdminUnauthorized} /> : null}
 
           {activeTab === "purchases" ? (
             <section className="overflow-hidden rounded-[2rem] border border-zinc-200 bg-white shadow-sm">

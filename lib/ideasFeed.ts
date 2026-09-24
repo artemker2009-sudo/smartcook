@@ -19,10 +19,12 @@ export type IdeaCard = {
   allergens: string[];
   family: string | null;
   /**
-   * Свободные теги. Нужны ТОЛЬКО блоку «Похожие идеи» на экране рецепта, и
-   * лента их не запрашивает — в карточках ленты здесь пустой массив. Тащить
-   * теги в пейлоад каждой из восьмидесяти карточек незачем: см.
-   * IDEA_RECIPE_CATALOG_COLUMNS, экран рецепта просит их отдельно.
+   * Свободные теги. Нужны блоку «Похожие идеи» на экране рецепта и ПОИСКУ по
+   * подборке: человек ищет «пп» или «на праздник», а это именно теги.
+   *
+   * Раньше лента их не запрашивала ради размера пейлоада — теперь запрашивает.
+   * Цена честная и маленькая: теги это несколько коротких слов на карточку,
+   * против названия, состава и адреса картинки, которые уже едут.
    */
   tags: string[];
   imageUrl: string;
@@ -63,14 +65,18 @@ export const IDEA_FEED_COLUMNS = [
   "sort_weight",
   "published_at",
   "ingredients",
+  "tags",
 ].join(",");
 
 /**
- * Колонки для каталога, который читает ЭКРАН РЕЦЕПТА: те же, что у ленты, плюс
- * теги — по ним считается блок «Похожие идеи». Лента их не просит, и её
- * пейлоад не меняется.
+ * Колонки для каталога, который читает ЭКРАН РЕЦЕПТА.
+ *
+ * Сейчас это ровно те же колонки, что у ленты: теги понадобились и ей (поиск
+ * по подборке), а других отличий не было. Имя оставлено отдельным — экран
+ * рецепта и лента расходятся по составу полей регулярно, и разводить их
+ * обратно проще, чем искать все места, где стояло одно имя на двоих.
  */
-export const IDEA_RECIPE_CATALOG_COLUMNS = `${IDEA_FEED_COLUMNS},tags`;
+export const IDEA_RECIPE_CATALOG_COLUMNS = IDEA_FEED_COLUMNS;
 
 type RawRow = {
   slug: string;
@@ -183,6 +189,23 @@ export function filtersToQuery(filters: IdeaFilters): string {
 
 export function hasAnyFilter(filters: IdeaFilters): boolean {
   return !!filters.meal || !!filters.mainProduct || filters.quick || filters.fit;
+}
+
+/**
+ * Адрес ленты с фильтрами и поисковым запросом.
+ *
+ * Одно место на оба: чипы и поиск живут в одном адресе и обязаны переживать
+ * друг друга — выбрал «Завтрак», написал «творог», и в ссылке осталось и то, и
+ * другое. Запрос идёт последним и кодируется: он кириллический и произвольный,
+ * в отличие от значений чипов.
+ */
+export function ideasUrl(filters: IdeaFilters, query: string): string {
+  const parts: string[] = [];
+  const filterPart = filtersToQuery(filters);
+  if (filterPart) parts.push(filterPart);
+  const trimmed = query.trim();
+  if (trimmed) parts.push(`q=${encodeURIComponent(trimmed)}`);
+  return parts.length > 0 ? `/ideas?${parts.join("&")}` : "/ideas";
 }
 
 /**

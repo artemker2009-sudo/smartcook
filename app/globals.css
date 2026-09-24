@@ -4953,6 +4953,73 @@ body.has-addbar { padding-bottom: calc(var(--tab-bar-total) + 72px); }
   .ideas-subtitle { font-size: 11px; }
 }
 
+/* Поиск по подборке. Стоит между шапкой и чипами: ищут реже, чем жмут чипы,
+   но это единственный вход для «что у меня есть в холодильнике». Высота 44px —
+   тот же минимум попадания пальцем, что у чипов и строк списка. */
+.ideas-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-top: var(--space-3);
+}
+.ideas-search-icon {
+  position: absolute;
+  left: 12px;
+  color: var(--ideas-muted);
+  pointer-events: none;
+}
+.ideas-search-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 40px 0 38px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--ideas-ink);
+  /* 16px обязательны: на меньшем размере Safari на iPhone зумит страницу при
+     фокусе в поле и обратно уже не отъезжает. */
+  font-size: 16px;
+  line-height: 1.2;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.ideas-search-input::placeholder { color: var(--ideas-muted); }
+.ideas-search-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+/* Системный крестик Safari/Chrome убираем: он мелкий и живёт по своим
+   правилам. Свой — 44px по площади нажатия. */
+.ideas-search-input::-webkit-search-cancel-button { display: none; }
+.ideas-search-clear {
+  position: absolute;
+  right: 0;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--ideas-muted);
+  cursor: pointer;
+}
+/* «Нашли 3» — строка над сеткой. Не заголовок: это ответ на запрос, и он
+   должен читаться мельче названия раздела. */
+.ideas-found {
+  /* Отступы как у соседних строк-пояснений (.ideas-note): горизонтальные поля
+     даёт .ideas-page, добавлять свои нельзя — получится двойной отступ. */
+  margin: -8px 0 12px 0;
+  font-size: 14px;
+  color: var(--ideas-muted);
+}
+.ideas-empty-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  text-decoration: none;
+}
+
 /* Кнопка «Избранное» — фильтр ленты, как раньше сердечко. Включённое
    состояние видно не только цветом: сердце становится залитым, рамка — тёмной. */
 .ideas-fav {

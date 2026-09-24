@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { checkAndConsumeAiRateLimit, rateLimitResponse } from "@/lib/rateLimit";
+import { checkPodborLimit, podborLimitResponse, recordPodbor } from "@/lib/podbor";
 import { isStringListTooLong } from "@/lib/inputLimits";
 import { sanitizeProductList } from "@/lib/products";
 import { isTrustedOrigin, originBlockedResponse } from "@/lib/originGuard";
@@ -192,7 +193,19 @@ function buildRecalcPrompt(
 }
 
 type ParsedRequest =
-  | { ok: true; content: OpenAI.Chat.Completions.ChatCompletionContentPart[]; sessionId: string | null }
+  | {
+      ok: true;
+      content: OpenAI.Chat.Completions.ChatCompletionContentPart[];
+      sessionId: string | null;
+      /**
+       * true — пришло НОВОЕ фото. false — пересчёт по уже известному списку
+       * продуктов (человек поправил чипы или переключил «могу докупить»).
+       * Отличать нужно ради недельного лимита: подбор — это новый ввод, а
+       * пересчёт по тем же продуктам SPEC 0 подбором не считает, ровно как и
+       * regenerate («другие блюда по тем же продуктам»).
+       */
+      isPhoto: boolean;
+    }
   | { ok: false; response: NextResponse };
 
 // Разбор обоих режимов запроса в единый вход для модели.
@@ -226,6 +239,7 @@ async function parseRequest(req: Request): Promise<ParsedRequest> {
     return {
       ok: true,
       sessionId: typeof body?.sessionId === "string" ? body.sessionId : null,
+      isPhoto: false,
       content: [{ type: "text", text: buildRecalcPrompt(products, mode, allergies, dislikes) }],
     };
   }
@@ -257,6 +271,7 @@ async function parseRequest(req: Request): Promise<ParsedRequest> {
   return {
     ok: true,
     sessionId: typeof sessionIdRaw === "string" ? sessionIdRaw : null,
+    isPhoto: true,
     content: [
       { type: "text", text: buildPhotoPrompt(mode, allergies, dislikes) },
       { type: "image_url", image_url: { url: `data:${file.type};base64,${base64Image}` } },
@@ -276,12 +291,22 @@ export async function POST(req: Request) {
     const rateLimit = await checkAndConsumeAiRateLimit(req, "photo-recipe");
     if (!rateLimit.ok) return rateLimitResponse(rateLimit);
 
+    // Недельный лимит подборов — только на НОВОЕ фото. Пересчёт по уже
+    // разобранным продуктам подбором не считается (см. isPhoto выше).
+    const podbor = parsed.isPhoto ? await checkPodborLimit(req, parsed.sessionId) : null;
+    if (podbor && !podbor.allowed) return podborLimitResponse(podbor);
+
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: parsed.content }],
       response_format: { type: "json_object" },
       stream: true,
     });
+
+    // Модель ответила и стрим сейчас поедет — вот это и есть «успешный старт
+    // генерации» (SPEC 3.2). Сбой записи стрим не трогает: внутри recordPodbor
+    // только console.error.
+    if (podbor) void recordPodbor(podbor.owner, "photo", "photo-recipe");
 
     const encoder = new TextEncoder();
     const stream = new ReadableStream<Uint8Array>({

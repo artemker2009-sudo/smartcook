@@ -1,6 +1,7 @@
 import { NextResponse, after } from "next/server";
 import OpenAI from "openai";
 import { checkAndConsumeAiRateLimit, rateLimitResponse } from "@/lib/rateLimit";
+import { checkPodborLimit, podborLimitResponse, recordPodbor } from "@/lib/podbor";
 import { isStringListTooLong, isTextTooLong } from "@/lib/inputLimits";
 import { isTrustedOrigin, originBlockedResponse } from "@/lib/originGuard";
 import { sanitizeRecipeForStorage } from "@/lib/recipeValidation";
@@ -72,6 +73,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Слишком длинный запрос" }, { status: 400 });
     }
 
+    // ── Недельный лимит подборов ──────────────────────────────────────────────
+    // Текстовый запрос — это подбор: человек дал новый ввод, по нему подбираются
+    // рецепты. Два исключения, и оба потому, что новым подбором не являются:
+    //   * cacheOnly — тап по демо-чипу на Главной, OpenAI не вызывается вовсе;
+    //   * requestVariant — «подобрать другой рецепт» по ТОМУ ЖЕ запросу, то же
+    //     самое, что regenerate по тем же продуктам (SPEC 0 его не считает).
+    //
+    // Проверка стоит ДО чтения кэша сознательно. Технически cache hit ничего не
+    // стоит, но для человека это ровно тот же подбор — и лимит, который иногда
+    // срабатывает, а иногда нет, в зависимости от невидимого ему состояния
+    // кэша, выглядел бы как случайность.
+    const countsAsPodbor = cacheOnly !== true && requestVariant !== true;
+    const podbor = countsAsPodbor ? await checkPodborLimit(req, sessionId) : null;
+    if (podbor && !podbor.allowed) return podborLimitResponse(podbor);
+
     const cacheOn = isRecipeCacheEnabled();
     const profile = hasTasteProfile(allergies, dislikes);
     const queryKey = normalizeQueryKey(query);
@@ -108,6 +124,7 @@ export async function POST(req: Request) {
       const hit = await getCachedVariant(queryKey, 1);
       if (hit) {
         const id = await saveToHistory(req, sessionId, hit);
+        if (podbor) void recordPodbor(podbor.owner, "text", "search-recipe");
         return NextResponse.json({ type: "dish", recipe: { ...hit, id }, cacheHit: true });
       }
     }
@@ -221,6 +238,10 @@ export async function POST(req: Request) {
 
     const content = completion.choices[0].message.content;
     if (!content) throw new Error("Empty response");
+
+    // Генерация состоялась — записываем подбор. Сбой записи генерацию не
+    // ломает (внутри recordPodbor только лог), поэтому void и без await.
+    if (podbor) void recordPodbor(podbor.owner, "text", "search-recipe");
 
     const result = JSON.parse(content);
 

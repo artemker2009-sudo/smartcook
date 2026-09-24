@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { checkAndConsumeAiRateLimit, rateLimitResponse } from "@/lib/rateLimit";
+import { checkPodborLimit, podborLimitResponse, recordPodbor } from "@/lib/podbor";
 import { isTrustedOrigin, originBlockedResponse } from "@/lib/originGuard";
 
 // Распознавание фото (vision) — самый долгий вызов в продукте: на снимке
@@ -46,6 +47,14 @@ export async function POST(req: Request) {
 
     const rateLimit = await checkAndConsumeAiRateLimit(req, "analyze");
     if (!rateLimit.ok) return rateLimitResponse(rateLimit);
+
+    // Недельный лимит подборов: распознавание фото — это подбор.
+    //
+    // Роут сейчас не вызывает никто: фото-путь давно ходит одним запросом в
+    // /api/photo-recipe. Проверка стоит всё равно — правило должно быть полным,
+    // иначе оставшийся снаружи AI-роут однажды окажется дырой в лимите.
+    const podbor = await checkPodborLimit(req, formData.get("sessionId"));
+    if (!podbor.allowed) return podborLimitResponse(podbor);
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
@@ -144,6 +153,8 @@ export async function POST(req: Request) {
 
     const content = response.choices[0].message.content;
     if (!content) throw new Error("No output");
+
+    void recordPodbor(podbor.owner, "photo", "analyze");
 
     const json = JSON.parse(content);
 

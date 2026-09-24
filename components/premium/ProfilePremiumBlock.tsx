@@ -54,11 +54,13 @@ export default function ProfilePremiumBlock() {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         });
-        if (!res.ok) return;
-        const json = await res.json();
+        const json = res.ok ? await res.json() : null;
+        // Пустой список И при сбое: иначе заголовок «История покупок» висит без
+        // единой строки под ним — именно это и было видно на превью, когда
+        // запрос отвечал 401. Лучше честное «Покупок пока нет», чем пустота.
         if (alive) setHistory(Array.isArray(json?.items) ? json.items : []);
       } catch {
-        // История — справка, а не суть экрана: не смогли прочитать, молчим.
+        if (alive) setHistory([]);
       }
     })();
     return () => {
@@ -166,6 +168,9 @@ export default function ProfilePremiumBlock() {
         </>
       )}
 
+      {/* Заголовок появляется вместе с содержимым: пустая «История покупок»
+          на кадр загрузки выглядит как сломанный блок. */}
+      {history !== null ? (
       <div
         style={{
           marginTop: "var(--space-4)",
@@ -186,7 +191,7 @@ export default function ProfilePremiumBlock() {
           История покупок
         </h3>
 
-        {history === null ? null : history.length === 0 ? (
+        {history.length === 0 ? (
           <p
             style={{
               margin: 0,
@@ -226,6 +231,7 @@ export default function ProfilePremiumBlock() {
           </ul>
         )}
       </div>
+      ) : null}
     </div>
   );
 }

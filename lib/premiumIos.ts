@@ -55,15 +55,17 @@ export function podborLimitCopy(env: InstallEnv, limit: number): PodborLimitCopy
     };
   }
 
-  // «от 49 ₽» — самый дешёвый тариф из общего списка, а не вписанная строка:
-  // появится тариф дешевле, и подпись съедет сама.
-  const cheapest = PREMIUM_PLANS.reduce((a, b) => (b.priceRub < a.priceRub ? b : a));
+  // «169 ₽ в год» — цена берётся из самого тарифа, а не вписана строкой:
+  // прайс правится в lib/premiumPlans.ts, и подпись обязана съезжать вместе с
+  // ним. Раньше здесь было «от N ₽» по самому дешёвому тарифу; теперь тариф со
+  // сроком ровно один, и честнее назвать его прямо.
+  const year = PREMIUM_PLANS.find((p) => p.days === 365) ?? PREMIUM_PLANS[0];
 
   return {
     title: "Подборы на этой неделе закончились",
     text:
       `Бесплатно — ${limit} ${pluralPodbor(limit)} в неделю, новые — в понедельник. ` +
-      `С Премиумом — без лимита, от ${formatPriceRub(cheapest.priceRub)}.`,
+      `С Премиумом — без лимита, ${formatPriceRub(year.priceRub)} в год.`,
     action: "Оформить Премиум",
     href: "/premium",
     dismiss: "Подожду до понедельника",

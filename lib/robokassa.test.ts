@@ -39,15 +39,15 @@ describe("подпись исходящей ссылки — пример из �
   });
 
   it("sha256 берётся, когда так настроен магазин", () => {
-    const receiptEncoded = encodeReceipt(buildReceipt("Премиум SmartCook — 1 месяц", 49));
+    const receiptEncoded = encodeReceipt(buildReceipt("Премиум SmartCook — 1 год", 169));
     const sha = signPayment({ ...CONFIG, hashAlgo: "sha256" }, {
-      outSum: "49.00",
+      outSum: "169.00",
       invId: 7,
       receiptEncoded,
     });
     expect(sha).toBe(
       createHash("sha256")
-        .update(`demo:49.00:7:${receiptEncoded}:password_1`, "utf8")
+        .update(`demo:169.00:7:${receiptEncoded}:password_1`, "utf8")
         .digest("hex"),
     );
     expect(sha).toHaveLength(64);
@@ -55,12 +55,12 @@ describe("подпись исходящей ссылки — пример из �
 });
 
 describe("buildReceipt — чек самозанятого", () => {
-  const receipt = buildReceipt("Премиум SmartCook — 1 месяц", 49);
+  const receipt = buildReceipt("Премиум SmartCook — 1 год", 169);
 
   it("одна позиция с названием заказа и суммой", () => {
     expect(receipt.items).toHaveLength(1);
-    expect(receipt.items[0].name).toBe("Премиум SmartCook — 1 месяц");
-    expect(receipt.items[0].sum).toBe(49);
+    expect(receipt.items[0].name).toBe("Премиум SmartCook — 1 год");
+    expect(receipt.items[0].sum).toBe(169);
     expect(receipt.items[0].quantity).toBe(1);
   });
 
@@ -71,7 +71,7 @@ describe("buildReceipt — чек самозанятого", () => {
   });
 
   it("название режется до 128 символов (потолок документации)", () => {
-    expect(buildReceipt("я".repeat(200), 49).items[0].name).toHaveLength(128);
+    expect(buildReceipt("я".repeat(200), 169).items[0].name).toHaveLength(128);
   });
 
   it("sno не передаём — берётся из настроек магазина", () => {
@@ -82,7 +82,7 @@ describe("buildReceipt — чек самозанятого", () => {
 describe("buildPaymentUrl", () => {
   const url = buildPaymentUrl(CONFIG, {
     invId: 42,
-    amountRub: 390,
+    amountRub: 169,
     description: "Премиум SmartCook — 1 год",
   });
 
@@ -91,12 +91,12 @@ describe("buildPaymentUrl", () => {
   });
 
   it("сумма с двумя знаками", () => {
-    expect(url).toContain("OutSum=390.00");
+    expect(url).toContain("OutSum=169.00");
   });
 
   it("Receipt в адресе — ровно та строка, что попала в подпись", () => {
-    const receiptEncoded = encodeReceipt(buildReceipt("Премиум SmartCook — 1 год", 390));
-    const expected = signPayment(CONFIG, { outSum: "390.00", invId: 42, receiptEncoded });
+    const receiptEncoded = encodeReceipt(buildReceipt("Премиум SmartCook — 1 год", 169));
+    const expected = signPayment(CONFIG, { outSum: "169.00", invId: 42, receiptEncoded });
 
     expect(url).toContain(`Receipt=${receiptEncoded}`);
     expect(url).toContain(`SignatureValue=${expected}`);
@@ -113,48 +113,48 @@ describe("buildPaymentUrl", () => {
     expect(url).not.toContain("IsTest");
     const test = buildPaymentUrl({ ...CONFIG, isTest: true }, {
       invId: 1,
-      amountRub: 49,
-      description: "Премиум SmartCook — 1 месяц",
+      amountRub: 490,
+      description: "Премиум SmartCook — навсегда",
     });
     expect(test).toContain("IsTest=1");
   });
 });
 
 describe("verifyResultSignature — ResultURL, Пароль #2", () => {
-  const good = md5("49.00:42:password_2");
+  const good = md5("169.00:42:password_2");
 
   it("принимает верную подпись", () => {
-    expect(verifyResultSignature(CONFIG, { outSum: "49.00", invId: "42", signature: good })).toBe(true);
+    expect(verifyResultSignature(CONFIG, { outSum: "169.00", invId: "42", signature: good })).toBe(true);
   });
 
   it("принимает ВЕРХНИЙ регистр — Robokassa шлёт именно его", () => {
     expect(
-      verifyResultSignature(CONFIG, { outSum: "49.00", invId: "42", signature: good.toUpperCase() }),
+      verifyResultSignature(CONFIG, { outSum: "169.00", invId: "42", signature: good.toUpperCase() }),
     ).toBe(true);
   });
 
   it("отбивает чужую подпись", () => {
     expect(
-      verifyResultSignature(CONFIG, { outSum: "49.00", invId: "42", signature: md5("что угодно") }),
+      verifyResultSignature(CONFIG, { outSum: "169.00", invId: "42", signature: md5("что угодно") }),
     ).toBe(false);
   });
 
   it("отбивает подпись, посчитанную Паролем #1", () => {
     expect(
       verifyResultSignature(CONFIG, {
-        outSum: "49.00",
+        outSum: "169.00",
         invId: "42",
-        signature: md5("49.00:42:password_1"),
+        signature: md5("169.00:42:password_1"),
       }),
     ).toBe(false);
   });
 
-  it("отбивает подмену суммы: подпись от 49 не подходит к 990", () => {
-    expect(verifyResultSignature(CONFIG, { outSum: "990.00", invId: "42", signature: good })).toBe(false);
+  it("отбивает подмену суммы: подпись от 169 не подходит к 490", () => {
+    expect(verifyResultSignature(CONFIG, { outSum: "490.00", invId: "42", signature: good })).toBe(false);
   });
 
   it("отбивает подмену номера заказа", () => {
-    expect(verifyResultSignature(CONFIG, { outSum: "49.00", invId: "43", signature: good })).toBe(false);
+    expect(verifyResultSignature(CONFIG, { outSum: "169.00", invId: "43", signature: good })).toBe(false);
   });
 });
 
@@ -162,16 +162,16 @@ describe("verifyRedirectSignature — SuccessURL/FailURL, Пароль #1", () =
   it("считается Паролем #1, а не #2", () => {
     expect(
       verifyRedirectSignature(CONFIG, {
-        outSum: "49.00",
+        outSum: "169.00",
         invId: "42",
-        signature: md5("49.00:42:password_1"),
+        signature: md5("169.00:42:password_1"),
       }),
     ).toBe(true);
     expect(
       verifyRedirectSignature(CONFIG, {
-        outSum: "49.00",
+        outSum: "169.00",
         invId: "42",
-        signature: md5("49.00:42:password_2"),
+        signature: md5("169.00:42:password_2"),
       }),
     ).toBe(false);
   });
@@ -179,28 +179,27 @@ describe("verifyRedirectSignature — SuccessURL/FailURL, Пароль #1", () =
 
 describe("sameAmount — сравниваем числа, а не строки", () => {
   it.each([
-    ["49.00", 49],
-    ["49.0", 49],
-    ["49", 49],
-    [49, "49.00"],
+    ["169.00", 169],
+    ["169.0", 169],
+    ["169", 169],
+    [169, "169.00"],
   ])("%s == %s", (a, b) => {
     expect(sameAmount(a as string, b as number)).toBe(true);
   });
 
   it("другая сумма не проходит", () => {
-    expect(sameAmount("48.99", 49)).toBe(false);
-    expect(sameAmount("990.00", 49)).toBe(false);
+    expect(sameAmount("168.99", 169)).toBe(false);
+    expect(sameAmount("490.00", 169)).toBe(false);
   });
 
   it("мусор не проходит", () => {
-    expect(sameAmount("не число", 49)).toBe(false);
+    expect(sameAmount("не число", 169)).toBe(false);
   });
 });
 
 describe("formatOutSum", () => {
   it.each([
-    [49, "49.00"],
-    [390, "390.00"],
-    [990, "990.00"],
+    [169, "169.00"],
+    [490, "490.00"],
   ])("%i → %s", (a, b) => expect(formatOutSum(a as number)).toBe(b));
 });

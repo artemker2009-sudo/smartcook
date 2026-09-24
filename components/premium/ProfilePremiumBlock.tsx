@@ -22,9 +22,13 @@ import { PREMIUM_PLANS } from "@/lib/premiumPlans";
 import { usePremiumStatus } from "@/components/premium/usePremiumStatus";
 import type { PremiumHistoryItem } from "@/app/api/premium/history/route";
 
-const PLAN_NAMES: Record<string, string> = Object.fromEntries(
-  PREMIUM_PLANS.map((p) => [p.id, p.name]),
-);
+const PLAN_NAMES: Record<string, string> = {
+  // Тариф «Месяц» убран 24.09.2026, но подпись оставлена: если в истории
+  // когда-нибудь встретится старый заказ, человек должен прочитать «Месяц», а
+  // не «month». Таблица заказов на момент правки пуста — это страховка.
+  month: "Месяц",
+  ...Object.fromEntries(PREMIUM_PLANS.map((p) => [p.id, p.name])),
+};
 
 function formatDate(iso: string): string {
   try {

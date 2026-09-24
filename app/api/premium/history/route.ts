@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
 export type PremiumHistoryItem = {
   id: string;
   date: string;
-  /** "month" | "year" | "forever" — либо "gift" для подарка от админа. */
+  /** "year" | "forever" — либо "gift" для подарка от админа. */
   kind: string;
   amountRub: number | null;
   status: "paid" | "refunded" | "gift";

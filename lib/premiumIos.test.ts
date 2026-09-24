@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { isPaymentUiBlocked, podborLimitCopy } from "./premiumIos";
 import { detectInstallEnv, type EnvSignals } from "./installEnv";
+import { PREMIUM_PLANS } from "./premiumPlans";
 
 const BROWSER: EnvSignals = {
   displayModes: [],
@@ -54,11 +55,16 @@ describe("podborLimitCopy — тексты шторки", () => {
     const copy = podborLimitCopy(web, 3);
     expect(copy.title).toBe("Подборы на этой неделе закончились");
     expect(copy.text).toBe(
-      "Бесплатно — 3 подбора в неделю, новые — в понедельник. С Премиумом — без лимита, от 49 ₽.",
+      "Бесплатно — 3 подбора в неделю, новые — в понедельник. С Премиумом — без лимита, 169 ₽ в год.",
     );
     expect(copy.action).toBe("Оформить Премиум");
     expect(copy.href).toBe("/premium");
     expect(copy.dismiss).toBe("Подожду до понедельника");
+  });
+
+  it("сайт: цена в шторке — та же, что у годового тарифа", () => {
+    const year = PREMIUM_PLANS.find((p) => p.days === 365)!;
+    expect(podborLimitCopy(web, 3).text).toContain(`${year.priceRub}\u00A0₽ в год`);
   });
 
   it("сайт: число подборов берётся из настройки и склоняется", () => {

@@ -139,9 +139,12 @@ export default function ProfilePremiumBlock() {
               color: "var(--color-text-secondary)",
             }}
           >
+            {/* Склонение по ОСТАТКУ, а не по лимиту: «осталось 1 из 1 подбор»
+                получалось, когда слово согласовывали с числом после «из».
+                «осталось 2 подбора из 3» читается верно при любых числах. */}
             {status.remaining === null
-              ? `Бесплатно: ${status.freePodborsPerWeek} ${pluralPodbor(status.freePodborsPerWeek)} на этой неделе`
-              : `Бесплатно: осталось ${status.remaining} из ${status.freePodborsPerWeek} ${pluralPodbor(status.freePodborsPerWeek)} на этой неделе`}
+              ? `Бесплатно: ${status.freePodborsPerWeek} ${pluralPodbor(status.freePodborsPerWeek)} в неделю`
+              : `Бесплатно: осталось ${status.remaining} ${pluralPodbor(status.remaining)} из ${status.freePodborsPerWeek} на этой неделе`}
           </p>
           {!hidePayLinks && (
             <Link

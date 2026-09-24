@@ -6,6 +6,14 @@ import DonateButton from "@/components/DonateButton";
 import ReportError from "@/components/ReportError";
 import InstallAppButton from "@/components/InstallAppButton";
 import { useIsNative } from "@/lib/native";
+import { useInstallEnv } from "@/lib/installEnv";
+import { isPaymentUiBlocked } from "@/lib/premiumIos";
+import {
+  CONTACT_EMAIL,
+  CONTACT_PHONE,
+  CONTACT_PHONE_HREF,
+  OWNER_REQUISITES,
+} from "@/lib/contacts";
 
 const footerLinkStyle: React.CSSProperties = {
   color: "var(--color-text-secondary)",
@@ -37,6 +45,12 @@ export default function Footer() {
   const pathname = usePathname();
   const isHome = pathname === "/";
 
+  // Ссылки на «Премиум» и оферту — всё, что ведёт к оплате мимо Apple. Внутри
+  // нативного iOS их быть не должно (правило App Store 3.1.1). Сейчас футер в
+  // нативе не рисуется вовсе, но условие стоит отдельно и осознанно: вернётся
+  // футер в приложение — платёжные ссылки в нём не появятся сами собой.
+  const isNativeIos = isPaymentUiBlocked(useInstallEnv());
+
   if (isNative) return null;
 
   return (
@@ -59,6 +73,8 @@ export default function Footer() {
         }}
       >
         <Link href="/about" style={footerLinkStyle}>О сервисе</Link>
+        {!isNativeIos && <Link href="/premium" style={footerLinkStyle}>Премиум</Link>}
+        {!isNativeIos && <Link href="/oferta" style={footerLinkStyle}>Оферта</Link>}
         <Link href="/privacy" style={footerLinkStyle}>Политика конфиденциальности</Link>
         <Link href="/support" style={footerLinkStyle}>Поддержка</Link>
         <Link href="/terms" style={footerLinkStyle}>Пользовательское соглашение</Link>
@@ -66,6 +82,30 @@ export default function Footer() {
         <InstallAppButton />
         <ReportError />
       </nav>
+
+      {/* Реквизиты и контакты. Их требует платёжный сервис при проверке сайта,
+          и они обязаны совпадать с /legal, /privacy и офертой — поэтому взяты
+          из общей таблицы lib/contacts.ts, а не вписаны сюда руками. */}
+      <div
+        style={{
+          fontSize: "var(--font-size-caption)",
+          lineHeight: 1.5,
+          color: "var(--color-text-secondary)",
+          marginBottom: "var(--space-2)",
+          maxWidth: "420px",
+          marginLeft: "auto",
+          marginRight: "auto",
+        }}
+      >
+        {OWNER_REQUISITES} ·{" "}
+        <a href={`mailto:${CONTACT_EMAIL}`} style={footerLinkStyle}>
+          {CONTACT_EMAIL}
+        </a>{" "}
+        ·{" "}
+        <a href={`tel:${CONTACT_PHONE_HREF}`} style={footerLinkStyle}>
+          {CONTACT_PHONE}
+        </a>
+      </div>
 
       <div
         style={{

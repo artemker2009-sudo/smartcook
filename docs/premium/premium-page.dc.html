@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Премиум — телефон</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;font-family:-apple-system, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif;background:#F7F7F4;color:#141413}
+a{color:#0B7552;text-decoration:none}a:hover{color:#095C40}
+</style>
+</helmet>
+<div style="width: 390px; height: 1480px; box-sizing: border-box; background: #F7F7F4; position: relative; overflow: hidden; display: flex; flex-direction: column; font-family: -apple-system, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #141413;">
+
+  <header style="height: 56px; flex-shrink: 0; display: flex; align-items: center; padding: 0 8px; position: relative;">
+    <a href="#back" aria-label="Назад" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #141413; position: relative; z-index: 1;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg></a>
+    <div style="position: absolute; left: 0; right: 0; top: 0; height: 56px; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 700; pointer-events: none;">Премиум</div>
+  </header>
+
+  <div style="box-sizing: border-box; padding: 8px 16px 32px 16px; display: flex; flex-direction: column; gap: 28px;">
+
+    <section style="display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <img src="/_blob/210bd0c5a4cabd77c48062176a780c4c" alt="" style="width: 40px; height: 40px; border-radius: 10px; display: block; box-shadow: 0 2px 6px rgba(0,0,0,0.12);">
+        <span style="font-size: 15px; font-weight: 700; color: #0B7552;">SmartCook Премиум</span>
+      </div>
+      <h1 style="margin: 0; font-size: 32px; line-height: 36px; font-weight: 800; letter-spacing: -0.5px;">Подборы без лимита</h1>
+      <p style="margin: 0; font-size: 16px; line-height: 22px; color: #4A4A45;">Бесплатно — 3 подбора в неделю. С Премиумом — сколько нужно.</p>
+      <div style="display: flex; gap: 12px; align-items: flex-start; background: #FFFFFF; border: 1px solid #E4E4DE; border-radius: 16px; padding: 14px;">
+        <span style="width: 36px; height: 36px; border-radius: 18px; background: #EAF4EE; color: #0B7552; display: flex; align-items: center; justify-content: center; flex-shrink: 0;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"></path><circle cx="12" cy="13" r="3.5"></circle></svg></span>
+        <p style="margin: 0; font-size: 14px; line-height: 20px; color: #4A4A45;"><b style="color: #141413;">Подбор</b> — вы фотографируете продукты или пишете, что есть дома, и получаете рецепты.</p>
+      </div>
+    </section>
+
+    <section style="display: flex; flex-direction: column; gap: 12px;">
+      <h2 style="margin: 0; font-size: 20px; line-height: 24px; font-weight: 800; letter-spacing: -0.2px;">Выберите срок</h2>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <sc-for list="{{tariffs}}" as="item" hint-placeholder-count="3">
+          <button type="button" onClick="{{item.pick}}" aria-pressed="{{item.pressed}}" style="display: flex; align-items: center; gap: 14px; width: 100%; box-sizing: border-box; min-height: 76px; padding: 14px 16px; border-radius: 16px; border: {{item.border}}; background: {{item.bg}}; cursor: pointer; text-align: left; font-family: inherit; color: #141413;">
+            <span style="width: 22px; height: 22px; border-radius: 11px; border: 2px solid {{item.ring}}; box-sizing: border-box; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+              <sc-if value="{{item.selected}}" hint-placeholder-val="{{false}}"><span style="width: 12px; height: 12px; border-radius: 6px; background: #0B7552; display: block;"></span></sc-if>
+            </span>
+            <span style="flex-grow: 1; display: flex; flex-direction: column; gap: 3px;">
+              <span style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <span style="font-size: 17px; line-height: 22px; font-weight: 700;">{{item.name}}</span>
+                <sc-if value="{{item.hasBadge}}" hint-placeholder-val="{{false}}"><span style="font-size: 12px; line-height: 16px; font-weight: 700; color: #FFFFFF; background: #0B7552; padding: 3px 8px; border-radius: 999px;">{{item.badge}}</span></sc-if>
+              </span>
+              <span style="font-size: 14px; line-height: 18px; color: #6B6B66;">{{item.sub}}</span>
+            </span>
+            <span style="font-size: 20px; line-height: 24px; font-weight: 800; white-space: nowrap;">{{item.price}}</span>
+          </button>
+        </sc-for>
+      </div>
+    </section>
+
+    <section style="display: flex; flex-direction: column; gap: 10px; margin-top: -8px;">
+      <a href="#pay" style="display: flex; align-items: center; justify-content: center; height: 56px; border-radius: 16px; background: #0B7552; color: #FFFFFF; font-size: 18px; font-weight: 700; box-shadow: 0 6px 16px rgba(11,117,82,0.25);">{{payLabel}}</a>
+      <p style="margin: 0; text-align: center; font-size: 14px; line-height: 20px; color: #4A4A45;">{{untilText}}</p>
+      <p style="margin: -6px 0 0 0; text-align: center; font-size: 13px; line-height: 18px; color: #6B6B66;">СБП или картой через Robokassa</p>
+    </section>
+
+    <section style="display: flex; flex-direction: column; background: #FFFFFF; border: 1px solid #E4E4DE; border-radius: 20px; padding: 2px 16px;">
+      <div style="display: flex; gap: 14px; align-items: flex-start; padding: 14px 0; border-bottom: 1px solid #EEEEE8;">
+        <span style="width: 36px; height: 36px; border-radius: 18px; background: #EAF4EE; color: #0B7552; display: flex; align-items: center; justify-content: center; flex-shrink: 0;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"></path><path d="M9 12l2 2 4-4"></path></svg></span>
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <div style="font-size: 16px; line-height: 22px; font-weight: 700;">Без автоплатежей</div>
+          <div style="font-size: 14px; line-height: 20px; color: #6B6B66;">Деньги спишутся, только когда вы сами нажмёте «Оплатить». Срок закончится — просто станет бесплатно.</div>
+        </div>
+      </div>
+      <div style="display: flex; gap: 14px; align-items: flex-start; padding: 14px 0; border-bottom: 1px solid #EEEEE8;">
+        <span style="width: 36px; height: 36px; border-radius: 18px; background: #EAF4EE; color: #0B7552; display: flex; align-items: center; justify-content: center; flex-shrink: 0;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"></path><path d="M9 8h6"></path><path d="M9 12h6"></path></svg></span>
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <div style="font-size: 16px; line-height: 22px; font-weight: 700;">Чек сразу</div>
+          <div style="font-size: 14px; line-height: 20px; color: #6B6B66;">После оплаты придёт чек самозанятого из «Мой налог».</div>
+        </div>
+      </div>
+      <div style="display: flex; gap: 14px; align-items: flex-start; padding: 14px 0; border-bottom: 1px solid #EEEEE8;">
+        <span style="width: 36px; height: 36px; border-radius: 18px; background: #EAF4EE; color: #0B7552; display: flex; align-items: center; justify-content: center; flex-shrink: 0;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"></rect><path d="M4 10h16"></path><path d="M9 3v4"></path><path d="M15 3v4"></path></svg></span>
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <div style="font-size: 16px; line-height: 22px; font-weight: 700;">Всё видно в профиле</div>
+          <div style="font-size: 14px; line-height: 20px; color: #6B6B66;">До какого числа действует Премиум и история покупок.</div>
+        </div>
+      </div>
+      <div style="display: flex; gap: 14px; align-items: flex-start; padding: 14px 0;">
+        <span style="width: 36px; height: 36px; border-radius: 18px; background: #EAF4EE; color: #0B7552; display: flex; align-items: center; justify-content: center; flex-shrink: 0;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"></path><path d="M4 9h10a6 6 0 0 1 0 12h-3"></path></svg></span>
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <div style="font-size: 16px; line-height: 22px; font-weight: 700;">Можно вернуть</div>
+          <div style="font-size: 14px; line-height: 20px; color: #6B6B66;">Передумали в течение 14 дней — вернём деньги полностью.</div>
+        </div>
+      </div>
+    </section>
+
+    <section style="display: flex; flex-direction: column; gap: 12px;">
+      <h2 style="margin: 0; font-size: 20px; line-height: 24px; font-weight: 800; letter-spacing: -0.2px;">Бесплатно всегда</h2>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+        <span style="font-size: 15px; line-height: 20px; font-weight: 600; background: #FFFFFF; border: 1px solid #E4E4DE; border-radius: 999px; padding: 8px 14px;">Идеи</span>
+        <span style="font-size: 15px; line-height: 20px; font-weight: 600; background: #FFFFFF; border: 1px solid #E4E4DE; border-radius: 999px; padding: 8px 14px;">Список покупок</span>
+        <span style="font-size: 15px; line-height: 20px; font-weight: 600; background: #FFFFFF; border: 1px solid #E4E4DE; border-radius: 999px; padding: 8px 14px;">Избранное</span>
+        <span style="font-size: 15px; line-height: 20px; font-weight: 600; background: #FFFFFF; border: 1px solid #E4E4DE; border-radius: 999px; padding: 8px 14px;">«Готовим!»</span>
+        <span style="font-size: 15px; line-height: 20px; font-weight: 600; background: #FFFFFF; border: 1px solid #E4E4DE; border-radius: 999px; padding: 8px 14px;">3 подбора в неделю</span>
+      </div>
+    </section>
+
+    <section style="display: flex; flex-direction: column; gap: 14px;">
+      <p style="margin: 0; text-align: center; font-size: 13px; line-height: 18px; color: #6B6B66;">Нажимая «Оплатить», вы принимаете <a href="#oferta" style="color: #0B7552; text-decoration: underline; text-underline-offset: 2px;">условия оферты</a>.</p>
+      <div style="border-top: 1px solid #E4E4DE; padding-top: 14px; text-align: center; font-size: 12px; line-height: 18px; color: #6B6B66;">Самозанятый Кернасовский Артём Сергеевич, ИНН 773128530191<br>smartcook.dev@inbox.ru · +7 925 777-11-75</div>
+    </section>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1480}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var picked = (this.state && this.state.picked) || 'month';
+    var self = this;
+    var base = [
+      { id: 'month', name: 'Месяц', sub: '30 дней', price: '49 ₽', badge: '', until: 'Премиум до 24 октября. Автоплатежей нет.' },
+      { id: 'year', name: 'Год', sub: '32,50 ₽ в месяц', price: '390 ₽', badge: 'Выгоднее на 34%', until: 'Премиум до 24 сентября 2027. Автоплатежей нет.' },
+      { id: 'forever', name: 'Навсегда', sub: 'Один платёж — и всё', price: '990 ₽', badge: '', until: 'Премиум без срока. Платите один раз.' }
+    ];
+    var current = base[0];
+    var tariffs = base.map(function (t) {
+      var on = t.id === picked;
+      if (on) current = t;
+      return {
+        name: t.name,
+        sub: t.sub,
+        price: t.price,
+        badge: t.badge,
+        hasBadge: t.badge !== '',
+        selected: on,
+        pressed: on ? 'true' : 'false',
+        border: on ? '2px solid #0B7552' : '1.5px solid #E4E4DE',
+        bg: on ? '#EEF6F1' : '#FFFFFF',
+        ring: on ? '#0B7552' : '#B9B9B2',
+        pick: function () { self.setState({ picked: t.id }); }
+      };
+    });
+    return {
+      tariffs: tariffs,
+      payLabel: 'Оплатить ' + current.price,
+      untilText: current.until
+    };
+  }
+}
+</script>
+</body>
+</html>

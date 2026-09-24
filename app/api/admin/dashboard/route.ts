@@ -12,12 +12,11 @@ export async function GET(req: Request) {
 
   const supabase = createServiceRoleClient();
 
-  const [maintenanceResult, partiesResult, recentEventsResult, errorReportsResult] = await Promise.all([
+  const [maintenanceResult, recentEventsResult, errorReportsResult] = await Promise.all([
     // select("*"), а не поимённо: строка одна и крошечная, зато админка не
     // падает, если миграция supabase_site_settings_cache_switches.sql ещё не
     // прогнана — новые поля просто приедут пустыми.
     supabase.from("site_settings").select("*").eq("id", 1).single(),
-    supabase.from("parties").select("*"),
     supabase
       .from("analytics_events")
       .select("party_id, user_name, event_type, created_at")
@@ -30,7 +29,7 @@ export async function GET(req: Request) {
       .limit(200),
   ]);
 
-  if (maintenanceResult.error || partiesResult.error || recentEventsResult.error || errorReportsResult.error) {
+  if (maintenanceResult.error || recentEventsResult.error || errorReportsResult.error) {
     return NextResponse.json({ error: "Не удалось загрузить данные админки" }, { status: 500 });
   }
 
@@ -52,13 +51,6 @@ export async function GET(req: Request) {
     .order("created_at", { ascending: false })
     .limit(200);
 
-  // Новости (все, включая скрытые — админ видит) — мягко: если таблицы ещё нет.
-  const newsResult = await supabase
-    .from("news")
-    .select("id, created_at, date, title, body, is_visible")
-    .order("created_at", { ascending: false })
-    .limit(200);
-
   // Заметки (все, включая черновики — админ видит) — мягко: если таблицы ещё нет.
   const articlesResult = await supabase
     .from("articles")
@@ -73,13 +65,6 @@ export async function GET(req: Request) {
     .select("id, created_at, username, telegram, status")
     .order("created_at", { ascending: false })
     .limit(200);
-
-  // Советы (все, включая черновики — админ видит) — мягко: если таблицы ещё нет.
-  const tipsResult = await supabase
-    .from("tips")
-    .select("id, created_at, published_at, body, emoji_icon, is_published")
-    .order("created_at", { ascending: false })
-    .limit(500);
 
   // Платформы: сколько заходов с сайта, из приложения App Store и из RuStore.
   //
@@ -101,15 +86,12 @@ export async function GET(req: Request) {
     // покажет их выключенными, а не сломается.
     cacheEpoch: (maintenanceResult.data?.cache_epoch as string | null) ?? null,
     purgeClientCache: Boolean(maintenanceResult.data?.purge_client_cache),
-    parties: partiesResult.data ?? [],
     recentEvents: recentEventsResult.data ?? [],
     errorReports: errorReportsResult.data ?? [],
     resetRequests: resetRequestsResult.error ? [] : (resetRequestsResult.data ?? []),
     feedPhotos: feedResult.error ? [] : (feedResult.data ?? []),
     communityQueue: communityQueueResult.error ? [] : (communityQueueResult.data ?? []),
-    news: newsResult.error ? [] : (newsResult.data ?? []),
     articles: articlesResult.error ? [] : (articlesResult.data ?? []),
-    tips: tipsResult.error ? [] : (tipsResult.data ?? []),
   });
 }
 

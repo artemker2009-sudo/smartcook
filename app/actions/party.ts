@@ -71,7 +71,9 @@ export type TogglePartyItemVoteActionResult =
 // недоступных страниц, поэтому отказ стоит в каждом.
 // Удаления банкета здесь НЕТ и быть не должно: server action нельзя закрыть
 // проверкой владельца по JWT (у экшена нет заголовков запроса). Удаление живёт
-// в роутах /api/party/delete (организатор по JWT) и /api/admin/parties (админ).
+// в роуте /api/party/delete (организатор по проверенному JWT). Админского
+// удаления больше нет: раздел «Банкеты: оплаты» убран из админки 24.09.2026
+// вместе с /api/admin/parties.
 const getActionErrorMessage = (error: unknown) => (error instanceof Error ? error.message : "Неизвестная ошибка сервера");
 const ZERO_WIDTH_CHARS = ["\u200B", "\u200C", "\u200D", "\u2060"] as const;
 const makeInvisibleSuffix = (seed: string) =>

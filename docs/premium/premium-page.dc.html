@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<title>Премиум — телефон</title>
+<title>Премиум — телефон (цены 169/490, 24.09.2026)</title>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -13,7 +13,7 @@ body{margin:0;font-family:-apple-system, 'SF Pro Text', 'Helvetica Neue', system
 a{color:#0B7552;text-decoration:none}a:hover{color:#095C40}
 </style>
 </helmet>
-<div style="width: 390px; height: 1480px; box-sizing: border-box; background: #F7F7F4; position: relative; overflow: hidden; display: flex; flex-direction: column; font-family: -apple-system, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #141413;">
+<div style="width: 390px; height: 1394px; box-sizing: border-box; background: #F7F7F4; position: relative; overflow: hidden; display: flex; flex-direction: column; font-family: -apple-system, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #141413;">
 
   <header style="height: 56px; flex-shrink: 0; display: flex; align-items: center; padding: 0 8px; position: relative;">
     <a href="#back" aria-label="Назад" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #141413; position: relative; z-index: 1;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg></a>
@@ -38,7 +38,7 @@ a{color:#0B7552;text-decoration:none}a:hover{color:#095C40}
     <section style="display: flex; flex-direction: column; gap: 12px;">
       <h2 style="margin: 0; font-size: 20px; line-height: 24px; font-weight: 800; letter-spacing: -0.2px;">Выберите срок</h2>
       <div style="display: flex; flex-direction: column; gap: 10px;">
-        <sc-for list="{{tariffs}}" as="item" hint-placeholder-count="3">
+        <sc-for list="{{tariffs}}" as="item" hint-placeholder-count="2">
           <button type="button" onClick="{{item.pick}}" aria-pressed="{{item.pressed}}" style="display: flex; align-items: center; gap: 14px; width: 100%; box-sizing: border-box; min-height: 76px; padding: 14px 16px; border-radius: 16px; border: {{item.border}}; background: {{item.bg}}; cursor: pointer; text-align: left; font-family: inherit; color: #141413;">
             <span style="width: 22px; height: 22px; border-radius: 11px; border: 2px solid {{item.ring}}; box-sizing: border-box; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
               <sc-if value="{{item.selected}}" hint-placeholder-val="{{false}}"><span style="width: 12px; height: 12px; border-radius: 6px; background: #0B7552; display: block;"></span></sc-if>
@@ -112,15 +112,14 @@ a{color:#0B7552;text-decoration:none}a:hover{color:#095C40}
   </div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1480}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1394}}'>
 class Component extends DCLogic {
   renderVals() {
-    var picked = (this.state && this.state.picked) || 'month';
+    var picked = (this.state && this.state.picked) || 'year';
     var self = this;
     var base = [
-      { id: 'month', name: 'Месяц', sub: '30 дней', price: '49 ₽', badge: '', until: 'Премиум до 24 октября. Автоплатежей нет.' },
-      { id: 'year', name: 'Год', sub: '32,50 ₽ в месяц', price: '390 ₽', badge: 'Выгоднее на 34%', until: 'Премиум до 24 сентября 2027. Автоплатежей нет.' },
-      { id: 'forever', name: 'Навсегда', sub: 'Один платёж — и всё', price: '990 ₽', badge: '', until: 'Премиум без срока. Платите один раз.' }
+      { id: 'year', name: 'Год', sub: 'Меньше 15 ₽ в месяц', price: '169 ₽', badge: '', until: 'Премиум до 24 сентября 2027. Автоплатежей нет.' },
+      { id: 'forever', name: 'Навсегда', sub: 'Один платёж — и всё', price: '490 ₽', badge: '', until: 'Премиум без срока. Платите один раз.' }
     ];
     var current = base[0];
     var tariffs = base.map(function (t) {

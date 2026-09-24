@@ -9,9 +9,8 @@ import {
   payUntilText,
   pluralPodbor,
 } from "./premiumPeriod";
-import { PREMIUM_PLANS } from "./premiumPlans";
+import { PREMIUM_PLANS, DEFAULT_PLAN_ID, getPlan } from "./premiumPlans";
 
-const month = PREMIUM_PLANS.find((p) => p.id === "month")!;
 const year = PREMIUM_PLANS.find((p) => p.id === "year")!;
 const forever = PREMIUM_PLANS.find((p) => p.id === "forever")!;
 
@@ -67,26 +66,22 @@ describe("isPremiumActive", () => {
 describe("extendPremium — сроки складываются", () => {
   const now = new Date("2026-09-24T12:00:00Z");
 
-  it("с нуля: месяц = сейчас + 30 дней", () => {
-    const next = extendPremium(null, month, now);
+  it("с нуля: год = сейчас + 365 дней", () => {
+    const next = extendPremium(null, year, now);
     expect(next.isForever).toBe(false);
-    expect(next.premiumUntil!.getTime()).toBe(now.getTime() + 30 * DAY);
+    expect(next.premiumUntil!.getTime()).toBe(now.getTime() + 365 * DAY);
   });
 
   it("поверх действующего: складывается к КОНЦУ текущего срока", () => {
     const current = { premiumUntil: new Date(now.getTime() + 10 * DAY), isForever: false };
-    const next = extendPremium(current, month, now);
-    expect(next.premiumUntil!.getTime()).toBe(now.getTime() + 40 * DAY);
+    const next = extendPremium(current, year, now);
+    expect(next.premiumUntil!.getTime()).toBe(now.getTime() + 375 * DAY);
   });
 
   it("поверх истёкшего: считается от СЕЙЧАС, оплаченное не сгорает", () => {
     const current = { premiumUntil: new Date(now.getTime() - 100 * DAY), isForever: false };
-    const next = extendPremium(current, month, now);
-    expect(next.premiumUntil!.getTime()).toBe(now.getTime() + 30 * DAY);
-  });
-
-  it("год — 365 дней", () => {
-    expect(extendPremium(null, year, now).premiumUntil!.getTime()).toBe(now.getTime() + 365 * DAY);
+    const next = extendPremium(current, year, now);
+    expect(next.premiumUntil!.getTime()).toBe(now.getTime() + 365 * DAY);
   });
 
   it("навсегда — срок стирается, флаг поднимается", () => {
@@ -95,7 +90,7 @@ describe("extendPremium — сроки складываются", () => {
   });
 
   it("покупка поверх «навсегда» не понижает до срочного", () => {
-    const next = extendPremium({ premiumUntil: null, isForever: true }, month, now);
+    const next = extendPremium({ premiumUntil: null, isForever: true }, year, now);
     expect(next.isForever).toBe(true);
     expect(next.premiumUntil).toBeNull();
   });
@@ -131,14 +126,45 @@ describe("formatPremiumDate", () => {
 
 describe("payUntilText — подписи из макета", () => {
   const now = new Date("2026-09-24T12:00:00Z");
-  it("месяц", () => {
-    expect(payUntilText(month, now)).toBe("Премиум до 24 октября. Автоплатежей нет.");
-  });
   it("год", () => {
     expect(payUntilText(year, now)).toBe("Премиум до 24 сентября 2027. Автоплатежей нет.");
   });
   it("навсегда", () => {
     expect(payUntilText(forever, now)).toBe("Премиум без срока. Платите один раз.");
+  });
+});
+
+describe("тарифы — цены и состав", () => {
+  it("тарифа ровно два: год и навсегда, «месяца» больше нет", () => {
+    expect(PREMIUM_PLANS.map((p) => p.id)).toEqual(["year", "forever"]);
+  });
+
+  it("цены 169 и 490", () => {
+    expect(year.priceRub).toBe(169);
+    expect(forever.priceRub).toBe(490);
+  });
+
+  it("подписи под названиями", () => {
+    expect(year.sub).toBe("Меньше 15 ₽ в месяц");
+    expect(forever.sub).toBe("Один платёж — и всё");
+  });
+
+  it("бейджей нет ни у одного тарифа", () => {
+    expect(PREMIUM_PLANS.every((p) => p.badge === "")).toBe(true);
+  });
+
+  it("названия в чеке Robokassa", () => {
+    expect(year.description).toBe("Премиум SmartCook — 1 год");
+    expect(forever.description).toBe("Премиум SmartCook — навсегда");
+  });
+
+  it("по умолчанию выбран «Год», и он же первый в списке", () => {
+    expect(DEFAULT_PLAN_ID).toBe("year");
+    expect(PREMIUM_PLANS[0].id).toBe("year");
+  });
+
+  it("getPlan(\"month\") больше не находит тариф — checkout ответит 400", () => {
+    expect(getPlan("month")).toBeNull();
   });
 });
 

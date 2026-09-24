@@ -8,7 +8,7 @@ import { FEATURE_PREMIUM } from "@/lib/features";
 export const metadata: Metadata = {
   title: "Премиум — SmartCook",
   description:
-    "Премиум SmartCook: подборы рецептов без недельного лимита. Месяц 49 ₽, год 390 ₽, навсегда 990 ₽. Без автоплатежей, оплата через Robokassa.",
+    "Премиум SmartCook: подборы рецептов без недельного лимита. Год 169 ₽, навсегда 490 ₽. Без автоплатежей, оплата через Robokassa.",
   alternates: { canonical: "/premium" },
 };
 

@@ -7,7 +7,12 @@
 // списком, а сумму берёт здесь же: цена, пришедшая из браузера, не значит
 // ничего (правило «клиенту не доверять», SPEC 0).
 
-export type PremiumPlanId = "month" | "year" | "forever";
+// Тарифов ДВА. «Месяц» за 49 ₽ убран 24.09.2026 решением основателя, до
+// первой продажи: месячный тариф дешевле годового в пересчёте на неделю
+// ничего не давал, а выбор из трёх строк только тормозил решение. Здесь он
+// убран НАСОВСЕМ, а не спрятан флагом: id "month" больше не существует, и
+// checkout на него отвечает 400 сам собой — getPlan() вернёт null.
+export type PremiumPlanId = "year" | "forever";
 
 export type PremiumPlan = {
   id: PremiumPlanId;
@@ -27,35 +32,29 @@ export type PremiumPlan = {
 
 export const PREMIUM_PLANS: readonly PremiumPlan[] = [
   {
-    id: "month",
-    name: "Месяц",
-    sub: "30 дней",
-    priceRub: 49,
-    days: 30,
-    badge: "",
-    description: "Премиум SmartCook — 1 месяц",
-  },
-  {
     id: "year",
     name: "Год",
-    sub: "32,50 ₽ в месяц",
-    priceRub: 390,
+    sub: "Меньше 15 ₽ в месяц",
+    priceRub: 169,
     days: 365,
-    badge: "Выгоднее на 34%",
+    // Бейджа нет: сравнивать не с чем, тариф всего один срочный.
+    badge: "",
     description: "Премиум SmartCook — 1 год",
   },
   {
     id: "forever",
     name: "Навсегда",
     sub: "Один платёж — и всё",
-    priceRub: 990,
+    priceRub: 490,
     days: null,
     badge: "",
     description: "Премиум SmartCook — навсегда",
   },
 ] as const;
 
-export const DEFAULT_PLAN_ID: PremiumPlanId = "month";
+// «Год» выбран сразу: он и дешевле в пересчёте, и это тот выбор, который мы
+// предлагаем по умолчанию. Он же стоит первым в списке.
+export const DEFAULT_PLAN_ID: PremiumPlanId = "year";
 
 /** План по id. null — id не из нашего списка (клиент прислал что-то своё). */
 export function getPlan(id: unknown): PremiumPlan | null {

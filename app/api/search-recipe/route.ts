@@ -124,7 +124,7 @@ export async function POST(req: Request) {
       const hit = await getCachedVariant(queryKey, 1);
       if (hit) {
         const id = await saveToHistory(req, sessionId, hit);
-        if (podbor) void recordPodbor(podbor.owner, "text", "search-recipe");
+        if (podbor) await recordPodbor(podbor.owner, "text", "search-recipe");
         return NextResponse.json({ type: "dish", recipe: { ...hit, id }, cacheHit: true });
       }
     }
@@ -239,9 +239,11 @@ export async function POST(req: Request) {
     const content = completion.choices[0].message.content;
     if (!content) throw new Error("Empty response");
 
-    // Генерация состоялась — записываем подбор. Сбой записи генерацию не
-    // ломает (внутри recordPodbor только лог), поэтому void и без await.
-    if (podbor) void recordPodbor(podbor.owner, "text", "search-recipe");
+    // Генерация состоялась — записываем подбор. Именно await: запись «вдогонку»
+    // теряется, когда платформа замораживает функцию сразу после ответа (на
+    // превью из трёх подборов записались два). Сбой записи генерацию не ломает —
+    // внутри recordPodbor только лог.
+    if (podbor) await recordPodbor(podbor.owner, "text", "search-recipe");
 
     const result = JSON.parse(content);
 

@@ -154,7 +154,7 @@ export async function POST(req: Request) {
     const content = response.choices[0].message.content;
     if (!content) throw new Error("No output");
 
-    void recordPodbor(podbor.owner, "photo", "analyze");
+    await recordPodbor(podbor.owner, "photo", "analyze");
 
     const json = JSON.parse(content);
 

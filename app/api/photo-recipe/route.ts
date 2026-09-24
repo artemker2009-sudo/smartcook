@@ -304,9 +304,10 @@ export async function POST(req: Request) {
     });
 
     // Модель ответила и стрим сейчас поедет — вот это и есть «успешный старт
-    // генерации» (SPEC 3.2). Сбой записи стрим не трогает: внутри recordPodbor
-    // только console.error.
-    if (podbor) void recordPodbor(podbor.owner, "photo", "photo-recipe");
+    // генерации» (SPEC 3.2). Именно await: запись «вдогонку» теряется, когда
+    // платформа замораживает функцию после ответа. Сбой записи стрим не трогает:
+    // внутри recordPodbor только console.error.
+    if (podbor) await recordPodbor(podbor.owner, "photo", "photo-recipe");
 
     const encoder = new TextEncoder();
     const stream = new ReadableStream<Uint8Array>({

@@ -10,7 +10,10 @@
 // Проверка ИМЕННО по среде, а не по гео, дате или аккаунту: прятать что-то от
 // проверяющих Apple «хитро» нельзя, правило должно быть одно для всех.
 
-import type { InstallEnv } from "@/lib/installEnv";
+// Относительные пути: алиас @/ в vitest не резолвится, а файл покрыт тестами.
+import type { InstallEnv } from "./installEnv";
+import { pluralPodbor } from "./premiumPeriod";
+import { PREMIUM_PLANS, formatPriceRub } from "./premiumPlans";
 
 /**
  * Запрещено ли на этой среде показывать цены, кнопки оплаты и ссылки на них.
@@ -22,4 +25,47 @@ import type { InstallEnv } from "@/lib/installEnv";
  */
 export function isPaymentUiBlocked(env: InstallEnv): boolean {
   return env === "native-ios";
+}
+
+
+/**
+ * Тексты шторки «подборы закончились». Здесь, а не внутри компонента, ровно
+ * ради теста: требование «в iOS нет ни цен, ни слова „Премиум“, ни ссылок» —
+ * это утверждение про ТЕКСТ, и проверять его надо текстом, а не глазами.
+ */
+export type PodborLimitCopy = {
+  title: string;
+  text: string;
+  /** Подпись главной кнопки. */
+  action: string;
+  /** Куда ведёт кнопка. null — просто закрыть шторку (вариант iOS). */
+  href: string | null;
+  /** Подпись ссылки «закрыть». null — её нет (вариант iOS). */
+  dismiss: string | null;
+};
+
+export function podborLimitCopy(env: InstallEnv, limit: number): PodborLimitCopy {
+  if (isPaymentUiBlocked(env)) {
+    return {
+      title: "Подборы на эту неделю закончились",
+      text: "Новые — в понедельник.",
+      action: "Понятно",
+      href: null,
+      dismiss: null,
+    };
+  }
+
+  // «от 49 ₽» — самый дешёвый тариф из общего списка, а не вписанная строка:
+  // появится тариф дешевле, и подпись съедет сама.
+  const cheapest = PREMIUM_PLANS.reduce((a, b) => (b.priceRub < a.priceRub ? b : a));
+
+  return {
+    title: "Подборы на этой неделе закончились",
+    text:
+      `Бесплатно — ${limit} ${pluralPodbor(limit)} в неделю, новые — в понедельник. ` +
+      `С Премиумом — без лимита, от ${formatPriceRub(cheapest.priceRub)}.`,
+    action: "Оформить Премиум",
+    href: "/premium",
+    dismiss: "Подожду до понедельника",
+  };
 }

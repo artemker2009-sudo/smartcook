@@ -19,9 +19,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { reachGoal } from "@/lib/metrika";
 import { useInstallEnv } from "@/lib/installEnv";
-import { isPaymentUiBlocked } from "@/lib/premiumIos";
-import { pluralPodbor } from "@/lib/premiumPeriod";
-import { PREMIUM_PLANS, formatPriceRub } from "@/lib/premiumPlans";
+import { isPaymentUiBlocked, podborLimitCopy } from "@/lib/premiumIos";
 import { PREMIUM_COLORS as C } from "@/components/premium/premiumStyles";
 
 type Props = {
@@ -32,7 +30,8 @@ type Props = {
 };
 
 export default function PodborLimitSheet({ open, onClose, limit }: Props) {
-  const iosNeutral = isPaymentUiBlocked(useInstallEnv());
+  const env = useInstallEnv();
+  const iosNeutral = isPaymentUiBlocked(env);
 
   useEffect(() => {
     if (open) reachGoal("premium_paywall_shown", { ios: iosNeutral });
@@ -50,9 +49,10 @@ export default function PodborLimitSheet({ open, onClose, limit }: Props) {
 
   if (!open) return null;
 
-  // Самый дешёвый тариф — «от 49 ₽». Берётся из общего списка, а не вписан
-  // строкой: появится тариф дешевле — подпись съедет сама.
-  const cheapest = PREMIUM_PLANS.reduce((a, b) => (b.priceRub < a.priceRub ? b : a));
+  // Тексты живут в lib/premiumIos.ts и покрыты тестами: требование «в iOS нет
+  // ни цен, ни слова „Премиум“, ни ссылок» — это утверждение про текст, и
+  // проверять его надо текстом, а не глазами на скриншоте.
+  const copy = podborLimitCopy(env, limit);
 
   return (
     <div
@@ -100,46 +100,41 @@ export default function PodborLimitSheet({ open, onClose, limit }: Props) {
           }}
         />
 
-        {iosNeutral ? (
-          <>
-            <h2 style={titleStyle}>Подборы на эту неделю закончились</h2>
-            <p style={textStyle}>Новые — в понедельник.</p>
-            <button type="button" onClick={onClose} style={primaryButtonStyle}>
-              Понятно
-            </button>
-          </>
+        <h2 style={titleStyle}>{copy.title}</h2>
+        <p style={textStyle}>{copy.text}</p>
+
+        {copy.href ? (
+          <Link
+            href={copy.href}
+            onClick={() => reachGoal("premium_paywall_cta")}
+            style={{ ...primaryButtonStyle, textDecoration: "none" }}
+          >
+            {copy.action}
+          </Link>
         ) : (
-          <>
-            <h2 style={titleStyle}>Подборы на этой неделе закончились</h2>
-            <p style={textStyle}>
-              Бесплатно — {limit} {pluralPodbor(limit)} в неделю, новые — в понедельник.
-              С Премиумом — без лимита, от {formatPriceRub(cheapest.priceRub)}.
-            </p>
-            <Link
-              href="/premium"
-              onClick={() => reachGoal("premium_paywall_cta")}
-              style={{ ...primaryButtonStyle, textDecoration: "none" }}
-            >
-              Оформить Премиум
-            </Link>
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                background: "none",
-                border: "none",
-                padding: "8px 0",
-                fontFamily: "inherit",
-                fontSize: 15,
-                lineHeight: "20px",
-                color: C.textMuted,
-                cursor: "pointer",
-              }}
-            >
-              Подожду до понедельника
-            </button>
-          </>
+          <button type="button" onClick={onClose} style={primaryButtonStyle}>
+            {copy.action}
+          </button>
         )}
+
+        {copy.dismiss ? (
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              background: "none",
+              border: "none",
+              padding: "8px 0",
+              fontFamily: "inherit",
+              fontSize: 15,
+              lineHeight: "20px",
+              color: C.textMuted,
+              cursor: "pointer",
+            }}
+          >
+            {copy.dismiss}
+          </button>
+        ) : null}
       </div>
     </div>
   );

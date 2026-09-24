@@ -7,6 +7,8 @@ import { X, Smartphone, Share, Plus, Check } from "lucide-react";
 import { reachGoal } from "@/lib/metrika";
 import { RUSTORE_URL } from "@/lib/constants";
 import { useCanPromptInstall } from "@/lib/installEnv";
+import { SHOW_WELCOME } from "@/lib/features";
+import { hasReturningTrace } from "@/lib/shoppingPromo";
 import {
   CLICK_DAYS,
   DISMISS_DAYS,
@@ -111,10 +113,20 @@ function InstallBannerInner() {
 
     if (pathname === "/") {
       if (audience !== "ios") return; // Android на Главной покрыт бейджем в герое
-      // Первый визит уже занят онбординг-модалкой — не наслаиваемся на неё.
-      try {
-        if (!localStorage.getItem("smartcook_onboarding_seen")) return;
-      } catch {
+      // Первый визит оставляем без плашек.
+      //
+      // Пока знакомство показывалось, признаком «не первый визит» был его
+      // собственный ключ: не наслаиваемся на модалку. При выключенном
+      // SHOW_WELCOME ключ не ставит никто, и по старому условию плашка
+      // установки на Главной не показалась бы вообще никогда — поэтому
+      // спрашиваем у устройства следы прошлых визитов напрямую.
+      if (SHOW_WELCOME) {
+        try {
+          if (!localStorage.getItem("smartcook_onboarding_seen")) return;
+        } catch {
+          return;
+        }
+      } else if (!hasReturningTrace()) {
         return;
       }
       const timer = setTimeout(show, HOME_DELAY_MS);

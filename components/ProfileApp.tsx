@@ -58,6 +58,7 @@ import EditProfileModal from "@/components/modals/EditProfileModal";
 import CropperModal from "@/components/modals/CropperModal";
 import DeleteAccountModal from "@/components/modals/DeleteAccountModal";
 import NativeDocsLinks from "@/components/NativeDocsLinks";
+import ProfilePremiumBlock from "@/components/premium/ProfilePremiumBlock";
 import SuggestCard from "@/components/SuggestCard";
 import { FEATURE_BANQUETS, FEATURE_COMMUNITY_FEED } from "@/lib/features";
 
@@ -550,6 +551,11 @@ export default function ProfileApp() {
             </div>
           </div>
         </div>
+
+        {/* Премиум — первым блоком после шапки: срок, остаток бесплатных
+            подборов и история покупок. Сам решает, показываться ли: при
+            выключенном флаге его нет вовсе. */}
+        <ProfilePremiumBlock />
 
         {/* Профиль вкуса */}
         <div className="card" style={{ padding: "var(--space-4)", marginBottom: "var(--space-3)" }}>

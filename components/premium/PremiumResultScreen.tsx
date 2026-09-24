@@ -34,7 +34,9 @@ export function PremiumSuccessScreen() {
   const router = useRouter();
   const invId = Number(params.get("InvId") || params.get("invId") || 0);
 
-  const [phase, setPhase] = useState<Phase>("checking");
+  // Начальное состояние выводится из адреса, а не ставится эффектом: без InvId
+  // опрашивать нечего, и сразу показываем «оплата ещё обрабатывается».
+  const [phase, setPhase] = useState<Phase>(() => (invId ? "checking" : "slow"));
   const [until, setUntil] = useState<string | null>(null);
   const [isForever, setIsForever] = useState(false);
   // Цель premium_paid отправляем РОВНО ОДИН раз за экран: опрос повторяется
@@ -74,10 +76,7 @@ export function PremiumSuccessScreen() {
   }, [invId]);
 
   useEffect(() => {
-    if (!invId) {
-      setPhase("slow");
-      return;
-    }
+    if (!invId) return;
     let stop = false;
     const startedAt = Date.now();
 

@@ -32,11 +32,14 @@ const PLAN_NAMES: Record<string, string> = {
 
 function formatDate(iso: string): string {
   try {
-    return new Date(iso).toLocaleDateString("ru-RU", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    });
+    return (
+      new Date(iso)
+        .toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })
+        // Хвост « г.» русская локаль добавляет сама. В строке истории он
+        // занимает место ровно настолько, чтобы дата переносилась на вторую
+        // строку и ломала ряд — а смысла не добавляет.
+        .replace(/\s*г\.$/, "")
+    );
   } catch {
     return "";
   }
@@ -219,7 +222,9 @@ export default function ProfilePremiumBlock() {
                   fontSize: "var(--font-size-caption)",
                 }}
               >
-                <span style={{ color: "var(--color-text-muted)" }}>{formatDate(item.date)}</span>
+                <span style={{ whiteSpace: "nowrap", color: "var(--color-text-muted)" }}>
+                  {formatDate(item.date)}
+                </span>
                 <span style={{ flexGrow: 1, color: "var(--color-text)" }}>
                   {item.status === "gift"
                     ? `Подарок от SmartCook${item.label ? ` · ${item.label}` : ""}`

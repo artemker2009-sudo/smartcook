@@ -33,8 +33,12 @@ export type PodborOwner =
   | { userId: null; sessionId: string }
   | { userId: null; sessionId: null };
 
+// У разрешённого подбора нет ни used, ни limit — и это не экономия полей.
+// Их никто не читал: вызывающему на этом пути нужен только owner, чтобы
+// записать подбор. А раз не нужны — не нужно и ходить за настройкой в базу,
+// когда до лимита дело не доходит (см. checkPodborLimit).
 export type PodborCheck =
-  | { allowed: true; owner: PodborOwner; used: number; limit: number }
+  | { allowed: true; owner: PodborOwner }
   | { allowed: false; owner: PodborOwner; used: number; limit: number; resetsAt: string };
 
 /**
@@ -116,26 +120,33 @@ export async function checkPodborLimit(
   now: Date = new Date(),
 ): Promise<PodborCheck> {
   const owner = await resolvePodborOwner(req, sessionId);
-  const limit = await getFreePodborsPerWeek();
+  const pass: PodborCheck = { allowed: true, owner };
 
-  const pass = (used: number): PodborCheck => ({ allowed: true, owner, used, limit });
+  // ВЫХОДЫ, КОТОРЫМ НАСТРОЙКА НЕ НУЖНА, — до чтения базы.
+  //
+  // Раньше getFreePodborsPerWeek() стоял первой строкой и уходил в базу на
+  // КАЖДЫЙ подбор, включая те, где лимит заведомо не считается. Пока флаг
+  // выключен, это был лишний запрос на каждое фото и каждый поиск в проде —
+  // ради числа, которое потом никто не смотрел.
 
   // Флаг выключен — лимита нет, но подборы всё равно считаем и пишем: без
   // накопленных данных включать лимит пришлось бы вслепую (SPEC 3.2).
-  if (!FEATURE_PREMIUM) return pass(0);
+  if (!FEATURE_PREMIUM) return pass;
 
   // Демо-аккаунт App Review: проверяющий Apple обязан пройти сценарий целиком,
   // упереться в платный лимит он не должен (та же причина, что в rateLimit.ts).
-  if (isExemptUser(owner.userId)) return pass(0);
+  if (isExemptUser(owner.userId)) return pass;
 
   if (owner.userId) {
     const state = await readPremiumState(owner.userId);
-    if (isPremiumActive(state, now)) return pass(0);
+    if (isPremiumActive(state, now)) return pass;
   }
 
+  // Дальше лимит действительно нужен — вот теперь читаем настройку.
+  const limit = await getFreePodborsPerWeek();
   const used = await countPodborsThisWeek(owner, now);
-  if (used === null) return pass(0);
-  if (used < limit) return pass(used);
+  if (used === null) return pass;
+  if (used < limit) return pass;
 
   return {
     allowed: false,

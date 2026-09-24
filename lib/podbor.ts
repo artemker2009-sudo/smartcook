@@ -61,7 +61,10 @@ export async function resolvePodborOwner(req: Request, sessionId: unknown): Prom
 }
 
 /** Сколько подборов у этого владельца с понедельника 00:00 МСК. null — сбой. */
-async function countPodborsThisWeek(owner: PodborOwner, now: Date): Promise<number | null> {
+export async function countPodborsThisWeek(
+  owner: PodborOwner,
+  now: Date = new Date(),
+): Promise<number | null> {
   if (!owner.userId && !owner.sessionId) return 0;
 
   const since = moscowWeekStart(now).toISOString();

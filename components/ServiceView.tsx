@@ -91,6 +91,8 @@ interface ServiceViewProps {
   handlePhotoAreaTap: () => void;
   cookingMode: "strict" | "extended";
   handleAnalyze: () => void;
+  /** Строка «на этой неделе осталось N подборов». Собирается в SearchApp. */
+  podborsLeft?: React.ReactNode;
   analyzing: boolean;
   isProcessing: boolean;
   // Этап объединённого вызова «фото → рецепт» (null — ничего не считаем).
@@ -180,6 +182,7 @@ export default function ServiceView({
   handlePhotoAreaTap,
   cookingMode,
   handleAnalyze,
+  podborsLeft,
   analyzing,
   isProcessing,
   photoStage,
@@ -711,6 +714,11 @@ export default function ServiceView({
                 </Button>
               </>
             )}
+
+            {/* Остаток бесплатных подборов — одной строкой под кнопками обоих
+                режимов. Сам решает, показываться ли: молчит у Премиума, при
+                нетронутом лимите и когда счётчик не посчитался. */}
+            {podborsLeft}
           </div>
 
           {(allergies.length > 0 || dislikes.length > 0) && (

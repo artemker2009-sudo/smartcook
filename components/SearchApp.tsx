@@ -21,6 +21,9 @@ import { splitStreamPayload, stageFromStream, type PhotoStage } from "@/lib/phot
 import { FEATURE_RESTAURANT_GAME, FEATURE_COMMUNITY_FEED } from "@/lib/features";
 import { addProduct, MAX_PRODUCTS } from "@/lib/products";
 import { useAuthModal } from "@/components/modals/useAuthModal";
+import { usePremiumStatus } from "@/components/premium/usePremiumStatus";
+import PodborLimitSheet from "@/components/premium/PodborLimitSheet";
+import PodborsLeft from "@/components/premium/PodborsLeft";
 import { RECIPE_READY_EVENT } from "@/components/InstallBanner";
 
 import Profile from "@/components/Profile";
@@ -48,6 +51,13 @@ export default function SearchApp() {
   
   const [allergies, setAllergies] = useState<string[]>([]);
   const [dislikes, setDislikes] = useState<string[]>([]);
+
+  // Премиум: остаток подборов под кнопками и шторка при исчерпании.
+  const { status: premiumStatus, refresh: refreshPremium } = usePremiumStatus();
+  const [limitSheet, setLimitSheet] = useState<{ open: boolean; limit: number }>({
+    open: false,
+    limit: 3,
+  });
   const [isPreferencesModalOpen, setIsPreferencesModalOpen] = useState(false);
   const [newAllergy, setNewAllergy] = useState("");
   const [newDislike, setNewDislike] = useState("");
@@ -159,9 +169,22 @@ export default function SearchApp() {
     return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
   };
 
-  // Если сервер ответил 429 — лимит генераций исчерпан. Показываем дружелюбное
-  // сообщение вместо технической ошибки и не даём коду идти в catch как "Ошибка: ...".
-  const handleRateLimitedResponse = (response: Response, json: any): boolean => {
+  // Единая воронка «сервер отказал по лимиту». Два разных отказа, и они НЕ
+  // взаимозаменяемы:
+  //
+  //   429 — общий защитный лимит генераций (10 в час, 30 в сутки). Он для всех,
+  //         включая Премиум, и деньгами не снимается: показываем тост.
+  //   402 — недельный лимит бесплатных подборов. Он снимается Премиумом, и
+  //         предложение купить — это шторка, а не тост.
+  //
+  // Возвращает true, если отказ обработан и вызывающий код должен остановиться.
+  const handleLimitedResponse = (response: Response, json: any): boolean => {
+    if (response.status === 402 && json?.code === "PODBOR_LIMIT") {
+      setLimitSheet({ open: true, limit: Number(json?.limit) || premiumStatus?.freePodborsPerWeek || 3 });
+      // Счётчик под кнопками теперь точно не тот, что был на экране.
+      refreshPremium();
+      return true;
+    }
     if (response.status === 429) {
       showToast(json?.error || "Вы сгенерировали максимум на сегодня. Возвращайтесь завтра!", undefined, 'error');
       return true;
@@ -818,7 +841,7 @@ export default function SearchApp() {
         // Ошибки приходят обычным JSON (429 лимита, 413 размера, 500).
         let json: { error?: string } = {};
         try { json = JSON.parse(body); } catch {}
-        if (handleRateLimitedResponse(response, json)) return;
+        if (handleLimitedResponse(response, json)) return;
         throw new Error(json?.error || `Ошибка ${response.status}`);
       }
 
@@ -878,6 +901,8 @@ export default function SearchApp() {
     } finally {
       setAnalyzing(false);
       setPhotoStage(null);
+      // Подбор состоялся (или отвалился) — перечитываем остаток на неделе.
+      refreshPremium();
     }
   };
 
@@ -908,7 +933,7 @@ export default function SearchApp() {
     if (!analysisResult || analysisResult.ingredients.length === 0) return; setIsRegenerating(true);
     try {
       const response = await fetch("/api/regenerate", { method: "POST", headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) }, body: JSON.stringify({ ingredients: analysisResult.ingredients, allergies, dislikes }) });
-      const json = await response.json(); if (handleRateLimitedResponse(response, json)) return; if (json.error) throw new Error(json.error);
+      const json = await response.json(); if (handleLimitedResponse(response, json)) return; if (json.error) throw new Error(json.error);
       setAnalysisResult({ ...analysisResult, dishes: json.dishes });
       // Блюда подобраны под актуальный (уже отредактированный) список продуктов.
       setProductsDirty(false);
@@ -1022,7 +1047,7 @@ export default function SearchApp() {
     window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     try {
       const response = await fetch("/api/recipe", { method: "POST", headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) }, body: JSON.stringify({ dish: dishName, ingredients: analysisResult.ingredients, sessionId: userId, allergies, dislikes }) });
-      const json = await response.json(); if (handleRateLimitedResponse(response, json)) return; if (json.error) throw new Error(json.error);
+      const json = await response.json(); if (handleLimitedResponse(response, json)) return; if (json.error) throw new Error(json.error);
       const generated: RecipeData = { ...json.recipe, id: json.recipe.id, is_favorite: false, ingredients: analysisResult.ingredients };
       setRecipe(generated);
       // В кэш — чтобы возврат к этому блюду был бесплатным.
@@ -1050,7 +1075,7 @@ export default function SearchApp() {
     try { 
       if (analysisResult) {
         const response = await fetch("/api/regenerate", { method: "POST", headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) }, body: JSON.stringify({ ingredients: analysisResult.ingredients, allergies, dislikes }) });
-        const json = await response.json(); if (handleRateLimitedResponse(response, json)) return; if (json.error) throw new Error(json.error);
+        const json = await response.json(); if (handleLimitedResponse(response, json)) return; if (json.error) throw new Error(json.error);
         const newDishes = json.dishes.filter((d: string) => d !== selectedDish);
         setAnalysisResult({ ...analysisResult, dishes: json.dishes }); 
         await getRecipeFromPhoto(newDishes.length > 0 ? newDishes[0] : json.dishes[0]); 
@@ -1058,7 +1083,7 @@ export default function SearchApp() {
         // Тип B, «подобрать другой рецепт»: просим следующий вариант. Без профиля
         // и с кэшем сервер отдаёт вариант из кэша мгновенно (либо генерит новый).
         const response = await fetch("/api/search-recipe", { method: "POST", headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) }, body: JSON.stringify({ query: textQuery, sessionId: userId, allergies, dislikes, requestVariant: true, currentVariantIndex: recipe?.variant_index || 1 }) });
-        const json = await response.json(); if (handleRateLimitedResponse(response, json)) return; if (!response.ok) throw new Error(json.error || "Ошибка");
+        const json = await response.json(); if (handleLimitedResponse(response, json)) return; if (!response.ok) throw new Error(json.error || "Ошибка");
         if (json.type === "dish" && json.recipe) {
           if (json.cacheHit) reachGoal("text_search_cache_hit");
           setRecipe({ ...json.recipe, id: json.recipe.id, is_favorite: false, missing_ingredients: json.recipe.missing_ingredients || [] });
@@ -1078,7 +1103,7 @@ export default function SearchApp() {
     setDemoProducts(opts?.cacheOnly === true ? demoChipProducts(q) : null);
     try {
       const response = await fetch("/api/search-recipe", { method: "POST", headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) }, body: JSON.stringify({ query: q, sessionId: userId, allergies, dislikes, cacheOnly: opts?.cacheOnly === true }) });
-      const json = await response.json(); if (handleRateLimitedResponse(response, json)) return; if (!response.ok) throw new Error(json.error || "Ошибка поиска");
+      const json = await response.json(); if (handleLimitedResponse(response, json)) return; if (!response.ok) throw new Error(json.error || "Ошибка поиска");
 
       // Демо-чип, а блюда в кэше нет (редко: чип показан по кэшу, но он остыл).
       // OpenAI не трогаем — мягко предлагаем запустить обычный поиск руками.
@@ -1103,7 +1128,7 @@ export default function SearchApp() {
       if (userId) fetchMyRecipes(userId);
       handleRewardForRecipe();
       onRecipeGenerated();
-    } catch (err: any) { showToast(err.message, undefined, 'error'); } finally { setLoadingRecipe(false); }
+    } catch (err: any) { showToast(err.message, undefined, 'error'); } finally { setLoadingRecipe(false); refreshPremium(); }
   };
 
   const handleAskChef = async () => { 
@@ -1111,7 +1136,7 @@ export default function SearchApp() {
     if (!question.trim() || !currentContext) return; setAsking(true); setAnswer(null); 
     try { 
       const response = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) }, body: JSON.stringify({ question: question, recipeContext: currentContext }) });
-      const json = await response.json(); if (handleRateLimitedResponse(response, json)) return; if (json.error) throw new Error(json.error); setAnswer(json.answer);
+      const json = await response.json(); if (handleLimitedResponse(response, json)) return; if (json.error) throw new Error(json.error); setAnswer(json.answer);
     } catch (err: any) { showToast("Ошибка", undefined, 'error'); } finally { setAsking(false); } 
   }; 
 
@@ -1336,8 +1361,14 @@ export default function SearchApp() {
           displayedFeed={displayedFeed}
           visibleHistory={visibleHistory}
           loadFromHistory={loadFromHistory}
+          podborsLeft={<PodborsLeft status={premiumStatus} />}
         />
       )} 
+      <PodborLimitSheet
+        open={limitSheet.open}
+        limit={limitSheet.limit}
+        onClose={() => setLimitSheet((p) => ({ ...p, open: false }))}
+      />
     </div> 
   ); 
 }

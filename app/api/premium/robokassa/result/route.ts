@@ -1,5 +1,5 @@
 import { getRobokassaConfig } from "@/lib/robokassaConfig";
-import { sameAmount, verifyResultSignature } from "@/lib/robokassa";
+import { isTestNotification, sameAmount, verifyResultSignature } from "@/lib/robokassa";
 import { createServiceRoleClient } from "@/lib/supabaseAdmin";
 import { getPlan } from "@/lib/premiumPlans";
 import { extendPremium } from "@/lib/premiumPeriod";
@@ -69,6 +69,23 @@ async function handle(req: Request): Promise<Response> {
   if (!outSum || !invIdRaw || !signature) return bad("missing params");
   if (!verifyResultSignature(config, { outSum, invId: invIdRaw, signature })) {
     return bad(`signature mismatch for InvId=${invIdRaw}`);
+  }
+
+  // Тестовое уведомление, когда магазин объявлен боевым, — отказ, даже если
+  // подпись сошлась. Подробнее, почему одной подписи мало, — в
+  // isTestNotification (lib/robokassa.ts). Коротко: если переключить
+  // ROBOKASSA_IS_TEST в false, а пароли забыть тестовыми, тестовая оплата
+  // выдала бы настоящий Премиум за ноль рублей.
+  //
+  // Проверка стоит ПОСЛЕ подписи сознательно: так в лог попадают только
+  // уведомления, которые прошли проверку пароля, — то есть настоящая
+  // рассогласованность настроек, а не чужие пробы наугад.
+  if (!config.isTest && isTestNotification(params)) {
+    console.error(
+      `[premium] ОТКАЗ: тестовое уведомление в боевом режиме, InvId=${invIdRaw}. ` +
+        `Проверьте, что ROBOKASSA_PASSWORD_1/2 боевые, а не тестовые.`,
+    );
+    return bad(`test notification while live for InvId=${invIdRaw}`);
   }
 
   const invId = Number(invIdRaw);

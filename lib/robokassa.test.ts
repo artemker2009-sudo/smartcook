@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { createHash } from "crypto";
 import {
   buildPaymentUrl,
+  isTestNotification,
   buildReceipt,
   encodeReceipt,
   formatOutSum,
@@ -202,4 +203,45 @@ describe("formatOutSum", () => {
     [169, "169.00"],
     [490, "490.00"],
   ])("%i → %s", (a, b) => expect(formatOutSum(a as number)).toBe(b));
+});
+
+describe("isTestNotification — тестовая оплата не выдаёт Премиум в боевом режиме", () => {
+  const params = (init: Record<string, string>) => new URLSearchParams(init);
+
+  it("IsTest=1 — тестовое", () => {
+    expect(isTestNotification(params({ IsTest: "1" }))).toBe(true);
+  });
+
+  it("IsTest=true в любом регистре — тоже тестовое", () => {
+    expect(isTestNotification(params({ IsTest: "true" }))).toBe(true);
+    expect(isTestNotification(params({ IsTest: "TRUE" }))).toBe(true);
+    expect(isTestNotification(params({ IsTest: " True " }))).toBe(true);
+  });
+
+  it("параметра нет, ноль или пусто — боевое", () => {
+    expect(isTestNotification(params({}))).toBe(false);
+    expect(isTestNotification(params({ IsTest: "0" }))).toBe(false);
+    expect(isTestNotification(params({ IsTest: "" }))).toBe(false);
+  });
+
+  it("нижний регистр имени параметра тоже понимаем", () => {
+    expect(isTestNotification(params({ is_test: "1" }))).toBe(true);
+  });
+
+  // Главное, ради чего проверка существует: подпись может сойтись и у
+  // тестового уведомления — если после перехода на боевой режим забыли
+  // поменять пароли. Одной подписи для защиты недостаточно.
+  it("подпись тестового уведомления сходится — значит одной подписи мало", () => {
+    const good = md5("169.00:42:password_2");
+    const p = params({ OutSum: "169.00", InvId: "42", SignatureValue: good, IsTest: "1" });
+
+    expect(
+      verifyResultSignature(CONFIG, {
+        outSum: p.get("OutSum")!,
+        invId: p.get("InvId")!,
+        signature: p.get("SignatureValue")!,
+      }),
+    ).toBe(true);
+    expect(isTestNotification(p)).toBe(true);
+  });
 });

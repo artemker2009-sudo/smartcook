@@ -80,7 +80,8 @@ export function podborLimitCopy(env: InstallEnv, limit: number): PodborLimitCopy
     title: "Следующий подбор — с Премиумом",
     text:
       `${limit} ${pluralFree(limit)} ${pluralPodbor(limit)} на этой неделе ` +
-      `закончились, новые будут в понедельник. С Премиумом подбирайте сколько угодно.`,
+      `${limit % 10 === 1 && limit % 100 !== 11 ? "закончился" : "закончились"}, ` +
+      `новые будут в понедельник. С Премиумом подбирайте сколько угодно.`,
     price: {
       headline: year.sub,
       note: `${formatPriceRub(year.priceRub)} за целый год · автоплатежей нет`,
@@ -91,7 +92,13 @@ export function podborLimitCopy(env: InstallEnv, limit: number): PodborLimitCopy
   };
 }
 
-/** «1 бесплатный подбор», «3 бесплатных подбора», «5 бесплатных подборов». */
+/**
+ * «1 бесплатный подбор», «3 бесплатных подбора», «5 бесплатных подборов».
+ *
+ * Глагол согласуется отдельно, прямо в тексте: при настройке «1 подбор»
+ * получалось «1 бесплатный подбор закончились». В макете число 3, поэтому
+ * там этого не видно — поймалось на превью, где лимит временно ставили в 1.
+ */
 function pluralFree(n: number): string {
   const mod100 = Math.abs(n) % 100;
   const mod10 = mod100 % 10;

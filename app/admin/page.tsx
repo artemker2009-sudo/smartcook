@@ -1,17 +1,12 @@
 "use client";
 
 import { type FormEvent, useEffect, useRef, useState } from "react";
-import {
-  Activity,
-  BarChart3,
-  CheckCircle2,
-  CircleDollarSign,
-  Eraser,
-  Shield,
-  Sparkles,
-  Wrench,
-} from "lucide-react";
+import { Eraser, Shield, Sparkles, Wrench } from "lucide-react";
 import { renderMarkdown } from "@/lib/markdown";
+import PaymentsTab from "@/components/admin/PaymentsTab";
+import PremiumUsersTab from "@/components/admin/PremiumUsersTab";
+import PlatformsChart, { type PlatformDay } from "@/components/admin/PlatformsChart";
+import { FEATURE_PREMIUM } from "@/lib/features";
 import {
   MAX_BULK_PUBLISH,
   bulkPublishConfirmText,
@@ -37,21 +32,10 @@ type AnalyticsEvent = {
   created_at?: string | null;
 };
 
-type PartyRecord = {
-  id?: string | null;
-  created_at?: string | null;
-  is_paid?: boolean | null;
-  user_name?: string | null;
-  name?: string | null;
-  creator_name?: string | null;
-  organizer_name?: string | null;
-  created_by?: string | null;
-  owner_name?: string | null;
-  host_name?: string | null;
-};
-
+// Банкеты из статистики убраны вместе с разделом «Банкеты: оплаты»: их
+// оплата удалена из кода ещё раньше, а сам раздел скрыт флагом. Остался
+// журнал событий — единственное, что здесь ещё живо.
 type DashboardStats = {
-  parties: PartyRecord[];
   recentEvents: AnalyticsEvent[];
 };
 
@@ -89,6 +73,8 @@ type PlatformRow = {
 type PlatformStats = {
   days7: PlatformRow[];
   days30: PlatformRow[];
+  daily?: PlatformDay[];
+  firstVisitAt?: string | null;
 };
 
 const PLATFORM_LABELS: Record<PlatformRow["platform"], string> = {
@@ -98,7 +84,6 @@ const PLATFORM_LABELS: Record<PlatformRow["platform"], string> = {
 };
 
 const EMPTY_STATS: DashboardStats = {
-  parties: [],
   recentEvents: [],
 };
 
@@ -124,15 +109,6 @@ type CommunityQueueItem = {
   status?: string | null;
 };
 
-type NewsItem = {
-  id: string;
-  created_at?: string | null;
-  date?: string | null;
-  title: string;
-  body: string;
-  is_visible?: boolean | null;
-};
-
 type Article = {
   id: string;
   created_at?: string | null;
@@ -140,15 +116,6 @@ type Article = {
   title: string;
   slug: string;
   excerpt: string;
-  body: string;
-  emoji_icon?: string | null;
-  is_published?: boolean | null;
-};
-
-type Tip = {
-  id: string;
-  created_at?: string | null;
-  published_at?: string | null;
   body: string;
   emoji_icon?: string | null;
   is_published?: boolean | null;
@@ -182,7 +149,7 @@ type ImagesStatus = {
   maxBatch: number;
 };
 
-type TabId = "management" | "analytics" | "platforms" | "purchases" | "news" | "articles" | "ideas" | "tips" | "feed" | "images" | "warmup" | "requests" | "errors" | "reports" | "suggestions";
+type TabId = "management" | "analytics" | "platforms" | "payments" | "users" | "articles" | "ideas" | "feed" | "images" | "warmup" | "requests" | "errors" | "reports" | "suggestions";
 
 // Что показать, когда сервер ответил 401. Админ-сессия живёт 12 часов
 // (lib/adminAuth.ts), и вкладка, оставленная открытой на ночь, доживает до
@@ -266,23 +233,46 @@ type CommunityReport = {
   } | null;
 };
 
+// РАБОЧИЕ разделы — то, чем пользуются.
+//
+// Чего здесь больше нет (чистка 24.09.2026, решение основателя):
+//   * «Банкеты: оплаты» — банкеты выключены флагом, оплата банкетов из кода
+//     удалена ещё раньше, новых строк не появляется в принципе;
+//   * «Новости» — компонент NewsBoard не подключён ни к одному экрану сайта;
+//   * «Советы» — «Совет дня» убран с Главной.
+// Таблицы news и tips в базе НЕ тронуты: раздел вернуть — значит вернуть
+// вкладку, данные на месте.
 const TABS = [
   { id: "management" as TabId, label: "⚙️ Управление", hint: "Статус сайта и техработы" },
   { id: "analytics" as TabId, label: "📊 Аналитика", hint: "Живые метрики и события" },
   { id: "platforms" as TabId, label: "📱 Платформы", hint: "Откуда заходят: сайт, iOS, RuStore" },
-  { id: "purchases" as TabId, label: "💳 История покупок", hint: "Только оплаченные банкеты" },
-  { id: "news" as TabId, label: "📰 Новости", hint: "Новости проекта на главной" },
-  { id: "articles" as TabId, label: "📝 Заметки", hint: "Кухонные заметки на главной" },
+  // «Платежи» и «Пользователи» — Премиум. Прячем их при выключенном флаге:
+  // разделы, в которых заведомо пусто, только мешают искать нужное.
+  ...(FEATURE_PREMIUM
+    ? [
+        { id: "payments" as TabId, label: "💎 Платежи", hint: "Оплаты Премиума: суммы и график" },
+        { id: "users" as TabId, label: "👥 Пользователи", hint: "Премиум, подборы, выдача вручную" },
+      ]
+    : []),
+  { id: "articles" as TabId, label: "📝 Заметки", hint: "Статьи на /articles" },
   { id: "ideas" as TabId, label: "🍳 Каталог", hint: "Рецепты раздела «Идеи»" },
-  { id: "tips" as TabId, label: "💡 Советы", hint: "Совет дня на главной" },
-  { id: "feed" as TabId, label: "🍽️ Лента", hint: "Премодерация ленты + витрина" },
   { id: "images" as TabId, label: "🖼️ Картинки", hint: "ИИ-картинки блюд к рецептам" },
   { id: "warmup" as TabId, label: "🔥 Прогрев", hint: "Заранее наполнить кэш блюд" },
   { id: "requests" as TabId, label: "🔑 Заявки на доступ", hint: "Восстановление пароля" },
   { id: "errors" as TabId, label: "🐞 Ошибки", hint: "Баг-репорты пользователей" },
-  { id: "reports" as TabId, label: "🚩 Жалобы", hint: "Жалобы на посты ленты" },
   { id: "suggestions" as TabId, label: "💡 Предложения", hint: "Что добавить, а что убрать" },
 ];
+
+// ВЫКЛЮЧЕННЫЕ функции. Лента сообщества скрыта флагом FEATURE_COMMUNITY_FEED и
+// вернётся позже, поэтому её модерация и жалобы на неё никуда не деваются — но
+// и мешаться в основном списке каждый день им незачем. Сложены в свёрнутую
+// группу внизу: открыть один раз и забыть до возвращения ленты.
+const DISABLED_TABS = [
+  { id: "feed" as TabId, label: "🍽️ Лента", hint: "Премодерация ленты + витрина" },
+  { id: "reports" as TabId, label: "🚩 Жалобы", hint: "Жалобы на посты ленты" },
+];
+
+const ALL_TABS = [...TABS, ...DISABLED_TABS];
 
 // Репорт со стенда разработки, а не от живого пользователя.
 const isDevReport = (report: ErrorReport) => {
@@ -307,59 +297,22 @@ const formatDateTime = (value?: string | null) => {
   }).format(date);
 };
 
-const shortenPartyId = (value?: string | null) => {
-  if (!value) {
-    return "Нет ID";
-  }
-
-  return value.length > 10 ? `${value.slice(0, 8)}...` : value;
-};
-
-const getPartyCreatorName = (party: PartyRecord) => {
-  const candidates = [
-    party.creator_name,
-    party.organizer_name,
-    party.owner_name,
-    party.host_name,
-    party.user_name,
-    party.name,
-    party.created_by,
-  ];
-
-  return candidates.find((value) => value?.trim())?.trim() ?? null;
-};
-
+// Подписи событий журнала.
+//
+// Здесь остались только ЖИВЫЕ события. Всё, что подписывало банкетный пейволл
+// («Открыл пейволл (ИИ)», «(список)», «Оплата успешна», «Закрыл пейволл»,
+// «Сгенерировал меню», «Открыл список покупок»), убрано вместе с самим
+// пейволлом: этих событий никто не отправляет с июля, а строки-призраки в
+// легенде заставляли искать функцию, которой нет.
+//
+// Старые строки в analytics_events никуда не делись и показываются как есть —
+// сырым именем события. Это честнее, чем подпись к тому, чего в продукте нет.
 const getEventMeta = (eventType?: string | null) => {
   switch (eventType) {
-    case "paywall_view_from_ai":
+    case "visit":
       return {
-        label: "Открыл пейволл (ИИ)",
-        className: "bg-amber-100 text-amber-700 ring-amber-200",
-      };
-    case "paywall_view_from_cart":
-      return {
-        label: "Открыл пейволл (список)",
-        className: "bg-orange-100 text-orange-700 ring-orange-200",
-      };
-    case "paywall_payment_success":
-      return {
-        label: "Оплата успешна",
-        className: "bg-green-100 text-green-700 ring-green-200",
-      };
-    case "shopping_list_opened":
-      return {
-        label: "Открыл список покупок",
+        label: "Заход на сайт",
         className: "bg-sky-100 text-sky-700 ring-sky-200",
-      };
-    case "ai_menu_generated_success":
-      return {
-        label: "Сгенерировал меню",
-        className: "bg-violet-100 text-violet-700 ring-violet-200",
-      };
-    case "paywall_cancelled":
-      return {
-        label: "Закрыл пейволл",
-        className: "bg-zinc-100 text-zinc-700 ring-zinc-200",
       };
     default:
       return {
@@ -413,9 +366,6 @@ export default function AdminPage() {
   const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState("");
   const [stats, setStats] = useState<DashboardStats>(EMPTY_STATS);
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [errorReports, setErrorReports] = useState<ErrorReport[]>([]);
   const [errorsError, setErrorsError] = useState("");
   const [markingReportId, setMarkingReportId] = useState<string | null>(null);
@@ -443,14 +393,6 @@ export default function AdminPage() {
   const [warmupRunning, setWarmupRunning] = useState(false);
   const [warmupProgress, setWarmupProgress] = useState<{ done: number; total: number } | null>(null);
   const [warmupResult, setWarmupResult] = useState<{ ok: number; skipped: number; failed: number } | null>(null);
-  const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
-  const [newsEditingId, setNewsEditingId] = useState<string | null>(null); // null = форма создания
-  const [newsTitle, setNewsTitle] = useState("");
-  const [newsDate, setNewsDate] = useState("");
-  const [newsBody, setNewsBody] = useState("");
-  const [newsSaving, setNewsSaving] = useState(false);
-  const [newsError, setNewsError] = useState("");
-  const [newsBusyId, setNewsBusyId] = useState<string | null>(null);
   const [articles, setArticles] = useState<Article[]>([]);
   const [articleEditingId, setArticleEditingId] = useState<string | null>(null); // null = форма создания
   const [articleTitle, setArticleTitle] = useState("");
@@ -513,14 +455,6 @@ export default function AdminPage() {
     ingredients: "",
     steps: "",
   });
-  const [tips, setTips] = useState<Tip[]>([]);
-  const [tipEditingId, setTipEditingId] = useState<string | null>(null);
-  const [tipBody, setTipBody] = useState("");
-  const [tipEmoji, setTipEmoji] = useState("");
-  const [tipSaving, setTipSaving] = useState(false);
-  const [tipError, setTipError] = useState("");
-  const [tipBusyId, setTipBusyId] = useState<string | null>(null);
-  const [tipGenerating, setTipGenerating] = useState(false);
 
   const loadDashboard = async () => {
     setIsLoading(true);
@@ -546,7 +480,6 @@ export default function AdminPage() {
       setCacheEpoch((data.cacheEpoch as string | null) ?? null);
       setPurgeClientCache(Boolean(data.purgeClientCache));
       setStats({
-        parties: (data.parties as PartyRecord[] | null) ?? [],
         recentEvents: (data.recentEvents as AnalyticsEvent[] | null) ?? [],
       });
       setPlatformStats((data.platforms as PlatformStats | null) ?? null);
@@ -554,9 +487,7 @@ export default function AdminPage() {
       setResetRequests((data.resetRequests as ResetRequest[] | null) ?? []);
       setFeedPhotos((data.feedPhotos as FeedPhoto[] | null) ?? []);
       setCommunityQueue((data.communityQueue as CommunityQueueItem[] | null) ?? []);
-      setNewsItems((data.news as NewsItem[] | null) ?? []);
       setArticles((data.articles as Article[] | null) ?? []);
-      setTips((data.tips as Tip[] | null) ?? []);
       setIsAuthenticated(true);
     } catch (error) {
       console.error("Ошибка загрузки админки", error);
@@ -789,34 +720,6 @@ export default function AdminPage() {
     }
   };
 
-  const handleDeleteParty = async () => {
-    if (!deleteConfirmId) return;
-
-    setIsDeleting(true);
-
-    try {
-      const response = await fetch("/api/admin/parties", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: deleteConfirmId }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Не удалось удалить банкет");
-      }
-
-      setStats((currentStats) => ({
-        parties: currentStats.parties.filter((party) => party.id !== deleteConfirmId),
-        recentEvents: currentStats.recentEvents.filter((event) => event.party_id !== deleteConfirmId),
-      }));
-      setOpenMenuId(null);
-    } catch (error) {
-      console.error("Ошибка при удалении", error);
-    } finally {
-      setIsDeleting(false);
-      setDeleteConfirmId(null);
-    }
-  };
 
   const handleMarkReportViewed = async (id: string) => {
     setMarkingReportId(id);
@@ -1153,88 +1056,10 @@ export default function AdminPage() {
     setWarmupRunning(false);
   };
 
-  const resetNewsForm = () => {
-    setNewsEditingId(null);
-    setNewsTitle("");
-    setNewsDate("");
-    setNewsBody("");
-    setNewsError("");
-  };
 
-  const startEditNews = (item: NewsItem) => {
-    setNewsEditingId(item.id);
-    setNewsTitle(item.title ?? "");
-    setNewsDate(item.date ?? "");
-    setNewsBody(item.body ?? "");
-    setNewsError("");
-  };
 
-  const handleSaveNews = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!newsTitle.trim() || !newsBody.trim()) {
-      setNewsError("Заголовок и текст обязательны");
-      return;
-    }
-    setNewsSaving(true);
-    setNewsError("");
-    try {
-      const response = await fetch("/api/admin/news", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          op: newsEditingId ? "update" : "create",
-          id: newsEditingId ?? undefined,
-          title: newsTitle,
-          date: newsDate,
-          body: newsBody,
-        }),
-      });
-      const data = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(data?.error || "Не удалось сохранить новость");
-      await loadDashboard();
-      resetNewsForm();
-    } catch (error) {
-      setNewsError(error instanceof Error ? error.message : "Не удалось сохранить новость");
-    } finally {
-      setNewsSaving(false);
-    }
-  };
 
-  const handleNewsVisibility = async (id: string, visible: boolean) => {
-    setNewsBusyId(id);
-    try {
-      const response = await fetch("/api/admin/news", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ op: "setVisible", id, visible }),
-      });
-      if (!response.ok) throw new Error("Не удалось обновить");
-      setNewsItems((current) => current.map((n) => (n.id === id ? { ...n, is_visible: visible } : n)));
-    } catch (error) {
-      console.error("Ошибка видимости новости", error);
-    } finally {
-      setNewsBusyId(null);
-    }
-  };
 
-  const handleDeleteNews = async (id: string) => {
-    if (!confirm("Удалить новость безвозвратно?")) return;
-    setNewsBusyId(id);
-    try {
-      const response = await fetch("/api/admin/news", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ op: "delete", id }),
-      });
-      if (!response.ok) throw new Error("Не удалось удалить");
-      setNewsItems((current) => current.filter((n) => n.id !== id));
-      if (newsEditingId === id) resetNewsForm();
-    } catch (error) {
-      console.error("Ошибка удаления новости", error);
-    } finally {
-      setNewsBusyId(null);
-    }
-  };
 
   // --- Кухонные заметки (articles) ---
   const resetArticleForm = () => {
@@ -1748,120 +1573,14 @@ export default function AdminPage() {
       ...(report.warnings.length ? ["Предупреждения:", ...report.warnings.map((w) => `  ! ${w}`)] : []),
     ].join("\n");
 
-  // --- Советы (tips) ---
-  const resetTipForm = () => {
-    setTipEditingId(null);
-    setTipBody("");
-    setTipEmoji("");
-    setTipError("");
-  };
 
-  const startEditTip = (item: Tip) => {
-    setTipEditingId(item.id);
-    setTipBody(item.body ?? "");
-    setTipEmoji(item.emoji_icon ?? "");
-    setTipError("");
-  };
 
-  const handleGenerateTips = async () => {
-    setTipGenerating(true);
-    setTipError("");
-    try {
-      const response = await fetch("/api/admin/tips/draft", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ count: 20 }),
-      });
-      const data = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(data?.error || "Не удалось сгенерировать советы");
-      await loadDashboard();
-    } catch (error) {
-      setTipError(error instanceof Error ? error.message : "Не удалось сгенерировать советы");
-    } finally {
-      setTipGenerating(false);
-    }
-  };
 
-  const handleSaveTip = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!tipBody.trim()) {
-      setTipError("Текст совета обязателен");
-      return;
-    }
-    setTipSaving(true);
-    setTipError("");
-    try {
-      const response = await fetch("/api/admin/tips", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          op: tipEditingId ? "update" : "create",
-          id: tipEditingId ?? undefined,
-          body: tipBody,
-          emoji_icon: tipEmoji,
-        }),
-      });
-      const data = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(data?.error || "Не удалось сохранить совет");
-      await loadDashboard();
-      resetTipForm();
-    } catch (error) {
-      setTipError(error instanceof Error ? error.message : "Не удалось сохранить совет");
-    } finally {
-      setTipSaving(false);
-    }
-  };
 
-  const handleTipPublished = async (id: string, published: boolean) => {
-    setTipBusyId(id);
-    try {
-      const response = await fetch("/api/admin/tips", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ op: "setPublished", id, published }),
-      });
-      if (!response.ok) throw new Error("Не удалось обновить статус");
-      setTips((current) => current.map((t) => (t.id === id ? { ...t, is_published: published } : t)));
-    } catch (error) {
-      console.error("Ошибка публикации совета", error);
-    } finally {
-      setTipBusyId(null);
-    }
-  };
 
-  const handleDeleteTip = async (id: string) => {
-    if (!confirm("Удалить совет безвозвратно?")) return;
-    setTipBusyId(id);
-    try {
-      const response = await fetch("/api/admin/tips", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ op: "delete", id }),
-      });
-      if (!response.ok) throw new Error("Не удалось удалить");
-      setTips((current) => current.filter((t) => t.id !== id));
-      if (tipEditingId === id) resetTipForm();
-    } catch (error) {
-      console.error("Ошибка удаления совета", error);
-    } finally {
-      setTipBusyId(null);
-    }
-  };
 
-  const publishedTipsCount = tips.filter((t) => t.is_published).length;
 
-  const totalParties = stats.parties.length;
-  const paidParties = stats.parties.filter((party) => Boolean(party.is_paid)).length;
-  const paymentConversion = totalParties > 0 ? Math.round((paidParties / totalParties) * 100) : 0;
-  const paidPartyHistory = stats.parties
-    .filter((party) => Boolean(party.is_paid))
-    .sort((left, right) => {
-      const leftTime = left.created_at ? new Date(left.created_at).getTime() : 0;
-      const rightTime = right.created_at ? new Date(right.created_at).getTime() : 0;
-
-      return rightTime - leftTime;
-    });
-  const activeTabMeta = TABS.find((tab) => tab.id === activeTab) ?? TABS[0];
+  const activeTabMeta = ALL_TABS.find((tab) => tab.id === activeTab) ?? TABS[0];
 
   // «Пропущенное»: сколько необработанного висит на вкладке. Считаем по тем же
   // статусам, что показывает сама вкладка, — цифра в меню и список не разъедутся.
@@ -1987,6 +1706,57 @@ export default function AdminPage() {
               </button>
             );
           })}
+
+          {/* Выключенные функции — под чертой и свёрнуты. Разворачивается
+              обычным <details>: состояние живёт в самом элементе, лишнего
+              useState на это заводить незачем. Если человек сейчас стоит
+              внутри такого раздела, группа открыта — иначе он не увидел бы,
+              где находится. */}
+          <details
+            open={DISABLED_TABS.some((tab) => tab.id === activeTab)}
+            className="mt-4 border-t border-zinc-200 pt-4"
+          >
+            <summary className="cursor-pointer select-none rounded-xl px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400 hover:bg-zinc-100">
+              Выключенные функции
+            </summary>
+            <div className="mt-2 space-y-2">
+              {DISABLED_TABS.map((tab) => {
+                const badge = tabBadges[tab.id] ?? 0;
+
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`w-full rounded-xl px-4 py-3 text-left transition ${
+                      activeTab === tab.id
+                        ? "bg-black text-white shadow-sm"
+                        : "text-zinc-400 hover:bg-zinc-100"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-sm font-semibold">{tab.label}</div>
+                      {badge > 0 ? (
+                        <span
+                          aria-label={`Новых: ${badge}`}
+                          className="inline-flex h-5 min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-bold text-white"
+                        >
+                          {badge > 99 ? "99+" : badge}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div
+                      className={`mt-1 text-xs ${
+                        activeTab === tab.id ? "text-zinc-300" : "text-zinc-400"
+                      }`}
+                    >
+                      {tab.hint}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </details>
         </nav>
 
         <div className="border-t border-zinc-200 px-6 py-5">
@@ -2013,20 +1783,28 @@ export default function AdminPage() {
               </div>
 
               <div className="grid gap-3 sm:grid-cols-3 lg:hidden">
-                {TABS.map((tab) => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`rounded-xl px-4 py-3 text-left transition ${
-                      activeTab === tab.id
-                        ? "bg-black text-white shadow-sm"
-                        : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
-                    }`}
-                  >
-                    <div className="text-sm font-semibold">{tab.label}</div>
-                  </button>
-                ))}
+                {/* На узком экране группы не сворачиваем — здесь это лишний
+                    тап. Выключенные функции просто приглушены. */}
+                {ALL_TABS.map((tab) => {
+                  const disabled = DISABLED_TABS.some((t) => t.id === tab.id);
+
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`rounded-xl px-4 py-3 text-left transition ${
+                        activeTab === tab.id
+                          ? "bg-black text-white shadow-sm"
+                          : disabled
+                            ? "bg-zinc-50 text-zinc-400 hover:bg-zinc-100"
+                            : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
+                      }`}
+                    >
+                      <div className="text-sm font-semibold">{tab.label}</div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </header>
@@ -2247,8 +2025,18 @@ export default function AdminPage() {
                     <p className="mt-2 text-sm leading-6 text-zinc-600">
                       Один заход = один сеанс, а не экран. Новый или вернувшийся определяется отметкой
                       на устройстве: человек с очищенным хранилищем посчитается новым ещё раз.
+                      Заходы с превью и с локальной разработки в статистику не попадают.
                     </p>
                   </section>
+
+                  {/* daily может не прийти со старого деплоя — тогда просто нет
+                      графика, а плитки ниже работают как работали. */}
+                  {platformStats.daily ? (
+                    <PlatformsChart
+                      daily={platformStats.daily}
+                      firstVisitAt={platformStats.firstVisitAt ?? null}
+                    />
+                  ) : null}
 
                   {([
                     { title: "За 7 дней", rows: platformStats.days7 },
@@ -2305,58 +2093,6 @@ export default function AdminPage() {
 
           {activeTab === "analytics" ? (
             <div className="space-y-8">
-              <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-                <article className="rounded-3xl border border-zinc-200 bg-white p-7 shadow-sm">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-semibold text-zinc-500">Всего банкетов</p>
-                      <div className="mt-3 text-4xl font-semibold tracking-tight text-zinc-950">
-                        {isAnalyticsLoading ? "..." : totalParties}
-                      </div>
-                    </div>
-                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-100 text-blue-600">
-                      <BarChart3 className="h-6 w-6" />
-                    </div>
-                  </div>
-                  <p className="mt-5 text-sm leading-6 text-zinc-600">
-                    Общее число созданных мероприятий.
-                  </p>
-                </article>
-
-                <article className="rounded-3xl border border-zinc-200 bg-white p-7 shadow-sm">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-semibold text-zinc-500">Оплачено</p>
-                      <div className="mt-3 text-4xl font-semibold tracking-tight text-zinc-950">
-                        {isAnalyticsLoading ? "..." : paidParties}
-                      </div>
-                    </div>
-                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-green-100 text-green-600">
-                      <CircleDollarSign className="h-6 w-6" />
-                    </div>
-                  </div>
-                  <p className="mt-5 text-sm leading-6 text-zinc-600">
-                    Количество мероприятий с успешно оплаченной покупкой доступа.
-                  </p>
-                </article>
-
-                <article className="rounded-3xl border border-zinc-200 bg-white p-7 shadow-sm">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-semibold text-zinc-500">Конверсия</p>
-                      <div className="mt-3 text-4xl font-semibold tracking-tight text-zinc-950">
-                        {isAnalyticsLoading ? "..." : `${paymentConversion}%`}
-                      </div>
-                    </div>
-                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-purple-100 text-purple-600">
-                      <Activity className="h-6 w-6" />
-                    </div>
-                  </div>
-                  <p className="mt-5 text-sm leading-6 text-zinc-600">
-                    Доля успешно оплаченных доступов от общего числа созданных мероприятий.
-                  </p>
-                </article>
-              </section>
 
               <section className="overflow-hidden rounded-[2rem] border border-zinc-200 bg-white shadow-sm">
                 <div className="flex flex-col gap-3 border-b border-zinc-200 px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
@@ -2378,7 +2114,6 @@ export default function AdminPage() {
                     <thead className="bg-zinc-50/80">
                       <tr className="border-b border-zinc-200 text-left text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
                         <th className="px-6 py-4">Дата и время</th>
-                        <th className="px-6 py-4">ID банкета</th>
                         <th className="px-6 py-4">Пользователь</th>
                         <th className="px-6 py-4">Событие</th>
                       </tr>
@@ -2386,7 +2121,7 @@ export default function AdminPage() {
                     <tbody className="bg-white">
                       {stats.recentEvents.length === 0 && !isAnalyticsLoading ? (
                         <tr className="border-b border-zinc-200 last:border-b-0">
-                          <td colSpan={4} className="px-6 py-12 text-center text-sm text-zinc-500">
+                          <td colSpan={3} className="px-6 py-12 text-center text-sm text-zinc-500">
                             Событий пока нет.
                           </td>
                         </tr>
@@ -2394,7 +2129,7 @@ export default function AdminPage() {
 
                       {isAnalyticsLoading && stats.recentEvents.length === 0 ? (
                         <tr className="border-b border-zinc-200 last:border-b-0">
-                          <td colSpan={4} className="px-6 py-12 text-center text-sm text-zinc-500">
+                          <td colSpan={3} className="px-6 py-12 text-center text-sm text-zinc-500">
                             Загружаем аналитику...
                           </td>
                         </tr>
@@ -2410,9 +2145,6 @@ export default function AdminPage() {
                           >
                             <td className="whitespace-nowrap px-6 py-5 text-sm text-zinc-600">
                               {formatDateTime(event.created_at)}
-                            </td>
-                            <td className="whitespace-nowrap px-6 py-5 text-sm font-semibold text-zinc-900">
-                              {shortenPartyId(event.party_id)}
                             </td>
                             <td className="whitespace-nowrap px-6 py-5 text-sm text-zinc-600">
                               {event.user_name?.trim() || "anonymous"}
@@ -2434,216 +2166,11 @@ export default function AdminPage() {
             </div>
           ) : null}
 
-          {activeTab === "purchases" ? (
-            <section className="overflow-hidden rounded-[2rem] border border-zinc-200 bg-white shadow-sm">
-              <div className="flex flex-col gap-3 border-b border-zinc-200 px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-400">Purchase History</p>
-                  <h3 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-950">
-                    История покупок
-                  </h3>
-                </div>
-                <p className="text-sm text-zinc-500">Список успешно оплаченных доступов.</p>
-              </div>
+          {activeTab === "payments" ? <PaymentsTab onUnauthorized={handleAdminUnauthorized} /> : null}
 
-              {analyticsError ? (
-                <p className="border-b border-zinc-200 px-6 py-4 text-sm text-red-500">{analyticsError}</p>
-              ) : null}
+          {activeTab === "users" ? <PremiumUsersTab onUnauthorized={handleAdminUnauthorized} /> : null}
 
-              <div className="overflow-x-auto">
-                <table className="min-w-full">
-                  <thead className="bg-zinc-50/80">
-                    <tr className="border-b border-zinc-200 text-left text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
-                      <th className="px-6 py-4">Дата создания</th>
-                      <th className="px-6 py-4">ID банкета</th>
-                      <th className="px-6 py-4">Имя создателя</th>
-                      <th className="px-6 py-4">Статус</th>
-                      <th className="text-right"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white">
-                    {paidPartyHistory.length === 0 && !isAnalyticsLoading ? (
-                      <tr className="border-b border-zinc-200 last:border-b-0">
-                        <td colSpan={5} className="px-6 py-12 text-center text-sm text-zinc-500">
-                          Оплаченных банкетов пока нет.
-                        </td>
-                      </tr>
-                    ) : null}
 
-                    {isAnalyticsLoading && paidPartyHistory.length === 0 ? (
-                      <tr className="border-b border-zinc-200 last:border-b-0">
-                        <td colSpan={5} className="px-6 py-12 text-center text-sm text-zinc-500">
-                          Загружаем покупки...
-                        </td>
-                      </tr>
-                    ) : null}
-
-                    {paidPartyHistory.map((party, index) => (
-                      <tr
-                        key={`${party.id ?? "paid-party"}-${index}`}
-                        className="border-b border-zinc-200 last:border-b-0"
-                      >
-                        <td className="whitespace-nowrap px-6 py-5 text-sm text-zinc-600">
-                          {formatDateTime(party.created_at)}
-                        </td>
-                        <td className="whitespace-nowrap px-6 py-5 text-sm font-semibold text-zinc-900">
-                          {shortenPartyId(party.id)}
-                        </td>
-                        <td className="whitespace-nowrap px-6 py-5 text-sm text-zinc-600">
-                          {getPartyCreatorName(party) ?? "Не указано"}
-                        </td>
-                        <td className="px-6 py-5 text-sm text-zinc-900">
-                          <span className="inline-flex items-center gap-2 rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700 ring-1 ring-green-200">
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                            Оплачено
-                          </span>
-                        </td>
-                        <td className="relative p-4 text-right">
-                          <button
-                            type="button"
-                            onClick={() => setOpenMenuId(openMenuId === party.id ? null : party.id ?? null)}
-                            className="rounded-full p-2 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-black"
-                          >
-                            •••
-                          </button>
-
-                          {openMenuId === party.id && party.id ? (
-                            <div className="absolute right-8 top-10 z-10 w-32 overflow-hidden rounded-xl border border-zinc-100 bg-white shadow-xl animate-in fade-in zoom-in-95 duration-100">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setOpenMenuId(null);
-                                  setDeleteConfirmId(party.id ?? null);
-                                }}
-                                className="w-full px-4 py-3 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
-                              >
-                                Удалить
-                              </button>
-                            </div>
-                          ) : null}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          ) : null}
-
-          {activeTab === "news" ? (
-            <section className="space-y-4">
-              <div className="rounded-[2rem] border border-zinc-200 bg-white px-6 py-5 shadow-sm">
-                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-400">Контент</p>
-                <h3 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-950">Новости проекта</h3>
-                <p className="mt-2 text-sm text-zinc-500">
-                  Показываются на Главной (видимые, свежие сверху). «Скрыть» убирает новость с сайта, не удаляя её.
-                </p>
-              </div>
-
-              {/* Форма создания / редактирования */}
-              <form onSubmit={handleSaveNews} className="space-y-3 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-                <p className="text-sm font-semibold text-zinc-900">
-                  {newsEditingId ? "Редактирование новости" : "Новая новость"}
-                </p>
-                <input
-                  value={newsTitle}
-                  onChange={(e) => setNewsTitle(e.target.value)}
-                  placeholder="Заголовок"
-                  maxLength={200}
-                  className="w-full rounded-xl border border-zinc-300 px-4 py-2.5 text-sm outline-none focus:border-emerald-500"
-                />
-                <input
-                  value={newsDate}
-                  onChange={(e) => setNewsDate(e.target.value)}
-                  placeholder="Дата (например: Июль 2026)"
-                  maxLength={50}
-                  className="w-full rounded-xl border border-zinc-300 px-4 py-2.5 text-sm outline-none focus:border-emerald-500"
-                />
-                <textarea
-                  value={newsBody}
-                  onChange={(e) => setNewsBody(e.target.value)}
-                  placeholder="Текст новости (1–2 предложения)"
-                  maxLength={1000}
-                  rows={3}
-                  className="w-full rounded-xl border border-zinc-300 px-4 py-2.5 text-sm outline-none focus:border-emerald-500"
-                />
-                {newsError ? <p className="text-sm text-red-600">{newsError}</p> : null}
-                <div className="flex gap-2">
-                  <button
-                    type="submit"
-                    disabled={newsSaving}
-                    className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
-                  >
-                    {newsSaving ? "Сохраняем..." : newsEditingId ? "Сохранить" : "Создать"}
-                  </button>
-                  {newsEditingId ? (
-                    <button
-                      type="button"
-                      onClick={resetNewsForm}
-                      className="rounded-full bg-zinc-100 px-5 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-200"
-                    >
-                      Отмена
-                    </button>
-                  ) : null}
-                </div>
-              </form>
-
-              {/* Список новостей */}
-              {newsItems.length === 0 ? (
-                <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-12 text-center text-sm text-zinc-500 shadow-sm">
-                  Новостей пока нет.
-                </div>
-              ) : (
-                newsItems.map((item) => {
-                  const visible = item.is_visible !== false;
-                  return (
-                    <article
-                      key={item.id}
-                      className={`rounded-2xl border bg-white p-5 shadow-sm ${visible ? "border-zinc-200" : "border-amber-200 opacity-70"}`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-xs text-zinc-400">{item.date?.trim() || "—"}</p>
-                          <p className="font-semibold text-zinc-900">{item.title}</p>
-                          <p className="mt-1 text-sm text-zinc-500">{item.body}</p>
-                        </div>
-                        {!visible ? (
-                          <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-amber-200">
-                            Скрыто
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => startEditNews(item)}
-                          className="rounded-full bg-zinc-900 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-zinc-700"
-                        >
-                          Редактировать
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleNewsVisibility(item.id, !visible)}
-                          disabled={newsBusyId === item.id}
-                          className="rounded-full bg-zinc-100 px-4 py-1.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-200 disabled:opacity-50"
-                        >
-                          {newsBusyId === item.id ? "..." : visible ? "Скрыть" : "Показать"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteNews(item.id)}
-                          disabled={newsBusyId === item.id}
-                          className="rounded-full bg-red-50 px-4 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-100 disabled:opacity-50"
-                        >
-                          Удалить
-                        </button>
-                      </div>
-                    </article>
-                  );
-                })
-              )}
-            </section>
-          ) : null}
 
           {activeTab === "articles" ? (
             <section className="space-y-4">
@@ -3513,140 +3040,6 @@ export default function AdminPage() {
             </section>
           ) : null}
 
-          {activeTab === "tips" ? (
-            <section className="space-y-4">
-              <div className="rounded-[2rem] border border-zinc-200 bg-white px-6 py-5 shadow-sm">
-                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-400">Контент</p>
-                <h3 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-950">Совет дня</h3>
-                <p className="mt-2 text-sm text-zinc-500">
-                  Короткие советы на Главной рядом с «Рецептом дня». Ротация по дате.
-                  Публикуются вручную. Сейчас опубликовано: <b>{publishedTipsCount}</b>.
-                </p>
-              </div>
-
-              {/* Генерация пачки черновиков */}
-              <div className="space-y-3 rounded-2xl border border-violet-200 bg-violet-50 p-6 shadow-sm">
-                <p className="text-sm font-semibold text-violet-900">Сгенерировать 20 черновиков (ИИ)</p>
-                <p className="text-xs text-violet-700">
-                  ИИ напишет 20 коротких проверяемых советов. Все сохранятся <b>неопубликованными</b> —
-                  вычитайте и опубликуйте нужные.
-                </p>
-                <button
-                  type="button"
-                  onClick={handleGenerateTips}
-                  disabled={tipGenerating}
-                  className="rounded-full bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:opacity-50"
-                >
-                  {tipGenerating ? "Генерируем..." : "Сгенерировать 20 черновиков"}
-                </button>
-                {tipError ? <p className="text-sm text-red-600">{tipError}</p> : null}
-              </div>
-
-              {/* Форма создания / редактирования */}
-              <form onSubmit={handleSaveTip} className="space-y-3 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-                <p className="text-sm font-semibold text-zinc-900">
-                  {tipEditingId ? "Редактирование совета" : "Новый совет"}
-                </p>
-                <div className="flex gap-2">
-                  <input
-                    value={tipEmoji}
-                    onChange={(e) => setTipEmoji(e.target.value)}
-                    placeholder="💡"
-                    maxLength={16}
-                    className="w-20 rounded-xl border border-zinc-300 px-4 py-2.5 text-center text-lg outline-none focus:border-emerald-500"
-                  />
-                  <textarea
-                    value={tipBody}
-                    onChange={(e) => setTipBody(e.target.value)}
-                    placeholder="Текст совета (1–2 предложения)"
-                    maxLength={400}
-                    rows={2}
-                    className="flex-1 rounded-xl border border-zinc-300 px-4 py-2.5 text-sm outline-none focus:border-emerald-500"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    type="submit"
-                    disabled={tipSaving}
-                    className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
-                  >
-                    {tipSaving ? "Сохраняем..." : tipEditingId ? "Сохранить" : "Создать черновик"}
-                  </button>
-                  {tipEditingId ? (
-                    <button
-                      type="button"
-                      onClick={resetTipForm}
-                      className="rounded-full bg-zinc-100 px-5 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-200"
-                    >
-                      Отмена
-                    </button>
-                  ) : null}
-                </div>
-              </form>
-
-              {/* Список советов */}
-              {tips.length === 0 ? (
-                <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-12 text-center text-sm text-zinc-500 shadow-sm">
-                  Советов пока нет.
-                </div>
-              ) : (
-                tips.map((item) => {
-                  const published = item.is_published === true;
-                  return (
-                    <article
-                      key={item.id}
-                      className={`rounded-2xl border bg-white p-4 shadow-sm ${published ? "border-zinc-200" : "border-amber-200"}`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <p className="min-w-0 text-sm text-zinc-800">
-                          <span className="mr-1">{item.emoji_icon || "💡"}</span>
-                          {item.body}
-                        </p>
-                        <span
-                          className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ${
-                            published
-                              ? "bg-green-100 text-green-700 ring-green-200"
-                              : "bg-amber-100 text-amber-700 ring-amber-200"
-                          }`}
-                        >
-                          {published ? "Опубликовано" : "Черновик"}
-                        </span>
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => startEditTip(item)}
-                          className="rounded-full bg-zinc-900 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-zinc-700"
-                        >
-                          Редактировать
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleTipPublished(item.id, !published)}
-                          disabled={tipBusyId === item.id}
-                          className={`rounded-full px-4 py-1.5 text-xs font-semibold transition disabled:opacity-50 ${
-                            published
-                              ? "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
-                              : "bg-emerald-600 text-white hover:bg-emerald-500"
-                          }`}
-                        >
-                          {tipBusyId === item.id ? "..." : published ? "Снять с публикации" : "Опубликовать"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteTip(item.id)}
-                          disabled={tipBusyId === item.id}
-                          className="rounded-full bg-red-50 px-4 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-100 disabled:opacity-50"
-                        >
-                          Удалить
-                        </button>
-                      </div>
-                    </article>
-                  );
-                })
-              )}
-            </section>
-          ) : null}
 
           {activeTab === "feed" ? (
             <section className="space-y-4">
@@ -4505,34 +3898,6 @@ export default function AdminPage() {
             })()
           ) : null}
 
-          {deleteConfirmId ? (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-              <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl animate-in zoom-in-95 duration-200">
-                <h3 className="mb-2 text-xl font-bold text-black">Удалить банкет?</h3>
-                <p className="mb-6 text-sm text-zinc-500">
-                  Это действие нельзя отменить. Банкет, а также вся его аналитика, меню и чат
-                  будут удалены навсегда.
-                </p>
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setDeleteConfirmId(null)}
-                    className="flex-1 rounded-xl bg-zinc-100 p-3 font-medium text-black transition-colors hover:bg-zinc-200"
-                  >
-                    Отмена
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDeleteParty}
-                    disabled={isDeleting}
-                    className="flex-1 rounded-xl bg-red-600 p-3 font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50"
-                  >
-                    {isDeleting ? "Удаление..." : "Удалить"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : null}
         </div>
       </main>
     </div>

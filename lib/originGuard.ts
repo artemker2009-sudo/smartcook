@@ -87,6 +87,29 @@ export function isTrustedOriginForRead(req: Request): boolean {
   return true;
 }
 
+/**
+ * СТРОГАЯ проверка: запрос пришёл с БОЕВОГО домена?
+ *
+ * Отличие от isTrustedOrigin — послабления для превью здесь нет вовсе. Нужна
+ * там, где запись попадает в статистику: заходы с *.vercel.app и с localhost
+ * не должны смешиваться с настоящими. Иначе каждая приёмка PR и каждый запуск
+ * на ноутбуке добавляют в отчёт по платформам «сайт», а доля приложений
+ * занижается ровно на объём нашей же работы.
+ *
+ * Приложения проходят: и iOS-оболочка (Capacitor грузит сайт по server.url с
+ * боевого домена), и Android-TWA (это Chrome на боевом домене) шлют Origin
+ * настоящего домена — они здесь неотличимы от сайта и должны быть.
+ *
+ * В деве возвращает false ОСОЗНАННО, в отличие от isTrustedOrigin: локальный
+ * запуск не должен попадать в боевую статистику (а база у нас одна, см.
+ * «Локальное превью пишет в прод-БД»).
+ */
+export function isProductionOrigin(req: Request): boolean {
+  const host =
+    extractHost(req.headers.get("origin")) ?? extractHost(req.headers.get("referer"));
+  return !!host && ALLOWED_HOSTS.has(host);
+}
+
 export function originBlockedResponse() {
   return NextResponse.json(
     { error: "Запрос отклонен: недопустимый источник" },

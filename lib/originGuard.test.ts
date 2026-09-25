@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { isTrustedOrigin, isTrustedOriginForRead } from "./originGuard";
+import { isProductionOrigin, isTrustedOrigin, isTrustedOriginForRead } from "./originGuard";
 
 // В тестах NODE_ENV=test, а гард в не-проде пропускает всё — поэтому каждый
 // кейс явно поднимает NODE_ENV=production, иначе проверка была бы фиктивной.
@@ -128,5 +128,51 @@ describe("isTrustedOriginForRead — GET-версия для публичных 
     vi.stubEnv("NODE_ENV", "production");
     expect(isTrustedOriginForRead(getReq({}))).toBe(true);
     expect(isTrustedOrigin(getReq({}))).toBe(false);
+  });
+});
+
+describe("isProductionOrigin — что попадает в статистику платформ", () => {
+  // Гард строгий и одинаковый во всех окружениях: NODE_ENV тут ни на что не
+  // влияет, и это важно проверить отдельно — у соседних гардов влияет.
+  it("боевые домены проходят, включая www и старый", () => {
+    for (const origin of [
+      "https://smartcook.pro",
+      "https://www.smartcook.pro",
+      "https://smart-cook.pro",
+      "https://www.smart-cook.pro",
+    ]) {
+      expect(isProductionOrigin(req({ origin }))).toBe(true);
+    }
+  });
+
+  it("превью *.vercel.app НЕ проходит — даже собственный адрес деплоя", () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("VERCEL_URL", "smartcook-abc123.vercel.app");
+    vi.stubEnv("VERCEL_BRANCH_URL", "smartcook-git-feat-premium.vercel.app");
+    expect(isProductionOrigin(req({ origin: "https://smartcook-abc123.vercel.app" }))).toBe(false);
+    expect(
+      isProductionOrigin(req({ origin: "https://smartcook-git-feat-premium.vercel.app" })),
+    ).toBe(false);
+  });
+
+  it("localhost не проходит ни в деве, ни в проде", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    expect(isProductionOrigin(req({ origin: "http://localhost:3000" }))).toBe(false);
+    vi.stubEnv("NODE_ENV", "production");
+    expect(isProductionOrigin(req({ origin: "http://localhost:3000" }))).toBe(false);
+  });
+
+  it("запрос без Origin и Referer не проходит", () => {
+    expect(isProductionOrigin(req({}))).toBe(false);
+  });
+
+  it("Referer учитывается, когда Origin не пришёл", () => {
+    expect(isProductionOrigin(req({ referer: "https://smartcook.pro/search" }))).toBe(true);
+    expect(isProductionOrigin(req({ referer: "https://evil.example/x" }))).toBe(false);
+  });
+
+  it("чужой домен, похожий на наш, не проходит", () => {
+    expect(isProductionOrigin(req({ origin: "https://smartcook.pro.evil.com" }))).toBe(false);
+    expect(isProductionOrigin(req({ origin: "https://notsmartcook.pro" }))).toBe(false);
   });
 });

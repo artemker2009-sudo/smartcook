@@ -20,6 +20,7 @@ import {
 } from "@/lib/premiumPlans";
 import { formatPremiumDate, payUntilText, pluralPodbor } from "@/lib/premiumPeriod";
 import { useAuthModal } from "@/components/modals/useAuthModal";
+import { usePremiumStatus } from "@/components/premium/usePremiumStatus";
 import AuthModal from "@/components/modals/AuthModal";
 import {
   PREMIUM_COLORS as C,
@@ -34,13 +35,6 @@ import {
   CalendarIcon,
   RefundIcon,
 } from "@/components/premium/PremiumIcons";
-
-export type PremiumStatus = {
-  isPremium: boolean;
-  /** ISO-строка или null (нет срока / навсегда). */
-  premiumUntil: string | null;
-  isForever: boolean;
-};
 
 type Props = {
   /** Бесплатных подборов в неделю — из premium_settings, посчитано на сервере. */
@@ -77,13 +71,20 @@ const PLAN_FEATURES = [
   },
 ] as const;
 
-export default function PremiumPage({ freePodbors, nowIso, paymentReady }: Props) {
+export default function PremiumPage({ freePodbors: freePodborsProp, nowIso, paymentReady }: Props) {
   const router = useRouter();
   const [picked, setPicked] = useState<PremiumPlanId>(DEFAULT_PLAN_ID);
   const [user, setUser] = useState<User | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
-  const [status, setStatus] = useState<PremiumStatus | null>(null);
   const [paying, setPaying] = useState(false);
+
+  // Срок Премиума и остаток подборов — общим хуком, тем же, что у строки под
+  // кнопками подбора и у блока в профиле. Числа обязаны совпадать везде.
+  const { status } = usePremiumStatus();
+
+  // Серверный рендер страницы живёт 5 минут (revalidate), а статус приходит
+  // свежим — поэтому, как только он пришёл, число берём из него.
+  const freePodbors = status?.freePodborsPerWeek ?? freePodborsProp;
 
   // Даты («Премиум до 24 октября») считаются от НАСТОЯЩЕГО «сейчас», но первый
   // кадр обязан совпасть с серверной разметкой — иначе hydration mismatch.
@@ -95,26 +96,6 @@ export default function PremiumPage({ freePodbors, nowIso, paymentReady }: Props
 
   const currentPlan = PREMIUM_PLANS.find((p) => p.id === picked) ?? PREMIUM_PLANS[0];
 
-  const loadStatus = useCallback(async (u: User | null) => {
-    if (!u) {
-      setStatus(null);
-      return;
-    }
-    try {
-      const { data } = await supabase.auth.getSession();
-      const token = data.session?.access_token;
-      if (!token) return;
-      const res = await fetch("/api/premium/status", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) return;
-      setStatus((await res.json()) as PremiumStatus);
-    } catch {
-      // Статус — украшение страницы, а не её суть: не смогли прочитать —
-      // показываем обычные тарифы, а не экран ошибки.
-    }
-  }, []);
-
   useEffect(() => {
     reachGoal("premium_page_view");
 
@@ -123,20 +104,18 @@ export default function PremiumPage({ freePodbors, nowIso, paymentReady }: Props
       if (!alive) return;
       setUser(data.user ?? null);
       setAuthChecked(true);
-      void loadStatus(data.user ?? null);
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       setAuthChecked(true);
-      void loadStatus(session?.user ?? null);
     });
 
     return () => {
       alive = false;
       sub.subscription.unsubscribe();
     };
-  }, [loadStatus]);
+  }, []);
 
   // Оплата. Вызывается и напрямую (залогинен), и сразу после входа гостя.
   const startPayment = useCallback(

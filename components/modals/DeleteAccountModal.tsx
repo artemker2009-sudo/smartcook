@@ -38,6 +38,7 @@ export default function DeleteAccountModal({
 
   return (
     <div
+      className="sc-fade-in"
       style={{
         position: "fixed",
         inset: 0,

@@ -14,6 +14,7 @@ export default function DonateModal({ isOpen, onClose }: DonateModalProps) {
 
   return (
     <div
+      className="sc-fade-in"
       style={{
         position: "fixed",
         inset: 0,

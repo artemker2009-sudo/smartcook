@@ -17,7 +17,7 @@ import { supabase } from "@/lib/supabase";
 import { FEATURE_PREMIUM } from "@/lib/features";
 import { useInstallEnv } from "@/lib/installEnv";
 import { isPaymentUiBlocked } from "@/lib/premiumIos";
-import { formatPremiumDate, pluralPodbor } from "@/lib/premiumPeriod";
+import { formatPremiumDate } from "@/lib/premiumPeriod";
 import { PREMIUM_PLANS } from "@/lib/premiumPlans";
 import { usePremiumStatus } from "@/components/premium/usePremiumStatus";
 import type { PremiumHistoryItem } from "@/app/api/premium/history/route";
@@ -141,19 +141,21 @@ export default function ProfilePremiumBlock() {
         </>
       ) : (
         <>
+          {/* Просто «Бесплатный тариф», без остатка подборов.
+              Счётчик убран из интерфейса везде (решение основателя 25.09.2026):
+              он превращал обычный экран в табло расхода и подгонял человека
+              ещё до того, как лимит хоть как-то ему помешал. На сервере лимит
+              работает ровно как раньше — считается и срабатывает, просто не
+              мозолит глаза. */}
           <p
             style={{
               margin: 0,
               fontSize: "var(--font-size-body)",
-              color: "var(--color-text-secondary)",
+              fontWeight: "var(--font-weight-semibold)",
+              color: "var(--color-text)",
             }}
           >
-            {/* Склонение по ОСТАТКУ, а не по лимиту: «осталось 1 из 1 подбор»
-                получалось, когда слово согласовывали с числом после «из».
-                «осталось 2 подбора из 3» читается верно при любых числах. */}
-            {status.remaining === null
-              ? `Бесплатно: ${status.freePodborsPerWeek} ${pluralPodbor(status.freePodborsPerWeek)} в неделю`
-              : `Бесплатно: осталось ${status.remaining} ${pluralPodbor(status.remaining)} из ${status.freePodborsPerWeek} на этой неделе`}
+            Бесплатный тариф
           </p>
           {!hidePayLinks && (
             <Link

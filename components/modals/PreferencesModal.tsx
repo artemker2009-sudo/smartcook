@@ -1,7 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { X, Plus, SlidersHorizontal, Ban, ThumbsDown } from "lucide-react";
+
+import BottomSheet from "@/components/ui/BottomSheet";
 
 interface PreferencesModalProps {
   isOpen: boolean;
@@ -36,56 +38,29 @@ export default function PreferencesModal({
   isLoggedIn,
   onLogin,
 }: PreferencesModalProps) {
-  const [mounted, setMounted] = useState(false);
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    if (isOpen) {
-      setMounted(true);
-      requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true)));
-    } else {
-      setVisible(false);
-      const timer = setTimeout(() => setMounted(false), 350);
-      return () => clearTimeout(timer);
-    }
-  }, [isOpen]);
-
-  if (!mounted) return null;
-
-  const handleClose = () => {
-    setVisible(false);
-    setTimeout(onClose, 350);
-  };
+  // Своих mounted/visible и своего <style> здесь больше нет: выезд, уход,
+  // затемнение, Escape и закрытие свайпом делает общий BottomSheet. Раньше эта
+  // шторка была единственной в приложении с нормальной анимацией — и ровно
+  // поэтому её тайминги (350 мс) расходились со всеми остальными окнами.
+  const handleClose = onClose;
 
   return (
-    <>
-      <style>{`
-        @keyframes prefs-overlay-in { from { opacity: 0; } to { opacity: 1; } }
-        .prefs-overlay {
-          position: fixed; inset: 0; z-index: 10000;
-          display: flex; align-items: flex-end; justify-content: center;
-          background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
-          transition: opacity 0.35s ease;
-        }
-        .prefs-sheet {
-          background: var(--color-surface); width: 100%; max-width: 500px;
-          padding: var(--space-4); border-top-left-radius: var(--radius-md); border-top-right-radius: var(--radius-md);
-          position: relative; box-shadow: 0 -10px 40px rgba(0,0,0,0.2);
-          transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
-          will-change: transform;
-        }
-      `}</style>
-
-      <div
-        className="prefs-overlay"
-        style={{ opacity: visible ? 1 : 0 }}
-        onClick={handleClose}
-      >
-        <div
-          className="prefs-sheet"
-          style={{ transform: visible ? 'translateY(0)' : 'translateY(100%)' }}
-          onClick={e => e.stopPropagation()}
-        >
+    <BottomSheet
+      open={isOpen}
+      onClose={onClose}
+      label="Фильтры для рецепта"
+      grip={false}
+      style={{
+        background: "var(--color-surface)",
+        color: "var(--color-text)",
+        maxWidth: 500,
+        padding: "var(--space-4)",
+        paddingBottom: "calc(var(--space-4) + env(safe-area-inset-bottom, 0px))",
+        borderRadius: "var(--radius-md) var(--radius-md) 0 0",
+        fontFamily: "inherit",
+        gap: 0,
+      }}
+    >
           <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)'}}>
             <h3 style={{ margin: 0, fontSize: 'var(--font-size-heading)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text)', display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}><SlidersHorizontal size={20} /> Фильтры для рецепта</h3>
             <button onClick={handleClose} style={{ width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: 'var(--color-bg-subtle)', border: 'none', borderRadius: '50%', padding: '0', cursor: 'pointer', color: 'var(--color-text-secondary)' }}><X size={20} /></button>
@@ -138,9 +113,7 @@ export default function PreferencesModal({
             </div>
           )}
 
-          <button onClick={handleClose} className="btn-primary">Готово</button>
-        </div>
-      </div>
-    </>
+      <button onClick={handleClose} className="btn-primary">Готово</button>
+    </BottomSheet>
   );
 }

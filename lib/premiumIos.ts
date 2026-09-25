@@ -32,42 +32,71 @@ export function isPaymentUiBlocked(env: InstallEnv): boolean {
  * Тексты шторки «подборы закончились». Здесь, а не внутри компонента, ровно
  * ради теста: требование «в iOS нет ни цен, ни слова „Премиум“, ни ссылок» —
  * это утверждение про ТЕКСТ, и проверять его надо текстом, а не глазами.
+ *
+ * Разметка — по утверждённым макетам docs/premium/limit-web.dc.html (сайт и
+ * Android) и docs/premium/limit-ios.dc.html (iPhone).
  */
 export type PodborLimitCopy = {
   title: string;
   text: string;
-  /** Подпись главной кнопки. */
-  action: string;
-  /** Куда ведёт кнопка. null — просто закрыть шторку (вариант iOS). */
-  href: string | null;
-  /** Подпись ссылки «закрыть». null — её нет (вариант iOS). */
-  dismiss: string | null;
+  /** Плашка с ценой. null — её нет (вариант iOS). */
+  price: { headline: string; note: string } | null;
+  /** Главная кнопка. */
+  primary: { label: string; href: string };
+  /**
+   * Вторая кнопка — «Идеи». Есть в обоих вариантах, но в iOS она главная и
+   * единственная, поэтому здесь null: её роль там играет primary.
+   */
+  secondary: { label: string; href: string } | null;
+  /** Ссылка внизу — просто закрыть. */
+  dismiss: string;
 };
+
+/** Куда ведёт «Идеи» — раздел с рецептами, который лимит не трогает. */
+const IDEAS_HREF = "/ideas";
 
 export function podborLimitCopy(env: InstallEnv, limit: number): PodborLimitCopy {
   if (isPaymentUiBlocked(env)) {
+    // iPhone: ни цен, ни слова «Премиум», ни ссылок на оплату. Вместо
+    // предложения купить — предложение почитать «Идеи»: это честный выход из
+    // тупика, а не заглушка (правило App Store 3.1.1).
     return {
-      title: "Подборы на эту неделю закончились",
-      text: "Новые — в понедельник.",
-      action: "Понятно",
-      href: null,
-      dismiss: null,
+      title: "На этой неделе подборы закончились",
+      text:
+        "Новые появятся в понедельник. А пока загляните в «Идеи» — там рецепты " +
+        "с фото, их можно смотреть без ограничений.",
+      price: null,
+      primary: { label: "Открыть «Идеи»", href: IDEAS_HREF },
+      secondary: null,
+      dismiss: "Понятно",
     };
   }
 
-  // «169 ₽ в год» — цена берётся из самого тарифа, а не вписана строкой:
-  // прайс правится в lib/premiumPlans.ts, и подпись обязана съезжать вместе с
-  // ним. Раньше здесь было «от N ₽» по самому дешёвому тарифу; теперь тариф со
-  // сроком ровно один, и честнее назвать его прямо.
+  // Цены берутся из самого тарифа, а не вписаны строкой: прайс правится в
+  // lib/premiumPlans.ts, и обе подписи обязаны съезжать вместе с ним.
   const year = PREMIUM_PLANS.find((p) => p.days === 365) ?? PREMIUM_PLANS[0];
 
   return {
-    title: "Подборы на этой неделе закончились",
+    title: "Следующий подбор — с Премиумом",
     text:
-      `Бесплатно — ${limit} ${pluralPodbor(limit)} в неделю, новые — в понедельник. ` +
-      `С Премиумом — без лимита, ${formatPriceRub(year.priceRub)} в год.`,
-    action: "Оформить Премиум",
-    href: "/premium",
+      `${limit} ${pluralFree(limit)} ${pluralPodbor(limit)} на этой неделе ` +
+      `закончились, новые будут в понедельник. С Премиумом подбирайте сколько угодно.`,
+    price: {
+      headline: year.sub,
+      note: `${formatPriceRub(year.priceRub)} за целый год · автоплатежей нет`,
+    },
+    primary: { label: "Подбирать без лимита", href: "/premium" },
+    secondary: { label: "Пока посмотреть «Идеи»", href: IDEAS_HREF },
     dismiss: "Подожду до понедельника",
   };
+}
+
+/** «1 бесплатный подбор», «3 бесплатных подбора», «5 бесплатных подборов». */
+function pluralFree(n: number): string {
+  const mod100 = Math.abs(n) % 100;
+  const mod10 = mod100 % 10;
+  if (mod100 >= 11 && mod100 <= 14) return "бесплатных";
+  if (mod10 === 1) return "бесплатный";
+  if (mod10 >= 2 && mod10 <= 4) return "бесплатных";
+  return "бесплатных";
 }

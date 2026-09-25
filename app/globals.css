@@ -4161,7 +4161,6 @@ body.has-addbar { padding-bottom: calc(var(--tab-bar-total) + 72px); }
   padding: var(--space-3);
 }
 .sl-overlay-center { align-items: center; }
-@keyframes slSheetIn { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 .sl-sheet {
   width: 100%;
   max-width: 460px;
@@ -4170,9 +4169,9 @@ body.has-addbar { padding-bottom: calc(var(--tab-bar-total) + 72px); }
   padding: var(--space-3);
   box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.2);
 }
-@media (prefers-reduced-motion: no-preference) {
-  .sl-sheet, .sl-modal { animation: slSheetIn 0.22s ease-out both; }
-}
+/* Анимация этих шторок задаётся общим слоем в самом низу файла
+   (секция «Плавность оверлеев»): раньше здесь был собственный подъём на 16px
+   за 0.22s, и он расходился с остальными окнами приложения. */
 .sl-sheet-title {
   padding: var(--space-2) var(--space-2) var(--space-3);
   font-size: var(--font-size-caption);
@@ -5652,3 +5651,130 @@ html.ideas-no-overscroll { overflow-x: clip; }
   -webkit-tap-highlight-color: transparent;
 }
 .app-strip-close:active { opacity: 1; }
+
+/* ===========================================================================
+   ПЛАВНОСТЬ ОВЕРЛЕЕВ: нижние шторки, модалки, всплывающие плашки
+   ===========================================================================
+
+   ОДИН слой на всё приложение. До него каждое место анимировалось само: у
+   шторок списка покупок был подъём на 16px за 0.22s, у модалок — общий
+   .animate-fade-in, у шторки лимита и половины модалок не было ничего. Плашки
+   просто появлялись, а закрывались мгновенно — рывком.
+
+   Здесь три пары «появление/уход» и один набор правил для затемнения фона.
+   Компонент, который всем этим управляет (в том числе закрытием свайпом), —
+   components/ui/BottomSheet.tsx. Голым CSS пользуются те места, где своя
+   разметка и переписывать её незачем (.sl-overlay списка покупок).
+
+   ПОЧЕМУ 300 мс И ease-out. Столько занимает движение, которое палец успевает
+   проследить, но которого не приходится ждать. ease-out — потому что шторка
+   тормозит у края: резкое торможение читается как «доехала и встала», а
+   линейное — как «её тащат».
+
+   prefers-reduced-motion: ВСЁ выключается разом, в самом низу секции. Это
+   единственное место, где про анимацию оверлеев надо помнить. */
+
+:root {
+  --sc-overlay-duration: 300ms;
+  --sc-overlay-ease: cubic-bezier(0.22, 0.61, 0.36, 1); /* ease-out */
+}
+
+@keyframes scOverlayIn  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes scOverlayOut { from { opacity: 1; } to { opacity: 0; } }
+/* Шторка едет от собственной высоты, а не от фиксированных пикселей: низкая
+   выезжает так же быстро, как высокая, и ни одна не «подпрыгивает». */
+@keyframes scSheetIn    { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes scSheetOut   { from { transform: translateY(0); } to { transform: translateY(100%); } }
+@keyframes scModalIn    { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+@keyframes scModalOut   { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(0.96); } }
+
+/* Затемнение фона. Отдельным слоем под содержимым, чтобы фон гас плавно, даже
+   когда сама шторка уезжает вниз с другой скоростью. */
+.sc-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  background: rgba(20, 20, 19, 0.45);
+  animation: scOverlayIn var(--sc-overlay-duration) var(--sc-overlay-ease) both;
+  /* Прокрутка страницы под открытой шторкой — самый заметный признак
+     «наспех сделанного» окна. */
+  overscroll-behavior: contain;
+}
+.sc-overlay-sheet  { align-items: flex-end; }
+.sc-overlay-center { align-items: center; padding: var(--space-3); }
+.sc-overlay-closing { animation-name: scOverlayOut; }
+
+.sc-sheet {
+  width: 100%;
+  max-width: 480px;
+  box-sizing: border-box;
+  animation: scSheetIn var(--sc-overlay-duration) var(--sc-overlay-ease) both;
+  /* Шторку тянут пальцем — текст при этом выделяться не должен. */
+  user-select: none;
+  touch-action: pan-y;
+}
+.sc-sheet-closing { animation-name: scSheetOut; }
+
+.sc-modal {
+  animation: scModalIn var(--sc-overlay-duration) var(--sc-overlay-ease) both;
+}
+.sc-modal-closing { animation-name: scModalOut; }
+
+/* Пока палец тащит шторку, движением управляет transform из JS — анимация
+   должна уйти с дороги, иначе она перебивает перетаскивание. */
+.sc-sheet-dragging { animation: none !important; transition: none !important; }
+
+/* Ручка шторки. Не украшение: это единственная подсказка, что окно можно
+   утянуть вниз пальцем. */
+.sc-sheet-grip {
+  width: 40px;
+  height: 5px;
+  border-radius: 3px;
+  background: #D5D5CF;
+  align-self: center;
+  flex-shrink: 0;
+}
+
+/* Точечные помощники для окон, у которых своя разметка оверлея (модалки входа,
+   доната, удаления аккаунта, знакомства, правки профиля). Класс добавляет
+   ТОЛЬКО анимацию — фон, z-index и раскладку эти окна задают сами инлайном,
+   и инлайн выигрывает.
+   
+   До этого на карточках стоял className="animate-fade-in", которого в проекте
+   не существует вовсе: ни в globals.css, ни среди классов Tailwind. Пять окон
+   годами «анимировались» несуществующим классом и просто возникали рывком. */
+.sc-fade-in { animation: scOverlayIn var(--sc-overlay-duration) var(--sc-overlay-ease) both; }
+.sc-pop-in  { animation: scModalIn   var(--sc-overlay-duration) var(--sc-overlay-ease) both; }
+/* Только выезд снизу, без остального багажа .sc-sheet. Нужен шторкам с
+   прокруткой и текстом внутри (комментарии): там нельзя ни user-select: none —
+   иначе не выделить текст, ни touch-action: pan-y — иначе не прокрутить. */
+.sc-slide-in { animation: scSheetIn var(--sc-overlay-duration) var(--sc-overlay-ease) both; }
+
+/* Старые шторки списка покупок и «Предложений» — та же анимация, без правки
+   их разметки. */
+.sl-overlay { animation: scOverlayIn var(--sc-overlay-duration) var(--sc-overlay-ease) both; }
+@media (prefers-reduced-motion: no-preference) {
+  .sl-sheet, .sl-modal, .suggest-sheet {
+    animation: scSheetIn var(--sc-overlay-duration) var(--sc-overlay-ease) both;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-overlay,
+  .sc-overlay-closing,
+  .sc-sheet,
+  .sc-sheet-closing,
+  .sc-modal,
+  .sc-modal-closing,
+  .sl-overlay,
+  .sl-sheet,
+  .sl-modal,
+  .suggest-sheet,
+  .sc-fade-in,
+  .sc-pop-in,
+  .sc-slide-in {
+    animation: none !important;
+  }
+}

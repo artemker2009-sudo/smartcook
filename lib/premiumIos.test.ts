@@ -50,52 +50,64 @@ describe("isPaymentUiBlocked — правило App Store 3.1.1", () => {
 describe("podborLimitCopy — тексты шторки", () => {
   const ios = env({ capacitorNative: true, capacitorPlatform: "ios" });
   const web = env({});
+  const year = PREMIUM_PLANS.find((p) => p.days === 365)!;
 
-  it("сайт: есть число подборов, цена и кнопка на /premium", () => {
+  it("сайт: заголовок и текст по макету limit-web", () => {
     const copy = podborLimitCopy(web, 3);
-    expect(copy.title).toBe("Подборы на этой неделе закончились");
+    expect(copy.title).toBe("Следующий подбор — с Премиумом");
     expect(copy.text).toBe(
-      "Бесплатно — 3 подбора в неделю, новые — в понедельник. С Премиумом — без лимита, 169 ₽ в год.",
+      "3 бесплатных подбора на этой неделе закончились, новые будут в понедельник. " +
+        "С Премиумом подбирайте сколько угодно.",
     );
-    expect(copy.action).toBe("Оформить Премиум");
-    expect(copy.href).toBe("/premium");
+  });
+
+  it("сайт: число подборов из настройки, оба слова склоняются", () => {
+    expect(podborLimitCopy(web, 1).text).toContain("1 бесплатный подбор на этой неделе");
+    expect(podborLimitCopy(web, 3).text).toContain("3 бесплатных подбора на этой неделе");
+    expect(podborLimitCopy(web, 5).text).toContain("5 бесплатных подборов на этой неделе");
+  });
+
+  it("сайт: плашка с ценой берёт обе строки из тарифа, а не из текста", () => {
+    const copy = podborLimitCopy(web, 3);
+    expect(copy.price).not.toBeNull();
+    expect(copy.price!.headline).toBe(year.sub);
+    expect(copy.price!.note).toBe(`${year.priceRub}\u00A0₽ за целый год · автоплатежей нет`);
+  });
+
+  it("сайт: три действия — оплата, «Идеи», закрыть", () => {
+    const copy = podborLimitCopy(web, 3);
+    expect(copy.primary).toEqual({ label: "Подбирать без лимита", href: "/premium" });
+    expect(copy.secondary).toEqual({ label: "Пока посмотреть «Идеи»", href: "/ideas" });
     expect(copy.dismiss).toBe("Подожду до понедельника");
   });
 
-  it("сайт: цена в шторке — та же, что у годового тарифа", () => {
-    const year = PREMIUM_PLANS.find((p) => p.days === 365)!;
-    expect(podborLimitCopy(web, 3).text).toContain(`${year.priceRub}\u00A0₽ в год`);
-  });
-
-  it("сайт: число подборов берётся из настройки и склоняется", () => {
-    expect(podborLimitCopy(web, 1).text).toContain("1 подбор в неделю");
-    expect(podborLimitCopy(web, 5).text).toContain("5 подборов в неделю");
-  });
-
   // Главная проверка правила App Store 3.1.1: в iOS-варианте не должно быть НИ
-  // цены, НИ слова «Премиум», НИ ссылки — ни в одном из четырёх текстов.
-  it("iOS: ни цены, ни слова «Премиум», ни ссылки", () => {
+  // цены, НИ слова «Премиум», НИ ссылки на оплату — ни в одном тексте.
+  it("iOS: ни цены, ни слова «Премиум», ни ссылки на оплату", () => {
     const copy = podborLimitCopy(ios, 3);
-    const all = [copy.title, copy.text, copy.action, copy.dismiss ?? ""].join(" ");
+    const all = [copy.title, copy.text, copy.primary.label, copy.dismiss].join(" ");
 
     expect(all).not.toMatch(/Премиум/i);
     expect(all).not.toMatch(/₽/);
     expect(all).not.toMatch(/\d+\s*(₽|руб)/i);
-    expect(all).not.toMatch(/оплат|плат[иа]|подписк/i);
-    expect(copy.href).toBeNull();
-    expect(copy.dismiss).toBeNull();
+    expect(all).not.toMatch(/оплат|плат[иа]|подписк|тариф/i);
+    expect(copy.price).toBeNull();
+    expect(copy.primary.href).toBe("/ideas");
+    expect(copy.secondary).toBeNull();
   });
 
-  it("iOS: текст — про понедельник, кнопка — «Понятно»", () => {
+  it("iOS: заголовок, текст и кнопки по макету limit-ios", () => {
     const copy = podborLimitCopy(ios, 3);
-    expect(copy.title).toBe("Подборы на эту неделю закончились");
-    expect(copy.text).toBe("Новые — в понедельник.");
-    expect(copy.action).toBe("Понятно");
+    expect(copy.title).toBe("На этой неделе подборы закончились");
+    expect(copy.text).toBe(
+      "Новые появятся в понедельник. А пока загляните в «Идеи» — там рецепты с фото, " +
+        "их можно смотреть без ограничений.",
+    );
+    expect(copy.primary.label).toBe("Открыть «Идеи»");
+    expect(copy.dismiss).toBe("Понятно");
   });
 
   it("iOS: число бесплатных подборов в текст не попадает вовсе", () => {
-    // Оно безобидно, но в нейтральном варианте его нет по макету — и заодно
-    // это страховка от того, что кто-то склеит iOS-текст из сайтового.
     expect(podborLimitCopy(ios, 7).text).not.toContain("7");
   });
 });

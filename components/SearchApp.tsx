@@ -23,7 +23,6 @@ import { addProduct, MAX_PRODUCTS } from "@/lib/products";
 import { useAuthModal } from "@/components/modals/useAuthModal";
 import { usePremiumStatus } from "@/components/premium/usePremiumStatus";
 import PodborLimitSheet from "@/components/premium/PodborLimitSheet";
-import PodborsLeft from "@/components/premium/PodborsLeft";
 import { RECIPE_READY_EVENT } from "@/components/InstallBanner";
 
 import Profile from "@/components/Profile";
@@ -1361,7 +1360,6 @@ export default function SearchApp() {
           displayedFeed={displayedFeed}
           visibleHistory={visibleHistory}
           loadFromHistory={loadFromHistory}
-          podborsLeft={<PodborsLeft status={premiumStatus} />}
         />
       )} 
       <PodborLimitSheet

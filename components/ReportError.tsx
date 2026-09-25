@@ -131,10 +131,11 @@ export default function ReportError({
       {isOpen ? (
         <div
           onClick={close}
+          className="sc-fade-in"
           style={{ position: "fixed", inset: 0, zIndex: 100000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", padding: "var(--space-3)" }}
         >
           <div
-            className="animate-fade-in"
+            className="sc-pop-in"
             onClick={(e) => e.stopPropagation()}
             style={{ background: "var(--color-bg)", borderRadius: "var(--radius-md)", width: "100%", maxWidth: "440px", padding: "var(--space-5) var(--space-4)", position: "relative", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)", textAlign: "left" }}
           >

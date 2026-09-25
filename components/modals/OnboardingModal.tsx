@@ -105,6 +105,7 @@ export default function OnboardingModal() {
 
   return (
     <div
+      className="sc-fade-in"
       style={{
         position: "fixed",
         inset: 0,

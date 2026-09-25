@@ -264,11 +264,12 @@ export default function AuthModal({
 
   return (
     <div
+      className="sc-fade-in"
       style={{ position: "fixed", inset: 0, zIndex: 100000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", padding: "var(--space-3)" }}
       onClick={recoveryCodeToShow ? undefined : onClose}
     >
       <div
-        className="animate-fade-in"
+        className="sc-pop-in"
         onClick={(e) => e.stopPropagation()}
         style={{ background: "var(--color-bg)", borderRadius: "var(--radius-md)", width: "100%", maxWidth: "400px", maxHeight: "90vh", overflowY: "auto", padding: "var(--space-5) var(--space-4)", position: "relative", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)" }}
       >

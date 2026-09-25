@@ -107,9 +107,22 @@ type PlatformRow = {
   returning: number;
 };
 
+/** Один день графика: сколько заходов с каждой платформы. */
+export type PlatformDay = {
+  /** YYYY-MM-DD по МСК — по нему и группируем. */
+  date: string;
+  web: number;
+  ios_app: number;
+  android_twa: number;
+};
+
 export type PlatformStats = {
   days7: PlatformRow[];
   days30: PlatformRow[];
+  /** 30 дней подряд, включая пустые. */
+  daily: PlatformDay[];
+  /** Дата самого первого захода в базе. null — заходов нет вовсе. */
+  firstVisitAt: string | null;
 };
 
 function daysAgo(days: number): string {
@@ -155,5 +168,85 @@ async function readPlatformStats(
       return { platform, visits: newVisitors + returning, newVisitors, returning };
     });
 
-  return { days7: build(7), days30: build(30) };
+  return {
+    days7: build(7),
+    days30: build(30),
+    daily: await readPlatformDaily(supabase),
+    firstVisitAt: await readFirstVisitAt(supabase),
+  };
+}
+
+/** Москва круглый год UTC+3 — день в графике режем по московской полуночи. */
+const MSK_OFFSET_MS = 3 * 60 * 60 * 1000;
+const CHART_DAYS = 30;
+
+/** YYYY-MM-DD по московскому календарю. */
+function mskDay(iso: string): string {
+  return new Date(new Date(iso).getTime() + MSK_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+/**
+ * Разбивка заходов по дням за 30 дней.
+ *
+ * Считаем ОДНИМ запросом и раскладываем в JS, а не 90 счётчиками (30 дней × 3
+ * платформы): столько запросов открывали бы админку заметно дольше, чем она
+ * того стоит. Берём две колонки, лимит 20 000 — с запасом на годы вперёд при
+ * нынешнем потоке. Упрётся — упадёт не админка, а только хвост графика, и это
+ * будет видно по расхождению с плитками выше.
+ */
+async function readPlatformDaily(
+  supabase: ReturnType<typeof createServiceRoleClient>,
+): Promise<PlatformDay[]> {
+  const since = daysAgo(CHART_DAYS);
+
+  // Дни готовим заранее, включая пустые: день без заходов — это ноль, а не
+  // дырка. Пропущенные дни склеили бы график и соврали про плотность.
+  const buckets = new Map<string, PlatformDay>();
+  const todayMsk = new Date(Date.now() + MSK_OFFSET_MS);
+  for (let i = CHART_DAYS - 1; i >= 0; i--) {
+    const d = new Date(todayMsk.getTime() - i * 24 * 60 * 60 * 1000);
+    const key = d.toISOString().slice(0, 10);
+    buckets.set(key, { date: key, web: 0, ios_app: 0, android_twa: 0 });
+  }
+
+  const { data, error } = await supabase
+    .from("analytics_events")
+    .select("created_at, platform")
+    .eq("event_type", "visit")
+    .gte("created_at", since)
+    .limit(20000);
+
+  if (error || !data) {
+    console.error("[platforms] daily read failed:", error?.message);
+    return [...buckets.values()];
+  }
+
+  for (const row of data) {
+    if (!row.created_at) continue;
+    const bucket = buckets.get(mskDay(row.created_at as string));
+    if (!bucket) continue;
+    const platform = row.platform as PlatformRow["platform"] | null;
+    if (platform && platform in bucket) bucket[platform] += 1;
+  }
+
+  return [...buckets.values()];
+}
+
+/** Когда пришёл самый первый заход — подпись «Считаем с …» берётся отсюда. */
+async function readFirstVisitAt(
+  supabase: ReturnType<typeof createServiceRoleClient>,
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("analytics_events")
+    .select("created_at")
+    .eq("event_type", "visit")
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[platforms] first visit read failed:", error.message);
+    return null;
+  }
+  return (data?.created_at as string | null) ?? null;
 }

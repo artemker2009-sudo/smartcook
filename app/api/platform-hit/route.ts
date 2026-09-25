@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createServiceRoleClient } from "@/lib/supabaseAdmin";
-import { isTrustedOrigin, originBlockedResponse } from "@/lib/originGuard";
+import { isProductionOrigin, isTrustedOrigin, originBlockedResponse } from "@/lib/originGuard";
 import { parsePlatform, parseVisitorKind } from "@/lib/platform";
 
 export const runtime = "nodejs";
@@ -24,6 +24,13 @@ export const dynamic = "force-dynamic";
  * вернувшийся» приходит готовым словом — отметку о том, что устройство уже
  * было, держит у себя клиент. Сервер не заводит ни cookie, ни ключа, по
  * которому два захода можно связать между собой.
+ *
+ * ПИШЕМ ТОЛЬКО С БОЕВЫХ ДОМЕНОВ. Заход с превью или с ноутбука разработчика —
+ * это не посетитель. База у нас одна на все окружения, и каждая приёмка PR
+ * добавляла в отчёт по платформам лишний «сайт», занижая долю приложений ровно
+ * на объём нашей же работы. Приложения при этом проходят: и iOS-оболочка
+ * (Capacitor грузит сайт с боевого домена), и Android-TWA (это Chrome на
+ * боевом домене) присылают Origin настоящего домена.
  */
 export async function POST(req: Request) {
   if (!isTrustedOrigin(req)) return originBlockedResponse();
@@ -40,6 +47,14 @@ export async function POST(req: Request) {
   const visitor = parseVisitorKind(raw.visitor);
   if (!platform || !visitor) {
     return NextResponse.json({ error: "Некорректные данные" }, { status: 400 });
+  }
+
+  // Не боевой домен — молча не пишем. Именно 200 и ok: false, а не ошибка.
+  // Клиент на ответ не смотрит и повторять не станет (см. PlatformHit), а
+  // отдавать 403 на превью значило бы сыпать красным в консоль на каждой
+  // приёмке — и однажды это приняли бы за поломку.
+  if (!isProductionOrigin(req)) {
+    return NextResponse.json({ ok: false, skipped: "non-production-origin" });
   }
 
   const supabase = createServiceRoleClient();

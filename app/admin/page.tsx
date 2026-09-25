@@ -5,6 +5,7 @@ import { Eraser, Shield, Sparkles, Wrench } from "lucide-react";
 import { renderMarkdown } from "@/lib/markdown";
 import PaymentsTab from "@/components/admin/PaymentsTab";
 import PremiumUsersTab from "@/components/admin/PremiumUsersTab";
+import PlatformsChart, { type PlatformDay } from "@/components/admin/PlatformsChart";
 import { FEATURE_PREMIUM } from "@/lib/features";
 import {
   MAX_BULK_PUBLISH,
@@ -72,6 +73,8 @@ type PlatformRow = {
 type PlatformStats = {
   days7: PlatformRow[];
   days30: PlatformRow[];
+  daily?: PlatformDay[];
+  firstVisitAt?: string | null;
 };
 
 const PLATFORM_LABELS: Record<PlatformRow["platform"], string> = {
@@ -2022,8 +2025,18 @@ export default function AdminPage() {
                     <p className="mt-2 text-sm leading-6 text-zinc-600">
                       Один заход = один сеанс, а не экран. Новый или вернувшийся определяется отметкой
                       на устройстве: человек с очищенным хранилищем посчитается новым ещё раз.
+                      Заходы с превью и с локальной разработки в статистику не попадают.
                     </p>
                   </section>
+
+                  {/* daily может не прийти со старого деплоя — тогда просто нет
+                      графика, а плитки ниже работают как работали. */}
+                  {platformStats.daily ? (
+                    <PlatformsChart
+                      daily={platformStats.daily}
+                      firstVisitAt={platformStats.firstVisitAt ?? null}
+                    />
+                  ) : null}
 
                   {([
                     { title: "За 7 дней", rows: platformStats.days7 },

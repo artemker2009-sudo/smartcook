@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getVerifiedUserId } from "@/lib/auth";
-import { isTrustedOrigin, originBlockedResponse } from "@/lib/originGuard";
+import { isTrustedOrigin, originBlockedResponse, returnOrigin } from "@/lib/originGuard";
 import { createServiceRoleClient } from "@/lib/supabaseAdmin";
 import { getPlan } from "@/lib/premiumPlans";
 import { getRobokassaConfig } from "@/lib/robokassaConfig";
@@ -71,12 +71,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Не удалось создать заказ" }, { status: 500 });
   }
 
+  // Вернуть человека надо на ТОТ ЖЕ домен, с которого он нажал «Оплатить».
+  // В настройках Robokassa Success/Fail URL один (smartcook.pro), а доменов у
+  // нас два: приложения (iOS-оболочка, Android-TWA) и часть людей живут на
+  // старом smart-cook.pro. Сессия лежит в Web Storage, а он у каждого origin
+  // свой — вернувшись на другой домен, человек оказывался гостем и вместо
+  // своего Премиума видел «Создайте аккаунт». SuccessUrl2/FailUrl2 перебивают
+  // адреса из настроек ровно на этот заказ.
+  const origin = returnOrigin(req);
+  const returnUrls = { success: `${origin}/premium/success`, fail: `${origin}/premium/fail` };
+
   // id заказа и есть InvId: Robokassa принимает только целое число, поэтому
   // таблица на identity bigint, а не на uuid (см. supabase_premium.sql).
   const paymentUrl = buildPaymentUrl(config, {
     invId: order.id,
     amountRub: plan.priceRub,
     description: plan.description,
+    returnUrls,
   });
 
   return NextResponse.json({ paymentUrl, invId: order.id });

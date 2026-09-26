@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { isProductionOrigin, isTrustedOrigin, isTrustedOriginForRead } from "./originGuard";
+import {
+  isProductionOrigin,
+  isTrustedOrigin,
+  isTrustedOriginForRead,
+  returnOrigin,
+} from "./originGuard";
 
 // В тестах NODE_ENV=test, а гард в не-проде пропускает всё — поэтому каждый
 // кейс явно поднимает NODE_ENV=production, иначе проверка была бы фиктивной.
@@ -174,5 +179,61 @@ describe("isProductionOrigin — что попадает в статистику
   it("чужой домен, похожий на наш, не проходит", () => {
     expect(isProductionOrigin(req({ origin: "https://smartcook.pro.evil.com" }))).toBe(false);
     expect(isProductionOrigin(req({ origin: "https://notsmartcook.pro" }))).toBe(false);
+  });
+});
+
+describe("returnOrigin — куда Robokassa вернёт человека после оплаты", () => {
+  // Смысл всей функции: в настройках Robokassa Success/Fail URL ОДИН, а
+  // доменов у нас два. Возврат на чужой из них = другой origin = другой Web
+  // Storage = человек внезапно гость со своим оплаченным Премиумом.
+  it("возвращает тот домен, с которого пришли", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    expect(returnOrigin(req({ origin: "https://smartcook.pro" }))).toBe("https://smartcook.pro");
+    expect(returnOrigin(req({ origin: "https://smart-cook.pro" }))).toBe("https://smart-cook.pro");
+    expect(returnOrigin(req({ origin: "https://www.smart-cook.pro" }))).toBe(
+      "https://www.smart-cook.pro",
+    );
+  });
+
+  it("берёт Referer, если Origin не прислали", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    expect(returnOrigin(req({ referer: "https://smart-cook.pro/premium?plan=year" }))).toBe(
+      "https://smart-cook.pro",
+    );
+  });
+
+  // Сюда приходит АДРЕС ВОЗВРАТА: Robokassa уведёт по нему человека из
+  // платёжной формы. Принять чужой хост — значит согласиться уводить людей
+  // куда попало.
+  it("чужой хост не проходит — откат на канонический домен", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    expect(returnOrigin(req({ origin: "https://evil.example" }))).toBe("https://smartcook.pro");
+    expect(returnOrigin(req({ origin: "https://smartcook.pro.evil.example" }))).toBe(
+      "https://smartcook.pro",
+    );
+    expect(returnOrigin(req({ origin: "https://sub.smartcook.pro" }))).toBe("https://smartcook.pro");
+  });
+
+  it("без заголовков и на мусоре — канонический домен", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    expect(returnOrigin(req({}))).toBe("https://smartcook.pro");
+    expect(returnOrigin(req({ origin: "not-a-url" }))).toBe("https://smartcook.pro");
+  });
+
+  it("на превью — адрес самого превью, чтобы приёмку можно было пройти", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("VERCEL_URL", "smartcook-abc123.vercel.app");
+    expect(returnOrigin(req({ origin: "https://smartcook-abc123.vercel.app" }))).toBe(
+      "https://smartcook-abc123.vercel.app",
+    );
+  });
+
+  it("на БОЕВОМ деплое адрес *.vercel.app адресом возврата не становится", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("VERCEL_ENV", "production");
+    expect(returnOrigin(req({ origin: "https://smartcook-abc123.vercel.app" }))).toBe(
+      "https://smartcook.pro",
+    );
   });
 });

@@ -17,6 +17,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { reachGoal } from "@/lib/metrika";
 import { formatPremiumDate } from "@/lib/premiumPeriod";
+import { useAuthModal } from "@/components/modals/useAuthModal";
+import AuthModal from "@/components/modals/AuthModal";
 import { notifyPremiumStatusChanged } from "@/components/premium/usePremiumStatus";
 import {
   PREMIUM_COLORS as C,
@@ -27,7 +29,7 @@ import {
 const POLL_TOTAL_MS = 30_000;
 const POLL_EVERY_MS = 2_000;
 
-type Phase = "checking" | "done" | "slow" | "failed";
+type Phase = "checking" | "done" | "slow" | "failed" | "anon";
 
 export function PremiumSuccessScreen() {
   const params = useSearchParams();
@@ -37,6 +39,9 @@ export function PremiumSuccessScreen() {
   // Начальное состояние выводится из адреса, а не ставится эффектом: без InvId
   // опрашивать нечего, и сразу показываем «оплата ещё обрабатывается».
   const [phase, setPhase] = useState<Phase>(() => (invId ? "checking" : "slow"));
+  // Счётчик перезапускает опрос после входа: значение меняется — эффект ниже
+  // стартует заново с новой сессией.
+  const [attempt, setAttempt] = useState(0);
   const [until, setUntil] = useState<string | null>(null);
   const [isForever, setIsForever] = useState(false);
   // Цель premium_paid отправляем РОВНО ОДИН раз за экран: опрос повторяется
@@ -75,6 +80,16 @@ export function PremiumSuccessScreen() {
     return false;
   }, [invId]);
 
+  // Вход прямо с этого экрана. Робокасса возвращает человека по ссылке, и
+  // попасть сюда гостем — обычное дело: приложения живут на другом домене,
+  // сессия у каждого origin своя. После входа опрос начинается заново.
+  const auth = useAuthModal({
+    onFinished: () => {
+      setPhase(invId ? "checking" : "slow");
+      setAttempt((n) => n + 1);
+    },
+  });
+
   useEffect(() => {
     if (!invId) return;
     let stop = false;
@@ -82,6 +97,17 @@ export function PremiumSuccessScreen() {
 
     const tick = async () => {
       if (stop) return;
+
+      // Гостю опрашивать нечего: /api/premium/order отдаёт заказ только по
+      // проверенному JWT. Раньше это тонуло в общем «не удалось» и человек
+      // тридцать секунд смотрел «проверяем оплату», а потом получал кнопку в
+      // пустой профиль. Теперь говорим прямо, что надо войти.
+      const { data } = await supabase.auth.getSession();
+      if (!data.session?.access_token) {
+        setPhase("anon");
+        return;
+      }
+
       if (await check()) return;
       if (Date.now() - startedAt >= POLL_TOTAL_MS) {
         setPhase("slow");
@@ -94,7 +120,7 @@ export function PremiumSuccessScreen() {
     return () => {
       stop = true;
     };
-  }, [invId, check]);
+  }, [invId, check, attempt]);
 
   return (
     <div style={premiumScreenStyle}>
@@ -119,6 +145,20 @@ export function PremiumSuccessScreen() {
           </>
         )}
 
+        {phase === "anon" && (
+          <>
+            <h1 style={titleStyle}>Войдите в аккаунт, с которого платили</h1>
+            <p style={textStyle}>Премиум уже там. Деньги ушли — платить второй раз не нужно.</p>
+            <button
+              type="button"
+              onClick={() => auth.open("login")}
+              style={primaryButtonStyle}
+            >
+              Войти
+            </button>
+          </>
+        )}
+
         {phase === "slow" && (
           <>
             <h1 style={titleStyle}>Оплата ещё обрабатывается</h1>
@@ -132,6 +172,8 @@ export function PremiumSuccessScreen() {
           </>
         )}
       </div>
+
+      <AuthModal {...auth.authModalProps} />
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { SITE_HOSTS } from "./site";
+import { SITE_HOSTS, SITE_URL } from "./site";
 
 // Домены, с которых разрешено дергать эндпоинты генерации: основной
 // smartcook.pro и старый smart-cook.pro (оба с www), см. lib/site.ts.
@@ -108,6 +108,39 @@ export function isProductionOrigin(req: Request): boolean {
   const host =
     extractHost(req.headers.get("origin")) ?? extractHost(req.headers.get("referer"));
   return !!host && ALLOWED_HOSTS.has(host);
+}
+
+/**
+ * Origin, на который безопасно ВЕРНУТЬ человека после ухода на внешний сервис
+ * (сейчас — после оплаты в Robokassa). Тот же список хостов, что у
+ * isTrustedOrigin, но здесь нужен не ответ «да/нет», а готовый адрес.
+ *
+ * Зачем вообще: Success/Fail URL в настройках Robokassa — один, на smartcook.pro.
+ * А приложения (iOS-оболочка, Android-TWA) и часть людей живут на старом
+ * smart-cook.pro — это ДРУГОЙ origin, и Web Storage с сессией у него свой.
+ * Человек платил залогиненным, а возвращался на домен, где он гость, и видел
+ * «Создайте аккаунт» вместо своего Премиума. Поэтому адрес возврата
+ * передаётся в саму ссылку оплаты (SuccessUrl2/FailUrl2) — тем доменом, с
+ * которого нажали «Оплатить».
+ *
+ * Чужой или отсутствующий Origin → канонический SITE_URL. Это не просто
+ * запасной вариант: сюда приходит АДРЕС ВОЗВРАТА, то есть страница, на которую
+ * Robokassa уведёт человека из своего интерфейса. Принять его с произвольного
+ * хоста — значит согласиться уводить людей куда попало из платёжной формы.
+ * Отсюда же берётся схема: не додумываем https, а используем ту, что в Origin.
+ */
+export function returnOrigin(req: Request): string {
+  for (const header of ["origin", "referer"] as const) {
+    const raw = req.headers.get(header);
+    if (!raw) continue;
+    try {
+      const url = new URL(raw);
+      if (isAllowedHost(url.host, req)) return url.origin;
+    } catch {
+      // Мусор в заголовке — просто пробуем следующий.
+    }
+  }
+  return SITE_URL;
 }
 
 export function originBlockedResponse() {

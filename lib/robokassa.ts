@@ -18,9 +18,11 @@ import type { RobokassaConfig } from "./robokassaConfig";
 //
 // 1. ПОРЯДОК ПОЛЕЙ В ПОДПИСИ. Исходящая ссылка:
 //        MerchantLogin:OutSum:InvId:<модификаторы>:Пароль#1
-//    Модификаторы идут строго в своём порядке, и Receipt в нём первый. Мы
-//    используем только Receipt, поэтому строка — ровно
-//        MerchantLogin:OutSum:InvId:Receipt:Пароль#1
+//    Модификаторы идут строго в своём порядке — Receipt, StepByStep,
+//    ResultUrl2, SuccessUrl2, SuccessUrl2Method, FailUrl2, FailUrl2Method,
+//    Token — и «добавляются только при наличии»: пустых слотов между ними не
+//    бывает. Мы используем Receipt и пару адресов возврата, поэтому строка —
+//        MerchantLogin:OutSum:InvId:Receipt:SuccessUrl2:GET:FailUrl2:GET:Пароль#1
 //
 // 2. RECEIPT КОДИРУЕТСЯ РАЗНОЕ ЧИСЛО РАЗ В ПОДПИСИ И В АДРЕСЕ. В подпись идёт
 //    ОДИН раз закодированный JSON — раздел «Фискализация»: «перед добавлением
@@ -42,8 +44,16 @@ import type { RobokassaConfig } from "./robokassaConfig";
 //    Robokassa требует ОТДЕЛЬНЫЙ тестовый пароль, и с рабочим 29 приходил на
 //    любое кодирование, даже вообще без Receipt.
 //
+//    ПРАВИЛО ОБЩЕЕ ДЛЯ ВСЕХ ПОДПИСАННЫХ ЗНАЧЕНИЙ, не только для Receipt: так
+//    же ведут себя SuccessUrl2 и FailUrl2 — в подпись один раз, в ссылку два.
+//    Пример в документации (раздел «Дополнительная переадресация») показывает
+//    для них ОДНО кодирование в адресе, и это неверно: такая ссылка на живом
+//    магазине даёт 29, а с двойным кодированием открывается. Пример там вообще
+//    не воспроизводится — приложенный к нему SignatureValue не сходится с
+//    приложенной же строкой подписи, пароль в примере подставной.
+//
 //    Отсюда же ручная сборка query: URLSearchParams закодировал бы и остальные
-//    поля по-своему, а Receipt — третий раз.
+//    поля по-своему, а подписанные значения — третий раз.
 //
 // 3. РАЗНЫЕ ПАРОЛИ НА РАЗНЫХ КОНЦАХ. Исходящая ссылка — Пароль #1. ResultURL
 //    (сервер Robokassa к нам) — Пароль #2. SuccessURL/FailURL (браузер человека
@@ -99,24 +109,70 @@ export function encodeReceipt(receipt: Receipt): string {
   return encodeURIComponent(JSON.stringify(receipt));
 }
 
-/**
- * Receipt для GET-АДРЕСА: то же значение плюс транспортный слой кодирования,
- * который в POST-форме из документации добавил бы браузер (см. пункт 2 в шапке).
- */
-export function encodeReceiptForUrl(receiptEncoded: string): string {
-  return encodeURIComponent(receiptEncoded);
+/** Адрес возврата для СТРОКИ ПОДПИСИ: тоже закодирован один раз. */
+export function encodeReturnUrl(url: string): string {
+  return encodeURIComponent(url);
 }
 
-/** Подпись исходящей ссылки: MerchantLogin:OutSum:InvId:Receipt:Пароль#1. */
+/**
+ * Транспортный слой GET-адреса: ещё один проход кодирования поверх значения,
+ * которое уже ушло в подпись. Общий для Receipt и для адресов возврата — оба
+ * попадают в подпись закодированными один раз, а в ссылку два (см. пункт 2 в
+ * шапке файла).
+ */
+export function toQueryValue(signedValue: string): string {
+  return encodeURIComponent(signedValue);
+}
+
+/**
+ * Адреса возврата, которые переопределяют Success/Fail URL из настроек
+ * магазина. Нужны потому, что в настройках адрес ОДИН, а доменов у нас два.
+ */
+export type ReturnUrls = { success: string; fail: string };
+
+/**
+ * GET, а не POST: возврат — это переход браузера человека на нашу страницу.
+ * POST привёл бы к тому, что страница открывается post-запросом, а обновление
+ * по F5 спрашивает «отправить форму повторно».
+ */
+const RETURN_URL_METHOD = "GET";
+
+/**
+ * Подпись исходящей ссылки.
+ *
+ * Без адресов возврата: MerchantLogin:OutSum:InvId:Receipt:Пароль#1
+ * С адресами:           …:Receipt:SuccessUrl2:SuccessUrl2Method:FailUrl2:FailUrl2Method:Пароль#1
+ *
+ * Порядок модификаторов задан документацией жёстко (Receipt, StepByStep,
+ * ResultUrl2, SuccessUrl2, SuccessUrl2Method, FailUrl2, FailUrl2Method, Token)
+ * и «добавляются только при наличии»: пустых слотов между ними не бывает.
+ * Мы используем Receipt и пару адресов возврата, StepByStep и ResultUrl2 —
+ * нет, поэтому их слоты не занимаем вовсе.
+ */
 export function signPayment(
   config: RobokassaConfig,
-  parts: { outSum: string; invId: number; receiptEncoded: string },
+  parts: {
+    outSum: string;
+    invId: number;
+    receiptEncoded: string;
+    returnUrls?: ReturnUrls | null;
+  },
 ): string {
+  const modifiers = [parts.receiptEncoded];
+  if (parts.returnUrls) {
+    modifiers.push(
+      encodeReturnUrl(parts.returnUrls.success),
+      RETURN_URL_METHOD,
+      encodeReturnUrl(parts.returnUrls.fail),
+      RETURN_URL_METHOD,
+    );
+  }
+
   const base = [
     config.merchantLogin,
     parts.outSum,
     String(parts.invId),
-    parts.receiptEncoded,
+    ...modifiers,
     config.password1,
   ].join(":");
   return hash(config.hashAlgo, base);
@@ -125,11 +181,23 @@ export function signPayment(
 /** Адрес оплаты, куда уводим человека. */
 export function buildPaymentUrl(
   config: RobokassaConfig,
-  order: { invId: number; amountRub: number; description: string },
+  order: {
+    invId: number;
+    amountRub: number;
+    description: string;
+    /** Куда вернуть человека. null — сработают адреса из настроек магазина. */
+    returnUrls?: ReturnUrls | null;
+  },
 ): string {
   const outSum = formatOutSum(order.amountRub);
   const receiptEncoded = encodeReceipt(buildReceipt(order.description, order.amountRub));
-  const signature = signPayment(config, { outSum, invId: order.invId, receiptEncoded });
+  const returnUrls = order.returnUrls ?? null;
+  const signature = signPayment(config, {
+    outSum,
+    invId: order.invId,
+    receiptEncoded,
+    returnUrls,
+  });
 
   // Собираем query руками: у Receipt в адресе своё число проходов кодирования,
   // отличное от того, что ушло в подпись (см. пункт 2 в шапке файла).
@@ -138,11 +206,17 @@ export function buildPaymentUrl(
     `OutSum=${encodeURIComponent(outSum)}`,
     `InvId=${order.invId}`,
     `Description=${encodeURIComponent(order.description)}`,
-    `Receipt=${encodeReceiptForUrl(receiptEncoded)}`,
-    `SignatureValue=${signature}`,
-    `Culture=ru`,
-    `Encoding=utf-8`,
+    `Receipt=${toQueryValue(receiptEncoded)}`,
   ];
+  if (returnUrls) {
+    pairs.push(
+      `SuccessUrl2=${toQueryValue(encodeReturnUrl(returnUrls.success))}`,
+      `SuccessUrl2Method=${RETURN_URL_METHOD}`,
+      `FailUrl2=${toQueryValue(encodeReturnUrl(returnUrls.fail))}`,
+      `FailUrl2Method=${RETURN_URL_METHOD}`,
+    );
+  }
+  pairs.push(`SignatureValue=${signature}`, `Culture=ru`, `Encoding=utf-8`);
   if (config.isTest) pairs.push("IsTest=1");
 
   return `${ROBOKASSA_PAYMENT_URL}?${pairs.join("&")}`;

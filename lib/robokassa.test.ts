@@ -303,3 +303,88 @@ describe("isTestNotification — тестовая оплата не выдаёт
     expect(isTestNotification(p)).toBe(true);
   });
 });
+
+describe("адреса возврата SuccessUrl2 / FailUrl2", () => {
+  const RETURN = {
+    success: "https://smart-cook.pro/premium/success",
+    fail: "https://smart-cook.pro/premium/fail",
+  };
+  const url = buildPaymentUrl(CONFIG, {
+    invId: 42,
+    amountRub: 169,
+    description: "Премиум SmartCook — 1 год",
+    returnUrls: RETURN,
+  });
+  const receiptEncoded = encodeReceipt(buildReceipt("Премиум SmartCook — 1 год", 169));
+
+  // Порядок модификаторов задан документацией жёстко; перепутать местами
+  // FailUrl2 и метод — значит получить код 29 на каждой оплате.
+  it("подпись: MerchantLogin:OutSum:InvId:Receipt:SuccessUrl2:GET:FailUrl2:GET:Пароль#1", () => {
+    const expected = md5(
+      [
+        "demo",
+        "169.00",
+        "42",
+        receiptEncoded,
+        encodeURIComponent(RETURN.success),
+        "GET",
+        encodeURIComponent(RETURN.fail),
+        "GET",
+        "password_1",
+      ].join(":"),
+    );
+
+    expect(url).toContain(`SignatureValue=${expected}`);
+    expect(signPayment(CONFIG, {
+      outSum: "169.00",
+      invId: 42,
+      receiptEncoded,
+      returnUrls: RETURN,
+    })).toBe(expected);
+  });
+
+  // Правило то же, что у Receipt: в подпись значение уходит закодированным
+  // ОДИН раз, в адрес — ДВА. Пример в документации (раздел «Дополнительная
+  // переадресация») показывает для адресов одно кодирование, и это неверно:
+  // такая ссылка на живом магазине отвечает кодом 29, проверено 26.09.2026.
+  it("в адресе URL-ы закодированы ДВАЖДЫ — после одного декодирования дают строку подписи", () => {
+    const successPart = url.split("SuccessUrl2=")[1].split("&")[0];
+
+    expect(successPart).toBe(encodeURIComponent(encodeURIComponent(RETURN.success)));
+    // Второй проход превращает % в %25 — признак, что транспортный слой на месте.
+    expect(successPart).toContain("%25");
+    // Один раз декодировали (это сделает Robokassa) → получили подписанное.
+    expect(decodeURIComponent(successPart)).toBe(encodeURIComponent(RETURN.success));
+    // Два раза → сам адрес.
+    expect(decodeURIComponent(decodeURIComponent(successPart))).toBe(RETURN.success);
+  });
+
+  it("то же правило, что у Receipt — оба значения с двойным кодированием", () => {
+    expect(url.split("Receipt=")[1].split("&")[0]).toContain("%25");
+    expect(url.split("FailUrl2=")[1].split("&")[0]).toContain("%25");
+  });
+
+  it("методы возврата — GET у обоих адресов", () => {
+    expect(url).toContain("SuccessUrl2Method=GET");
+    expect(url).toContain("FailUrl2Method=GET");
+  });
+
+  it("FailUrl2 тоже в адресе", () => {
+    expect(url).toContain(`FailUrl2=${encodeURIComponent(encodeURIComponent(RETURN.fail))}`);
+  });
+
+  // Модификаторы «добавляются только при наличии»: без адресов возврата их
+  // слоты не занимаются вовсе, иначе подпись разойдётся.
+  it("без адресов возврата ссылка и подпись прежние", () => {
+    const plain = buildPaymentUrl(CONFIG, {
+      invId: 42,
+      amountRub: 169,
+      description: "Премиум SmartCook — 1 год",
+    });
+    expect(plain).not.toContain("SuccessUrl2");
+    expect(plain).not.toContain("FailUrl2");
+    expect(plain).toContain(
+      `SignatureValue=${md5(`demo:169.00:42:${receiptEncoded}:password_1`)}`,
+    );
+  });
+});

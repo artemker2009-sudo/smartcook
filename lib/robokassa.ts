@@ -18,9 +18,11 @@ import type { RobokassaConfig } from "./robokassaConfig";
 //
 // 1. ПОРЯДОК ПОЛЕЙ В ПОДПИСИ. Исходящая ссылка:
 //        MerchantLogin:OutSum:InvId:<модификаторы>:Пароль#1
-//    Модификаторы идут строго в своём порядке, и Receipt в нём первый. Мы
-//    используем только Receipt, поэтому строка — ровно
-//        MerchantLogin:OutSum:InvId:Receipt:Пароль#1
+//    Модификаторы идут строго в своём порядке — Receipt, StepByStep,
+//    ResultUrl2, SuccessUrl2, SuccessUrl2Method, FailUrl2, FailUrl2Method,
+//    Token — и «добавляются только при наличии»: пустых слотов между ними не
+//    бывает. Мы используем Receipt и пару адресов возврата, поэтому строка —
+//        MerchantLogin:OutSum:InvId:Receipt:SuccessUrl2:GET:FailUrl2:GET:Пароль#1
 //
 // 2. RECEIPT КОДИРУЕТСЯ РАЗНОЕ ЧИСЛО РАЗ В ПОДПИСИ И В АДРЕСЕ. В подпись идёт
 //    ОДИН раз закодированный JSON — раздел «Фискализация»: «перед добавлением
@@ -107,16 +109,70 @@ export function encodeReceiptForUrl(receiptEncoded: string): string {
   return encodeURIComponent(receiptEncoded);
 }
 
-/** Подпись исходящей ссылки: MerchantLogin:OutSum:InvId:Receipt:Пароль#1. */
+/**
+ * Адреса возврата, которые переопределяют Success/Fail URL из настроек
+ * магазина. Нужны потому, что в настройках адрес ОДИН, а доменов у нас два.
+ */
+export type ReturnUrls = { success: string; fail: string };
+
+/**
+ * GET, а не POST: возврат — это переход браузера человека на нашу страницу.
+ * POST привёл бы к тому, что страница открывается post-запросом, а обновление
+ * по F5 спрашивает «отправить форму повторно».
+ */
+const RETURN_URL_METHOD = "GET";
+
+/**
+ * URL возврата для подписи И для адреса — ОДИН проход кодирования в обоих
+ * местах, в отличие от Receipt.
+ *
+ * Асимметрия не наша выдумка, она прямо в примере документации (раздел
+ * «Дополнительная переадресация»): там в адресе стоит
+ * `SuccessUrl2=https%3A%2F%2Frobokassa.com%2F`, и ровно эта же строка стоит в
+ * строке подписи, — тогда как Receipt в том же примере в адресе закодирован
+ * дважды, а в подписи один раз. Похоже, Robokassa декодирует query один раз и
+ * при сборке строки подписи кодирует адреса обратно, а Receipt берёт как есть.
+ */
+export function encodeReturnUrl(url: string): string {
+  return encodeURIComponent(url);
+}
+
+/**
+ * Подпись исходящей ссылки.
+ *
+ * Без адресов возврата: MerchantLogin:OutSum:InvId:Receipt:Пароль#1
+ * С адресами:           …:Receipt:SuccessUrl2:SuccessUrl2Method:FailUrl2:FailUrl2Method:Пароль#1
+ *
+ * Порядок модификаторов задан документацией жёстко (Receipt, StepByStep,
+ * ResultUrl2, SuccessUrl2, SuccessUrl2Method, FailUrl2, FailUrl2Method, Token)
+ * и «добавляются только при наличии»: пустых слотов между ними не бывает.
+ * Мы используем Receipt и пару адресов возврата, StepByStep и ResultUrl2 —
+ * нет, поэтому их слоты не занимаем вовсе.
+ */
 export function signPayment(
   config: RobokassaConfig,
-  parts: { outSum: string; invId: number; receiptEncoded: string },
+  parts: {
+    outSum: string;
+    invId: number;
+    receiptEncoded: string;
+    returnUrls?: ReturnUrls | null;
+  },
 ): string {
+  const modifiers = [parts.receiptEncoded];
+  if (parts.returnUrls) {
+    modifiers.push(
+      encodeReturnUrl(parts.returnUrls.success),
+      RETURN_URL_METHOD,
+      encodeReturnUrl(parts.returnUrls.fail),
+      RETURN_URL_METHOD,
+    );
+  }
+
   const base = [
     config.merchantLogin,
     parts.outSum,
     String(parts.invId),
-    parts.receiptEncoded,
+    ...modifiers,
     config.password1,
   ].join(":");
   return hash(config.hashAlgo, base);
@@ -125,11 +181,23 @@ export function signPayment(
 /** Адрес оплаты, куда уводим человека. */
 export function buildPaymentUrl(
   config: RobokassaConfig,
-  order: { invId: number; amountRub: number; description: string },
+  order: {
+    invId: number;
+    amountRub: number;
+    description: string;
+    /** Куда вернуть человека. null — сработают адреса из настроек магазина. */
+    returnUrls?: ReturnUrls | null;
+  },
 ): string {
   const outSum = formatOutSum(order.amountRub);
   const receiptEncoded = encodeReceipt(buildReceipt(order.description, order.amountRub));
-  const signature = signPayment(config, { outSum, invId: order.invId, receiptEncoded });
+  const returnUrls = order.returnUrls ?? null;
+  const signature = signPayment(config, {
+    outSum,
+    invId: order.invId,
+    receiptEncoded,
+    returnUrls,
+  });
 
   // Собираем query руками: у Receipt в адресе своё число проходов кодирования,
   // отличное от того, что ушло в подпись (см. пункт 2 в шапке файла).
@@ -139,10 +207,16 @@ export function buildPaymentUrl(
     `InvId=${order.invId}`,
     `Description=${encodeURIComponent(order.description)}`,
     `Receipt=${encodeReceiptForUrl(receiptEncoded)}`,
-    `SignatureValue=${signature}`,
-    `Culture=ru`,
-    `Encoding=utf-8`,
   ];
+  if (returnUrls) {
+    pairs.push(
+      `SuccessUrl2=${encodeReturnUrl(returnUrls.success)}`,
+      `SuccessUrl2Method=${RETURN_URL_METHOD}`,
+      `FailUrl2=${encodeReturnUrl(returnUrls.fail)}`,
+      `FailUrl2Method=${RETURN_URL_METHOD}`,
+    );
+  }
+  pairs.push(`SignatureValue=${signature}`, `Culture=ru`, `Encoding=utf-8`);
   if (config.isTest) pairs.push("IsTest=1");
 
   return `${ROBOKASSA_PAYMENT_URL}?${pairs.join("&")}`;

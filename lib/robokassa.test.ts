@@ -139,19 +139,33 @@ describe("buildPaymentUrl", () => {
     expect(url).toContain("OutSum=169.00");
   });
 
-  it("Receipt в адресе — ровно та строка, что попала в подпись", () => {
+  it("подпись считается по ОДИН раз закодированному Receipt", () => {
     const receiptEncoded = encodeReceipt(buildReceipt("Премиум SmartCook — 1 год", 169));
     const expected = signPayment(CONFIG, { outSum: "169.00", invId: 42, receiptEncoded });
 
-    expect(url).toContain(`Receipt=${receiptEncoded}`);
     expect(url).toContain(`SignatureValue=${expected}`);
   });
 
-  it("Receipt не закодирован ВТОРОЙ раз — иначе подпись не сойдётся", () => {
-    // Двойное кодирование превратило бы % в %25. Его тут быть не должно.
+  // Ровно то, из-за чего живая тестовая оплата отвечала кодом 29 (26.09.2026).
+  // В GET-адресе нет транспортного слоя кодирования, который в POST-форме из
+  // документации добавляет браузер, — поэтому Receipt здесь закодирован ВТОРОЙ
+  // раз. Robokassa снимает один слой и получает ровно ту строку, что подписана.
+  it("Receipt в адресе закодирован ВТОРОЙ раз — после декодирования даёт строку подписи", () => {
+    const receiptEncoded = encodeReceipt(buildReceipt("Премиум SmartCook — 1 год", 169));
     const receiptPart = url.split("Receipt=")[1].split("&")[0];
-    expect(receiptPart).not.toContain("%25");
-    expect(decodeURIComponent(receiptPart)).toContain('"tax":"none"');
+
+    expect(receiptPart).toBe(encodeURIComponent(receiptEncoded));
+    // Второй проход превращает % в %25 — признак, что слой на месте.
+    expect(receiptPart).toContain("%25");
+    // Один раз декодировали (это сделает Robokassa) → получили подписанное.
+    expect(decodeURIComponent(receiptPart)).toBe(receiptEncoded);
+    // Два раза → сам JSON.
+    expect(decodeURIComponent(decodeURIComponent(receiptPart))).toContain('"tax":"none"');
+  });
+
+  it("в адресе НЕ лежит строка подписи как есть — это и была ошибка 29", () => {
+    const receiptEncoded = encodeReceipt(buildReceipt("Премиум SmartCook — 1 год", 169));
+    expect(url).not.toContain(`Receipt=${receiptEncoded}&`);
   });
 
   it("IsTest появляется только в тестовом режиме", () => {

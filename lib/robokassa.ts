@@ -44,8 +44,16 @@ import type { RobokassaConfig } from "./robokassaConfig";
 //    Robokassa требует ОТДЕЛЬНЫЙ тестовый пароль, и с рабочим 29 приходил на
 //    любое кодирование, даже вообще без Receipt.
 //
+//    ПРАВИЛО ОБЩЕЕ ДЛЯ ВСЕХ ПОДПИСАННЫХ ЗНАЧЕНИЙ, не только для Receipt: так
+//    же ведут себя SuccessUrl2 и FailUrl2 — в подпись один раз, в ссылку два.
+//    Пример в документации (раздел «Дополнительная переадресация») показывает
+//    для них ОДНО кодирование в адресе, и это неверно: такая ссылка на живом
+//    магазине даёт 29, а с двойным кодированием открывается. Пример там вообще
+//    не воспроизводится — приложенный к нему SignatureValue не сходится с
+//    приложенной же строкой подписи, пароль в примере подставной.
+//
 //    Отсюда же ручная сборка query: URLSearchParams закодировал бы и остальные
-//    поля по-своему, а Receipt — третий раз.
+//    поля по-своему, а подписанные значения — третий раз.
 //
 // 3. РАЗНЫЕ ПАРОЛИ НА РАЗНЫХ КОНЦАХ. Исходящая ссылка — Пароль #1. ResultURL
 //    (сервер Robokassa к нам) — Пароль #2. SuccessURL/FailURL (браузер человека
@@ -101,12 +109,19 @@ export function encodeReceipt(receipt: Receipt): string {
   return encodeURIComponent(JSON.stringify(receipt));
 }
 
+/** Адрес возврата для СТРОКИ ПОДПИСИ: тоже закодирован один раз. */
+export function encodeReturnUrl(url: string): string {
+  return encodeURIComponent(url);
+}
+
 /**
- * Receipt для GET-АДРЕСА: то же значение плюс транспортный слой кодирования,
- * который в POST-форме из документации добавил бы браузер (см. пункт 2 в шапке).
+ * Транспортный слой GET-адреса: ещё один проход кодирования поверх значения,
+ * которое уже ушло в подпись. Общий для Receipt и для адресов возврата — оба
+ * попадают в подпись закодированными один раз, а в ссылку два (см. пункт 2 в
+ * шапке файла).
  */
-export function encodeReceiptForUrl(receiptEncoded: string): string {
-  return encodeURIComponent(receiptEncoded);
+export function toQueryValue(signedValue: string): string {
+  return encodeURIComponent(signedValue);
 }
 
 /**
@@ -121,21 +136,6 @@ export type ReturnUrls = { success: string; fail: string };
  * по F5 спрашивает «отправить форму повторно».
  */
 const RETURN_URL_METHOD = "GET";
-
-/**
- * URL возврата для подписи И для адреса — ОДИН проход кодирования в обоих
- * местах, в отличие от Receipt.
- *
- * Асимметрия не наша выдумка, она прямо в примере документации (раздел
- * «Дополнительная переадресация»): там в адресе стоит
- * `SuccessUrl2=https%3A%2F%2Frobokassa.com%2F`, и ровно эта же строка стоит в
- * строке подписи, — тогда как Receipt в том же примере в адресе закодирован
- * дважды, а в подписи один раз. Похоже, Robokassa декодирует query один раз и
- * при сборке строки подписи кодирует адреса обратно, а Receipt берёт как есть.
- */
-export function encodeReturnUrl(url: string): string {
-  return encodeURIComponent(url);
-}
 
 /**
  * Подпись исходящей ссылки.
@@ -206,13 +206,13 @@ export function buildPaymentUrl(
     `OutSum=${encodeURIComponent(outSum)}`,
     `InvId=${order.invId}`,
     `Description=${encodeURIComponent(order.description)}`,
-    `Receipt=${encodeReceiptForUrl(receiptEncoded)}`,
+    `Receipt=${toQueryValue(receiptEncoded)}`,
   ];
   if (returnUrls) {
     pairs.push(
-      `SuccessUrl2=${encodeReturnUrl(returnUrls.success)}`,
+      `SuccessUrl2=${toQueryValue(encodeReturnUrl(returnUrls.success))}`,
       `SuccessUrl2Method=${RETURN_URL_METHOD}`,
-      `FailUrl2=${encodeReturnUrl(returnUrls.fail)}`,
+      `FailUrl2=${toQueryValue(encodeReturnUrl(returnUrls.fail))}`,
       `FailUrl2Method=${RETURN_URL_METHOD}`,
     );
   }

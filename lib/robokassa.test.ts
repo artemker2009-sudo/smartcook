@@ -343,16 +343,25 @@ describe("адреса возврата SuccessUrl2 / FailUrl2", () => {
     })).toBe(expected);
   });
 
-  // Асимметрия с Receipt: адреса кодируются ОДИН раз и в подписи, и в адресе,
-  // Receipt — один раз в подписи и два в адресе. Так в примере документации
-  // (раздел «Дополнительная переадресация»).
-  it("в адресе URL-ы закодированы ОДИН раз, в отличие от Receipt", () => {
+  // Правило то же, что у Receipt: в подпись значение уходит закодированным
+  // ОДИН раз, в адрес — ДВА. Пример в документации (раздел «Дополнительная
+  // переадресация») показывает для адресов одно кодирование, и это неверно:
+  // такая ссылка на живом магазине отвечает кодом 29, проверено 26.09.2026.
+  it("в адресе URL-ы закодированы ДВАЖДЫ — после одного декодирования дают строку подписи", () => {
     const successPart = url.split("SuccessUrl2=")[1].split("&")[0];
-    expect(successPart).toBe(encodeURIComponent(RETURN.success));
-    expect(decodeURIComponent(successPart)).toBe(RETURN.success);
-    // Один проход: %25 здесь быть не должно (в Receipt — должно).
-    expect(successPart).not.toContain("%25");
+
+    expect(successPart).toBe(encodeURIComponent(encodeURIComponent(RETURN.success)));
+    // Второй проход превращает % в %25 — признак, что транспортный слой на месте.
+    expect(successPart).toContain("%25");
+    // Один раз декодировали (это сделает Robokassa) → получили подписанное.
+    expect(decodeURIComponent(successPart)).toBe(encodeURIComponent(RETURN.success));
+    // Два раза → сам адрес.
+    expect(decodeURIComponent(decodeURIComponent(successPart))).toBe(RETURN.success);
+  });
+
+  it("то же правило, что у Receipt — оба значения с двойным кодированием", () => {
     expect(url.split("Receipt=")[1].split("&")[0]).toContain("%25");
+    expect(url.split("FailUrl2=")[1].split("&")[0]).toContain("%25");
   });
 
   it("методы возврата — GET у обоих адресов", () => {
@@ -361,7 +370,7 @@ describe("адреса возврата SuccessUrl2 / FailUrl2", () => {
   });
 
   it("FailUrl2 тоже в адресе", () => {
-    expect(url).toContain(`FailUrl2=${encodeURIComponent(RETURN.fail)}`);
+    expect(url).toContain(`FailUrl2=${encodeURIComponent(encodeURIComponent(RETURN.fail))}`);
   });
 
   // Модификаторы «добавляются только при наличии»: без адресов возврата их

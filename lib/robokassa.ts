@@ -22,11 +22,28 @@ import type { RobokassaConfig } from "./robokassaConfig";
 //    используем только Receipt, поэтому строка — ровно
 //        MerchantLogin:OutSum:InvId:Receipt:Пароль#1
 //
-// 2. RECEIPT ПОДПИСЫВАЕТСЯ УЖЕ URL-КОДИРОВАННЫМ. В документации пример именно
-//    такой: в md5 уходит строка вида %7B%22items%22%3A… Поэтому кодируем один
-//    раз и ту же строку кладём и в подпись, и в адрес. Отсюда же ручная сборка
-//    query: URLSearchParams закодировал бы её ВТОРОЙ раз, и подпись перестала
-//    бы сходиться.
+// 2. RECEIPT КОДИРУЕТСЯ РАЗНОЕ ЧИСЛО РАЗ В ПОДПИСИ И В АДРЕСЕ. В подпись идёт
+//    ОДИН раз закодированный JSON — раздел «Фискализация»: «перед добавлением
+//    в строку для подписи значение Receipt нужно URL-кодировать». Это строка
+//    вида %7B%22items%22%3A…, ровно как в примере документации; сверено
+//    побайтово тестом. А в GET-адрес та же строка идёт закодированной ВТОРОЙ
+//    раз (%257B%2522items%2522…).
+//
+//    Почему так. Пример в документации — форма POST: браузер добавляет
+//    транспортный слой URL-кодирования сам, сервер Robokassa его снимает и
+//    получает ровно ту строку, которую мы подписали. В GET-ссылке такого слоя
+//    нет, и если положить в адрес один раз закодированный Receipt, Robokassa
+//    после своего единственного декодирования увидит СЫРОЙ JSON — не то, что
+//    подписано, — и ответит кодом 29. Поэтому второй проход добавляем руками.
+//
+//    Проверено живой тестовой оплатой 26.09.2026: один раз — код 29, дважды
+//    (с той же подписью) — открывается страница оплаты. До этого опыт врал
+//    в обе стороны, потому что не сходился сам Пароль #1: тестовый режим
+//    Robokassa требует ОТДЕЛЬНЫЙ тестовый пароль, и с рабочим 29 приходил на
+//    любое кодирование, даже вообще без Receipt.
+//
+//    Отсюда же ручная сборка query: URLSearchParams закодировал бы и остальные
+//    поля по-своему, а Receipt — третий раз.
 //
 // 3. РАЗНЫЕ ПАРОЛИ НА РАЗНЫХ КОНЦАХ. Исходящая ссылка — Пароль #1. ResultURL
 //    (сервер Robokassa к нам) — Пароль #2. SuccessURL/FailURL (браузер человека
@@ -77,9 +94,17 @@ export function buildReceipt(description: string, amountRub: number): Receipt {
   };
 }
 
-/** Тот самый «один раз закодированный» Receipt: и в подпись, и в адрес. */
+/** Receipt для СТРОКИ ПОДПИСИ: JSON, закодированный один раз. */
 export function encodeReceipt(receipt: Receipt): string {
   return encodeURIComponent(JSON.stringify(receipt));
+}
+
+/**
+ * Receipt для GET-АДРЕСА: то же значение плюс транспортный слой кодирования,
+ * который в POST-форме из документации добавил бы браузер (см. пункт 2 в шапке).
+ */
+export function encodeReceiptForUrl(receiptEncoded: string): string {
+  return encodeURIComponent(receiptEncoded);
 }
 
 /** Подпись исходящей ссылки: MerchantLogin:OutSum:InvId:Receipt:Пароль#1. */
@@ -106,14 +131,14 @@ export function buildPaymentUrl(
   const receiptEncoded = encodeReceipt(buildReceipt(order.description, order.amountRub));
   const signature = signPayment(config, { outSum, invId: order.invId, receiptEncoded });
 
-  // Собираем query руками: Receipt уже закодирован, и второй проход
-  // кодирования сломал бы подпись (см. пункт 2 в шапке файла).
+  // Собираем query руками: у Receipt в адресе своё число проходов кодирования,
+  // отличное от того, что ушло в подпись (см. пункт 2 в шапке файла).
   const pairs: string[] = [
     `MerchantLogin=${encodeURIComponent(config.merchantLogin)}`,
     `OutSum=${encodeURIComponent(outSum)}`,
     `InvId=${order.invId}`,
     `Description=${encodeURIComponent(order.description)}`,
-    `Receipt=${receiptEncoded}`,
+    `Receipt=${encodeReceiptForUrl(receiptEncoded)}`,
     `SignatureValue=${signature}`,
     `Culture=ru`,
     `Encoding=utf-8`,

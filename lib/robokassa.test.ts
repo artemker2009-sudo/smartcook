@@ -12,6 +12,7 @@ import {
   verifyResultSignature,
   ROBOKASSA_PAYMENT_URL,
 } from "./robokassa";
+import type { Receipt } from "./robokassa";
 // Тип, а не значение: robokassaConfig.ts помечен server-only и в тесты не
 // тянется — import type esbuild стирает целиком.
 import type { RobokassaConfig } from "./robokassaConfig";
@@ -28,15 +29,58 @@ const CONFIG: RobokassaConfig = {
 
 const md5 = (s: string) => createHash("md5").update(s, "utf8").digest("hex");
 
+// Дословный $receipt из примера PHP в docs.robokassa.ru/ru/pay-interface
+// («товарная номенклатура в url encode»). Значения тоже оттуда: out_sum 8.96,
+// invid 12345. Строка вставлена как есть, а не собрана кодом, — иначе тест
+// проверял бы наш же encodeURIComponent сам собой.
+const DOC_RECEIPT_ENCODED =
+  "%7B%22items%22%3A%5B%7B%22name%22%3A%22product%22%2C%22quantity%22%3A1%2C%22sum%22%3A8.96%2C%22tax%22%3A%22none%22%7D%5D%7D";
+
 describe("подпись исходящей ссылки — пример из документации", () => {
   // docs.robokassa.ru, раздел с примерами кода:
   //   md5("$merchant_login:$out_sum:$invid:$receipt:$password_1")
   // где $receipt — УЖЕ URL-кодированный минимизированный JSON.
   it("повторяет формулу MerchantLogin:OutSum:InvId:Receipt:Пароль#1", () => {
-    const receiptEncoded = encodeURIComponent('{"items":[{"name":"product","quantity":1,"sum":8.96}]}');
-    const signature = signPayment(CONFIG, { outSum: "8.96", invId: 12345, receiptEncoded });
+    const signature = signPayment(CONFIG, {
+      outSum: "8.96",
+      invId: 12345,
+      receiptEncoded: DOC_RECEIPT_ENCODED,
+    });
 
-    expect(signature).toBe(md5(`demo:8.96:12345:${receiptEncoded}:password_1`));
+    expect(signature).toBe(md5(`demo:8.96:12345:${DOC_RECEIPT_ENCODED}:password_1`));
+  });
+
+  // Ровно то, на чём легко разойтись с Robokassa: раздел «Фискализация» пишет
+  // «перед добавлением в строку для подписи значение Receipt нужно
+  // URL-кодировать» — и в подпись уходит именно ОДИН раз закодированный JSON.
+  // Проверяем побайтово против строки из документации: наш encodeReceipt должен
+  // давать её же, иначе подпись разойдётся на первом же платеже.
+  it("encodeReceipt даёт ту же строку, что в примере документации", () => {
+    const ours = encodeReceipt({
+      items: [
+        {
+          name: "product",
+          quantity: 1,
+          sum: 8.96,
+          tax: "none",
+          // Документационный пример короче нашего чека: этих двух полей в нём
+          // нет. Приводим к его форме через каст, чтобы сравнение было
+          // побайтовым, а не «похожим».
+        } as unknown as Receipt["items"][number],
+      ],
+    });
+
+    expect(ours).toBe(DOC_RECEIPT_ENCODED);
+  });
+
+  it("MD5 в нижнем регистре и длиной 32 — как отдаёт crypto", () => {
+    const signature = signPayment(CONFIG, {
+      outSum: "8.96",
+      invId: 12345,
+      receiptEncoded: DOC_RECEIPT_ENCODED,
+    });
+    expect(signature).toHaveLength(32);
+    expect(signature).toBe(signature.toLowerCase());
   });
 
   it("sha256 берётся, когда так настроен магазин", () => {
@@ -95,19 +139,33 @@ describe("buildPaymentUrl", () => {
     expect(url).toContain("OutSum=169.00");
   });
 
-  it("Receipt в адресе — ровно та строка, что попала в подпись", () => {
+  it("подпись считается по ОДИН раз закодированному Receipt", () => {
     const receiptEncoded = encodeReceipt(buildReceipt("Премиум SmartCook — 1 год", 169));
     const expected = signPayment(CONFIG, { outSum: "169.00", invId: 42, receiptEncoded });
 
-    expect(url).toContain(`Receipt=${receiptEncoded}`);
     expect(url).toContain(`SignatureValue=${expected}`);
   });
 
-  it("Receipt не закодирован ВТОРОЙ раз — иначе подпись не сойдётся", () => {
-    // Двойное кодирование превратило бы % в %25. Его тут быть не должно.
+  // Ровно то, из-за чего живая тестовая оплата отвечала кодом 29 (26.09.2026).
+  // В GET-адресе нет транспортного слоя кодирования, который в POST-форме из
+  // документации добавляет браузер, — поэтому Receipt здесь закодирован ВТОРОЙ
+  // раз. Robokassa снимает один слой и получает ровно ту строку, что подписана.
+  it("Receipt в адресе закодирован ВТОРОЙ раз — после декодирования даёт строку подписи", () => {
+    const receiptEncoded = encodeReceipt(buildReceipt("Премиум SmartCook — 1 год", 169));
     const receiptPart = url.split("Receipt=")[1].split("&")[0];
-    expect(receiptPart).not.toContain("%25");
-    expect(decodeURIComponent(receiptPart)).toContain('"tax":"none"');
+
+    expect(receiptPart).toBe(encodeURIComponent(receiptEncoded));
+    // Второй проход превращает % в %25 — признак, что слой на месте.
+    expect(receiptPart).toContain("%25");
+    // Один раз декодировали (это сделает Robokassa) → получили подписанное.
+    expect(decodeURIComponent(receiptPart)).toBe(receiptEncoded);
+    // Два раза → сам JSON.
+    expect(decodeURIComponent(decodeURIComponent(receiptPart))).toContain('"tax":"none"');
+  });
+
+  it("в адресе НЕ лежит строка подписи как есть — это и была ошибка 29", () => {
+    const receiptEncoded = encodeReceipt(buildReceipt("Премиум SmartCook — 1 год", 169));
+    expect(url).not.toContain(`Receipt=${receiptEncoded}&`);
   });
 
   it("IsTest появляется только в тестовом режиме", () => {

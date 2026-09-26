@@ -12,6 +12,7 @@ import {
   verifyResultSignature,
   ROBOKASSA_PAYMENT_URL,
 } from "./robokassa";
+import type { Receipt } from "./robokassa";
 // Тип, а не значение: robokassaConfig.ts помечен server-only и в тесты не
 // тянется — import type esbuild стирает целиком.
 import type { RobokassaConfig } from "./robokassaConfig";
@@ -28,15 +29,58 @@ const CONFIG: RobokassaConfig = {
 
 const md5 = (s: string) => createHash("md5").update(s, "utf8").digest("hex");
 
+// Дословный $receipt из примера PHP в docs.robokassa.ru/ru/pay-interface
+// («товарная номенклатура в url encode»). Значения тоже оттуда: out_sum 8.96,
+// invid 12345. Строка вставлена как есть, а не собрана кодом, — иначе тест
+// проверял бы наш же encodeURIComponent сам собой.
+const DOC_RECEIPT_ENCODED =
+  "%7B%22items%22%3A%5B%7B%22name%22%3A%22product%22%2C%22quantity%22%3A1%2C%22sum%22%3A8.96%2C%22tax%22%3A%22none%22%7D%5D%7D";
+
 describe("подпись исходящей ссылки — пример из документации", () => {
   // docs.robokassa.ru, раздел с примерами кода:
   //   md5("$merchant_login:$out_sum:$invid:$receipt:$password_1")
   // где $receipt — УЖЕ URL-кодированный минимизированный JSON.
   it("повторяет формулу MerchantLogin:OutSum:InvId:Receipt:Пароль#1", () => {
-    const receiptEncoded = encodeURIComponent('{"items":[{"name":"product","quantity":1,"sum":8.96}]}');
-    const signature = signPayment(CONFIG, { outSum: "8.96", invId: 12345, receiptEncoded });
+    const signature = signPayment(CONFIG, {
+      outSum: "8.96",
+      invId: 12345,
+      receiptEncoded: DOC_RECEIPT_ENCODED,
+    });
 
-    expect(signature).toBe(md5(`demo:8.96:12345:${receiptEncoded}:password_1`));
+    expect(signature).toBe(md5(`demo:8.96:12345:${DOC_RECEIPT_ENCODED}:password_1`));
+  });
+
+  // Ровно то, на чём легко разойтись с Robokassa: раздел «Фискализация» пишет
+  // «перед добавлением в строку для подписи значение Receipt нужно
+  // URL-кодировать» — и в подпись уходит именно ОДИН раз закодированный JSON.
+  // Проверяем побайтово против строки из документации: наш encodeReceipt должен
+  // давать её же, иначе подпись разойдётся на первом же платеже.
+  it("encodeReceipt даёт ту же строку, что в примере документации", () => {
+    const ours = encodeReceipt({
+      items: [
+        {
+          name: "product",
+          quantity: 1,
+          sum: 8.96,
+          tax: "none",
+          // Документационный пример короче нашего чека: этих двух полей в нём
+          // нет. Приводим к его форме через каст, чтобы сравнение было
+          // побайтовым, а не «похожим».
+        } as unknown as Receipt["items"][number],
+      ],
+    });
+
+    expect(ours).toBe(DOC_RECEIPT_ENCODED);
+  });
+
+  it("MD5 в нижнем регистре и длиной 32 — как отдаёт crypto", () => {
+    const signature = signPayment(CONFIG, {
+      outSum: "8.96",
+      invId: 12345,
+      receiptEncoded: DOC_RECEIPT_ENCODED,
+    });
+    expect(signature).toHaveLength(32);
+    expect(signature).toBe(signature.toLowerCase());
   });
 
   it("sha256 берётся, когда так настроен магазин", () => {
